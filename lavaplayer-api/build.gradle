@@ -1,0 +1,16 @@
+// mod <-> LavaPlayer impl の橋渡し interface のみ。
+// MC / NeoForge には一切依存しない (隔離 classloader と mod classloader の両方から
+// 同一クラスとして見える必要があるため、依存ゼロの素の java で保つ)。
+plugins {
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

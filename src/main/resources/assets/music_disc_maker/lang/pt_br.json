@@ -1,0 +1,21 @@
+{
+  "block.music_disc_maker.music_disc_maker": "Fabricante de discos",
+  "item.music_disc_maker.blank_disc": "Disco em branco",
+  "item.music_disc_maker.custom_music_disc": "Disco personalizado",
+
+  "gui.music_disc_maker.title": "Fabricante de discos",
+  "gui.music_disc_maker.url_placeholder": "Cole uma URL aqui…",
+  "gui.music_disc_maker.fetching": "Carregando…",
+  "gui.music_disc_maker.failed": "Falhou",
+  "gui.music_disc_maker.hint": "Cole uma URL + insira um disco em branco",
+
+  "tooltip.music_disc_maker.artist": "por %s",
+  "tooltip.music_disc_maker.duration": "Duração: %s",
+  "tooltip.music_disc_maker.empty_disc": "Sem faixa",
+
+  "subtitles.music_disc_maker.custom_disc_playback": "Tocando disco personalizado",
+
+  "music_disc_maker.configuration.title": "Configuração do fabricante de discos",
+  "music_disc_maker.configuration.volumeMultiplier": "Multiplicador de volume",
+  "music_disc_maker.configuration.maxConcurrent": "Discos simultâneos máx."
+}

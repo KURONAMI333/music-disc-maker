@@ -1,0 +1,15 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+// LavaPlayer は NeoForge の ModLauncher に直接載せると classloader/natives が衝突するため、
+// 隔離 URLClassLoader で runtime ロードする (Music Player と同じ正攻法)。
+//  - lavaplayer-api : mod <-> LavaPlayer の橋渡し interface (mod classloader 側に置く)
+//  - lavaplayer     : LavaPlayer を使う impl + LavaPlayer 依存を .jar.packed で同梱
+include 'lavaplayer-api', 'lavaplayer'

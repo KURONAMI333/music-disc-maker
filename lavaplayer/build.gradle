@@ -1,0 +1,65 @@
+// LavaPlayer を使う impl サブプロジェクト。
+//  - 自前の impl クラスは普通の jar にするが、拡張子を .jar.packed にして
+//    NeoForge の mod scanner に拾わせない (隔離 classloader が後で読む)。
+//  - LavaPlayer + 推移依存は library configuration で解決し、個別 .jar.packed として
+//    build/dependencies に書き出す。これらは mod jar の dependencies/ に同梱される。
+plugins {
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    // 同梱する LavaPlayer 系の依存。commons-logging は jcl-over-slf4j で置き換える。
+    library
+    library.exclude group: 'commons-logging', module: 'commons-logging'
+    implementation.extendsFrom(library)
+}
+
+repositories {
+    maven { url = 'https://repo.u-team.info' }          // HyCraftHD fork (lavaplayer 2.2.4-fix-j8)
+    maven { url = 'https://maven.arbjerg.dev/releases' } // lavaplayer 本家系 / lavadsp
+    maven { url = 'https://maven.topi.wtf/releases' }    // lavasrc (v1.1+ Spotify 用、現状未使用)
+    mavenCentral()
+    maven { url = 'https://jitpack.io' }
+}
+
+dependencies {
+    // 隔離 classloader 側にロードされる LavaPlayer 一式
+    library 'net.hycrafthd.lavaplayer:lavaplayer:2.2.4-fix-j8'
+    library 'dev.lavalink.youtube:v2:1.16.0'
+    library 'org.slf4j:jcl-over-slf4j:2.0.17'  // httpclient の commons-logging を slf4j へ橋渡し
+
+    // 橋渡し interface (mod classloader 側に置かれるので packed には含めない)
+    implementation project(':lavaplayer-api')
+
+    // slf4j-api は mod 側が提供 (隔離 classloader が org.slf4j を mod へ委譲する) → compileOnly
+    compileOnly 'org.slf4j:slf4j-api:2.0.17'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// impl jar を .jar.packed として出力 (mod scanner 回避)
+tasks.named('jar').configure {
+    archiveExtension.set('jar.packed')
+}
+
+// LavaPlayer 依存を build/dependencies/*.jar.packed に書き出す。
+// slf4j-api だけは mod 側提供なので除外。
+tasks.register('copyDependencies', Copy) {
+    from configurations.library.copyRecursive().with {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
+    into layout.buildDirectory.dir('dependencies')
+    rename { fileName -> fileName + '.packed' }
+}
+
+tasks.named('assemble').configure {
+    dependsOn tasks.named('copyDependencies')
+}

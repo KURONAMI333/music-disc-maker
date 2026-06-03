@@ -1,0 +1,9 @@
+{
+  "custom_disc_playback": {
+    "category": "record",
+    "subtitle": "subtitles.music_disc_maker.custom_disc_playback",
+    "sounds": [
+      { "name": "music_disc_maker:custom_disc_playback", "stream": true }
+    ]
+  }
+}
