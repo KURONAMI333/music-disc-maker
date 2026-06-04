@@ -28,6 +28,8 @@ public final class ClientPlaybackManager {
 
     private final Map<BlockPos, DiscSoundInstance> active = new ConcurrentHashMap<>();
     private final Set<BlockPos> wanted = ConcurrentHashMap.newKeySet();
+    // pos ごとの現在再生中 URL。chunk 再入での無駄な再ロードを避ける判定に使う。
+    private final Map<BlockPos, String> playingUrl = new ConcurrentHashMap<>();
     private final ExecutorService pool = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-playback");
         thread.setDaemon(true);
@@ -37,18 +39,23 @@ public final class ClientPlaybackManager {
     private ClientPlaybackManager() {
     }
 
-    public void startPlayback(BlockPos pos, CustomTrackData track) {
-        stopPlayback(pos);
+    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs) {
         if (track == null || track.isEmpty()) {
             return;
         }
         final BlockPos key = pos.immutable();
+        // chunk 再入などで同じ曲の再生要求が再来した時は再ロードしない (音飛び・無駄な再バッファ防止)。
+        final DiscSoundInstance existing = active.get(key);
+        if (existing != null && !existing.isStopped() && track.url().equals(playingUrl.get(key))) {
+            return;
+        }
+        stopPlayback(pos);
         wanted.add(key);
 
         pool.submit(() -> {
             IAudioSource source;
             try {
-                source = LoaderHolder.get().openStream(track.url());
+                source = LoaderHolder.get().openStream(track.url(), startOffsetMs);
             } catch (final Throwable t) {
                 MusicDiscMaker.LOGGER.warn("再生用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
                 source = null;
@@ -64,7 +71,13 @@ public final class ClientPlaybackManager {
                     return;
                 }
                 // 自然終了したインスタンスを掃除 (MAX_CONCURRENT を不当に消費させない)
-                active.entrySet().removeIf(e -> e.getValue().isStopped());
+                active.entrySet().removeIf(e -> {
+                    if (e.getValue().isStopped()) {
+                        playingUrl.remove(e.getKey());
+                        return true;
+                    }
+                    return false;
+                });
                 if (active.size() >= com.kuronami.musicdiscmaker.Config.MAX_CONCURRENT.get()) {
                     MusicDiscMaker.LOGGER.info("同時再生上限に達したため再生をスキップ: {}", key);
                     resolved.close();
@@ -73,6 +86,7 @@ public final class ClientPlaybackManager {
                 }
                 final DiscSoundInstance instance = new DiscSoundInstance(key, resolved);
                 active.put(key, instance);
+                playingUrl.put(key, track.url());
                 Minecraft.getInstance().getSoundManager().play(instance);
                 // vanilla disc と同じ "Now Playing: ..." overlay を出す
                 final String desc = (track.author() != null && !track.author().isBlank())
@@ -88,6 +102,7 @@ public final class ClientPlaybackManager {
     public void stopPlayback(BlockPos pos) {
         final BlockPos key = pos.immutable();
         wanted.remove(key);
+        playingUrl.remove(key);
         final DiscSoundInstance instance = active.remove(key);
         if (instance != null) {
             instance.requestStop();
@@ -97,6 +112,7 @@ public final class ClientPlaybackManager {
 
     public void stopAll() {
         wanted.clear();
+        playingUrl.clear();
         active.values().forEach(instance -> {
             instance.requestStop();
             Minecraft.getInstance().getSoundManager().stop(instance);

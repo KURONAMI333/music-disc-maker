@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.event;
 
+import java.util.List;
+
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
@@ -9,6 +11,7 @@ import com.kuronami.musicdiscmaker.register.ModItems;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -22,6 +25,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.ChunkWatchEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
@@ -57,24 +62,26 @@ public final class JukeboxHandler {
         if (jukebox.getTheItem().isEmpty() && holdingOurDisc) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide));
-            if (!level.isClientSide) {
+            if (level instanceof ServerLevel serverLevel) {
                 final CustomTrackData track = held.get(ModDataComponents.CUSTOM_TRACK.get());
                 jukebox.setTheItem(held.copyWithCount(1));
                 if (!player.getAbilities().instabuild) {
                     held.shrink(1);
                 }
-                broadcast(level, pos, new PlayDiscPayload(pos, track));
+                ActiveDiscRegistry.start(serverLevel.dimension(), pos, track, System.currentTimeMillis());
+                broadcast(serverLevel, pos, new PlayDiscPayload(pos, track, 0L));
             }
         } else if (jukeboxHasOurDisc) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide));
-            if (!level.isClientSide) {
+            if (level instanceof ServerLevel serverLevel) {
                 final ItemStack disc = jukebox.getTheItem().copy();
                 jukebox.setTheItem(ItemStack.EMPTY);
                 if (!player.addItem(disc)) {
                     player.drop(disc, false);
                 }
-                broadcast(level, pos, new StopDiscPayload(pos));
+                ActiveDiscRegistry.stop(serverLevel.dimension(), pos);
+                broadcast(serverLevel, pos, new StopDiscPayload(pos));
             }
         }
     }
@@ -91,8 +98,32 @@ public final class JukeboxHandler {
         }
         if (serverLevel.getBlockEntity(pos) instanceof JukeboxBlockEntity jukebox
                 && jukebox.getTheItem().is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            ActiveDiscRegistry.stop(serverLevel.dimension(), pos);
             broadcast(serverLevel, pos, new StopDiscPayload(pos));
         }
+    }
+
+    /** 後から jukebox の chunk に入った player に、経過 offset 付きで再生 packet を送る (途中から同期再生)。 */
+    @SubscribeEvent
+    public static void onChunkWatch(ChunkWatchEvent.Watch event) {
+        final ServerLevel level = event.getLevel();
+        final long now = System.currentTimeMillis();
+        final List<ActiveDiscRegistry.Playing> playing =
+                ActiveDiscRegistry.activeInChunk(level.dimension(), event.getPos(), now);
+        if (playing.isEmpty()) {
+            return;
+        }
+        final ServerPlayer player = event.getPlayer();
+        for (final ActiveDiscRegistry.Playing p : playing) {
+            final long elapsed = Math.max(0L, now - p.startMillis());
+            PacketDistributor.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
+        }
+    }
+
+    /** server 停止で再生中状態を破棄 (シングルプレイのワールド退出含む)。 */
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        ActiveDiscRegistry.clear();
     }
 
     private static void broadcast(Level level, BlockPos pos, net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {

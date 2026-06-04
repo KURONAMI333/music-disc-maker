@@ -90,8 +90,6 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-            // Gate 検証: commonSetup で LavaPlayer 隔離ロード self-test を走らせる
-            systemProperty 'musicdiscmaker.selftest', 'true'
         }
 
         data {

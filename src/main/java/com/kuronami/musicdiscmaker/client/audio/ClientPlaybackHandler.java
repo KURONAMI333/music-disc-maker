@@ -13,7 +13,7 @@ public final class ClientPlaybackHandler {
     }
 
     public static void play(PlayDiscPayload payload) {
-        ClientPlaybackManager.get().startPlayback(payload.jukeboxPos(), payload.track());
+        ClientPlaybackManager.get().startPlayback(payload.jukeboxPos(), payload.track(), payload.startOffsetMs());
     }
 
     public static void stop(StopDiscPayload payload) {

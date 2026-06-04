@@ -102,10 +102,19 @@ public class MusicLoaderImpl implements IMusicLoader {
     }
 
     @Override
-    public IAudioSource openStream(String url) {
+    public IAudioSource openStream(String url, long startMs) {
         final AudioTrack track = loadTrackSync(url);
         if (track == null) {
             return null;
+        }
+        // 後から chunk に入った player へ途中から同期再生させるための seek。
+        // seek 不可トラック (ライブ配信等) は先頭/ライブ端のまま再生する。
+        if (startMs > 0L && track.isSeekable()) {
+            try {
+                track.setPosition(startMs);
+            } catch (final Throwable t) {
+                LOGGER.warn("seek 失敗 ({}ms) → 先頭から再生: {}", startMs, t.toString());
+            }
         }
         final AudioPlayer player = apm.createPlayer();
         player.playTrack(track);

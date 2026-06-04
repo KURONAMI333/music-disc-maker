@@ -1,75 +1,39 @@
 <!--
 KURONAMI store description (Modrinth body / CurseForge description — shared, English).
-Guide: knowledge/STORE_DESCRIPTION_GUIDE.md
+Written to knowledge/STORE_BODY_FRAMEWORK.md (no version table, function-first hook, facts over adjectives).
 
 == Store fields (set separately from the body) ==
-SUMMARY: Paste a YouTube, Spotify, or SoundCloud link to craft a playable record for any vanilla jukebox.
-MODRINTH categories: decoration, utility  | loaders: neoforge | versions: 1.21.1 | env: client + server (required both)
+SUMMARY: Craft playable music discs from any YouTube, Spotify, or SoundCloud link and play them in a vanilla jukebox.
+MODRINTH categories: decoration, utility | loaders: neoforge | versions: 1.21.1 | env: client + server (required both)
 MODRINTH slug: music-disc-maker
-CURSEFORGE: main category = Miscellaneous; additional = Cosmetic, Server Utility | summary: Craft playable records from any YouTube/Spotify/SoundCloud link.
+CURSEFORGE: main category = Miscellaneous; additional = Cosmetic, Server Utility | summary: Craft playable music discs from any YouTube/Spotify/SoundCloud link.
 -->
 
 # Music Disc Maker
 
-> Vanilla gives you a fixed handful of music discs from chests and creepers. This makes your *own* music playable in-game — paste a link, get a disc, drop it in a jukebox.
+Paste a track link, insert a blank disc, and get a custom music disc that plays in a vanilla jukebox.
 
-Want to hear your favorite song in your base? There's no built-in way to bring outside music into Minecraft. Music Disc Maker adds a crafting block: paste a track URL, insert a blank disc, and it streams that song from a regular vanilla jukebox — with the normal "Now Playing" overlay and positional audio.
-
-## Demo
+Minecraft only gives you a fixed set of music discs and no way to play your own music. This adds a crafting block: paste a URL (YouTube, Spotify, SoundCloud, Bandcamp, or a direct stream), drop in a blank disc, and it makes a disc that streams that track from an ordinary jukebox — with the vanilla "Now Playing" overlay and positional audio.
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/7sUJqdRrS3M" title="Music Disc Maker demo" frameborder="0" allowfullscreen></iframe>
 
-- 🎵 Paste a link → get a custom disc that plays in any **vanilla jukebox**
-- Works with **YouTube, Spotify, SoundCloud, Bandcamp**, and direct stream URLs
-- **Spotify links are matched by song + artist** — clean titles, not raw video names
-- Each track gets its **own disc color**, and the same song always looks the same
-- Tooltip shows the **song title (highlighted), artist, and length**
+**Features**
 
-## What it does / Usage
+- Works with YouTube, Spotify, SoundCloud, Bandcamp, and direct stream URLs
+- Spotify links resolve by song and artist, so you get the actual track instead of a video title
+- Each song gets its own disc color, and the same song always looks the same
+- The disc tooltip shows the title, artist, and length
+- On a multiplayer server everyone hears it — including players who walk up mid-song, synced to the current position
 
-1. Craft a **Blank Disc** (lapis lazuli + iron).
-2. Craft and place a **Music Disc Maker** block.
-3. Open it, paste a track URL, and insert a Blank Disc. A **Custom Music Disc** appears in the output — one disc per link.
-4. Put the disc in a **vanilla jukebox** to play it. Pick it back up to stop.
+**How to use**
 
-The block recognizes plain YouTube/SoundCloud/Bandcamp links and Spotify track links (it reads the song and artist from Spotify, then finds the audio). If a link can't be resolved, the GUI shows a short error instead of making a disc.
+1. Craft a Blank Disc (lapis lazuli + iron) and a Music Disc Maker block.
+2. Open the block, paste a track URL, and insert the Blank Disc — a Custom Music Disc appears in the output.
+3. Put the disc in a vanilla jukebox to play it.
 
-## Supported loaders / versions
+**Notes**
 
-| Minecraft | NeoForge | Forge | Fabric |
-|---|:---:|:---:|:---:|
-| 1.21.1 | ✅ | — | — |
+- Audio is streamed from the source each time it plays — it isn't stored inside the disc, so it needs an internet connection. Some tracks may be region-locked or unavailable.
+- Install it on the server and on every client; audio plays client-side. No other mods required.
 
-NeoForge 1.21.1 only for now. Audio plays on the **client**; on a server, both the server and connecting clients need the mod installed.
-
-## Dependencies
-
-None. The audio engine is bundled — no extra mods required.
-
-## Compatibility & scope
-
-Uses the **vanilla jukebox** directly, so it fits into normal redstone/jukebox setups. The Music Disc Maker is a standalone block and does not change any vanilla items or recipes.
-
-## Known limitations
-
-- **Requires an internet connection.** Audio is streamed from the source on playback — it is not stored inside the disc, so the song re-streams each time it plays.
-- Availability depends on the source service; some tracks may be region-restricted, private, or removed.
-- On servers, a player who arrives **after** a disc has started may not hear it until the disc is taken out and put back (playback is event-based, not re-synced on join).
-
-## Install
-
-1. Install **NeoForge 21.1.x** for Minecraft **1.21.1**.
-2. Drop `musicdiscmaker-1.0.0-neoforge-1.21.1.jar` into `mods/`.
-3. For multiplayer, install it on the server **and** every client.
-
-- Minecraft 1.21.1 · NeoForge · JDK 21
-
-## Languages
-
-In-game text is available in 14 languages (en, ja, zh-CN, zh-TW, ko, ru, de, fr, es, pt-BR, uk, pl, it, nl). Native-speaker corrections are welcome.
-
-## License
-
-MIT — modpack inclusion welcome, no credit required.
-
-Author: KURONAMI
+Free to use in any modpack. Source and issues: https://github.com/KURONAMI333/music-disc-maker

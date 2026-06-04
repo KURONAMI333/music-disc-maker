@@ -16,10 +16,23 @@ public interface IMusicLoader {
     TrackInfo resolve(String url);
 
     /**
-     * URL の再生を開始し、PCM を pull するソースを返す (client 側で使う)。
+     * URL の再生を先頭から開始し、PCM を pull するソースを返す (client 側で使う)。
      *
      * @param url 再生する URL
      * @return PCM ソース、失敗時は {@code null}
      */
-    IAudioSource openStream(String url);
+    default IAudioSource openStream(String url) {
+        return openStream(url, 0L);
+    }
+
+    /**
+     * URL の再生を {@code startMs} の位置から開始し、PCM を pull するソースを返す。
+     * 後から jukebox の chunk に入った player に途中から同期再生させるのに使う。
+     * トラックが seek 不可 (ライブ配信等) / {@code startMs <= 0} の時は先頭/ライブ端から再生する。
+     *
+     * @param url     再生する URL
+     * @param startMs 開始位置 (ミリ秒)。0 以下なら先頭
+     * @return PCM ソース、失敗時は {@code null}
+     */
+    IAudioSource openStream(String url, long startMs);
 }
