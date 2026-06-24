@@ -103,20 +103,32 @@ public final class JukeboxHandler {
         }
     }
 
-    /** 後から jukebox の chunk に入った player に、経過 offset 付きで再生 packet を送る (途中から同期再生)。 */
     @SubscribeEvent
     public static void onChunkWatch(ChunkWatchEvent.Watch event) {
         final ServerLevel level = event.getLevel();
         final long now = System.currentTimeMillis();
+        final ChunkPos chunkPos = event.getPos();
         final List<ActiveDiscRegistry.Playing> playing =
-                ActiveDiscRegistry.activeInChunk(level.dimension(), event.getPos(), now);
-        if (playing.isEmpty()) {
-            return;
-        }
+                ActiveDiscRegistry.activeInChunk(level.dimension(), chunkPos, now);
         final ServerPlayer player = event.getPlayer();
+
         for (final ActiveDiscRegistry.Playing p : playing) {
             final long elapsed = Math.max(0L, now - p.startMillis());
             PacketDistributor.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
+        }
+
+        // リログ/サーバー再起動後: レジストリは空だが BE にカスタムディスクが残っている場合
+        final var chunk = level.getChunk(chunkPos.x, chunkPos.z);
+        for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
+            if (!new ChunkPos(bePos).equals(chunkPos)) continue;
+            if (ActiveDiscRegistry.isTracked(level.dimension(), bePos)) continue;
+            if (!(chunk.getBlockEntity(bePos) instanceof JukeboxBlockEntity jukebox)) continue;
+            final ItemStack disc = jukebox.getTheItem();
+            if (!disc.is(ModItems.CUSTOM_MUSIC_DISC.get())) continue;
+            final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
+            if (track == null || track.isEmpty()) continue;
+            ActiveDiscRegistry.start(level.dimension(), bePos, track, now);
+            PacketDistributor.sendToPlayer(player, new PlayDiscPayload(bePos, track, 0L));
         }
     }
 
