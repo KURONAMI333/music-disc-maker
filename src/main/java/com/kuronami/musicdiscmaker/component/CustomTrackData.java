@@ -18,6 +18,25 @@ public record CustomTrackData(
         long durationMs,
         String thumbnailUrl) {
 
+    // 各文字列の上限。url/サムネは長めの実 URL を許容、曲名/アーティストは表示用に短く。
+    // 上限なしだと細工された巨大メタデータで writeUtf (32767 byte 上限) が例外→同期で接続断。
+    private static final int MAX_URL = 2048;
+    private static final int MAX_TEXT = 256;
+
+    public CustomTrackData {
+        url = clamp(url, MAX_URL);
+        title = clamp(title, MAX_TEXT);
+        author = clamp(author, MAX_TEXT);
+        thumbnailUrl = clamp(thumbnailUrl, MAX_URL);
+    }
+
+    private static String clamp(String s, int max) {
+        if (s == null) {
+            return "";
+        }
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+
     public static final CustomTrackData EMPTY = new CustomTrackData("", "", "", 0L, "");
 
     public static final Codec<CustomTrackData> CODEC = RecordCodecBuilder.create(instance -> instance.group(

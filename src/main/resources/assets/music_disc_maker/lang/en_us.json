@@ -20,5 +20,6 @@
 
   "music_disc_maker.configuration.title": "Music Disc Maker Config",
   "music_disc_maker.configuration.volumeMultiplier": "Volume multiplier",
-  "music_disc_maker.configuration.maxConcurrent": "Max concurrent discs"
+  "music_disc_maker.configuration.maxConcurrent": "Max concurrent discs",
+  "music_disc_maker.playback_failed": "Could not play this disc (stream unavailable)"
 }

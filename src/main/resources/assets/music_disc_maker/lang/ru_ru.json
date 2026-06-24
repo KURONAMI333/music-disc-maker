@@ -17,5 +17,6 @@
 
   "music_disc_maker.configuration.title": "Настройки изготовителя пластинок",
   "music_disc_maker.configuration.volumeMultiplier": "Множитель громкости",
-  "music_disc_maker.configuration.maxConcurrent": "Макс. одновременных пластинок"
+  "music_disc_maker.configuration.maxConcurrent": "Макс. одновременных пластинок",
+  "music_disc_maker.playback_failed": "Не удалось воспроизвести диск (поток недоступен)"
 }

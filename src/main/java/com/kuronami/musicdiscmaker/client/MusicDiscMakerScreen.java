@@ -1,20 +1,22 @@
 package com.kuronami.musicdiscmaker.client;
 
-import org.lwjgl.glfw.GLFW;
-
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 /**
  * ボタンレス生成 GUI: URL を貼って空ディスクを入れると自動で右に custom disc ができる。
@@ -22,19 +24,17 @@ import net.neoforged.neoforge.network.PacketDistributor;
  */
 public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMakerMenu> {
 
-    private static final ResourceLocation TEXTURE =
-            ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/music_disc_maker.png");
-    private static final int TEXT = 0x404040;
-    private static final int ERROR = 0xCC3333;
+    private static final Identifier TEXTURE =
+            Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/music_disc_maker.png");
+    private static final int TEXT = 0xFF404040;
+    private static final int ERROR = 0xFFCC3333;
 
     private EditBox urlField;
     private boolean urlWasFocused;
     private String lastSentUrl = "";
 
     public MusicDiscMakerScreen(MusicDiscMakerMenu menu, Inventory playerInventory, Component title) {
-        super(menu, playerInventory, title);
-        this.imageWidth = 200;
-        this.imageHeight = 166;
+        super(menu, playerInventory, title, 200, 166);
         this.inventoryLabelX = 19;
         this.inventoryLabelY = 72;
     }
@@ -47,11 +47,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                 Component.translatable("gui.music_disc_maker.url_placeholder"));
         this.urlField.setMaxLength(2048);
         this.urlField.setBordered(false);
-        this.urlField.setHint(Component.translatable("gui.music_disc_maker.url_placeholder"));
+        // 26.1: EditBox の hint 既定色が DARK_GRAY になり濃く見えるので、従来の薄いグレーを明示する。
+        this.urlField.setHint(Component.translatable("gui.music_disc_maker.url_placeholder")
+                .withStyle(ChatFormatting.GRAY));
         this.urlField.setValue(menu.getBlockEntity().getCurrentUrl());
         this.lastSentUrl = this.urlField.getValue();
-        // 変更の度に自動コミット → Enter 不要 (貼り付け・入力で即サーバへ)。dedup で無駄送信を防ぐ。
-        this.urlField.setResponder(s -> commitUrl());
+        // 1 文字ごとに自動コミットすると部分 URL の解決失敗が GUI で点滅するので行わない。
+        // コミット契機 = Enter / フォーカス喪失 / PASTE / CLEAR / GUI を閉じる時。
         addRenderableWidget(this.urlField);
 
         addRenderableWidget(Button.builder(Component.translatable("gui.music_disc_maker.paste"),
@@ -81,54 +83,63 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             return;
         }
         lastSentUrl = url;
-        PacketDistributor.sendToServer(new ResolveUrlPayload(menu.getBlockEntity().getBlockPos(), url));
+        ClientPacketDistributor.sendToServer(new ResolveUrlPayload(menu.getBlockEntity().getBlockPos(), url));
     }
 
     @Override
-    protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
-        g.blit(TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+    public void onClose() {
+        commitUrl(); // 入力したまま閉じた URL を取りこぼさない
+        super.onClose();
     }
 
     @Override
-    protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        super.renderLabels(g, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
+    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        super.extractBackground(graphics, mouseX, mouseY, partialTick);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
+                0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+    }
+
+    @Override
+    protected void extractLabels(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
+        super.extractLabels(graphics, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
         // 出力スロット右の空き領域に右寄せ (パネル幅 200 をはみ出さない)
         if (menu.getBlockEntity().isResolving()) {
             final Component fetching = Component.translatable("gui.music_disc_maker.fetching");
-            g.drawString(font, fetching, imageWidth - 8 - font.width(fetching), 51, TEXT, false);
+            graphics.text(font, fetching, imageWidth - 8 - font.width(fetching), 51, TEXT, false);
         } else if (menu.getBlockEntity().isResolveFailed()) {
             final Component failed = Component.translatable("gui.music_disc_maker.failed");
-            g.drawString(font, failed, imageWidth - 8 - font.width(failed), 51, ERROR, false);
+            graphics.text(font, failed, imageWidth - 8 - font.width(failed), 51, ERROR, false);
         }
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+    public boolean keyPressed(KeyEvent event) {
+        if (event.isEscape()) {
             this.onClose();
             return true;
         }
-        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) && urlField.isFocused()) {
+        if (event.isConfirmation() && urlField.isFocused()) {
             commitUrl();
             urlField.setFocused(false);
             return true;
         }
-        if (this.urlField.keyPressed(keyCode, scanCode, modifiers) || this.urlField.canConsumeInput()) {
+        if (this.urlField.keyPressed(event) || this.urlField.canConsumeInput()) {
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
-    public boolean charTyped(char codePoint, int modifiers) {
+    public boolean charTyped(CharacterEvent event) {
         if (this.urlField.canConsumeInput()) {
-            return this.urlField.charTyped(codePoint, modifiers);
+            return this.urlField.charTyped(event);
         }
-        return super.charTyped(codePoint, modifiers);
+        return super.charTyped(event);
     }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+    protected void containerTick() {
+        super.containerTick();
         final boolean focused = urlField.isFocused();
         if (urlWasFocused && !focused) {
             commitUrl(); // フォーカスを外した瞬間に URL をコミット
@@ -138,11 +149,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         // サーバーが URL をクリアした (ディスク生成後のニュートラル化) ら、入力中でなければフィールドも空に戻す
         final String serverUrl = menu.getBlockEntity().getCurrentUrl();
         if (!focused && !serverUrl.equals(lastSentUrl)) {
-            lastSentUrl = serverUrl; // 先に更新 → setValue の responder が dedup で再送しない
+            lastSentUrl = serverUrl; // 先に更新 → 以後の commitUrl が dedup で再送しない
             urlField.setValue(serverUrl);
         }
-
-        super.render(g, mouseX, mouseY, partialTick);
-        renderTooltip(g, mouseX, mouseY);
     }
 }

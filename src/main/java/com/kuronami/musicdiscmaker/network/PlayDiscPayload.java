@@ -8,7 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * server → client: jukebox(pos) で custom disc 再生開始。各 client が独立に LavaPlayer で再生する。
@@ -18,7 +18,7 @@ import net.minecraft.resources.ResourceLocation;
 public record PlayDiscPayload(BlockPos jukeboxPos, CustomTrackData track, long startOffsetMs) implements CustomPacketPayload {
 
     public static final Type<PlayDiscPayload> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "play_disc"));
+            new Type<>(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "play_disc"));
 
     public static final StreamCodec<ByteBuf, PlayDiscPayload> STREAM_CODEC = StreamCodec.composite(
             BlockPos.STREAM_CODEC, PlayDiscPayload::jukeboxPos,

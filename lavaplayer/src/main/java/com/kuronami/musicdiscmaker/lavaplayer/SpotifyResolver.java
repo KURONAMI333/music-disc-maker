@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -38,7 +39,13 @@ final class SpotifyResolver {
 
     /** @return [曲名, アーティスト]、取得できなければ {@code null}。 */
     static String[] fetchMeta(String url) {
-        try (CloseableHttpClient http = HttpClients.createDefault()) {
+        // タイムアウト未設定だと Spotify 無応答時に解決スレッド (全体で2本) が永久ブロックする。
+        final RequestConfig cfg = RequestConfig.custom()
+                .setConnectTimeout(10_000)
+                .setSocketTimeout(10_000)
+                .setConnectionRequestTimeout(10_000)
+                .build();
+        try (CloseableHttpClient http = HttpClients.custom().setDefaultRequestConfig(cfg).build()) {
             final HttpGet get = new HttpGet(url.trim());
             get.setHeader("User-Agent", UA);
             get.setHeader("Accept-Language", "en");

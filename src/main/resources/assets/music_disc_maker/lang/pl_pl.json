@@ -17,5 +17,6 @@
 
   "music_disc_maker.configuration.title": "Ustawienia wytwórni płyt",
   "music_disc_maker.configuration.volumeMultiplier": "Mnożnik głośności",
-  "music_disc_maker.configuration.maxConcurrent": "Maks. jednoczesnych płyt"
+  "music_disc_maker.configuration.maxConcurrent": "Maks. jednoczesnych płyt",
+  "music_disc_maker.playback_failed": "Nie można odtworzyć tej płyty (strumień niedostępny)"
 }

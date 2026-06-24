@@ -17,5 +17,6 @@
 
   "music_disc_maker.configuration.title": "Configuration du fabricant de disques",
   "music_disc_maker.configuration.volumeMultiplier": "Multiplicateur de volume",
-  "music_disc_maker.configuration.maxConcurrent": "Disques simultanés max."
+  "music_disc_maker.configuration.maxConcurrent": "Disques simultanés max.",
+  "music_disc_maker.playback_failed": "Impossible de lire ce disque (flux indisponible)"
 }

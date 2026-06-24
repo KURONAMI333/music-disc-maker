@@ -5,7 +5,7 @@ import java.util.function.Supplier;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -21,7 +21,15 @@ public final class ModSounds {
      */
     public static final Supplier<SoundEvent> CUSTOM_DISC_PLAYBACK = SOUNDS.register("custom_disc_playback",
             () -> SoundEvent.createVariableRangeEvent(
-                    ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "custom_disc_playback")));
+                    Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "custom_disc_playback")));
+
+    /**
+     * jukebox_song が参照する無音 SoundEvent。custom disc に JUKEBOX_PLAYABLE component を付け
+     * バニラの「再生中」状態に乗せるために使う (実際の音声は LavaPlayer ストリーム)。
+     */
+    public static final Supplier<SoundEvent> SILENCE = SOUNDS.register("silence",
+            () -> SoundEvent.createVariableRangeEvent(
+                    Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "silence")));
 
     private ModSounds() {
     }

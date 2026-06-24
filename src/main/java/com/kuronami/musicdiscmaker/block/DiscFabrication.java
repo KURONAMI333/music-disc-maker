@@ -31,13 +31,13 @@ public final class DiscFabrication {
     /** 条件が揃っていれば (必要なら非同期で) custom disc を生成する。server 側のみ。 */
     public static void process(MusicDiscMakerBlockEntity be) {
         final Level level = be.getLevel();
-        if (level == null || level.isClientSide || be.isResolving()) {
+        if (level == null || level.isClientSide() || be.isResolving()) {
             return;
         }
-        if (!be.getInventory().getStackInSlot(MusicDiscMakerBlockEntity.SLOT_INPUT).is(ModItems.BLANK_DISC.get())) {
+        if (!be.getItem(MusicDiscMakerBlockEntity.SLOT_INPUT).is(ModItems.BLANK_DISC.get())) {
             return;
         }
-        if (!be.getInventory().getStackInSlot(MusicDiscMakerBlockEntity.SLOT_OUTPUT).isEmpty()) {
+        if (!be.getItem(MusicDiscMakerBlockEntity.SLOT_OUTPUT).isEmpty()) {
             return;
         }
         final String url = be.getCurrentUrl();

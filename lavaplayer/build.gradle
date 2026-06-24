@@ -9,7 +9,7 @@ plugins {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -31,7 +31,7 @@ repositories {
 dependencies {
     // 隔離 classloader 側にロードされる LavaPlayer 一式
     library 'net.hycrafthd.lavaplayer:lavaplayer:2.2.4-fix-j8'
-    library 'dev.lavalink.youtube:v2:1.16.0'
+    library 'dev.lavalink.youtube:v2:1.18.1'
     library 'org.slf4j:jcl-over-slf4j:2.0.17'  // httpclient の commons-logging を slf4j へ橋渡し
 
     // 橋渡し interface (mod classloader 側に置かれるので packed には含めない)
@@ -45,14 +45,20 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-// impl jar を .jar.packed として出力 (mod scanner 回避)
+// impl jar を .jar.packed として出力 (mod scanner 回避)。
+// archiveVersion を空にして版番号を名前から外す。版番号入りだと bump のたびに
+// build/libs に旧版 lavaplayer-x.y.z.jar.packed が残り、隔離 classloader が
+// 同一 impl クラスを多重ロードするため (DependencyManager は *.jar.packed を名前非依存で全読み込み)。
 tasks.named('jar').configure {
     archiveExtension.set('jar.packed')
+    archiveVersion.set('')
 }
 
 // LavaPlayer 依存を build/dependencies/*.jar.packed に書き出す。
 // slf4j-api だけは mod 側提供なので除外。
-tasks.register('copyDependencies', Copy) {
+// Sync = 宛先の余分なファイルを削除する。依存の版を上げた時に旧版の .jar.packed が
+// 残ると隔離 classloader が両版を二重ロードするため、Copy ではなく Sync を使う。
+tasks.register('copyDependencies', Sync) {
     from configurations.library.copyRecursive().with {
         exclude group: 'org.slf4j', module: 'slf4j-api'
     }

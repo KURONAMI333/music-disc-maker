@@ -64,6 +64,7 @@ public final class ClientPlaybackManager {
             Minecraft.getInstance().execute(() -> {
                 if (resolved == null) {
                     wanted.remove(key);
+                    notifyPlaybackFailed(); // 無音で終わらせず、再生できなかったことをプレイヤーに伝える
                     return;
                 }
                 if (!wanted.contains(key)) {
@@ -97,6 +98,14 @@ public final class ClientPlaybackManager {
                 }
             });
         });
+    }
+
+    /** 再生失敗をアクションバーに表示する (main thread から呼ぶこと)。 */
+    private static void notifyPlaybackFailed() {
+        // 26.1.2 で Player.displayClientMessage(Component, boolean) は廃止。
+        // アクションバーは Gui.setOverlayMessage に移行 (setNowPlaying と同じ経路)。
+        Minecraft.getInstance().gui.setOverlayMessage(
+                net.minecraft.network.chat.Component.translatable("music_disc_maker.playback_failed"), false);
     }
 
     public void stopPlayback(BlockPos pos) {

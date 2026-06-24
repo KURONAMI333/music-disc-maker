@@ -17,5 +17,6 @@
 
   "music_disc_maker.configuration.title": "音楽ディスク製作機設定",
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
-  "music_disc_maker.configuration.maxConcurrent": "同時再生ディスク上限"
+  "music_disc_maker.configuration.maxConcurrent": "同時再生ディスク上限",
+  "music_disc_maker.playback_failed": "このディスクを再生できませんでした（ストリーム取得失敗）"
 }

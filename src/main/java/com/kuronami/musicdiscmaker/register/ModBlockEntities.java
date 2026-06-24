@@ -16,9 +16,8 @@ public final class ModBlockEntities {
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MusicDiscMaker.MODID);
 
     public static final Supplier<BlockEntityType<MusicDiscMakerBlockEntity>> MUSIC_DISC_MAKER =
-            BLOCK_ENTITIES.register("music_disc_maker", () -> BlockEntityType.Builder
-                    .of(MusicDiscMakerBlockEntity::new, ModBlocks.MUSIC_DISC_MAKER.get())
-                    .build(null));
+            BLOCK_ENTITIES.register("music_disc_maker",
+                    () -> new BlockEntityType<>(MusicDiscMakerBlockEntity::new, ModBlocks.MUSIC_DISC_MAKER.get()));
 
     private ModBlockEntities() {
     }

@@ -15,6 +15,10 @@ public final class Config {
             .comment("Maximum number of custom discs playing simultaneously (memory protection).")
             .defineInRange("maxConcurrent", 16, 1, 64);
 
+    public static final ModConfigSpec.IntValue PLAYBACK_RANGE = BUILDER
+            .comment("Distance in blocks at which custom disc audio fades to silence (vanilla discs use 16).")
+            .defineInRange("playbackRange", 64, 16, 256);
+
     static final ModConfigSpec SPEC = BUILDER.build();
 
     private Config() {

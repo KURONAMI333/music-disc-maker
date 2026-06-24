@@ -24,7 +24,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 import net.neoforged.neoforge.event.level.ChunkWatchEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -61,7 +61,7 @@ public final class JukeboxHandler {
 
         if (jukebox.getTheItem().isEmpty() && holdingOurDisc) {
             event.setCanceled(true);
-            event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide));
+            event.setCancellationResult(InteractionResult.SUCCESS);
             if (level instanceof ServerLevel serverLevel) {
                 final CustomTrackData track = held.get(ModDataComponents.CUSTOM_TRACK.get());
                 jukebox.setTheItem(held.copyWithCount(1));
@@ -73,7 +73,7 @@ public final class JukeboxHandler {
             }
         } else if (jukeboxHasOurDisc) {
             event.setCanceled(true);
-            event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide));
+            event.setCancellationResult(InteractionResult.SUCCESS);
             if (level instanceof ServerLevel serverLevel) {
                 final ItemStack disc = jukebox.getTheItem().copy();
                 jukebox.setTheItem(ItemStack.EMPTY);
@@ -88,7 +88,7 @@ public final class JukeboxHandler {
 
     /** jukebox 破壊時に鳴りっぱなしを防ぐ。 */
     @SubscribeEvent
-    public static void onBlockBreak(BlockEvent.BreakEvent event) {
+    public static void onBlockBreak(BreakBlockEvent event) {
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
             return;
         }
@@ -103,20 +103,31 @@ public final class JukeboxHandler {
         }
     }
 
-    /** 後から jukebox の chunk に入った player に、経過 offset 付きで再生 packet を送る (途中から同期再生)。 */
     @SubscribeEvent
     public static void onChunkWatch(ChunkWatchEvent.Watch event) {
         final ServerLevel level = event.getLevel();
         final long now = System.currentTimeMillis();
+        final ChunkPos chunkPos = event.getPos();
         final List<ActiveDiscRegistry.Playing> playing =
-                ActiveDiscRegistry.activeInChunk(level.dimension(), event.getPos(), now);
-        if (playing.isEmpty()) {
-            return;
-        }
+                ActiveDiscRegistry.activeInChunk(level.dimension(), chunkPos, now);
         final ServerPlayer player = event.getPlayer();
+
         for (final ActiveDiscRegistry.Playing p : playing) {
             final long elapsed = Math.max(0L, now - p.startMillis());
             PacketDistributor.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
+        }
+
+        final var chunk = level.getChunk(chunkPos.x(), chunkPos.z());
+        for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
+            if (!ChunkPos.containing(bePos).equals(chunkPos)) continue;
+            if (ActiveDiscRegistry.isTracked(level.dimension(), bePos)) continue;
+            if (!(chunk.getBlockEntity(bePos) instanceof JukeboxBlockEntity jukebox)) continue;
+            final ItemStack disc = jukebox.getTheItem();
+            if (!disc.is(ModItems.CUSTOM_MUSIC_DISC.get())) continue;
+            final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
+            if (track == null || track.isEmpty()) continue;
+            ActiveDiscRegistry.start(level.dimension(), bePos, track, now);
+            PacketDistributor.sendToPlayer(player, new PlayDiscPayload(bePos, track, 0L));
         }
     }
 
@@ -128,7 +139,7 @@ public final class JukeboxHandler {
 
     private static void broadcast(Level level, BlockPos pos, net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {
         if (level instanceof ServerLevel serverLevel) {
-            PacketDistributor.sendToPlayersTrackingChunk(serverLevel, new ChunkPos(pos), payload);
+            PacketDistributor.sendToPlayersTrackingChunk(serverLevel, ChunkPos.containing(pos), payload);
         }
     }
 }

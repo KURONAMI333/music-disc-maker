@@ -53,17 +53,15 @@ def lavaDevPath = lavaImpl.layout.buildDirectory.dir('libs').get().asFile.absolu
 // → 隔離 classloader 側に api を持たず、必ず mod loader へ bridge される。
 sourceSets.main.java.srcDir(lavaApi.file('src/main/java'))
 
-// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+// Minecraft 26.1 ships Java 25 to end users, so mods target Java 25.
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 neoForge {
     // Specify the version of NeoForge to use.
     version = project.neo_version
 
-    parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
-    }
+    // Parchment is not used for 26.1+ — Mojang ships official parameter names
+    // with vanilla sources now that obfuscation has been removed.
 
     // This line is optional. Access Transformers are automatically detected
     // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
@@ -143,8 +141,19 @@ dependencies {
     // 橋渡し interface (lavaplayer-api/src) は上の sourceSet srcDir で mod 本体に
     // 直接コンパイルされる。LavaPlayer impl 本体は隔離 classloader 経由でロード。
 
-    // JEI: dev でアイテム/レシピ閲覧用 (公開 jar には含めない localRuntime)
-    localRuntime "mezz.jei:jei-1.21.1-neoforge:19.27.0.340"
+    // Sophisticated Core 互換 (Jukebox Upgrade で custom disc を再生)。compileOnly なので公開 jar には
+    // 含まれない (実行時は SC 導入環境でのみ class-load される。soft dep)。
+    compileOnly files('compat-libs/sophisticatedcore-26.1.2-1.4.53.1949.jar')
+
+    // dev (runClient) で実 SB/SC をロードし互換を動作確認するための runtime mod。localRuntime は publish
+    // されない (公開 jar/依存に無影響)。26.1.2 NeoForge dev = Mojmap = production なので production jar が
+    // そのまま dev で動く (1.20.1 legacyforge の SRG 不一致問題は 26.1.2 では起きない)。
+    localRuntime files('compat-libs/sophisticatedcore-26.1.2-1.4.53.1949.jar')
+    localRuntime files('compat-libs/sophisticatedbackpacks-26.1.2-3.25.64.1824.jar')
+
+    // JEI: 26.1.2 向けビルドが未公開のため dev 依存は無効化 (公開 jar には元から不含)。
+    // 26.1.2 対応 JEI が出たら localRuntime に追加する。
+    // localRuntime "mezz.jei:jei-26.1.2-neoforge:<version>"
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

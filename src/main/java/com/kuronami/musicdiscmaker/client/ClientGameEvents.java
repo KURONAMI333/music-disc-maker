@@ -9,7 +9,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 
 /** client game-bus events。サーバ離脱時に全再生を止める。 */
-@EventBusSubscriber(modid = MusicDiscMaker.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
+@EventBusSubscriber(modid = MusicDiscMaker.MODID, value = Dist.CLIENT)
 public final class ClientGameEvents {
 
     private ClientGameEvents() {

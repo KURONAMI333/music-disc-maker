@@ -21,13 +21,13 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 
 /** URL → custom disc 加工ブロック。右クリックで GUI を開く。正面がプレイヤーを向く向き付きブロック。 */
 public class MusicDiscMakerBlock extends Block implements EntityBlock {
 
-    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+    public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
 
     public MusicDiscMakerBlock(Properties properties) {
         super(properties);
@@ -64,7 +64,7 @@ public class MusicDiscMakerBlock extends Block implements EntityBlock {
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+        if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
             final BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof MusicDiscMakerBlockEntity maker) {
                 serverPlayer.openMenu(new SimpleMenuProvider(
@@ -73,21 +73,9 @@ public class MusicDiscMakerBlock extends Block implements EntityBlock {
                 ), buf -> buf.writeBlockPos(pos));
             }
         }
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return InteractionResult.SUCCESS;
     }
 
-    @Override
-    protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
-        if (!state.is(newState.getBlock())) {
-            final BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof MusicDiscMakerBlockEntity maker) {
-                final var inv = maker.getInventory();
-                for (int slot = 0; slot < inv.getSlots(); slot++) {
-                    net.minecraft.world.Containers.dropItemStack(level,
-                            pos.getX(), pos.getY(), pos.getZ(), inv.getStackInSlot(slot));
-                }
-            }
-        }
-        super.onRemove(state, level, pos, newState, movedByPiston);
-    }
+    // ブロック破壊時の中身ドロップは BlockEntity#preRemoveSideEffects のデフォルト
+    // (Container を自動ドロップ) に委ねるため、onRemove のオーバーライドは不要。
 }

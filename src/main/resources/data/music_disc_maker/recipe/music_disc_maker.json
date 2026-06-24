@@ -7,9 +7,9 @@
     "ILI"
   ],
   "key": {
-    "I": { "item": "minecraft:iron_ingot" },
-    "L": { "item": "minecraft:lapis_lazuli" },
-    "N": { "item": "minecraft:note_block" }
+    "I": "minecraft:iron_ingot",
+    "L": "minecraft:lapis_lazuli",
+    "N": "minecraft:note_block"
   },
   "result": {
     "id": "music_disc_maker:music_disc_maker",

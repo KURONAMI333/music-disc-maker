@@ -63,7 +63,7 @@ public final class ActiveDiscRegistry {
             if (dur > 0L && nowMillis - p.startMillis() >= dur) {
                 return true; // 自然終了済み → 除去 (chunk 一致でも送らない)
             }
-            if (new ChunkPos(p.pos()).equals(chunk)) {
+            if (ChunkPos.containing(p.pos()).equals(chunk)) {
                 out.add(p);
             }
             return false;
@@ -74,7 +74,11 @@ public final class ActiveDiscRegistry {
         return out;
     }
 
-    /** server 停止時に全消去 (シングルプレイのワールド退出含む)。 */
+    public static boolean isTracked(ResourceKey<Level> dim, BlockPos pos) {
+        final Map<BlockPos, Playing> map = BY_DIM.get(dim);
+        return map != null && map.containsKey(pos.immutable());
+    }
+
     public static void clear() {
         BY_DIM.clear();
     }

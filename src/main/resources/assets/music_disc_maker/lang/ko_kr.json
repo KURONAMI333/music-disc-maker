@@ -17,5 +17,6 @@
 
   "music_disc_maker.configuration.title": "음반 제작기 설정",
   "music_disc_maker.configuration.volumeMultiplier": "음량 배수",
-  "music_disc_maker.configuration.maxConcurrent": "최대 동시 재생 음반 수"
+  "music_disc_maker.configuration.maxConcurrent": "최대 동시 재생 음반 수",
+  "music_disc_maker.playback_failed": "이 디스크를 재생할 수 없습니다 (스트림을 사용할 수 없음)"
 }

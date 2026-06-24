@@ -17,5 +17,6 @@
 
   "music_disc_maker.configuration.title": "Muziekschijfjesmaker-instellingen",
   "music_disc_maker.configuration.volumeMultiplier": "Volumevermenigvuldiger",
-  "music_disc_maker.configuration.maxConcurrent": "Max. gelijktijdige schijfjes"
+  "music_disc_maker.configuration.maxConcurrent": "Max. gelijktijdige schijfjes",
+  "music_disc_maker.playback_failed": "Kan deze schijf niet afspelen (stream niet beschikbaar)"
 }

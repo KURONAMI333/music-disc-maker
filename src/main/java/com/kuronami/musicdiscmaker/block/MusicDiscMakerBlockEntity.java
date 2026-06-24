@@ -3,44 +3,46 @@ package com.kuronami.musicdiscmaker.block;
 import org.jetbrains.annotations.NotNull;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.component.SilentSongs;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.Container;
+import net.minecraft.world.ContainerHelper;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.items.ItemStackHandler;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * Music Disc Maker ブロックの BlockEntity。
  * 入力(空ディスク)/出力(custom disc) スロットと、解決済みの曲メタ情報を持つ。
  * URL 解決は server 側で行われ、結果がここに保存される (server authoritative)。
+ *
+ * <p>vanilla {@link Container} を実装。NeoForge は {@code Capabilities.Item.BLOCK} に
+ * {@code VanillaContainerWrapper} で橋渡しして hopper 連携を提供し、ブロック破壊時の中身ドロップは
+ * {@link BlockEntity#preRemoveSideEffects} のデフォルト (Container を自動ドロップ) に任せる。
  */
-public class MusicDiscMakerBlockEntity extends BlockEntity {
+public class MusicDiscMakerBlockEntity extends BlockEntity implements Container {
 
     public static final int SLOT_INPUT = 0;
     public static final int SLOT_OUTPUT = 1;
+    private static final int SIZE = 2;
 
-    private final ItemStackHandler inventory = new ItemStackHandler(2) {
-        @Override
-        protected void onContentsChanged(int slot) {
-            MusicDiscMakerBlockEntity.this.sync();
-            // 空ディスク投入で条件が揃えば自動生成 (server 側のみ DiscFabrication 内で判定)
-            DiscFabrication.process(MusicDiscMakerBlockEntity.this);
-        }
-
-        @Override
-        public boolean isItemValid(int slot, @NotNull ItemStack stack) {
-            return slot == SLOT_INPUT && stack.is(ModItems.BLANK_DISC.get());
-        }
-    };
+    private final NonNullList<ItemStack> items = NonNullList.withSize(SIZE, ItemStack.EMPTY);
 
     private String currentUrl = "";
     private CustomTrackData resolvedTrack = CustomTrackData.EMPTY;
@@ -52,10 +54,6 @@ public class MusicDiscMakerBlockEntity extends BlockEntity {
 
     public MusicDiscMakerBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.MUSIC_DISC_MAKER.get(), pos, state);
-    }
-
-    public ItemStackHandler getInventory() {
-        return inventory;
     }
 
     public String getCurrentUrl() {
@@ -140,74 +138,146 @@ public class MusicDiscMakerBlockEntity extends BlockEntity {
         if (!hasResolvedTrack()) {
             return false;
         }
-        final ItemStack input = inventory.getStackInSlot(SLOT_INPUT);
+        final ItemStack input = items.get(SLOT_INPUT);
         if (input.isEmpty() || !input.is(ModItems.BLANK_DISC.get())) {
             return false;
         }
-        if (!inventory.getStackInSlot(SLOT_OUTPUT).isEmpty()) {
+        if (!items.get(SLOT_OUTPUT).isEmpty()) {
             return false;
         }
 
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         disc.set(ModDataComponents.CUSTOM_TRACK.get(), resolvedTrack);
+        // バニラの「再生中」状態に乗せる: 曲長に合う無音 jukebox_song を JUKEBOX_PLAYABLE で参照
+        // (Amendments の回転・コンパレータ・ホッパー等が機能する。音声は LavaPlayer)。
+        // 26.1.2 の JukeboxPlayable は Holder<JukeboxSong> 単独 (1.21.1 の EitherHolder+boolean とは別形)。
+        if (this.level != null) {
+            this.level.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG)
+                    .get(SilentSongs.pick(resolvedTrack.durationMs()))
+                    .ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(holder)));
+        }
 
         // 出力を先に埋める: 直後の onContentsChanged→process は「出力が空でない」で早期 return し、
         // input 消費の onContentsChanged が再入して余計な再解決/二重生成を起こすのを防ぐ。
-        inventory.setStackInSlot(SLOT_OUTPUT, disc);
-        inventory.extractItem(SLOT_INPUT, 1, false);
+        setItem(SLOT_OUTPUT, disc);
+        removeItem(SLOT_INPUT, 1);
         return true;
     }
 
     public void sync() {
         setChanged();
-        if (level != null && !level.isClientSide) {
+        if (level != null && !level.isClientSide()) {
             level.sendBlockUpdated(getBlockPos(), getBlockState(), getBlockState(), 3);
         }
     }
 
+    /** スロット変更時: 同期 + (server 側で条件が揃えば) 自動生成。出力を先に埋める順序で再入を抑制。 */
+    private void onContentsChanged() {
+        sync();
+        DiscFabrication.process(this);
+    }
+
+    // ── persistence (26.1.2: ValueInput/ValueOutput) ──
+
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
-        inventory.deserializeNBT(registries, tag.getCompound("inventory"));
-        currentUrl = tag.getString("url");
-        resolvedForUrl = tag.getString("resolvedForUrl");
-        if (tag.contains("track")) {
-            CustomTrackData.CODEC
-                    .parse(net.minecraft.nbt.NbtOps.INSTANCE, tag.get("track"))
-                    .result()
-                    .ifPresent(t -> this.resolvedTrack = t);
-        } else {
-            this.resolvedTrack = CustomTrackData.EMPTY;
-        }
-        this.resolving = tag.getBoolean("resolving"); // 同期タグから (disk には無いので false)
-        this.resolveFailed = tag.getBoolean("resolveFailed"); // 同期タグから
+    protected void loadAdditional(ValueInput input) {
+        super.loadAdditional(input);
+        items.clear();
+        ContainerHelper.loadAllItems(input, items);
+        currentUrl = input.getStringOr("url", "");
+        resolvedForUrl = input.getStringOr("resolvedForUrl", "");
+        this.resolvedTrack = input.read("track", CustomTrackData.CODEC).orElse(CustomTrackData.EMPTY);
+        this.resolving = input.getBooleanOr("resolving", false); // 同期タグから (disk には無いので false)
+        this.resolveFailed = input.getBooleanOr("resolveFailed", false); // 同期タグから
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
-        tag.put("inventory", inventory.serializeNBT(registries));
-        tag.putString("url", currentUrl);
-        tag.putString("resolvedForUrl", resolvedForUrl);
+    protected void saveAdditional(ValueOutput output) {
+        super.saveAdditional(output);
+        ContainerHelper.saveAllItems(output, items);
+        output.putString("url", currentUrl);
+        output.putString("resolvedForUrl", resolvedForUrl);
         if (hasResolvedTrack()) {
-            CustomTrackData.CODEC
-                    .encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, resolvedTrack)
-                    .result()
-                    .ifPresent(encoded -> tag.put("track", encoded));
+            output.store("track", CustomTrackData.CODEC, resolvedTrack);
         }
     }
 
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        final CompoundTag tag = new CompoundTag();
-        saveAdditional(tag, registries);
-        tag.putBoolean("resolving", resolving); // 解決中表示用 (同期のみ・永続化しない)
-        tag.putBoolean("resolveFailed", resolveFailed); // エラー表示用 (同期のみ・永続化しない)
+        // saveCustomOnly が saveAdditional 経由で CompoundTag を組む。sync 専用フラグ (永続化しない) を上乗せ。
+        final CompoundTag tag = saveCustomOnly(registries);
+        tag.putBoolean("resolving", resolving); // 解決中表示用
+        tag.putBoolean("resolveFailed", resolveFailed); // エラー表示用
         return tag;
     }
 
     @Override
     public Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    // ── Container 実装 (hopper 連携の土台。NeoForge は VanillaContainerWrapper で wrap) ──
+
+    @Override
+    public int getContainerSize() {
+        return SIZE;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        for (final ItemStack stack : items) {
+            if (!stack.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public @NotNull ItemStack getItem(int slot) {
+        return items.get(slot);
+    }
+
+    @Override
+    public @NotNull ItemStack removeItem(int slot, int amount) {
+        final ItemStack removed = ContainerHelper.removeItem(items, slot, amount);
+        if (!removed.isEmpty()) {
+            onContentsChanged();
+        }
+        return removed;
+    }
+
+    @Override
+    public @NotNull ItemStack removeItemNoUpdate(int slot) {
+        final ItemStack removed = ContainerHelper.takeItem(items, slot);
+        if (!removed.isEmpty()) {
+            onContentsChanged();
+        }
+        return removed;
+    }
+
+    @Override
+    public void setItem(int slot, ItemStack stack) {
+        items.set(slot, stack);
+        if (!stack.isEmpty() && stack.getCount() > getMaxStackSize()) {
+            stack.setCount(getMaxStackSize());
+        }
+        onContentsChanged();
+    }
+
+    @Override
+    public boolean stillValid(Player player) {
+        return Container.stillValidBlockEntity(this, player);
+    }
+
+    @Override
+    public boolean canPlaceItem(int slot, ItemStack stack) {
+        // hopper/プレイヤーの挿入規則: 入力スロットに空ディスクのみ。出力スロットは挿入不可。
+        return slot == SLOT_INPUT && stack.is(ModItems.BLANK_DISC.get());
+    }
+
+    @Override
+    public void clearContent() {
+        items.clear();
     }
 }

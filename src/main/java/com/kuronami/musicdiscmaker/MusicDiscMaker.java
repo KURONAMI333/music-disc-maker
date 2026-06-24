@@ -19,6 +19,7 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.transfer.item.VanillaContainerWrapper;
 
 @Mod(MusicDiscMaker.MODID)
 public class MusicDiscMaker {
@@ -37,13 +38,16 @@ public class MusicDiscMaker {
 
         modEventBus.addListener(this::registerCapabilities);
         modEventBus.addListener(ModNetwork::register);
+        // Sophisticated Backpacks (Jukebox Upgrade) 互換: SC 導入時のみ IDiscHandler を登録する (内部で isLoaded ガード)。
+        modEventBus.addListener(com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat::onCommonSetup);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {
-        // hopper 等から空ディスク投入 / 出力取り出しを可能にする
-        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModBlockEntities.MUSIC_DISC_MAKER.get(),
-                (be, side) -> be.getInventory());
+        // hopper 等から空ディスク投入 / 出力取り出しを可能にする。
+        // BE は vanilla Container を実装し、VanillaContainerWrapper で ResourceHandler<ItemResource> に橋渡しする。
+        event.registerBlockEntity(Capabilities.Item.BLOCK, ModBlockEntities.MUSIC_DISC_MAKER.get(),
+                (be, side) -> VanillaContainerWrapper.of(be));
     }
 }

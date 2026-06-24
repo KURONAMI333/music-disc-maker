@@ -35,6 +35,10 @@ public final class ModNetwork {
         registrar.playToClient(StopDiscPayload.TYPE, StopDiscPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(
                         () -> com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.stop(payload)));
+
+        // Sophisticated Backpacks (Jukebox Upgrade) 互換の再生ペイロード。SC 非依存なので無条件登録してよい
+        // (受信ハンドラ内の SC 参照は invoke 時のみ class-load される)。
+        com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload(registrar);
     }
 
     private static void handleSetUrl(ResolveUrlPayload payload, IPayloadContext context) {

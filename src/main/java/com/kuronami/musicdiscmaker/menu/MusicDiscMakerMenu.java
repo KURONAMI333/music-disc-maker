@@ -10,10 +10,8 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.items.SlotItemHandler;
 
 public class MusicDiscMakerMenu extends AbstractContainerMenu {
 
@@ -30,7 +28,7 @@ public class MusicDiscMakerMenu extends AbstractContainerMenu {
         this.blockEntity = blockEntity;
 
         // 入力 (空ディスク)
-        addSlot(new SlotItemHandler(blockEntity.getInventory(), MusicDiscMakerBlockEntity.SLOT_INPUT, 62, 47));
+        addSlot(new Slot(blockEntity, MusicDiscMakerBlockEntity.SLOT_INPUT, 62, 47));
         // 出力 (custom disc) — 取り出し専用
         addSlot(new OutputSlot(blockEntity, MusicDiscMakerBlockEntity.SLOT_OUTPUT, 114, 47));
 
@@ -107,9 +105,9 @@ public class MusicDiscMakerMenu extends AbstractContainerMenu {
     }
 
     /** 出力スロット: プレイヤーは挿入不可、取り出しのみ。 */
-    private static class OutputSlot extends SlotItemHandler {
+    private static class OutputSlot extends Slot {
         OutputSlot(MusicDiscMakerBlockEntity be, int slot, int x, int y) {
-            super(be.getInventory(), slot, x, y);
+            super(be, slot, x, y);
         }
 
         @Override

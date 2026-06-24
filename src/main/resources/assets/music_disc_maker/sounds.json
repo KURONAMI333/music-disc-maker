@@ -3,7 +3,18 @@
     "category": "record",
     "subtitle": "subtitles.music_disc_maker.custom_disc_playback",
     "sounds": [
-      { "name": "music_disc_maker:custom_disc_playback", "stream": true }
+      {
+        "name": "music_disc_maker:custom_disc_playback",
+        "stream": true
+      }
+    ]
+  },
+  "silence": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "music_disc_maker:silence"
+      }
     ]
   }
 }

@@ -17,5 +17,6 @@
 
   "music_disc_maker.configuration.title": "Налаштування виготовлювача платівок",
   "music_disc_maker.configuration.volumeMultiplier": "Множник гучності",
-  "music_disc_maker.configuration.maxConcurrent": "Макс. одночасних платівок"
+  "music_disc_maker.configuration.maxConcurrent": "Макс. одночасних платівок",
+  "music_disc_maker.playback_failed": "Не вдалося відтворити цей диск (потік недоступний)"
 }
