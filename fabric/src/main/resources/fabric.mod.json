@@ -1,0 +1,32 @@
+{
+    "schemaVersion": 1,
+    "id": "${mod_id}",
+    "version": "${version}",
+    "name": "${mod_name}",
+    "description": "${description}",
+    "authors": [
+        "${mod_author}"
+    ],
+    "contact": {},
+    "license": "${license}",
+    "icon": "${mod_id}.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "com.kuronami.musicdiscmaker.MusicDiscMakerFabric"
+        ],
+        "client": [
+            "com.kuronami.musicdiscmaker.client.MusicDiscMakerFabricClient"
+        ]
+    },
+    "mixins": [
+        "${mod_id}.mixins.json",
+        "${mod_id}.fabric.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": ">=0.16",
+        "fabric-api": "*",
+        "minecraft": "~1.21.1",
+        "java": ">=${java_version}"
+    }
+}

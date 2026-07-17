@@ -1,0 +1,80 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "music_disc_maker:item/custom_music_disc"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.0
+      },
+      "model": "music_disc_maker:item/custom_music_disc_0"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.08333
+      },
+      "model": "music_disc_maker:item/custom_music_disc_1"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.16667
+      },
+      "model": "music_disc_maker:item/custom_music_disc_2"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.25
+      },
+      "model": "music_disc_maker:item/custom_music_disc_3"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.33333
+      },
+      "model": "music_disc_maker:item/custom_music_disc_4"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.41667
+      },
+      "model": "music_disc_maker:item/custom_music_disc_5"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.5
+      },
+      "model": "music_disc_maker:item/custom_music_disc_6"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.58333
+      },
+      "model": "music_disc_maker:item/custom_music_disc_7"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.66667
+      },
+      "model": "music_disc_maker:item/custom_music_disc_8"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.75
+      },
+      "model": "music_disc_maker:item/custom_music_disc_9"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.83333
+      },
+      "model": "music_disc_maker:item/custom_music_disc_10"
+    },
+    {
+      "predicate": {
+        "music_disc_maker:variant": 0.91667
+      },
+      "model": "music_disc_maker:item/custom_music_disc_11"
+    }
+  ]
+}

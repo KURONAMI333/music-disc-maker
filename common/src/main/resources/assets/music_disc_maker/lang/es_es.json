@@ -1,0 +1,22 @@
+{
+  "block.music_disc_maker.music_disc_maker": "Fabricante de discos",
+  "item.music_disc_maker.blank_disc": "Disco en blanco",
+  "item.music_disc_maker.custom_music_disc": "Disco personalizado",
+
+  "gui.music_disc_maker.title": "Fabricante de discos",
+  "gui.music_disc_maker.url_placeholder": "Pega una URL aquí…",
+  "gui.music_disc_maker.fetching": "Cargando…",
+  "gui.music_disc_maker.failed": "Error",
+  "gui.music_disc_maker.hint": "Pega una URL + inserta un disco en blanco",
+
+  "tooltip.music_disc_maker.artist": "por %s",
+  "tooltip.music_disc_maker.duration": "Duración: %s",
+  "tooltip.music_disc_maker.empty_disc": "Sin pista",
+
+  "subtitles.music_disc_maker.custom_disc_playback": "Reproduciendo disco personalizado",
+
+  "music_disc_maker.configuration.title": "Configuración del fabricante de discos",
+  "music_disc_maker.configuration.volumeMultiplier": "Multiplicador de volumen",
+  "music_disc_maker.configuration.maxConcurrent": "Discos simultáneos máx.",
+  "music_disc_maker.playback_failed": "No se pudo reproducir este disco (transmisión no disponible)"
+}

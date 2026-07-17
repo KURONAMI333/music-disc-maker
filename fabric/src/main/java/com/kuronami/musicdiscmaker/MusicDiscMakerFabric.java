@@ -1,0 +1,47 @@
+package com.kuronami.musicdiscmaker;
+
+import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
+import com.kuronami.musicdiscmaker.event.FabricJukeboxEvents;
+import com.kuronami.musicdiscmaker.network.ModNetwork;
+import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
+import com.kuronami.musicdiscmaker.network.StopDiscPayload;
+import com.kuronami.musicdiscmaker.register.ModRegistries;
+
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+
+/**
+ * Fabric entry。common ホルダ ({@code Mod*}) を {@code ModRegistries.init()} で touch して即時登録し
+ * (onInitialize 中はレジストリが開いている)、payload 型の登録・受信配線・jukebox イベント・server 停止
+ * フックを設定する。
+ */
+public class MusicDiscMakerFabric implements ModInitializer {
+
+    @Override
+    public void onInitialize() {
+        // common ホルダの static 初期化を依存順に touch → Registry.register で即時登録される。
+        ModRegistries.init();
+
+        // payload 型を登録する。
+        PayloadTypeRegistry.playC2S().register(ResolveUrlPayload.TYPE, ResolveUrlPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(StopDiscPayload.TYPE, StopDiscPayload.STREAM_CODEC);
+        // SB Fabric port の backpack jukebox 用 (port 非依存。port が無ければ送信されないだけ)。
+        com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload();
+
+        // server 受信: URL コミット (main thread へ enqueue して BlockEntity に保存)。
+        ServerPlayNetworking.registerGlobalReceiver(ResolveUrlPayload.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleResolveUrl(payload, ctx.player())));
+
+        // jukebox 出し入れ / 破壊イベント。
+        FabricJukeboxEvents.register();
+
+        // server 停止で再生中状態を破棄 (シングルプレイのワールド退出含む)。
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> ActiveDiscRegistry.clear());
+
+        MusicDiscMaker.LOGGER.info("Music Disc Maker (Fabric) initialized");
+    }
+}

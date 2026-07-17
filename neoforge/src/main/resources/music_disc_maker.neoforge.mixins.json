@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.kuronami.musicdiscmaker.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "MixinTitleScreen",
+    "MixinSoundEngine"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
