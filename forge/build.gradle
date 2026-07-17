@@ -1,0 +1,89 @@
+plugins {
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev.legacyforge'
+}
+
+mixin {
+    add(sourceSets.main, "${mod_id}.refmap.json")
+
+    config("${mod_id}.mixins.json")
+    config("${mod_id}.forge.mixins.json")
+}
+
+// ─── LavaPlayer 隔離ロード wiring ────────────────────────────────────────
+// dev (runClient/runServer) では mod jar が無いので、packed jar の展開元を -Dmusicdiscmaker.dev で
+// build dir から直接読ませる (これが無いと DependencyManager が jar 経路に落ちて URL 解決が FAILED になる)。
+evaluationDependsOn(':lavaplayer')
+def lavaImplForge = project(':lavaplayer')
+def lavaDevPath = lavaImplForge.layout.buildDirectory.dir('libs').get().asFile.absolutePath +
+        ';' + lavaImplForge.layout.buildDirectory.dir('dependencies').get().asFile.absolutePath
+
+legacyForge {
+    version = "${minecraft_version}-${forge_version}"
+
+    validateAccessTransformers = true
+
+    def at = project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')
+    if (at.exists()) {
+        accessTransformers = ["src/main/resources/META-INF/accesstransformer.cfg"]
+    }
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
+    }
+    runs {
+        configureEach {
+            // dev: 隔離 classloader が読む packed jar の展開元 (mod jar 未経由)
+            systemProperty('musicdiscmaker.dev', lavaDevPath)
+        }
+        client {
+            client()
+        }
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+        server {
+            server()
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+sourceSets.main.resources.srcDir 'src/generated/resources'
+
+dependencies {
+    compileOnly project(":common")
+    // common の共有ソースが org.jetbrains.annotations (@Nullable/@NotNull) を使うが legacyForge の
+    // loader compile classpath には無いため明示的に足す (CLASS retention なので compileOnly で十分)。
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+    annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT:processor")
+    // Sophisticated Core (互換): IDiscHandler を登録して custom disc を SB の Jukebox Upgrade で使えるようにする。
+    // compileOnly のソフト依存。runtime に sophisticatedcore があれば compat が動く。
+    compileOnly files('compat-libs/sophisticatedcore-1.20.1-1.3.42.1945.jar')
+}
+
+// ─── LavaPlayer 一式を mod jar に同梱 (隔離 classloader が runtime ロード) ───
+// legacyForge の最終成果物は reobfJar (jar を消費して SRG 化)。jar に dependencies/*.jar.packed を入れる
+// (reobf は class のみ remap し、非 class リソースは保持する)。
+jar {
+    dependsOn lavaImplForge.tasks.named('assemble')
+    into('dependencies') {
+        from(lavaImplForge.layout.buildDirectory.dir('libs')) { include '*.jar.packed' }
+        from(lavaImplForge.layout.buildDirectory.dir('dependencies')) { include '*.jar.packed' }
+    }
+    finalizedBy('reobfJar')
+    manifest.attributes([
+            "MixinConfigs": "${mod_id}.mixins.json,${mod_id}.forge.mixins.json"
+    ])
+}
+
+// dev run も隔離ロード用の packed jar が要るので assemble に依存させる
+tasks.matching { it.name in ['runClient', 'runServer', 'runData'] }.configureEach {
+    dependsOn lavaImplForge.tasks.named('assemble')
+}

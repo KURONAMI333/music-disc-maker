@@ -1,0 +1,22 @@
+{
+  "block.music_disc_maker.music_disc_maker": "Изготовитель пластинок",
+  "item.music_disc_maker.blank_disc": "Пустая пластинка",
+  "item.music_disc_maker.custom_music_disc": "Своя пластинка",
+
+  "gui.music_disc_maker.title": "Изготовитель пластинок",
+  "gui.music_disc_maker.url_placeholder": "Вставьте ссылку…",
+  "gui.music_disc_maker.fetching": "Загрузка…",
+  "gui.music_disc_maker.failed": "Ошибка",
+  "gui.music_disc_maker.hint": "Вставьте ссылку и пустую пластинку",
+
+  "tooltip.music_disc_maker.artist": "Исполнитель: %s",
+  "tooltip.music_disc_maker.duration": "Длина: %s",
+  "tooltip.music_disc_maker.empty_disc": "Нет трека",
+
+  "subtitles.music_disc_maker.custom_disc_playback": "Играет своя пластинка",
+
+  "music_disc_maker.configuration.title": "Настройки изготовителя пластинок",
+  "music_disc_maker.configuration.volumeMultiplier": "Множитель громкости",
+  "music_disc_maker.configuration.maxConcurrent": "Макс. одновременных пластинок",
+  "music_disc_maker.playback_failed": "Не удалось воспроизвести диск (поток недоступен)"
+}

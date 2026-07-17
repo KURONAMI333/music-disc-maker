@@ -1,0 +1,25 @@
+// mod <-> LavaPlayer impl の橋渡し interface のみ。
+// MC / NeoForge / Fabric には一切依存しない (隔離 classloader と mod classloader の両方から
+// 同一クラスとして見える必要があるため、依存ゼロの素の java で保つ)。
+//
+// 正典ソースは common (各ローダーの mod classloader に載せるため common にコンパイルさせる)。
+// このサブプロジェクトは common の api パッケージ「だけ」をコンパイルし、lavaplayer impl が
+// MC/common を引かずに interface へコンパイルできるようにする。DRY: ソースは common 一箇所。
+plugins {
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+sourceSets.main.java {
+    srcDirs = [rootProject.file('common/src/main/java')]
+    include '**/lavaplayer/api/**'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

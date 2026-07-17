@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "tag": "music_disc_maker:blankable_discs" }
+  ],
+  "result": {
+    "item": "music_disc_maker:blank_disc",
+    "count": 1
+  }
+}

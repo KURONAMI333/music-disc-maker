@@ -1,0 +1,68 @@
+plugins {
+    id 'multiloader-loader'
+    id 'fabric-loom'
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${parchment_minecraft}:${parchment_version}@zip")
+    }
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
+    implementation project(":common")
+    // Sophisticated Backpacks の (非公式) Fabric port。@Pseudo mixin が参照する SC の内部型用に
+    // compile 時のみ参照する (出荷 jar には同梱しない = ソフト依存)。loom が intermediary→mojmap に remap する。
+    modCompileOnly files("compat-libs/sophisticatedcore-fabric-1.20.1-port.jar")
+}
+
+// ─── LavaPlayer 隔離ロード wiring ────────────────────────────────────────
+// LavaPlayer は隔離 URLClassLoader で runtime ロードする。dev (runClient/runServer) では
+// mod jar が無いので、packed jar の展開元を -Dmusicdiscmaker.dev で build dir から直接読ませる。
+// (これが無いと DependencyManager が jar 経路に落ちて URL 解決が FAILED になる。)
+evaluationDependsOn(':lavaplayer')
+def lavaImplFab = project(':lavaplayer')
+def lavaDevPath = lavaImplFab.layout.buildDirectory.dir('libs').get().asFile.absolutePath +
+        ';' + lavaImplFab.layout.buildDirectory.dir('dependencies').get().asFile.absolutePath
+
+loom {
+    def aw = project(':common').file("src/main/resources/${mod_id}.accesswidener")
+    if (aw.exists()) {
+        accessWidenerPath.set(aw)
+    }
+    mixin {
+        defaultRefmapName.set("${mod_id}.refmap.json")
+    }
+    runs {
+        client {
+            client()
+            setConfigName("Fabric Client")
+            ideConfigGenerated(true)
+            runDir("run")
+            property('musicdiscmaker.dev', lavaDevPath)
+        }
+        server {
+            server()
+            setConfigName("Fabric Server")
+            ideConfigGenerated(true)
+            runDir("run")
+            property('musicdiscmaker.dev', lavaDevPath)
+        }
+    }
+}
+
+// ─── LavaPlayer 一式を mod jar に同梱 (隔離 classloader が runtime ロード) ───
+// Loom の最終成果物は remapJar (jar を消費)。jar に dependencies/*.jar.packed を入れる。
+tasks.named('jar').configure {
+    dependsOn lavaImplFab.tasks.named('assemble')
+    into('dependencies') {
+        from(lavaImplFab.layout.buildDirectory.dir('libs')) { include '*.jar.packed' }
+        from(lavaImplFab.layout.buildDirectory.dir('dependencies')) { include '*.jar.packed' }
+    }
+}
+
+// dev run も隔離ロード用の packed jar が要るので assemble に依存させる
+tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach {
+    dependsOn lavaImplFab.tasks.named('assemble')
+}

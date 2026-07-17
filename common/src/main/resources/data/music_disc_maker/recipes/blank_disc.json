@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " L ",
+    "LIL",
+    " L "
+  ],
+  "key": {
+    "L": { "item": "minecraft:lapis_lazuli" },
+    "I": { "item": "minecraft:iron_ingot" }
+  },
+  "result": {
+    "item": "music_disc_maker:blank_disc",
+    "count": 1
+  }
+}
