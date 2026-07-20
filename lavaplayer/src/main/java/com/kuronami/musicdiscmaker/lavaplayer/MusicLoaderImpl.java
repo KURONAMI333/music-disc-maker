@@ -3,6 +3,8 @@ package com.kuronami.musicdiscmaker.lavaplayer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +44,13 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     static final int SAMPLE_RATE = 48000;
     static final int CHANNELS = 1;
+
+    // YouTube リンクの host 判定と 11 桁 video ID 抽出。host が YouTube 系の時だけ正規化する
+    // (他サービスの URL に v= が含まれても触らない)。
+    private static final Pattern YT_HOST =
+            Pattern.compile("(?i)^(?:https?://)?(?:www\\.|m\\.|music\\.)?(?:youtube\\.com|youtu\\.be)/");
+    private static final Pattern YT_VIDEO_ID =
+            Pattern.compile("(?i)(?:youtu\\.be/|/shorts/|/embed/|[?&]v=)([A-Za-z0-9_-]{11})");
 
     private final AudioPlayerManager apm;
 
@@ -121,9 +130,30 @@ public class MusicLoaderImpl implements IMusicLoader {
         return new LavaAudioSource(player);
     }
 
+    /**
+     * 単曲の YouTube リンク (watch / youtu.be / shorts / embed) に再生リスト等のパラメータが
+     * 付いている場合、video ID だけを取り出して素の watch URL に直す。
+     *
+     * <p>{@code watch?v=<有効動画>&list=<削除済み/非公開の名前付きプレイリスト>} のような URL は、
+     * 動画自体は有効でも playlist 解決が 404 になり全 client が失敗する。プレイリストやミックスの
+     * 文脈からコピーした URL で起きるため、単曲意図なら list/index/start_radio を捨てて確実に通す。
+     * YouTube 以外の URL・プレイリスト専用 URL・検索クエリ (ytsearch:) はそのまま返す。
+     */
+    static String normalizeYoutubeUrl(String url) {
+        if (url == null || !YT_HOST.matcher(url).find()) {
+            return url;
+        }
+        final Matcher m = YT_VIDEO_ID.matcher(url);
+        if (m.find()) {
+            return "https://www.youtube.com/watch?v=" + m.group(1);
+        }
+        return url;
+    }
+
     private AudioTrack loadTrackSync(String url) {
+        final String normalized = normalizeYoutubeUrl(url);
         final CompletableFuture<AudioTrack> future = new CompletableFuture<>();
-        apm.loadItem(new AudioReference(url, null), new AudioLoadResultHandler() {
+        apm.loadItem(new AudioReference(normalized, null), new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
                 future.complete(track);
