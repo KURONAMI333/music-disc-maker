@@ -156,8 +156,11 @@ public final class JacketCache {
                 markFailed(hash);
                 return;
             }
+            // NativeImage.read は PNG 署名を必須とする (PngInfo.validateHeader) = PNG 専用。
+            // YouTube サムネ等の JPEG は ImageIO で decode → PNG に再エンコードしてから渡す。
+            final byte[] pngBytes = toPngBytes(bytes);
             final NativeImage image;
-            try (InputStream in = new ByteArrayInputStream(bytes)) {
+            try (InputStream in = new ByteArrayInputStream(pngBytes)) {
                 image = NativeImage.read(in);
             }
             // texture 登録は render スレッドで行う (off-thread 登録は OpenGL 破壊のバグ源)。
@@ -205,6 +208,34 @@ public final class JacketCache {
     private static void markFailed(String hash) {
         FAILED.add(hash);
         PENDING.remove(hash);
+    }
+
+    /** PNG 署名 (89 50 4E 47 0D 0A 1A 0A)。 */
+    private static boolean isPng(byte[] b) {
+        return b.length >= 8
+                && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G'
+                && (b[4] & 0xFF) == 0x0D && (b[5] & 0xFF) == 0x0A
+                && (b[6] & 0xFF) == 0x1A && (b[7] & 0xFF) == 0x0A;
+    }
+
+    /**
+     * {@link NativeImage#read} は PNG 署名を必須とする ({@code PngInfo.validateHeader}) ため PNG 専用。
+     * PNG ならそのまま返し、JPEG 等はいったん {@link ImageIO} で decode → PNG に再エンコードして返す。
+     * 寸法は呼び出し前に {@link #dimensionsWithinLimit} で検査済み。
+     */
+    private static byte[] toPngBytes(byte[] bytes) throws IOException {
+        if (isPng(bytes)) {
+            return bytes;
+        }
+        final java.awt.image.BufferedImage img = ImageIO.read(new ByteArrayInputStream(bytes));
+        if (img == null) {
+            throw new IOException("ImageIO が画像を decode できない");
+        }
+        final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        if (!ImageIO.write(img, "png", out)) {
+            throw new IOException("PNG への再エンコードに失敗 (writer 無し)");
+        }
+        return out.toByteArray();
     }
 
     /**
