@@ -91,7 +91,9 @@ class LavaAudioSource implements IAudioSource {
                 }
                 continue;
             }
-            leftover = frame.getData();
+            // lavaplayer 出力は stereo (MusicLoaderImpl の LAVA_OUTPUT_CHANNELS)。
+            // ここで mono へ downmix して MC へ渡す (channels()==1 と整合)。
+            leftover = downmixStereoToMono(frame.getData());
             leftoverPos = 0;
         }
 
@@ -99,6 +101,25 @@ class LavaAudioSource implements IAudioSource {
             return ended ? -1 : 0;
         }
         return written;
+    }
+
+    /**
+     * interleaved stereo S16LE を mono S16LE へ downmix する (L/R 平均)。lavaplayer の出力は
+     * stereo 固定 (LAVA_OUTPUT_CHANNELS) なので、ここで確実に mono 化する。奇数余りは切り捨てる。
+     */
+    private static byte[] downmixStereoToMono(byte[] stereo) {
+        final int sampleFrames = stereo.length / 4; // 4 bytes = L(2) + R(2)
+        final byte[] mono = new byte[sampleFrames * 2];
+        for (int i = 0; i < sampleFrames; i++) {
+            final int s = i * 4;
+            final short l = (short) ((stereo[s] & 0xFF) | (stereo[s + 1] << 8));
+            final short r = (short) ((stereo[s + 2] & 0xFF) | (stereo[s + 3] << 8));
+            final int m = (l + r) / 2;
+            final int d = i * 2;
+            mono[d] = (byte) (m & 0xFF);
+            mono[d + 1] = (byte) ((m >> 8) & 0xFF);
+        }
+        return mono;
     }
 
     @Override
