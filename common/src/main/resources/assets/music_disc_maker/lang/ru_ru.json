@@ -18,5 +18,16 @@
   "music_disc_maker.configuration.title": "Настройки изготовителя пластинок",
   "music_disc_maker.configuration.volumeMultiplier": "Множитель громкости",
   "music_disc_maker.configuration.maxConcurrent": "Макс. одновременных пластинок",
-  "music_disc_maker.playback_failed": "Не удалось воспроизвести диск (поток недоступен)"
+  "music_disc_maker.playback_failed": "Не удалось воспроизвести диск (поток недоступен)",
+  "block.music_disc_maker.enhanced_jukebox": "Улучшенный проигрыватель",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Улучшенный проигрыватель",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Радиус: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Громкость: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Повтор: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Вкл",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Выкл",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Играть",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Стоп",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Нет пластинки",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Обычная пластинка"
 }

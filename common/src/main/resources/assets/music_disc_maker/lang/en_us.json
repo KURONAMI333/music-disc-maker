@@ -21,5 +21,16 @@
   "music_disc_maker.configuration.title": "Music Disc Maker Config",
   "music_disc_maker.configuration.volumeMultiplier": "Volume multiplier",
   "music_disc_maker.configuration.maxConcurrent": "Max concurrent discs",
-  "music_disc_maker.playback_failed": "Could not play this disc (stream unavailable)"
+  "music_disc_maker.playback_failed": "Could not play this disc (stream unavailable)",
+  "block.music_disc_maker.enhanced_jukebox": "Tuned Jukebox",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Tuned Jukebox",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Range: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Volume: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Repeat: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "On",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Off",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Play",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Stop",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "No disc",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Vanilla disc"
 }
