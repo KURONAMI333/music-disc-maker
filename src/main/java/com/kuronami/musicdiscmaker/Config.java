@@ -19,6 +19,11 @@ public final class Config {
             .comment("Distance in blocks at which custom disc audio fades to silence (vanilla discs use 16).")
             .defineInRange("playbackRange", 64, 16, 256);
 
+    public static final ModConfigSpec.IntValue MAX_PLAYBACK_RANGE = BUILDER
+            .comment("Upper cap for the Gilded Jukebox per-block range setting (blocks). "
+                    + "Effective range = min(block setting, this). Separate from playbackRange.")
+            .defineInRange("maxPlaybackRange", 256, 16, 256);
+
     static final ModConfigSpec SPEC = BUILDER.build();
 
     private Config() {

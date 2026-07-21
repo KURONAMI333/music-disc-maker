@@ -44,6 +44,7 @@ public final class SophisticatedCoreCompatClient {
         POOL.submit(() -> {
             IAudioSource source;
             try {
+                com.kuronami.musicdiscmaker.network.UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
                 source = LoaderHolder.get().openStream(track.url(), 0L);
             } catch (final Throwable t) {
                 MusicDiscMaker.LOGGER.warn("SB jukebox 用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());

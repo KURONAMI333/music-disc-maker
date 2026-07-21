@@ -7,6 +7,7 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
 import net.minecraft.server.MinecraftServer;
@@ -62,6 +63,7 @@ public final class DiscFabrication {
         POOL.submit(() -> {
             TrackInfo resolved;
             try {
+                UrlGuard.enforce(url); // SSRF 遮断: 内部 IP / 非 http(s) scheme を解決前に弾く
                 resolved = LoaderHolder.get().resolve(url);
             } catch (final Throwable t) {
                 MusicDiscMaker.LOGGER.warn("URL 解決中に例外 ({}): {}", url, t.toString());

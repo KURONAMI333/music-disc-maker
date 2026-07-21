@@ -55,6 +55,7 @@ public final class ClientPlaybackManager {
         pool.submit(() -> {
             IAudioSource source;
             try {
+                com.kuronami.musicdiscmaker.network.UrlGuard.enforce(track.url());
                 source = LoaderHolder.get().openStream(track.url(), startOffsetMs);
             } catch (final Throwable t) {
                 MusicDiscMaker.LOGGER.warn("再生用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
