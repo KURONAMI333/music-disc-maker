@@ -28,6 +28,11 @@ public final class ModItems {
             ITEMS.register("music_disc_maker",
                     () -> new BlockItem(ModBlocks.MUSIC_DISC_MAKER.get(), new Item.Properties()));
 
+    /** 強化版ジュークボックスの BlockItem。 */
+    public static final RegistryHolder<BlockItem> GOLDEN_JUKEBOX =
+            ITEMS.register("golden_jukebox",
+                    () -> new BlockItem(ModBlocks.GOLDEN_JUKEBOX.get(), new Item.Properties()));
+
     private ModItems() {
     }
 

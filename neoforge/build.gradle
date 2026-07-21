@@ -73,4 +73,9 @@ dependencies {
     // Sophisticated Core (互換): custom disc を SB の Jukebox Upgrade で使えるよう IDiscHandler を登録する。
     // compileOnly のみ = ソフト依存。compat コードは runtime に sophisticatedcore がロードされている時だけ動く。
     compileOnly files('compat-libs/sophisticatedcore-1.21.1-1.4.42.1892.jar')
+
+    // Additional Additions (互換): アルバムに入れた custom disc の実音声をストリーム再生する。
+    // compileOnly のみ = ソフト依存 (mods.toml に依存宣言しない)。compat コードは runtime に
+    // additionaladditions がロードされている時だけ動く。dev で実挙動を試すなら runtimeOnly に足す。
+    compileOnly files('compat-libs/additionaladditions-neoforge-10.0.5.jar')
 }

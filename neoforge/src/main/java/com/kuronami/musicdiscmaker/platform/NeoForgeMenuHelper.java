@@ -1,6 +1,8 @@
 package com.kuronami.musicdiscmaker.platform;
 
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
+import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.platform.services.IMenuHelper;
 
@@ -32,5 +34,21 @@ public class NeoForgeMenuHelper implements IMenuHelper {
                     ? new MusicDiscMakerMenu(id, inv, maker)
                     : null;
         }, Component.translatable("gui.music_disc_maker.title")), buf -> buf.writeBlockPos(pos));
+    }
+
+    @Override
+    public MenuType<GoldenJukeboxMenu> createGoldenJukeboxMenuType() {
+        return IMenuTypeExtension.create(
+                (id, inv, buf) -> new GoldenJukeboxMenu(id, inv, buf.readBlockPos()));
+    }
+
+    @Override
+    public void openGoldenJukeboxMenu(ServerPlayer player, BlockPos pos) {
+        player.openMenu(new SimpleMenuProvider((id, inv, p) -> {
+            final BlockEntity be = player.level().getBlockEntity(pos);
+            return be instanceof GoldenJukeboxBlockEntity jukebox
+                    ? new GoldenJukeboxMenu(id, inv, jukebox)
+                    : null;
+        }, Component.translatable("gui.music_disc_maker.golden_jukebox.title")), buf -> buf.writeBlockPos(pos));
     }
 }
