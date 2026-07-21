@@ -2,9 +2,9 @@
 
 ## 2.0.0
 
-- **Golden Jukebox** — a new craftable block (surround a jukebox with gold ingots) with a settings GUI: adjust the audible range (16-256 blocks), volume (0-200%), toggle repeat, and play/stop. Range and volume apply per block, so one jukebox can fill a large area while another stays quiet. Comparator output and redstone behave like a vanilla jukebox.
+- **Golden Jukebox** — a new craftable block (surround a jukebox with gold ingots) with a music-player-style GUI: a seek bar to scrub through the track, play/stop and repeat controls, and per-block sliders for audible range (16-256 blocks) and volume (0-200%), so one jukebox can fill a large area while another stays quiet. The GUI shows the current track's title and album art — for vanilla and other mods' discs as well as custom ones. Comparator output and redstone behave like a vanilla jukebox.
 - **Radio & livestream discs** — infinite HTTP/icecast radio streams and YouTube live now play as endless discs, shown as "LIVE" instead of a length, with automatic reconnection on brief dropouts.
-- **Album art on discs** — the track's thumbnail is downloaded and shown as a tooltip image on the disc and as a preview in the Music Disc Maker GUI (cached locally, https-only).
+- **Album art on discs** — the track's thumbnail (PNG or JPEG) is downloaded and shown as a tooltip image on the disc and as a preview in the Music Disc Maker GUI (cached locally, https-only).
 - **Reason-specific failure messages** — the maker now tells you *why* a URL failed (unsupported, unavailable/private, geo-blocked, age-restricted, offline, or blocked) instead of a generic error.
 - **Name your discs** — discs are automatically named after their track, and anvil renames are respected.
 - **Additional Additions albums** — custom discs placed in an Additional Additions album now play their real audio through the album's jukebox.
