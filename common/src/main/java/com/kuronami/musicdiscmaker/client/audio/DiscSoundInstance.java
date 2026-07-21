@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
@@ -25,6 +26,8 @@ import net.minecraft.world.phys.Vec3;
 public class DiscSoundInstance extends AbstractTickableSoundInstance {
 
     private final IAudioSource source;
+    /** source を高々一度だけ close するためのガード (requestStop と stream 経由の close の二重解放を防ぐ)。 */
+    private final AtomicBoolean sourceClosed = new AtomicBoolean(false);
     @Nullable
     private final Entity followEntity;
     /** block 再生時の jukebox 位置 (entity 再生時は null)。撤去検知に使う。 */
@@ -115,5 +118,11 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
 
     public void requestStop() {
         this.stop();
+        // stream 開栓前 (getCustomStream 未呼び出し) に停止すると、MC が AudioStream.close を
+        // 発火しない = source が閉じられず LavaPlayer の player thread/buffer がリークする。
+        // ここで冪等に閉じる。stream 経由で後から close されても LavaAudioSource.close は無害。
+        if (sourceClosed.compareAndSet(false, true)) {
+            source.close();
+        }
     }
 }
