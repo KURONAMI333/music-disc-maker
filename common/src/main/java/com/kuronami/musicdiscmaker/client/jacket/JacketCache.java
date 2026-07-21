@@ -10,7 +10,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import javax.net.ssl.HttpsURLConnection;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
@@ -40,6 +45,10 @@ public final class JacketCache {
 
     /** DL する画像の最大バイト数 (細工された巨大画像で OOM しない)。 */
     private static final int MAX_IMAGE_BYTES = 3_000_000;
+    /** デコード後の各辺の最大ピクセル数 (デコード爆弾対策: 圧縮率が高い画像は byte 上限を抜ける)。 */
+    private static final int MAX_IMAGE_DIM = 4096;
+    /** デコード後の総ピクセル数上限 (4096×4096 ≈ 1677万px ≈ 64MB@RGBA)。 */
+    private static final long MAX_IMAGE_PIXELS = 4096L * 4096L;
     /** メモリに保持する texture の上限枚数 (LRU で追い出す)。 */
     private static final int IN_MEMORY_MAX = 48;
     /** on-disk キャッシュの合計サイズ上限。 */
@@ -59,9 +68,17 @@ public final class JacketCache {
     // 登録済み texture (アクセス順 LRU)。render スレッドからのみ触る。
     private static final LinkedHashMap<String, Jacket> READY =
             new LinkedHashMap<>(16, 0.75F, true);
-    // DL 中 / 恒久失敗の URL ハッシュ (再要求のスパムを防ぐ)。
+    // DL 中の URL ハッシュ (再要求のスパムを防ぐ)。load 完了/失敗で除かれるので同時実行数で有界。
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
-    private static final Set<String> FAILED = ConcurrentHashMap.newKeySet();
+    /** 恒久失敗の URL ハッシュ。FIFO で上限を設け、セッション中の単調増加を防ぐ。 */
+    private static final int FAILED_MAX = 512;
+    private static final Set<String> FAILED = Collections.synchronizedSet(
+            Collections.newSetFromMap(new LinkedHashMap<String, Boolean>(64, 0.75F, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                    return size() > FAILED_MAX;
+                }
+            }));
 
     private JacketCache() {
     }
@@ -133,6 +150,12 @@ public final class JacketCache {
                 markFailed(hash);
                 return;
             }
+            // デコード前に寸法を検査してデコード爆弾を弾く (byte 上限だけでは展開後サイズを防げない)。
+            if (!dimensionsWithinLimit(bytes)) {
+                MusicDiscMaker.LOGGER.debug("ジャケット拒否 (寸法超過/不明): {}", url);
+                markFailed(hash);
+                return;
+            }
             final NativeImage image;
             try (InputStream in = new ByteArrayInputStream(bytes)) {
                 image = NativeImage.read(in);
@@ -182,6 +205,34 @@ public final class JacketCache {
     private static void markFailed(String hash) {
         FAILED.add(hash);
         PENDING.remove(hash);
+    }
+
+    /**
+     * デコード前に画像ヘッダから寸法を読み、上限超えを弾く (デコード爆弾対策)。ヘッダだけを読むので
+     * ピクセルは展開しない。寸法を読めない/対応外フォーマットの画像は安全側で拒否する。
+     */
+    private static boolean dimensionsWithinLimit(byte[] bytes) {
+        try (ImageInputStream iis = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (iis == null) {
+                return false;
+            }
+            final Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
+            if (!readers.hasNext()) {
+                return false; // 対応外フォーマット
+            }
+            final ImageReader reader = readers.next();
+            try {
+                reader.setInput(iis, true, true);
+                final int w = reader.getWidth(0);
+                final int h = reader.getHeight(0);
+                return w > 0 && h > 0 && w <= MAX_IMAGE_DIM && h <= MAX_IMAGE_DIM
+                        && (long) w * h <= MAX_IMAGE_PIXELS;
+            } finally {
+                reader.dispose();
+            }
+        } catch (final Exception ex) {
+            return false; // 寸法を読めない画像は拒否
+        }
     }
 
     private static byte[] download(String startUrl) throws IOException {
