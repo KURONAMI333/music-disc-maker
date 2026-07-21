@@ -10,6 +10,8 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -55,7 +57,12 @@ public final class ClientPlaybackManager {
         pool.submit(() -> {
             IAudioSource source;
             try {
+                // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
+                UrlGuard.enforce(track.url());
                 source = LoaderHolder.get().openStream(track.url(), startOffsetMs);
+            } catch (final UrlBlockedException blocked) {
+                MusicDiscMaker.LOGGER.warn("再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
+                source = null;
             } catch (final Throwable t) {
                 MusicDiscMaker.LOGGER.warn("再生用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
                 source = null;

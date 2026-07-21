@@ -11,6 +11,8 @@ import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -53,7 +55,11 @@ public final class SophisticatedCoreCompatClient {
         POOL.submit(() -> {
             IAudioSource source;
             try {
+                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
                 source = LoaderHolder.get().openStream(track.url(), 0L);
+            } catch (final UrlBlockedException blocked) {
+                MusicDiscMaker.LOGGER.warn("SB jukebox 再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
+                source = null;
             } catch (final Throwable t) {
                 MusicDiscMaker.LOGGER.warn("SB jukebox 用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
                 source = null;
