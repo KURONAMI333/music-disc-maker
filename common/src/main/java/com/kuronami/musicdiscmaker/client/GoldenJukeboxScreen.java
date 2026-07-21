@@ -7,26 +7,54 @@ import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
+import com.kuronami.musicdiscmaker.network.SeekJukeboxPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractSliderButton;
-import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 
 /**
- * 強化版ジュークボックスの設定 GUI。可聴範囲・音量スライダー、リピート・再生/停止トグル、
- * 曲名表示を持つ。変更は {@link ConfigureJukeboxPayload} で server の BE へ反映する。
+ * 強化版ジュークボックスの設定 GUI。可聴範囲・音量スライダー（バニラ式ドラッグ）と、音楽プレイヤー風の
+ * 操作列（再生/一時停止トグル・リピートトグル・シークバー＋経過/総時間）を持つ。
+ *
+ * <p>設定変更は {@link ConfigureJukeboxPayload}、シーク頭出しは {@link SeekJukeboxPayload} で
+ * server の BE へ反映する。進捗表示は BE が同期する playbackStartGameTime から算出する
+ * （{@link GoldenJukeboxBlockEntity#currentElapsedMs()}）。
  */
 public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMenu> {
 
     private static final ResourceLocation TEXTURE =
             ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/golden_jukebox.png");
     private static final int TEXT = 0x404040;
+    private static final int TIME_TEXT = 0x606060;
+
+    // transport スプライトの uv (TEXTURE 内)。play/pause は 20x20 の丸ボタン、loop は 16x16 のフラット glyph。
+    private static final int ICON_PLAY_U = 176;
+    private static final int ICON_PAUSE_U = 196;
+    private static final int ICON_LOOP_ON_U = 216;
+    private static final int ICON_LOOP_OFF_U = 232;
+    private static final int ICON_V = 0;
+    private static final int PLAY_SPRITE = 20;
+    private static final int LOOP_SPRITE = 16;
+
+    private static final int ACCENT = 0xFFCEA844;   // Golden Jukebox のアクセント (fill/knob)
+    private static final int LIVE_FILL = 0xFF9AA0A6; // ラジオ (LIVE) の不定進捗
+
+    // シークバー幾何 (leftPos/topPos 相対)。
+    private static final int SEEK_X = 32;
+    private static final int SEEK_Y = 90;
+    private static final int SEEK_W = 112;
+    private static final int SEEK_H = 16;
+    private static final int TIME_Y = 108;
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。
     private int curRange = GoldenJukeboxBlockEntity.RANGE_DEFAULT;
@@ -34,15 +62,15 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private boolean curRepeat;
     private boolean curPaused;
 
-    private Button repeatButton;
-    private Button playStopButton;
+    private IconButton repeatButton;
+    private IconButton playPauseButton;
 
     public GoldenJukeboxScreen(GoldenJukeboxMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = 176;
-        this.imageHeight = 200;
+        this.imageHeight = 216;
         this.inventoryLabelX = 8;
-        this.inventoryLabelY = 108;
+        this.inventoryLabelY = 120;
     }
 
     @Override
@@ -54,49 +82,58 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         this.curRepeat = be.isRepeat();
         this.curPaused = be.isPaused();
 
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 40, 160, 20,
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 42, 160, 20,
                 GoldenJukeboxBlockEntity.RANGE_MIN, GoldenJukeboxBlockEntity.RANGE_MAX, curRange,
                 "gui.music_disc_maker.golden_jukebox.range", v -> {
                     curRange = v;
                     sendConfig();
                 }));
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 62, 160, 20,
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 64, 160, 20,
                 GoldenJukeboxBlockEntity.VOLUME_MIN, GoldenJukeboxBlockEntity.VOLUME_MAX, curVolume,
                 "gui.music_disc_maker.golden_jukebox.volume", v -> {
                     curVolume = v;
                     sendConfig();
                 }));
 
-        this.repeatButton = addRenderableWidget(Button.builder(repeatLabel(), b -> {
-            curRepeat = !curRepeat;
-            b.setMessage(repeatLabel());
-            sendConfig();
-        }).bounds(leftPos + 8, topPos + 84, 78, 20).build());
-        this.repeatButton.active = !be.isLiveStream();
+        // 再生/一時停止トグル (左・丸ボタン)。
+        this.playPauseButton = addRenderableWidget(new IconButton(leftPos + 8, topPos + 88, 20, PLAY_SPRITE,
+                Component.translatable("gui.music_disc_maker.golden_jukebox.play"), () -> {
+                    curPaused = !curPaused;
+                    sendConfig();
+                }));
+        // シークバー (中央)。
+        addRenderableWidget(new SeekBar(leftPos + SEEK_X, topPos + SEEK_Y, SEEK_W, SEEK_H));
+        // リピートトグル (右・フラットアイコン)。
+        this.repeatButton = addRenderableWidget(new IconButton(leftPos + 148, topPos + 88, 20, LOOP_SPRITE,
+                Component.translatable("gui.music_disc_maker.golden_jukebox.repeat_toggle"), () -> {
+                    curRepeat = !curRepeat;
+                    sendConfig();
+                }));
 
-        this.playStopButton = addRenderableWidget(Button.builder(playStopLabel(), b -> {
-            curPaused = !curPaused;
-            b.setMessage(playStopLabel());
-            sendConfig();
-        }).bounds(leftPos + 90, topPos + 84, 78, 20).build());
+        refreshTransportSprites();
     }
 
-    private Component repeatLabel() {
-        final Component state = curRepeat
-                ? Component.translatable("gui.music_disc_maker.golden_jukebox.on")
-                : Component.translatable("gui.music_disc_maker.golden_jukebox.off");
-        return Component.translatable("gui.music_disc_maker.golden_jukebox.repeat", state);
-    }
-
-    private Component playStopLabel() {
-        return curPaused
-                ? Component.translatable("gui.music_disc_maker.golden_jukebox.play")
-                : Component.translatable("gui.music_disc_maker.golden_jukebox.stop");
+    /** BE 状態からトグルのスプライト・活性を更新する。 */
+    private void refreshTransportSprites() {
+        final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
+        if (playPauseButton != null) {
+            playPauseButton.active = be.hasDisc();
+            playPauseButton.setSprite(curPaused ? ICON_PLAY_U : ICON_PAUSE_U, ICON_V);
+        }
+        if (repeatButton != null) {
+            repeatButton.active = !be.isLiveStream();
+            repeatButton.setSprite(curRepeat && !be.isLiveStream() ? ICON_LOOP_ON_U : ICON_LOOP_OFF_U, ICON_V);
+        }
     }
 
     private void sendConfig() {
         Services.NETWORK.sendToServer(new ConfigureJukeboxPayload(
                 menu.getBlockEntity().getBlockPos(), curRange, curVolume, curRepeat, curPaused));
+    }
+
+    private static String formatMs(long ms) {
+        final long totalSeconds = Math.max(0L, ms) / 1000L;
+        return String.format("%d:%02d", totalSeconds / 60L, totalSeconds % 60L);
     }
 
     @Override
@@ -107,38 +144,48 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY);
-        // 曲名 (ディスクスロット右)。無ければ "No track"。
-        final CustomTrackData track = menu.getBlockEntity().currentTrack();
+        final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
+        // 曲名 (ディスクスロット右)。無ければ "No disc"。
+        final CustomTrackData track = be.currentTrack();
         final Component label;
         if (track != null) {
             final String desc = (track.author() != null && !track.author().isBlank())
                     ? track.author() + " - " + track.title()
                     : track.title();
             label = Component.literal(font.plainSubstrByWidth(desc == null ? "" : desc, 130));
-        } else if (menu.getBlockEntity().hasDisc()) {
+        } else if (be.hasDisc()) {
             label = Component.translatable("gui.music_disc_maker.golden_jukebox.vanilla_disc");
         } else {
             label = Component.translatable("gui.music_disc_maker.golden_jukebox.no_track");
         }
         g.drawString(font, label, 36, 23, TEXT, false);
-        // ラジオ (無限長ストリーム) は曲名の下に赤い「LIVE」を出す。
-        if (menu.getBlockEntity().isLiveStream()) {
-            g.drawString(font, Component.translatable("tooltip.music_disc_maker.live"),
-                    36, 34, 0xD03030, false);
+
+        // 経過 / 総時間 (シークバー下)。ラジオは経過 + LIVE。
+        final long elapsed = be.currentElapsedMs();
+        final String elapsedStr = formatMs(elapsed);
+        if (be.isLiveStream()) {
+            g.drawString(font, elapsedStr, SEEK_X, TIME_Y, TIME_TEXT, false);
+            final Component live = Component.translatable("tooltip.music_disc_maker.live");
+            final int lw = font.width(live);
+            g.drawString(font, live, SEEK_X + SEEK_W - lw, TIME_Y, 0xD03030, false);
+        } else if (be.hasDisc() && be.trackDurationMs() > 0L) {
+            g.drawString(font, elapsedStr, SEEK_X, TIME_Y, TIME_TEXT, false);
+            final String total = formatMs(be.trackDurationMs());
+            g.drawString(font, total, SEEK_X + SEEK_W - font.width(total), TIME_Y, TIME_TEXT, false);
         }
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // 別プレイヤー操作等で BE 状態が変わった時にトグルのラベルを追随させる。
+        // 別プレイヤー操作等で BE 状態が変わったらトグルを追随させる。
         final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
         if (be.isPaused() != curPaused) {
             curPaused = be.isPaused();
-            playStopButton.setMessage(playStopLabel());
         }
-        if (repeatButton != null) {
-            repeatButton.active = !be.isLiveStream();
+        if (be.isRepeat() != curRepeat) {
+            curRepeat = be.isRepeat();
         }
+        refreshTransportSprites();
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
     }
@@ -179,6 +226,132 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 current = v;
                 onChange.accept(v);
             }
+        }
+    }
+
+    /** アイコンのみのフラットボタン (音楽プレイヤー風)。sprite は TEXTURE 内 16x16。 */
+    private static final class IconButton extends AbstractButton {
+
+        private int u;
+        private int v;
+        private final int spriteSize;
+        private final Runnable onPress;
+
+        IconButton(int x, int y, int size, int spriteSize, Component narration, Runnable onPress) {
+            super(x, y, size, size, narration);
+            this.spriteSize = spriteSize;
+            this.onPress = onPress;
+        }
+
+        void setSprite(int u, int v) {
+            this.u = u;
+            this.v = v;
+        }
+
+        @Override
+        public void onPress() {
+            onPress.run();
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            if (this.active && isHoveredOrFocused()) {
+                g.fill(getX(), getY(), getX() + width, getY() + height, 0x33FFFFFF);
+            }
+            final int ix = getX() + (width - spriteSize) / 2;
+            final int iy = getY() + (height - spriteSize) / 2;
+            g.blit(TEXTURE, ix, iy, (float) u, (float) v, spriteSize, spriteSize, 256, 256);
+        }
+
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput out) {
+            defaultButtonNarrationText(out);
+        }
+    }
+
+    /**
+     * シークバー。溝・進捗 fill・つまみをプログラム描画し、有限尺 (非ラジオ) の custom disc の時だけ
+     * クリック/ドラッグで頭出しできる。ラジオは LIVE 用のグレー fill を満たして表示だけする。
+     */
+    private final class SeekBar extends AbstractWidget {
+
+        private boolean scrubbing;
+        private double scrubFraction;
+
+        SeekBar(int x, int y, int width, int height) {
+            super(x, y, width, height, CommonComponents.EMPTY);
+        }
+
+        private double liveFraction() {
+            final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
+            final long dur = be.trackDurationMs();
+            if (dur <= 0L) {
+                return 0.0;
+            }
+            return Mth.clamp(be.currentElapsedMs() / (double) dur, 0.0, 1.0);
+        }
+
+        private void setFromMouse(double mouseX) {
+            scrubFraction = Mth.clamp((mouseX - getX()) / (double) width, 0.0, 1.0);
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
+            final int gx = getX();
+            final int gw = width;
+            final int gy = getY() + (height - 6) / 2;
+            // 溝 (recessed)。
+            g.fill(gx - 1, gy - 1, gx + gw + 1, gy + 7, 0xFF3A3A3A);
+            g.fill(gx, gy, gx + gw, gy + 6, 0xFF555555);
+            final boolean live = be.isLiveStream();
+            final double f = live ? 1.0 : (scrubbing ? scrubFraction : liveFraction());
+            final int fillW = (int) Math.round(f * gw);
+            if (fillW > 0) {
+                g.fill(gx, gy, gx + fillW, gy + 6, live ? LIVE_FILL : ACCENT);
+            }
+            // つまみ (頭出し可能な時のみ)。
+            if (be.isSeekable()) {
+                final int kx = gx + fillW;
+                g.fill(kx - 2, gy - 3, kx + 3, gy + 9, 0xFF2A2A2A);
+                g.fill(kx - 1, gy - 2, kx + 2, gy + 8, ACCENT);
+            }
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 0 && this.active && this.visible && isMouseOver(mouseX, mouseY)
+                    && menu.getBlockEntity().isSeekable()) {
+                scrubbing = true;
+                setFromMouse(mouseX);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+            if (scrubbing) {
+                setFromMouse(mouseX);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            if (scrubbing && button == 0) {
+                scrubbing = false;
+                final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
+                final long offset = Math.round(scrubFraction * be.trackDurationMs());
+                Services.NETWORK.sendToServer(new SeekJukeboxPayload(be.getBlockPos(), offset));
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput out) {
         }
     }
 }

@@ -68,6 +68,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     private boolean paused = false;
     /** pause 時に保存した再生位置 (ms)。resume で offset seek に使う。 */
     private long pausedOffsetMs = 0L;
+    /**
+     * 再生開始時の {@link net.minecraft.world.level.Level#getGameTime()}。-1 = 停止/一時停止中。
+     * client の進捗バー計算用に同期する (wall-clock はマルチプレイで機体差があるため gameTime を使う)。
+     */
+    private long playbackStartGameTime = -1L;
 
     // ── server 揮発 ──
     private final JukeboxSongPlayer songPlayer = new JukeboxSongPlayer(this::onSongChanged, this.getBlockPos());
@@ -96,6 +101,31 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     public boolean isPaused() {
         return paused;
+    }
+
+    /**
+     * 現在の再生経過 (ms)。progress バー表示用。一時停止中は保存 offset、停止中は 0。
+     * client からも呼べる (playbackStartGameTime を同期しているため)。
+     */
+    public long currentElapsedMs() {
+        if (paused) {
+            return pausedOffsetMs;
+        }
+        if (playbackStartGameTime < 0L || level == null) {
+            return 0L;
+        }
+        return Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
+    }
+
+    /** 現在のディスクの総尺 (ms)。custom disc のみ。0 = 不明/ラジオ/vanilla disc。 */
+    public long trackDurationMs() {
+        final CustomTrackData t = currentTrack();
+        return t != null ? t.durationMs() : 0L;
+    }
+
+    /** progress バーで頭出し操作を許可できるか (有限尺の custom disc のみ)。 */
+    public boolean isSeekable() {
+        return hasDisc() && !isLiveStream() && trackDurationMs() > 0L;
     }
 
     public boolean hasDisc() {
@@ -175,12 +205,35 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             this.pausedOffsetMs = dur > 0L ? Math.min(elapsed, dur) : elapsed;
             songPlayer.stop(level, getBlockState());
             startMillis = 0L;
+            playbackStartGameTime = -1L;
             broadcast(new StopDiscPayload(getBlockPos()));
         } else if (hasDisc()) {
             startPlayback(pausedOffsetMs);
             pausedOffsetMs = 0L;
         }
         sync();
+    }
+
+    /**
+     * GUI シークバーからの頭出し。有限尺 (非ラジオ) の custom disc の時だけ効く。
+     * 再生中は即座にその位置へ、一時停止中は resume 位置だけを更新する。
+     */
+    public void seekTo(long offsetMs) {
+        if (!isServer() || !hasDisc() || isLiveStream()) {
+            return;
+        }
+        final CustomTrackData track = currentTrack();
+        if (track == null || track.durationMs() <= 0L) {
+            return;
+        }
+        final long clamped = Mth.clamp(offsetMs, 0L, track.durationMs());
+        if (paused) {
+            pausedOffsetMs = clamped;
+            sync();
+        } else {
+            startPlayback(clamped);
+            sync();
+        }
     }
 
     // ── 再生制御 ──
@@ -193,11 +246,14 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         // vanilla 再生状態 (particle / comparator / 曲終了) + vanilla disc の実音。
         songFor(disc).ifPresent(song -> songPlayer.play(level, song));
         startMillis = System.currentTimeMillis() - offsetMs;
+        playbackStartGameTime = level.getGameTime() - offsetMs / 50L;
         // custom disc は LavaPlayer ストリームを per-block 設定つきで broadcast。
         final CustomTrackData track = currentTrack();
         if (track != null) {
             broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent));
         }
+        // playbackStartGameTime を client へ反映する (progress バーの起点)。
+        sync();
     }
 
     private void stopPlayback() {
@@ -206,6 +262,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
         songPlayer.stop(level, getBlockState());
         startMillis = 0L;
+        playbackStartGameTime = -1L;
         broadcast(new StopDiscPayload(getBlockPos()));
     }
 
@@ -334,6 +391,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         this.repeat = tag.getBoolean("repeat");
         this.paused = tag.getBoolean("paused");
         this.pausedOffsetMs = tag.getLong("pausedOffset");
+        this.playbackStartGameTime = tag.contains("playbackStartGameTime")
+                ? tag.getLong("playbackStartGameTime") : -1L;
     }
 
     @Override
@@ -347,6 +406,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         tag.putBoolean("repeat", repeat);
         tag.putBoolean("paused", paused);
         tag.putLong("pausedOffset", pausedOffsetMs);
+        tag.putLong("playbackStartGameTime", playbackStartGameTime);
     }
 
     @Override
