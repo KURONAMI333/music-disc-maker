@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.1
+
+- Fixed **SoundCloud tracks playing at half speed and an octave too low**. SoundCloud audio was reaching the game as stereo but labelled mono, so it played back at the wrong rate. Audio is now reliably downmixed to mono for all sources; SoundCloud, YouTube, and radio all play at the correct speed and pitch.
+- Fixed the **Golden Jukebox playing silently** — the progress bar advanced but no sound came out. The disc's sound instance was being stopped on the first client tick because the Golden Jukebox wasn't recognised as a valid playback block.
+- Fixed the **Golden Jukebox GUI** — inventory slots and items were misaligned with their slot frames. Slot coordinates now come from a single source shared with the texture generator so they can't drift apart.
+- Removed the album-art preview from the Music Disc Maker block GUI (it overlapped the UI). Album art still shows as a tooltip image on discs.
+
 ## 2.0.0
 
 - **Golden Jukebox** — a new craftable block (surround a jukebox with gold ingots) with a settings GUI: adjust the audible range (16-256 blocks), volume (0-200%), toggle repeat, and play/stop. Range and volume apply per block, so one jukebox can fill a large area while another stays quiet. Comparator output and redstone behave like a vanilla jukebox.
