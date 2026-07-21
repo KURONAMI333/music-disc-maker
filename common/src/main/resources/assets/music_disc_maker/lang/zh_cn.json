@@ -1,4 +1,5 @@
 {
+  "itemGroup.music_disc_maker": "音乐唱片制作机",
   "block.music_disc_maker.music_disc_maker": "音乐唱片制作机",
   "block.music_disc_maker.golden_jukebox": "黄金唱片机",
   "gui.music_disc_maker.golden_jukebox.title": "黄金唱片机",
@@ -8,7 +9,9 @@
   "gui.music_disc_maker.golden_jukebox.on": "开",
   "gui.music_disc_maker.golden_jukebox.off": "关",
   "gui.music_disc_maker.golden_jukebox.play": "播放",
+  "gui.music_disc_maker.golden_jukebox.pause": "暂停",
   "gui.music_disc_maker.golden_jukebox.stop": "停止",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "循环",
   "gui.music_disc_maker.golden_jukebox.no_track": "无唱片",
   "item.music_disc_maker.blank_disc": "空白唱片",
   "item.music_disc_maker.custom_music_disc": "自定义音乐唱片",
@@ -24,6 +27,8 @@
   "gui.music_disc_maker.failed.connection": "连接失败",
   "gui.music_disc_maker.failed.blocked": "已拦截",
   "gui.music_disc_maker.hint": "粘贴链接并放入空白唱片",
+  "gui.music_disc_maker.paste": "粘贴",
+  "gui.music_disc_maker.clear": "清除",
 
   "tooltip.music_disc_maker.artist": "艺术家：%s",
   "tooltip.music_disc_maker.duration": "时长：%s",

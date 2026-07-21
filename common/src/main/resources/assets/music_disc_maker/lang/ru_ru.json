@@ -1,4 +1,5 @@
 {
+  "itemGroup.music_disc_maker": "Изготовитель пластинок",
   "block.music_disc_maker.music_disc_maker": "Изготовитель пластинок",
   "block.music_disc_maker.golden_jukebox": "Золотой проигрыватель",
   "gui.music_disc_maker.golden_jukebox.title": "Золотой проигрыватель",
@@ -8,7 +9,9 @@
   "gui.music_disc_maker.golden_jukebox.on": "Вкл",
   "gui.music_disc_maker.golden_jukebox.off": "Выкл",
   "gui.music_disc_maker.golden_jukebox.play": "Играть",
+  "gui.music_disc_maker.golden_jukebox.pause": "Пауза",
   "gui.music_disc_maker.golden_jukebox.stop": "Стоп",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Повтор",
   "gui.music_disc_maker.golden_jukebox.no_track": "Нет пластинки",
   "item.music_disc_maker.blank_disc": "Пустая пластинка",
   "item.music_disc_maker.custom_music_disc": "Своя пластинка",
@@ -24,6 +27,8 @@
   "gui.music_disc_maker.failed.connection": "Нет сети",
   "gui.music_disc_maker.failed.blocked": "Заблок.",
   "gui.music_disc_maker.hint": "Вставьте ссылку и пустую пластинку",
+  "gui.music_disc_maker.paste": "Вставить",
+  "gui.music_disc_maker.clear": "Очистить",
 
   "tooltip.music_disc_maker.artist": "Исполнитель: %s",
   "tooltip.music_disc_maker.duration": "Длина: %s",

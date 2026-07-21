@@ -1,4 +1,5 @@
 {
+  "itemGroup.music_disc_maker": "音楽ディスク製作機",
   "block.music_disc_maker.music_disc_maker": "音楽ディスク製作機",
   "block.music_disc_maker.golden_jukebox": "金のジュークボックス",
   "gui.music_disc_maker.golden_jukebox.title": "金のジュークボックス",
@@ -26,6 +27,8 @@
   "gui.music_disc_maker.failed.connection": "接続失敗",
   "gui.music_disc_maker.failed.blocked": "遮断",
   "gui.music_disc_maker.hint": "URL を貼って空ディスクを入れる",
+  "gui.music_disc_maker.paste": "貼り付け",
+  "gui.music_disc_maker.clear": "クリア",
 
   "tooltip.music_disc_maker.artist": "%s",
   "tooltip.music_disc_maker.duration": "長さ: %s",

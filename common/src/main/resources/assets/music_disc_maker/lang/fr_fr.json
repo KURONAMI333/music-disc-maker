@@ -1,4 +1,5 @@
 {
+  "itemGroup.music_disc_maker": "Fabricant de disques",
   "block.music_disc_maker.music_disc_maker": "Fabricant de disques",
   "block.music_disc_maker.golden_jukebox": "Jukebox doré",
   "gui.music_disc_maker.golden_jukebox.title": "Jukebox doré",
@@ -8,7 +9,9 @@
   "gui.music_disc_maker.golden_jukebox.on": "Activé",
   "gui.music_disc_maker.golden_jukebox.off": "Désactivé",
   "gui.music_disc_maker.golden_jukebox.play": "Lecture",
+  "gui.music_disc_maker.golden_jukebox.pause": "Pause",
   "gui.music_disc_maker.golden_jukebox.stop": "Arrêt",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Répéter",
   "gui.music_disc_maker.golden_jukebox.no_track": "Aucun disque",
   "item.music_disc_maker.blank_disc": "Disque vierge",
   "item.music_disc_maker.custom_music_disc": "Disque personnalisé",
@@ -24,6 +27,8 @@
   "gui.music_disc_maker.failed.connection": "Hors ligne",
   "gui.music_disc_maker.failed.blocked": "Bloqué",
   "gui.music_disc_maker.hint": "Collez une URL + insérez un disque vierge",
+  "gui.music_disc_maker.paste": "Coller",
+  "gui.music_disc_maker.clear": "Effacer",
 
   "tooltip.music_disc_maker.artist": "par %s",
   "tooltip.music_disc_maker.duration": "Durée : %s",
