@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "URL を貼り付け...",
   "gui.music_disc_maker.fetching": "取得中…",
   "gui.music_disc_maker.failed": "取得失敗",
+  "gui.music_disc_maker.failed.unsupported": "非対応",
+  "gui.music_disc_maker.failed.private": "利用不可",
+  "gui.music_disc_maker.failed.region": "地域制限",
+  "gui.music_disc_maker.failed.age": "年齢制限",
+  "gui.music_disc_maker.failed.connection": "接続失敗",
+  "gui.music_disc_maker.failed.blocked": "遮断",
   "gui.music_disc_maker.hint": "URL を貼って空ディスクを入れる",
 
   "tooltip.music_disc_maker.artist": "%s",

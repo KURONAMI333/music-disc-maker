@@ -6,7 +6,10 @@ import java.util.concurrent.Executors;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
+import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
@@ -62,14 +65,26 @@ public final class DiscFabrication {
         be.setResolving(true);
         POOL.submit(() -> {
             TrackInfo resolved;
+            FailureReason failure = null;
             try {
                 UrlGuard.enforce(url); // SSRF 遮断: 内部 IP / 非 http(s) scheme を解決前に弾く
                 resolved = LoaderHolder.get().resolve(url);
+            } catch (final UrlBlockedException blocked) {
+                // SSRF ガードが拒否 → GUI に「blocked」理由を出す (gui.music_disc_maker.failed.blocked)。
+                MusicDiscMaker.LOGGER.warn("URL を拒否 ({}): {}", blocked.reason(), url);
+                failure = FailureReason.BLOCKED_URL;
+                resolved = null;
+            } catch (final ResolveException re) {
+                // impl が分類済みの失敗理由 (非公開/地域/年齢/接続/対応外)。
+                failure = re.reason();
+                resolved = null;
             } catch (final Throwable t) {
                 MusicDiscMaker.LOGGER.warn("URL 解決中に例外 ({}): {}", url, t.toString());
+                failure = FailureReason.UNKNOWN;
                 resolved = null;
             }
             final TrackInfo result = resolved;
+            final FailureReason reason = failure;
             server.execute(() -> {
                 // 解決中 (最大30s) にブロック破壊/ワールドアンロードされた BE には触らない
                 if (be.isRemoved() || be.getLevel() == null) {
@@ -78,7 +93,8 @@ public final class DiscFabrication {
                 be.setResolving(false);
                 if (result == null) {
                     be.clearResolvedTrack();
-                    be.setResolveFailed(true); // GUI に「解決できませんでした」を出す
+                    // GUI に理由別メッセージを出す
+                    be.setResolveFailed(reason == null ? FailureReason.UNKNOWN : reason);
                     return;
                 }
                 final String storedUrl = (result.uri() != null && !result.uri().isBlank()) ? result.uri() : url;

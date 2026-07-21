@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "여기에 URL 붙여넣기…",
   "gui.music_disc_maker.fetching": "가져오는 중…",
   "gui.music_disc_maker.failed": "실패",
+  "gui.music_disc_maker.failed.unsupported": "미지원",
+  "gui.music_disc_maker.failed.private": "비공개",
+  "gui.music_disc_maker.failed.region": "지역제한",
+  "gui.music_disc_maker.failed.age": "연령제한",
+  "gui.music_disc_maker.failed.connection": "연결실패",
+  "gui.music_disc_maker.failed.blocked": "차단됨",
   "gui.music_disc_maker.hint": "URL을 붙여넣고 빈 음반을 넣으세요",
 
   "tooltip.music_disc_maker.artist": "아티스트: %s",
