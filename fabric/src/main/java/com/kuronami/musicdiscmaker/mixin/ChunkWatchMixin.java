@@ -43,7 +43,7 @@ public abstract class ChunkWatchMixin {
         final long now = System.currentTimeMillis();
 
         // 強化版ジュークボックス (BE 権威・ActiveDiscRegistry 非使用) の late-join 再送。
-        com.kuronami.musicdiscmaker.event.EnhancedJukeboxLateJoin.resend(level, chunkPos, player);
+        com.kuronami.musicdiscmaker.event.GoldenJukeboxLateJoin.resend(level, chunkPos, player);
 
         final List<ActiveDiscRegistry.Playing> playing =
                 ActiveDiscRegistry.activeInChunk(level.dimension(), chunkPos, now);

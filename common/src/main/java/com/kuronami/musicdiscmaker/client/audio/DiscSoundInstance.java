@@ -4,7 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.kuronami.musicdiscmaker.Config;
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModSounds;
@@ -117,13 +117,13 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
             final Minecraft mc = Minecraft.getInstance();
             if (mc.level != null && mc.level.isLoaded(blockPos)) {
                 final BlockState state = mc.level.getBlockState(blockPos);
-                final boolean isEnhanced = state.is(ModBlocks.ENHANCED_JUKEBOX.get());
+                final boolean isEnhanced = state.is(ModBlocks.GOLDEN_JUKEBOX.get());
                 if (!state.is(Blocks.JUKEBOX) && !isEnhanced) {
                     stop();
                     return;
                 }
                 // 強化版: client 側 BE から音量を毎 tick 再読し、スライダー操作を再ロードなしで即反映する。
-                if (isEnhanced && mc.level.getBlockEntity(blockPos) instanceof EnhancedJukeboxBlockEntity be) {
+                if (isEnhanced && mc.level.getBlockEntity(blockPos) instanceof GoldenJukeboxBlockEntity be) {
                     this.volumePercent = be.getVolumePercent();
                     this.volume = computeVolume();
                 }

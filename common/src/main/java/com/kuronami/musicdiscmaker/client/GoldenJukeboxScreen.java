@@ -3,9 +3,9 @@ package com.kuronami.musicdiscmaker.client;
 import java.util.function.IntConsumer;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
-import com.kuronami.musicdiscmaker.menu.EnhancedJukeboxMenu;
+import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 
@@ -22,22 +22,22 @@ import net.minecraft.world.entity.player.Inventory;
  * 強化版ジュークボックスの設定 GUI。可聴範囲・音量スライダー、リピート・再生/停止トグル、
  * 曲名表示を持つ。変更は {@link ConfigureJukeboxPayload} で server の BE へ反映する。
  */
-public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeboxMenu> {
+public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMenu> {
 
     private static final ResourceLocation TEXTURE =
-            ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/enhanced_jukebox.png");
+            ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/golden_jukebox.png");
     private static final int TEXT = 0x404040;
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。
-    private int curRange = EnhancedJukeboxBlockEntity.RANGE_DEFAULT;
-    private int curVolume = EnhancedJukeboxBlockEntity.VOLUME_DEFAULT;
+    private int curRange = GoldenJukeboxBlockEntity.RANGE_DEFAULT;
+    private int curVolume = GoldenJukeboxBlockEntity.VOLUME_DEFAULT;
     private boolean curRepeat;
     private boolean curPaused;
 
     private Button repeatButton;
     private Button playStopButton;
 
-    public EnhancedJukeboxScreen(EnhancedJukeboxMenu menu, Inventory playerInventory, Component title) {
+    public GoldenJukeboxScreen(GoldenJukeboxMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = 176;
         this.imageHeight = 200;
@@ -48,21 +48,21 @@ public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeb
     @Override
     protected void init() {
         super.init();
-        final EnhancedJukeboxBlockEntity be = menu.getBlockEntity();
+        final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
         this.curRange = be.getRangeBlocks();
         this.curVolume = be.getVolumePercent();
         this.curRepeat = be.isRepeat();
         this.curPaused = be.isPaused();
 
         addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 40, 160, 20,
-                EnhancedJukeboxBlockEntity.RANGE_MIN, EnhancedJukeboxBlockEntity.RANGE_MAX, curRange,
-                "gui.music_disc_maker.enhanced_jukebox.range", v -> {
+                GoldenJukeboxBlockEntity.RANGE_MIN, GoldenJukeboxBlockEntity.RANGE_MAX, curRange,
+                "gui.music_disc_maker.golden_jukebox.range", v -> {
                     curRange = v;
                     sendConfig();
                 }));
         addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 62, 160, 20,
-                EnhancedJukeboxBlockEntity.VOLUME_MIN, EnhancedJukeboxBlockEntity.VOLUME_MAX, curVolume,
-                "gui.music_disc_maker.enhanced_jukebox.volume", v -> {
+                GoldenJukeboxBlockEntity.VOLUME_MIN, GoldenJukeboxBlockEntity.VOLUME_MAX, curVolume,
+                "gui.music_disc_maker.golden_jukebox.volume", v -> {
                     curVolume = v;
                     sendConfig();
                 }));
@@ -83,15 +83,15 @@ public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeb
 
     private Component repeatLabel() {
         final Component state = curRepeat
-                ? Component.translatable("gui.music_disc_maker.enhanced_jukebox.on")
-                : Component.translatable("gui.music_disc_maker.enhanced_jukebox.off");
-        return Component.translatable("gui.music_disc_maker.enhanced_jukebox.repeat", state);
+                ? Component.translatable("gui.music_disc_maker.golden_jukebox.on")
+                : Component.translatable("gui.music_disc_maker.golden_jukebox.off");
+        return Component.translatable("gui.music_disc_maker.golden_jukebox.repeat", state);
     }
 
     private Component playStopLabel() {
         return curPaused
-                ? Component.translatable("gui.music_disc_maker.enhanced_jukebox.play")
-                : Component.translatable("gui.music_disc_maker.enhanced_jukebox.stop");
+                ? Component.translatable("gui.music_disc_maker.golden_jukebox.play")
+                : Component.translatable("gui.music_disc_maker.golden_jukebox.stop");
     }
 
     private void sendConfig() {
@@ -116,9 +116,9 @@ public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeb
                     : track.title();
             label = Component.literal(font.plainSubstrByWidth(desc == null ? "" : desc, 130));
         } else if (menu.getBlockEntity().hasDisc()) {
-            label = Component.translatable("gui.music_disc_maker.enhanced_jukebox.vanilla_disc");
+            label = Component.translatable("gui.music_disc_maker.golden_jukebox.vanilla_disc");
         } else {
-            label = Component.translatable("gui.music_disc_maker.enhanced_jukebox.no_track");
+            label = Component.translatable("gui.music_disc_maker.golden_jukebox.no_track");
         }
         g.drawString(font, label, 36, 23, TEXT, false);
         // ラジオ (無限長ストリーム) は曲名の下に赤い「LIVE」を出す。
@@ -131,7 +131,7 @@ public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeb
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         // 別プレイヤー操作等で BE 状態が変わった時にトグルのラベルを追随させる。
-        final EnhancedJukeboxBlockEntity be = menu.getBlockEntity();
+        final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
         if (be.isPaused() != curPaused) {
             curPaused = be.isPaused();
             playStopButton.setMessage(playStopLabel());

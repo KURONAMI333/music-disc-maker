@@ -29,9 +29,9 @@ public final class ModItems {
                     () -> new BlockItem(ModBlocks.MUSIC_DISC_MAKER.get(), new Item.Properties()));
 
     /** 強化版ジュークボックスの BlockItem。 */
-    public static final RegistryHolder<BlockItem> ENHANCED_JUKEBOX =
-            ITEMS.register("enhanced_jukebox",
-                    () -> new BlockItem(ModBlocks.ENHANCED_JUKEBOX.get(), new Item.Properties()));
+    public static final RegistryHolder<BlockItem> GOLDEN_JUKEBOX =
+            ITEMS.register("golden_jukebox",
+                    () -> new BlockItem(ModBlocks.GOLDEN_JUKEBOX.get(), new Item.Properties()));
 
     private ModItems() {
     }

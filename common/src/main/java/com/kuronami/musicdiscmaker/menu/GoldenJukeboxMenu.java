@@ -2,7 +2,7 @@ package com.kuronami.musicdiscmaker.menu;
 
 import org.jetbrains.annotations.NotNull;
 
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
@@ -18,22 +18,22 @@ import net.minecraft.world.item.ItemStack;
  * 強化版ジュークボックスの設定 menu。ディスクスロット 1 枠 + プレイヤーインベントリ。
  * 範囲/音量/リピート/再生停止は widget として Screen 側が描画し、C2S で BE に反映する。
  */
-public class EnhancedJukeboxMenu extends AbstractContainerMenu {
+public class GoldenJukeboxMenu extends AbstractContainerMenu {
 
-    private final EnhancedJukeboxBlockEntity blockEntity;
+    private final GoldenJukeboxBlockEntity blockEntity;
 
     // client 側コンストラクタ (extended MenuType 経由で BlockPos を受け取る)
-    public EnhancedJukeboxMenu(int containerId, Inventory playerInventory, BlockPos pos) {
+    public GoldenJukeboxMenu(int containerId, Inventory playerInventory, BlockPos pos) {
         this(containerId, playerInventory, resolve(playerInventory, pos));
     }
 
     // server 側コンストラクタ
-    public EnhancedJukeboxMenu(int containerId, Inventory playerInventory, EnhancedJukeboxBlockEntity blockEntity) {
-        super(ModMenus.ENHANCED_JUKEBOX.get(), containerId);
+    public GoldenJukeboxMenu(int containerId, Inventory playerInventory, GoldenJukeboxBlockEntity blockEntity) {
+        super(ModMenus.GOLDEN_JUKEBOX.get(), containerId);
         this.blockEntity = blockEntity;
 
         // ディスクスロット (再生可能ディスクのみ)
-        addSlot(new DiscSlot(blockEntity, EnhancedJukeboxBlockEntity.SLOT_DISC, 12, 18));
+        addSlot(new DiscSlot(blockEntity, GoldenJukeboxBlockEntity.SLOT_DISC, 12, 18));
 
         // プレイヤーインベントリ 3 行
         for (int row = 0; row < 3; row++) {
@@ -47,22 +47,22 @@ public class EnhancedJukeboxMenu extends AbstractContainerMenu {
         }
     }
 
-    private static EnhancedJukeboxBlockEntity resolve(Inventory playerInventory, BlockPos pos) {
+    private static GoldenJukeboxBlockEntity resolve(Inventory playerInventory, BlockPos pos) {
         final var be = playerInventory.player.level().getBlockEntity(pos);
-        if (be instanceof EnhancedJukeboxBlockEntity jukebox) {
+        if (be instanceof GoldenJukeboxBlockEntity jukebox) {
             return jukebox;
         }
         throw new IllegalStateException("Enhanced Jukebox BlockEntity が見つからない");
     }
 
-    public EnhancedJukeboxBlockEntity getBlockEntity() {
+    public GoldenJukeboxBlockEntity getBlockEntity() {
         return blockEntity;
     }
 
     @Override
     public boolean stillValid(Player player) {
         return blockEntity.getLevel() != null
-                && blockEntity.getLevel().getBlockState(blockEntity.getBlockPos()).is(ModBlocks.ENHANCED_JUKEBOX.get())
+                && blockEntity.getLevel().getBlockState(blockEntity.getBlockPos()).is(ModBlocks.GOLDEN_JUKEBOX.get())
                 && player.distanceToSqr(
                         blockEntity.getBlockPos().getX() + 0.5,
                         blockEntity.getBlockPos().getY() + 0.5,
@@ -90,7 +90,7 @@ public class EnhancedJukeboxMenu extends AbstractContainerMenu {
             slot.onQuickCraft(stack, original);
         } else {
             // プレイヤー → ディスクスロット (再生可能ディスクのみ)
-            if (!moveItemStackTo(stack, EnhancedJukeboxBlockEntity.SLOT_DISC, EnhancedJukeboxBlockEntity.SLOT_DISC + 1, false)) {
+            if (!moveItemStackTo(stack, GoldenJukeboxBlockEntity.SLOT_DISC, GoldenJukeboxBlockEntity.SLOT_DISC + 1, false)) {
                 return ItemStack.EMPTY;
             }
         }
@@ -109,7 +109,7 @@ public class EnhancedJukeboxMenu extends AbstractContainerMenu {
 
     /** ディスクスロット: 再生可能ディスク (JUKEBOX_PLAYABLE) のみ受け入れる。 */
     private static class DiscSlot extends Slot {
-        DiscSlot(EnhancedJukeboxBlockEntity be, int slot, int x, int y) {
+        DiscSlot(GoldenJukeboxBlockEntity be, int slot, int x, int y) {
             super(be, slot, x, y);
         }
 

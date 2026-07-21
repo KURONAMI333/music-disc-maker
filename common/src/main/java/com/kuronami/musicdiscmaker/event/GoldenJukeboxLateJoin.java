@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.event;
 
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -13,13 +13,13 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * per-block 設定 (range/volume) を乗せた再生 packet を送る (途中から同期再生)。
  *
  * <p>強化版ジュークボックスは ActiveDiscRegistry を使わず BE が権威なので、chunk 内の
- * {@link EnhancedJukeboxBlockEntity} を直接走査する。各ローダーの chunk-watch 経路
+ * {@link GoldenJukeboxBlockEntity} を直接走査する。各ローダーの chunk-watch 経路
  * (NeoForge {@code ChunkWatchEvent.Watch} / Fabric {@code ChunkMap.markChunkPendingToSend} mixin)
  * から呼ぶ。
  */
-public final class EnhancedJukeboxLateJoin {
+public final class GoldenJukeboxLateJoin {
 
-    private EnhancedJukeboxLateJoin() {
+    private GoldenJukeboxLateJoin() {
     }
 
     public static void resend(ServerLevel level, ChunkPos chunkPos, ServerPlayer player) {
@@ -28,7 +28,7 @@ public final class EnhancedJukeboxLateJoin {
             if (!new ChunkPos(pos).equals(chunkPos)) {
                 continue;
             }
-            if (chunk.getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be) {
+            if (chunk.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be) {
                 be.resendTo(player);
             }
         }

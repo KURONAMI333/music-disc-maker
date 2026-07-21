@@ -103,7 +103,7 @@ public final class JukeboxHandler {
         final ServerPlayer player = event.getPlayer();
 
         // 強化版ジュークボックス (BE 権威・ActiveDiscRegistry 非使用) の late-join 再送。
-        EnhancedJukeboxLateJoin.resend(level, chunkPos, player);
+        GoldenJukeboxLateJoin.resend(level, chunkPos, player);
 
         for (final ActiveDiscRegistry.Playing p : playing) {
             // 撤去済み jukebox の stale エントリを late-joiner に送らない (爆発/ピストン/コマンド除去の掃除)。

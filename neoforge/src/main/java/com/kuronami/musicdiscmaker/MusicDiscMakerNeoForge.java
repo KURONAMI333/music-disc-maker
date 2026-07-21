@@ -41,7 +41,7 @@ public class MusicDiscMakerNeoForge {
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModBlockEntities.MUSIC_DISC_MAKER.get(),
                 (be, side) -> new InvWrapper(be));
         // 強化版ジュークボックス: hopper でディスクの投入/取り出しを可能にする。
-        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModBlockEntities.ENHANCED_JUKEBOX.get(),
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModBlockEntities.GOLDEN_JUKEBOX.get(),
                 (be, side) -> new InvWrapper(be));
     }
 }
