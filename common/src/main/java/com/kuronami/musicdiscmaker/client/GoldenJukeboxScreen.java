@@ -50,12 +50,23 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int ACCENT = 0xFFCEA844;   // Golden Jukebox のアクセント (fill/knob)
     private static final int LIVE_FILL = 0xFF9AA0A6; // ラジオ (LIVE) の不定進捗
 
-    // シークバー幾何 (leftPos/topPos 相対)。
+    // レイアウト幾何 (leftPos/topPos 相対)。値は branding/gen_golden_jukebox_gui.py
+    // (レイアウトの正本) の widget 矩形と一致させる。上から: ヘッダ(disc+2行) →
+    // transport(メイン: 再生/シーク/リピート) → 音量 → 範囲 → インベントリ。
+    private static final int TRACK_TEXT_X = 32;     // ヘッダ テキスト x (disc スロット右)
+    private static final int TITLE_Y = 19;          // 曲名 (1 行目)
+    private static final int AUTHOR_Y = 31;         // 作者名 (2 行目)
+    private static final int TRACK_TEXT_W = 136;    // ヘッダ テキストの折り返し幅 (176-32-8)
+    private static final int PLAY_X = 8;            // 再生/一時停止 ボタン x
+    private static final int REPEAT_X = 148;        // リピート ボタン x
+    private static final int TRANSPORT_Y = 46;      // transport ボタン行 y (20px, center 56)
     private static final int SEEK_X = 32;
-    private static final int SEEK_Y = 90;
+    private static final int SEEK_Y = 48;           // シークバー y (h16, center 56)
     private static final int SEEK_W = 112;
     private static final int SEEK_H = 16;
-    private static final int TIME_Y = 108;
+    private static final int TIME_Y = 68;           // 経過/総時間
+    private static final int VOLUME_Y = 84;         // 音量スライダー
+    private static final int RANGE_Y = 106;         // 範囲スライダー
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。
     private int curRange = GoldenJukeboxBlockEntity.RANGE_DEFAULT;
@@ -69,9 +80,9 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     public GoldenJukeboxScreen(GoldenJukeboxMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = 176;
-        this.imageHeight = 216;
+        this.imageHeight = 224;
         this.inventoryLabelX = 8;
-        this.inventoryLabelY = 120;
+        this.inventoryLabelY = 130;
     }
 
     @Override
@@ -83,22 +94,10 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         this.curRepeat = be.isRepeat();
         this.curPaused = be.isPaused();
 
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 42, 160, 20,
-                GoldenJukeboxBlockEntity.RANGE_MIN, GoldenJukeboxBlockEntity.RANGE_MAX, curRange,
-                "gui.music_disc_maker.golden_jukebox.range", v -> {
-                    curRange = v;
-                    sendConfig();
-                }));
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 64, 160, 20,
-                GoldenJukeboxBlockEntity.VOLUME_MIN, GoldenJukeboxBlockEntity.VOLUME_MAX, curVolume,
-                "gui.music_disc_maker.golden_jukebox.volume", v -> {
-                    curVolume = v;
-                    sendConfig();
-                }));
-
-        // 再生/一時停止トグル (左・丸ボタン)。自然終了後は頭出し再生でリスタートする。
-        this.playPauseButton = addRenderableWidget(new IconButton(leftPos + 8, topPos + 88, 20, PLAY_SPRITE,
-                Component.translatable("gui.music_disc_maker.golden_jukebox.play"), () -> {
+        // ── transport (メインコントロール・最上段)。再生/一時停止 左・シーク 中央・リピート 右。
+        // 再生/一時停止トグル。自然終了後は頭出し再生でリスタートする。
+        this.playPauseButton = addRenderableWidget(new IconButton(leftPos + PLAY_X, topPos + TRANSPORT_Y,
+                20, PLAY_SPRITE, Component.translatable("gui.music_disc_maker.golden_jukebox.play"), () -> {
                     if (isEnded()) {
                         Services.NETWORK.sendToServer(
                                 new SeekJukeboxPayload(menu.getBlockEntity().getBlockPos(), 0L));
@@ -107,12 +106,25 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                         sendConfig();
                     }
                 }));
-        // シークバー (中央)。
         addRenderableWidget(new SeekBar(leftPos + SEEK_X, topPos + SEEK_Y, SEEK_W, SEEK_H));
-        // リピートトグル (右・フラットアイコン)。
-        this.repeatButton = addRenderableWidget(new IconButton(leftPos + 148, topPos + 88, 20, LOOP_SPRITE,
-                Component.translatable("gui.music_disc_maker.golden_jukebox.repeat_toggle"), () -> {
+        this.repeatButton = addRenderableWidget(new IconButton(leftPos + REPEAT_X, topPos + TRANSPORT_Y,
+                20, LOOP_SPRITE, Component.translatable("gui.music_disc_maker.golden_jukebox.repeat_toggle"), () -> {
                     curRepeat = !curRepeat;
+                    sendConfig();
+                }));
+
+        // ── 音量スライダー。
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + VOLUME_Y, 160, 20,
+                GoldenJukeboxBlockEntity.VOLUME_MIN, GoldenJukeboxBlockEntity.VOLUME_MAX, curVolume,
+                "gui.music_disc_maker.golden_jukebox.volume", v -> {
+                    curVolume = v;
+                    sendConfig();
+                }));
+        // ── 範囲スライダー。
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + RANGE_Y, 160, 20,
+                GoldenJukeboxBlockEntity.RANGE_MIN, GoldenJukeboxBlockEntity.RANGE_MAX, curRange,
+                "gui.music_disc_maker.golden_jukebox.range", v -> {
+                    curRange = v;
                     sendConfig();
                 }));
 
@@ -157,22 +169,28 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        super.renderLabels(g, mouseX, mouseY);
+        // ブロック名タイトルは出さず、ヘッダはディスク + 2 行のトラック情報に専念する。
+        // インベントリラベルだけ自前で描く。
+        g.drawString(font, this.playerInventoryTitle, inventoryLabelX, inventoryLabelY, TEXT, false);
+
         final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
-        // 曲名 (ディスクスロット右)。無ければ "No disc"。
+        // ヘッダ: 曲名 (1 行目) / 作者名 (2 行目)。各行を個別に折り返してパネル幅超過を防ぐ。
         final CustomTrackData track = be.currentTrack();
-        final Component label;
         if (track != null) {
-            final String desc = (track.author() != null && !track.author().isBlank())
-                    ? track.author() + " - " + track.title()
-                    : track.title();
-            label = Component.literal(font.plainSubstrByWidth(desc == null ? "" : desc, 130));
-        } else if (be.hasDisc()) {
-            label = Component.translatable("gui.music_disc_maker.golden_jukebox.vanilla_disc");
+            final String title = track.title() == null ? "" : track.title();
+            g.drawString(font, font.plainSubstrByWidth(title, TRACK_TEXT_W),
+                    TRACK_TEXT_X, TITLE_Y, TEXT, false);
+            final String author = track.author();
+            if (author != null && !author.isBlank()) {
+                g.drawString(font, font.plainSubstrByWidth(author, TRACK_TEXT_W),
+                        TRACK_TEXT_X, AUTHOR_Y, TIME_TEXT, false);
+            }
         } else {
-            label = Component.translatable("gui.music_disc_maker.golden_jukebox.no_track");
+            final Component label = be.hasDisc()
+                    ? Component.translatable("gui.music_disc_maker.golden_jukebox.vanilla_disc")
+                    : Component.translatable("gui.music_disc_maker.golden_jukebox.no_track");
+            g.drawString(font, label, TRACK_TEXT_X, TITLE_Y, TEXT, false);
         }
-        g.drawString(font, label, 36, 23, TEXT, false);
 
         // 経過 / 総時間 (シークバー下)。ラジオは経過 + LIVE。
         final long elapsed = be.currentElapsedMs();
