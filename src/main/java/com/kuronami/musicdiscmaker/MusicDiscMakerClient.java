@@ -2,6 +2,8 @@ package com.kuronami.musicdiscmaker;
 
 import com.kuronami.musicdiscmaker.client.MusicDiscMakerScreen;
 import com.kuronami.musicdiscmaker.client.VariantItemModelProperty;
+import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
+import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
 import net.minecraft.resources.Identifier;
@@ -10,6 +12,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
@@ -28,6 +31,12 @@ public class MusicDiscMakerClient {
     @SubscribeEvent
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
+    }
+
+    /** ディスクのツールチップにジャケット画像を出すための factory (JacketTooltip→JacketClientTooltip)。 */
+    @SubscribeEvent
+    static void onRegisterTooltipFactories(RegisterClientTooltipComponentFactoriesEvent event) {
+        event.register(JacketTooltip.class, JacketClientTooltip::new);
     }
 
     /**
