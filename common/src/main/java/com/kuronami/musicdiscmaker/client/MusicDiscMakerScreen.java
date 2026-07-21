@@ -3,6 +3,11 @@ package com.kuronami.musicdiscmaker.client;
 import org.lwjgl.glfw.GLFW;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
+import com.kuronami.musicdiscmaker.client.jacket.JacketCache;
+import com.kuronami.musicdiscmaker.client.jacket.JacketUrls;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
@@ -16,6 +21,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * ボタンレス生成 GUI: URL を貼って空ディスクを入れると自動で右に custom disc ができる。
@@ -99,9 +105,15 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     // 取得中スピナー: 4 コマを 120ms ごとに進める点棒。
     private static final String[] SPINNER = {"|", "/", "-", "\\"};
 
+    // ジャケットプレビューの枠 (パネルローカル座標)。出力スロット右上の空き領域。
+    private static final int PREVIEW_X = 166;
+    private static final int PREVIEW_Y = 8;
+    private static final int PREVIEW_SIZE = 26;
+
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
+        renderJacketPreview(g);
         // 出力スロット右の空き領域に右寄せ (パネル幅 200 をはみ出さない)
         if (menu.getBlockEntity().isResolving()) {
             final String spin = SPINNER[(int) ((System.currentTimeMillis() / 120L) % SPINNER.length)];
@@ -112,6 +124,44 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             final Component failed = failedMessage(menu.getBlockEntity().getFailureReason());
             g.drawString(font, failed, imageWidth - 8 - font.width(failed), 51, ERROR, false);
         }
+    }
+
+    /**
+     * 解決結果のジャケットをプレビュー枠に描く。対象は出力スロットの custom disc、無ければ
+     * 解決済みトラック。準備前・失敗時は何も描かない (fail-soft)。
+     */
+    private void renderJacketPreview(GuiGraphics g) {
+        final CustomTrackData track = previewTrack();
+        if (track == null || track.isEmpty()) {
+            return;
+        }
+        final JacketCache.Jacket jacket = JacketCache.get(JacketUrls.effectiveUrl(track));
+        if (jacket == null) {
+            return;
+        }
+        final double scale = Math.min(
+                (double) PREVIEW_SIZE / jacket.width(), (double) PREVIEW_SIZE / jacket.height());
+        final int w = Math.max(1, (int) Math.round(jacket.width() * scale));
+        final int h = Math.max(1, (int) Math.round(jacket.height() * scale));
+        // 枠内で中央寄せ + 1px の暗い縁取り。
+        final int dx = PREVIEW_X + (PREVIEW_SIZE - w) / 2;
+        final int dy = PREVIEW_Y + (PREVIEW_SIZE - h) / 2;
+        g.fill(dx - 1, dy - 1, dx + w + 1, dy + h + 1, 0xFF3A3A3A);
+        g.blit(jacket.texture(), dx, dy, w, h, 0.0F, 0.0F, jacket.width(), jacket.height(),
+                jacket.width(), jacket.height());
+    }
+
+    /** プレビュー対象のトラック: 出力ディスク優先、無ければ解決済みトラック。 */
+    private CustomTrackData previewTrack() {
+        final ItemStack output = menu.getBlockEntity().getItem(MusicDiscMakerBlockEntity.SLOT_OUTPUT);
+        final CustomTrackData fromDisc = CustomMusicDiscItem.getTrack(output);
+        if (!fromDisc.isEmpty()) {
+            return fromDisc;
+        }
+        if (menu.getBlockEntity().hasResolvedTrack()) {
+            return menu.getBlockEntity().getResolvedTrack();
+        }
+        return null;
     }
 
     /** 失敗理由に対応する翻訳キーの短いメッセージ。未知は汎用の「取得失敗」。 */

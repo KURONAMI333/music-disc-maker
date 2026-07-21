@@ -2,6 +2,8 @@ package com.kuronami.musicdiscmaker.client;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackManager;
+import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
+import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
 import com.kuronami.musicdiscmaker.component.TrackKey;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
@@ -13,6 +15,7 @@ import com.kuronami.musicdiscmaker.register.ModMenus;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.TooltipComponentCallback;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
@@ -26,6 +29,10 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
+
+        // ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する。
+        TooltipComponentCallback.EVENT.register(
+                data -> data instanceof JacketTooltip jt ? new JacketClientTooltip(jt) : null);
 
         // custom disc の texture variant を曲名+アーティストから決定的に選ぶ。
         // 返り値 (index+0.5)/VARIANTS が model override の threshold (i/VARIANTS) に対応。

@@ -1,15 +1,19 @@
 package com.kuronami.musicdiscmaker.item;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
+import com.kuronami.musicdiscmaker.client.jacket.JacketUrls;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.register.ModSounds;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.RecordItem;
 import net.minecraft.world.item.TooltipFlag;
@@ -99,5 +103,19 @@ public class CustomMusicDiscItem extends RecordItem {
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
         // super (RecordItem) は ".desc" の曲名行を足すので呼ばない (曲名は上で表示済み)。
+    }
+
+    /** ツールチップにジャケット画像を差し込む (client 側で非同期 DL → 描画)。 */
+    @Override
+    public Optional<TooltipComponent> getTooltipImage(ItemStack stack) {
+        final CustomTrackData track = getTrack(stack);
+        if (track.isEmpty()) {
+            return Optional.empty();
+        }
+        final String jacketUrl = JacketUrls.effectiveUrl(track);
+        if (jacketUrl.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(new JacketTooltip(jacketUrl));
     }
 }
