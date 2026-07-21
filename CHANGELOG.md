@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1
+
+- Removed the cover art preview from the Music Disc Maker screen (it overlapped the UI). The album art still shows as a tooltip image on the disc itself.
+
 ## 2.0.0
 
 - **Golden Jukebox** — a new craftable block (surround a jukebox with gold ingots) with a music-player-style GUI: a seek bar to scrub through the track, play/stop and repeat controls, and per-block sliders for audible range (16-256 blocks) and volume (0-200%), so one jukebox can fill a large area while another stays quiet. The GUI shows the current track's title and album art — for vanilla and other mods' discs as well as custom ones. Comparator output and redstone behave like a vanilla jukebox.
