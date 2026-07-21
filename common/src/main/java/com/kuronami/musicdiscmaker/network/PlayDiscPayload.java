@@ -18,8 +18,8 @@ import net.minecraft.resources.ResourceLocation;
  * <p>{@code rangeBlocks} / {@code volumePercent} は強化版ジュークボックス由来の per-block 設定。
  * バニラ jukebox 経路は {@link #vanilla(BlockPos, CustomTrackData, long)} が sentinel
  * ({@code rangeBlocks=0} = client config の playbackRange をそのまま使う、{@code volumePercent=100})
- * を入れるので、既存挙動は変わらない。強化版では実効可聴範囲 = min(rangeBlocks, client config) を
- * client 側で適用する。
+ * を入れるので、既存挙動は変わらない。強化版では実効可聴範囲 = min(rangeBlocks, maxPlaybackRange) を
+ * client 側で適用する (maxPlaybackRange 既定 256 = playbackRange と分離した cap)。
  */
 public record PlayDiscPayload(BlockPos jukeboxPos, CustomTrackData track, long startOffsetMs,
         int rangeBlocks, int volumePercent) implements CustomPacketPayload {

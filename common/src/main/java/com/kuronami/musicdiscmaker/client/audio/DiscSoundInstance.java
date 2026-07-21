@@ -87,10 +87,15 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         return (float) (volumePercent / 100.0 * Config.volumeMultiplier());
     }
 
-    /** 実効可聴範囲 = per-block 設定があれば min(rangeBlocks, config)、無ければ config。 */
+    /**
+     * 実効可聴範囲。強化版 (rangeBlocks>0) は per-block 設定を maxPlaybackRange (既定 256) で頭打ちにし、
+     * 通常 jukebox の playbackRange (Fabric は 64 固定) には縛られない。無設定は従来通り playbackRange。
+     */
     private int effectiveRange() {
-        final int configRange = Config.playbackRange();
-        return rangeBlocks > 0 ? Math.min(rangeBlocks, configRange) : configRange;
+        if (rangeBlocks > 0) {
+            return Math.min(rangeBlocks, Config.maxPlaybackRange());
+        }
+        return Config.playbackRange();
     }
 
     @Override
