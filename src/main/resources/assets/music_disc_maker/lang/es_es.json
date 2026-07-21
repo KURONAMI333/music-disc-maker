@@ -32,7 +32,6 @@
   "gui.music_disc_maker.golden_jukebox.play": "Reproducir",
   "gui.music_disc_maker.golden_jukebox.stop": "Detener",
   "gui.music_disc_maker.golden_jukebox.no_track": "Sin disco",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "Disco normal",
   "music_disc_maker.radio.stopped": "Radio detenida (fallo de reconexión)",
   "music_disc_maker.radio.reconnecting": "Reconectando a la radio… (%s/%s)"
 }

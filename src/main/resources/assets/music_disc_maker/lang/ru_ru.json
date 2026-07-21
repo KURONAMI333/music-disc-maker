@@ -32,7 +32,6 @@
   "gui.music_disc_maker.golden_jukebox.play": "Играть",
   "gui.music_disc_maker.golden_jukebox.stop": "Стоп",
   "gui.music_disc_maker.golden_jukebox.no_track": "Нет пластинки",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "Обычная пластинка",
   "music_disc_maker.radio.stopped": "Радио остановлено (не удалось переподключиться)",
   "music_disc_maker.radio.reconnecting": "Переподключение к радио… (%s/%s)"
 }

@@ -30,9 +30,10 @@
   "gui.music_disc_maker.golden_jukebox.on": "オン",
   "gui.music_disc_maker.golden_jukebox.off": "オフ",
   "gui.music_disc_maker.golden_jukebox.play": "再生",
+  "gui.music_disc_maker.golden_jukebox.pause": "一時停止",
   "gui.music_disc_maker.golden_jukebox.stop": "停止",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "リピート",
   "gui.music_disc_maker.golden_jukebox.no_track": "ディスクなし",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "通常ディスク",
   "music_disc_maker.radio.stopped": "ラジオを停止しました (再接続に失敗)",
   "music_disc_maker.radio.reconnecting": "ラジオに再接続中… (%s/%s)"
 }

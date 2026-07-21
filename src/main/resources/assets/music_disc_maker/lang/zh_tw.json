@@ -32,7 +32,6 @@
   "gui.music_disc_maker.golden_jukebox.play": "播放",
   "gui.music_disc_maker.golden_jukebox.stop": "停止",
   "gui.music_disc_maker.golden_jukebox.no_track": "無唱片",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "普通唱片",
   "music_disc_maker.radio.stopped": "電台已停止（重新連線失敗）",
   "music_disc_maker.radio.reconnecting": "正在重新連線電台… (%s/%s)"
 }
