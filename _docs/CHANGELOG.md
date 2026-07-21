@@ -2,13 +2,18 @@
 
 ## 2.0.0
 
-- **Golden Jukebox** — a new block that plays custom discs with per-block controls: audible range, volume, repeat, and play/stop, all in a settings screen. Crafted by surrounding a jukebox with gold ingots. Comparator output and redstone behave like a vanilla jukebox.
-- **Radio discs** — HTTP/icecast radio and live streams now play as endless streams (shown as "LIVE" instead of a length), with automatic reconnection on brief dropouts.
-- **Track artwork** — disc tooltips and the maker screen now show the track's cover image (downloaded and cached client-side).
-- **Failure reasons** — when a URL can't be resolved, the maker now says why (unsupported link, unavailable/private, region-locked, age-restricted, offline, or blocked).
-- **Anvil naming** — custom discs are named after their track and honor anvil renames.
+- **Golden Jukebox** — a new craftable block (surround a jukebox with gold ingots) with a settings GUI: adjust the audible range (16-256 blocks), volume (0-200%), toggle repeat, and play/stop. Range and volume apply per block, so one jukebox can fill a large area while another stays quiet. Comparator output and redstone behave like a vanilla jukebox.
+- **Radio & livestream discs** — infinite HTTP/icecast radio streams and YouTube live now play as endless discs, shown as "LIVE" instead of a length, with automatic reconnection on brief dropouts.
+- **Album art on discs** — the track's thumbnail is downloaded and shown as a tooltip image on the disc and as a preview in the Music Disc Maker GUI (cached locally, https-only).
+- **Reason-specific failure messages** — the maker now tells you *why* a URL failed (unsupported, unavailable/private, geo-blocked, age-restricted, offline, or blocked) instead of a generic error.
+- **Name your discs** — discs are automatically named after their track, and anvil renames are respected.
 - **Additional Additions albums** — custom discs placed in an Additional Additions album now play their real audio through the album's jukebox.
-- Security: added an SSRF guard on every URL entry point (blocks internal/reserved IPs and non-http(s) schemes), image-download hardening, and a `maxPlaybackRange` config cap. Fixed an audio-source leak when playback was stopped before the stream opened.
+- **Sophisticated Backpacks / Storage** — custom discs now play from the Jukebox Upgrade in Sophisticated Backpacks and Storage.
+- Playback range is now configurable (`playbackRange`, default 64, 16-256 blocks) so you can hear custom discs from farther away, with a server-side `maxPlaybackRange` cap.
+- Music Disc Maker, Blank Disc, and disc-to-Blank recipes now appear in the vanilla recipe book once you have the ingredients (recipe unlock advancements).
+- Fixed audio not resuming after reconnecting or joining late while a custom disc was already playing (jukeboxes are rescanned on chunk load / relog).
+- Fixed YouTube links with playlist parameters (`&list=...`) failing to load — single-track links are normalized to the bare video before streaming.
+- Security: added an SSRF guard on every URL entry point (blocks internal/reserved IPs and non-http(s) schemes) plus image-download hardening. Fixed an audio-source leak when playback was stopped before its stream opened.
 
 ## 1.2.1
 
