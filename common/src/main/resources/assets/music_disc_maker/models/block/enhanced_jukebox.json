@@ -2,7 +2,7 @@
   "parent": "minecraft:block/cube_bottom_top",
   "textures": {
     "top": "music_disc_maker:block/enhanced_jukebox_top",
-    "bottom": "minecraft:block/note_block",
+    "bottom": "music_disc_maker:block/enhanced_jukebox_side",
     "side": "music_disc_maker:block/enhanced_jukebox_side"
   }
 }

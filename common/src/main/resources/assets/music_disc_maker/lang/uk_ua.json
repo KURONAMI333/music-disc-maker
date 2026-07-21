@@ -2,7 +2,6 @@
   "block.music_disc_maker.music_disc_maker": "Виготовлювач платівок",
   "item.music_disc_maker.blank_disc": "Порожня платівка",
   "item.music_disc_maker.custom_music_disc": "Власна платівка",
-
   "gui.music_disc_maker.title": "Виготовлювач платівок",
   "gui.music_disc_maker.url_placeholder": "Вставте посилання…",
   "gui.music_disc_maker.fetching": "Завантаження…",
@@ -14,22 +13,19 @@
   "gui.music_disc_maker.failed.connection": "Без мережі",
   "gui.music_disc_maker.failed.blocked": "Заблок.",
   "gui.music_disc_maker.hint": "Вставте посилання та порожню платівку",
-
   "tooltip.music_disc_maker.artist": "Виконавець: %s",
   "tooltip.music_disc_maker.duration": "Тривалість: %s",
   "tooltip.music_disc_maker.live": "НАЖИВО",
   "tooltip.music_disc_maker.empty_disc": "Немає треку",
-
   "subtitles.music_disc_maker.custom_disc_playback": "Грає власна платівка",
-
   "music_disc_maker.configuration.title": "Налаштування виготовлювача платівок",
   "music_disc_maker.configuration.volumeMultiplier": "Множник гучності",
   "music_disc_maker.configuration.maxConcurrent": "Макс. одночасних платівок",
   "music_disc_maker.playback_failed": "Не вдалося відтворити цей диск (потік недоступний)",
   "music_disc_maker.radio.reconnecting": "Повторне підключення до радіо… (%s/%s)",
   "music_disc_maker.radio.stopped": "Радіо зупинено (не вдалося перепідключитися)",
-  "block.music_disc_maker.enhanced_jukebox": "Покращений програвач",
-  "gui.music_disc_maker.enhanced_jukebox.title": "Покращений програвач",
+  "block.music_disc_maker.enhanced_jukebox": "Позолочений програвач",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Позолочений програвач",
   "gui.music_disc_maker.enhanced_jukebox.range": "Радіус: %s",
   "gui.music_disc_maker.enhanced_jukebox.volume": "Гучність: %s%%",
   "gui.music_disc_maker.enhanced_jukebox.repeat": "Повтор: %s",

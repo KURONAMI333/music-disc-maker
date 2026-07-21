@@ -3,7 +3,6 @@
   "block.music_disc_maker.music_disc_maker": "Music Disc Maker",
   "item.music_disc_maker.blank_disc": "Blank Disc",
   "item.music_disc_maker.custom_music_disc": "Custom Music Disc",
-
   "gui.music_disc_maker.title": "Music Disc Maker",
   "gui.music_disc_maker.url_placeholder": "Paste a URL here...",
   "gui.music_disc_maker.fetching": "Fetching…",
@@ -17,22 +16,19 @@
   "gui.music_disc_maker.hint": "Paste a URL + insert a Blank Disc",
   "gui.music_disc_maker.paste": "Paste",
   "gui.music_disc_maker.clear": "Clear",
-
   "tooltip.music_disc_maker.artist": "by %s",
   "tooltip.music_disc_maker.duration": "Length: %s",
   "tooltip.music_disc_maker.live": "LIVE",
   "tooltip.music_disc_maker.empty_disc": "No track",
-
   "subtitles.music_disc_maker.custom_disc_playback": "Custom disc playing",
-
   "music_disc_maker.configuration.title": "Music Disc Maker Config",
   "music_disc_maker.configuration.volumeMultiplier": "Volume multiplier",
   "music_disc_maker.configuration.maxConcurrent": "Max concurrent discs",
   "music_disc_maker.playback_failed": "Could not play this disc (stream unavailable)",
   "music_disc_maker.radio.reconnecting": "Reconnecting to radio… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio stopped (reconnection failed)",
-  "block.music_disc_maker.enhanced_jukebox": "Tuned Jukebox",
-  "gui.music_disc_maker.enhanced_jukebox.title": "Tuned Jukebox",
+  "block.music_disc_maker.enhanced_jukebox": "Gilded Jukebox",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Gilded Jukebox",
   "gui.music_disc_maker.enhanced_jukebox.range": "Range: %s",
   "gui.music_disc_maker.enhanced_jukebox.volume": "Volume: %s%%",
   "gui.music_disc_maker.enhanced_jukebox.repeat": "Repeat: %s",

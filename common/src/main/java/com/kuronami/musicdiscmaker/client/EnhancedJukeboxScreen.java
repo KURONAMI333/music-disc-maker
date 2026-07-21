@@ -54,13 +54,13 @@ public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeb
         this.curRepeat = be.isRepeat();
         this.curPaused = be.isPaused();
 
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 44, 160, 20,
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 40, 160, 20,
                 EnhancedJukeboxBlockEntity.RANGE_MIN, EnhancedJukeboxBlockEntity.RANGE_MAX, curRange,
                 "gui.music_disc_maker.enhanced_jukebox.range", v -> {
                     curRange = v;
                     sendConfig();
                 }));
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 66, 160, 20,
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + 62, 160, 20,
                 EnhancedJukeboxBlockEntity.VOLUME_MIN, EnhancedJukeboxBlockEntity.VOLUME_MAX, curVolume,
                 "gui.music_disc_maker.enhanced_jukebox.volume", v -> {
                     curVolume = v;
@@ -71,14 +71,14 @@ public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeb
             curRepeat = !curRepeat;
             b.setMessage(repeatLabel());
             sendConfig();
-        }).bounds(leftPos + 8, topPos + 88, 78, 20).build());
+        }).bounds(leftPos + 8, topPos + 84, 78, 20).build());
         this.repeatButton.active = !be.isLiveStream();
 
         this.playStopButton = addRenderableWidget(Button.builder(playStopLabel(), b -> {
             curPaused = !curPaused;
             b.setMessage(playStopLabel());
             sendConfig();
-        }).bounds(leftPos + 90, topPos + 88, 78, 20).build());
+        }).bounds(leftPos + 90, topPos + 84, 78, 20).build());
     }
 
     private Component repeatLabel() {
