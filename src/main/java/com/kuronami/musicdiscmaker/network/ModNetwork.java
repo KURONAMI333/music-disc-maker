@@ -33,6 +33,10 @@ public final class ModNetwork {
         registrar.playToServer(ConfigureJukeboxPayload.TYPE, ConfigureJukeboxPayload.STREAM_CODEC,
                 ModNetwork::handleConfigureJukebox);
 
+        // client → server: 強化版ジュークボックスのシークバー頭出し
+        registrar.playToServer(SeekJukeboxPayload.TYPE, SeekJukeboxPayload.STREAM_CODEC,
+                ModNetwork::handleSeekJukebox);
+
         // server → client (再生制御)。client 専用ハンドラは lambda 内参照なので server では never-load。
         registrar.playToClient(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(
@@ -72,6 +76,19 @@ public final class ModNetwork {
             be.setVolumePercent(payload.volumePercent());
             be.setRepeat(payload.repeat());
             be.setPaused(payload.paused());
+        }
+    }
+
+    private static void handleSeekJukebox(SeekJukeboxPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be) {
+            be.seekTo(payload.offsetMs());
         }
     }
 }
