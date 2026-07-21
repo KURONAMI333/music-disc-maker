@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " A ",
+    "AJA",
+    " A "
+  ],
+  "key": {
+    "A": { "item": "minecraft:amethyst_shard" },
+    "J": { "item": "minecraft:jukebox" }
+  },
+  "result": {
+    "id": "music_disc_maker:enhanced_jukebox",
+    "count": 1
+  }
+}
