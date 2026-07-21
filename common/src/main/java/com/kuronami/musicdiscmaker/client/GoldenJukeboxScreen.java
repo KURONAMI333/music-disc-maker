@@ -14,6 +14,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.CommonComponents;
@@ -95,11 +96,16 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                     sendConfig();
                 }));
 
-        // 再生/一時停止トグル (左・丸ボタン)。
+        // 再生/一時停止トグル (左・丸ボタン)。自然終了後は頭出し再生でリスタートする。
         this.playPauseButton = addRenderableWidget(new IconButton(leftPos + 8, topPos + 88, 20, PLAY_SPRITE,
                 Component.translatable("gui.music_disc_maker.golden_jukebox.play"), () -> {
-                    curPaused = !curPaused;
-                    sendConfig();
+                    if (isEnded()) {
+                        Services.NETWORK.sendToServer(
+                                new SeekJukeboxPayload(menu.getBlockEntity().getBlockPos(), 0L));
+                    } else {
+                        curPaused = !curPaused;
+                        sendConfig();
+                    }
                 }));
         // シークバー (中央)。
         addRenderableWidget(new SeekBar(leftPos + SEEK_X, topPos + SEEK_Y, SEEK_W, SEEK_H));
@@ -113,12 +119,20 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         refreshTransportSprites();
     }
 
+    /** 有限尺の非リピート custom disc が総尺まで達した (自然終了した) か。 */
+    private boolean isEnded() {
+        final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
+        return !curPaused && be.isSeekable() && !be.isRepeat()
+                && be.currentElapsedMs() >= be.trackDurationMs();
+    }
+
     /** BE 状態からトグルのスプライト・活性を更新する。 */
     private void refreshTransportSprites() {
         final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
         if (playPauseButton != null) {
             playPauseButton.active = be.hasDisc();
-            playPauseButton.setSprite(curPaused ? ICON_PLAY_U : ICON_PAUSE_U, ICON_V);
+            // 一時停止中・自然終了後は「再生」アイコン、再生中は「一時停止」アイコン。
+            playPauseButton.setSprite((curPaused || isEnded()) ? ICON_PLAY_U : ICON_PAUSE_U, ICON_V);
         }
         if (repeatButton != null) {
             repeatButton.active = !be.isLiveStream();
@@ -188,6 +202,34 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         refreshTransportSprites();
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
+    }
+
+    // ── AbstractContainerScreen(1.21.1) は mouseDragged / mouseReleased を子ウィジェットへ
+    //    委譲しない (quick-craft 処理で super を呼ばず握りつぶす)。そのため container 画面では
+    //    スライダー・シークバーのドラッグ追従が効かない。focus 中のウィジェットへ自前で転送して
+    //    バニラの非 container 設定画面と同じ操作感を復元する。isDragging() でクリック起点の
+    //    ドラッグ列だけに限定し、release 後の空白ドラッグで前回のスライダーが動くのを防ぐ。
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        final GuiEventListener focused = getFocused();
+        if (button == 0 && isDragging() && focused != null
+                && focused.mouseDragged(mouseX, mouseY, button, dragX, dragY)) {
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        final GuiEventListener focused = getFocused();
+        boolean widgetHandled = false;
+        if (button == 0 && isDragging() && focused != null) {
+            widgetHandled = focused.mouseReleased(mouseX, mouseY, button);
+        }
+        setDragging(false);
+        final boolean containerHandled = super.mouseReleased(mouseX, mouseY, button);
+        return widgetHandled || containerHandled;
     }
 
     /** 整数値スライダー。ドラッグ/キーで値が変わったら {@code onChange} を呼ぶ (同一整数は dedup)。 */
