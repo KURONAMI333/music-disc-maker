@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.network;
 
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
 
@@ -30,6 +31,32 @@ public final class ModNetwork {
         }
         if (player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
             maker.setCurrentUrl(payload.url()); // setCurrentUrl が DiscFabrication.process を呼ぶ
+        }
+    }
+
+    /** server 受信: 強化版ジュークボックスの設定適用。 */
+    public static void handleConfigureJukebox(ConfigureJukeboxPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity jukebox) {
+            // 値の保存を先に (range/volume/repeat) → 最後に paused の再生調停 (最新値で resume させる)。
+            jukebox.setRangeBlocks(payload.rangeBlocks());
+            jukebox.setVolumePercent(payload.volumePercent());
+            jukebox.setRepeat(payload.repeat());
+            jukebox.setPaused(payload.paused());
+        }
+    }
+
+    /** server 受信: 強化版ジュークボックスのシークバー頭出し。 */
+    public static void handleSeekJukebox(SeekJukeboxPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity jukebox) {
+            jukebox.seekTo(payload.offsetMs());
         }
     }
 

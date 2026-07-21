@@ -10,5 +10,6 @@ public record TrackInfo(
         long durationMs,
         String uri,
         String identifier,
-        boolean stream) {
+        boolean stream,
+        String thumbnailUrl) {
 }

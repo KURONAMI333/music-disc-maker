@@ -44,6 +44,15 @@ public final class ActiveDiscRegistry {
         return map != null && map.containsKey(pos);
     }
 
+    /**
+     * 指定 pos の再生中エントリを返す (無ければ null)。純粋な read で prune しない。
+     * album 互換のトラック差分判定 (現在ストリーム中の url と比較) に使う。
+     */
+    public static Playing current(ResourceKey<Level> dim, BlockPos pos) {
+        final Map<BlockPos, Playing> map = BY_DIM.get(dim);
+        return map == null ? null : map.get(pos);
+    }
+
     public static void stop(ResourceKey<Level> dim, BlockPos pos) {
         final Map<BlockPos, Playing> map = BY_DIM.get(dim);
         if (map != null) {

@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.SilentSongs;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -48,6 +49,8 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
     private boolean resolving = false;
     /** 直近の解決が失敗したか (GUI のエラー表示用)。同期のみ・永続化しない。 */
     private boolean resolveFailed = false;
+    /** 直近の失敗理由 (GUI の理由別メッセージ用)。{@link #resolveFailed} が true の時だけ意味を持つ。 */
+    private FailureReason failureReason = FailureReason.UNKNOWN;
 
     public MusicDiscMakerBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.MUSIC_DISC_MAKER.get(), pos, state);
@@ -90,8 +93,14 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         return resolveFailed;
     }
 
-    public void setResolveFailed(boolean failed) {
-        this.resolveFailed = failed;
+    public FailureReason getFailureReason() {
+        return failureReason;
+    }
+
+    /** 解決失敗を理由つきで記録する (GUI が理由別メッセージを出す)。 */
+    public void setResolveFailed(FailureReason reason) {
+        this.resolveFailed = true;
+        this.failureReason = reason == null ? FailureReason.UNKNOWN : reason;
         sync();
     }
 
@@ -148,7 +157,8 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         // これでバニラの挿入/ホッパー/コンパレータ/Amendments の回転等が機能する (音声は LavaPlayer)。
         // show_in_tooltip=false: song の description はツールチップに出さない (曲名は CUSTOM_TRACK 側で表示)。
         disc.set(DataComponents.JUKEBOX_PLAYABLE,
-                new JukeboxPlayable(new EitherHolder<>(SilentSongs.pick(resolvedTrack.durationMs())), false));
+                new JukeboxPlayable(new EitherHolder<>(
+                        SilentSongs.pick(resolvedTrack.durationMs(), resolvedTrack.radio())), false));
 
         // 出力を先に埋める: 直後の onContentsChanged→process は「出力が空でない」で早期 return し、
         // input 消費の onContentsChanged が再入して余計な再解決/二重生成を起こすのを防ぐ。
@@ -190,6 +200,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         }
         this.resolving = tag.getBoolean("resolving");
         this.resolveFailed = tag.getBoolean("resolveFailed");
+        this.failureReason = FailureReason.fromName(tag.getString("failureReason"));
     }
 
     @Override
@@ -214,6 +225,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         saveAdditional(tag, registries);
         tag.putBoolean("resolving", resolving);
         tag.putBoolean("resolveFailed", resolveFailed);
+        tag.putString("failureReason", failureReason.name());
         return tag;
     }
 

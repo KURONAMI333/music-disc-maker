@@ -29,7 +29,10 @@ repositories {
 }
 
 dependencies {
-    // 隔離 classloader 側にロードされる LavaPlayer 一式
+    // 隔離 classloader 側にロードされる LavaPlayer 一式。
+    // 下記2つは各 repo の最新安定版 (2026-07-21 時点):
+    //  - lavaplayer fork 2.2.4-fix-j8 : repo.u-team.info の最新 (次は -SNAPSHOT のみ)
+    //  - youtube-source v2 1.18.1     : maven.lavalink.dev の最新 (maven.arbjerg.dev が 301 で解決)
     library 'net.hycrafthd.lavaplayer:lavaplayer:2.2.4-fix-j8'
     library 'dev.lavalink.youtube:v2:1.18.1'
     library 'org.slf4j:jcl-over-slf4j:2.0.17'  // httpclient の commons-logging を slf4j へ橋渡し

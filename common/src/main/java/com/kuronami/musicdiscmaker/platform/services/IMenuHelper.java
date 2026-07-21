@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.platform.services;
 
+import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 
 import net.minecraft.core.BlockPos;
@@ -18,4 +19,10 @@ public interface IMenuHelper {
 
     /** server 側: pos を付けて menu を開く。 */
     void openMusicDiscMakerMenu(ServerPlayer player, BlockPos pos);
+
+    /** BlockPos を client ctor へ運ぶ強化版ジュークボックスの extended MenuType を生成する。 */
+    MenuType<GoldenJukeboxMenu> createGoldenJukeboxMenuType();
+
+    /** server 側: pos を付けて強化版ジュークボックスの設定 menu を開く。 */
+    void openGoldenJukeboxMenu(ServerPlayer player, BlockPos pos);
 }

@@ -1,7 +1,8 @@
 {
-  "parent": "minecraft:block/orientable",
+  "parent": "minecraft:block/orientable_with_bottom",
   "textures": {
     "top": "music_disc_maker:block/music_disc_maker_top",
+    "bottom": "music_disc_maker:block/music_disc_maker_bottom",
     "front": "music_disc_maker:block/music_disc_maker_front",
     "side": "music_disc_maker:block/music_disc_maker_side"
   }

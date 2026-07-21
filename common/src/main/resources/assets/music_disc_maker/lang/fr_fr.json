@@ -2,21 +2,36 @@
   "block.music_disc_maker.music_disc_maker": "Fabricant de disques",
   "item.music_disc_maker.blank_disc": "Disque vierge",
   "item.music_disc_maker.custom_music_disc": "Disque personnalisé",
-
   "gui.music_disc_maker.title": "Fabricant de disques",
   "gui.music_disc_maker.url_placeholder": "Collez une URL ici…",
   "gui.music_disc_maker.fetching": "Chargement…",
   "gui.music_disc_maker.failed": "Échec",
+  "gui.music_disc_maker.failed.unsupported": "Non valide",
+  "gui.music_disc_maker.failed.private": "Privé",
+  "gui.music_disc_maker.failed.region": "Région",
+  "gui.music_disc_maker.failed.age": "Âge",
+  "gui.music_disc_maker.failed.connection": "Hors ligne",
+  "gui.music_disc_maker.failed.blocked": "Bloqué",
   "gui.music_disc_maker.hint": "Collez une URL + insérez un disque vierge",
-
   "tooltip.music_disc_maker.artist": "par %s",
   "tooltip.music_disc_maker.duration": "Durée : %s",
+  "tooltip.music_disc_maker.live": "EN DIRECT",
   "tooltip.music_disc_maker.empty_disc": "Aucune piste",
-
   "subtitles.music_disc_maker.custom_disc_playback": "Disque personnalisé en cours",
-
   "music_disc_maker.configuration.title": "Configuration du fabricant de disques",
   "music_disc_maker.configuration.volumeMultiplier": "Multiplicateur de volume",
   "music_disc_maker.configuration.maxConcurrent": "Disques simultanés max.",
-  "music_disc_maker.playback_failed": "Impossible de lire ce disque (flux indisponible)"
+  "music_disc_maker.playback_failed": "Impossible de lire ce disque (flux indisponible)",
+  "music_disc_maker.radio.reconnecting": "Reconnexion à la radio… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Radio arrêtée (échec de la reconnexion)",
+  "block.music_disc_maker.golden_jukebox": "Jukebox doré",
+  "gui.music_disc_maker.golden_jukebox.title": "Jukebox doré",
+  "gui.music_disc_maker.golden_jukebox.range": "Portée : %s",
+  "gui.music_disc_maker.golden_jukebox.volume": "Volume : %s%%",
+  "gui.music_disc_maker.golden_jukebox.repeat": "Répéter : %s",
+  "gui.music_disc_maker.golden_jukebox.on": "Activé",
+  "gui.music_disc_maker.golden_jukebox.off": "Désactivé",
+  "gui.music_disc_maker.golden_jukebox.play": "Lecture",
+  "gui.music_disc_maker.golden_jukebox.stop": "Arrêt",
+  "gui.music_disc_maker.golden_jukebox.no_track": "Aucun disque"
 }
