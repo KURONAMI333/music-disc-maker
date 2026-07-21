@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "Incolla un URL qui…",
   "gui.music_disc_maker.fetching": "Caricamento…",
   "gui.music_disc_maker.failed": "Errore",
+  "gui.music_disc_maker.failed.unsupported": "Non valido",
+  "gui.music_disc_maker.failed.private": "Privato",
+  "gui.music_disc_maker.failed.region": "Regione",
+  "gui.music_disc_maker.failed.age": "Età",
+  "gui.music_disc_maker.failed.connection": "Offline",
+  "gui.music_disc_maker.failed.blocked": "Bloccato",
   "gui.music_disc_maker.hint": "Incolla un URL + inserisci un disco vuoto",
 
   "tooltip.music_disc_maker.artist": "di %s",

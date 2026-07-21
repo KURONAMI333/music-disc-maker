@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "Вставте посилання…",
   "gui.music_disc_maker.fetching": "Завантаження…",
   "gui.music_disc_maker.failed": "Помилка",
+  "gui.music_disc_maker.failed.unsupported": "Хибно",
+  "gui.music_disc_maker.failed.private": "Приватне",
+  "gui.music_disc_maker.failed.region": "Регіон",
+  "gui.music_disc_maker.failed.age": "Вік",
+  "gui.music_disc_maker.failed.connection": "Без мережі",
+  "gui.music_disc_maker.failed.blocked": "Заблок.",
   "gui.music_disc_maker.hint": "Вставте посилання та порожню платівку",
 
   "tooltip.music_disc_maker.artist": "Виконавець: %s",
