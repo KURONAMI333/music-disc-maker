@@ -17,6 +17,9 @@
 
   "tooltip.music_disc_maker.artist": "door %s",
   "tooltip.music_disc_maker.duration": "Lengte: %s",
+  "tooltip.music_disc_maker.live": "LIVE",
+  "music_disc_maker.radio.reconnecting": "Opnieuw verbinden met radio… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Radio gestopt (opnieuw verbinden mislukt)",
   "tooltip.music_disc_maker.empty_disc": "Geen nummer",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Aangepast schijfje speelt",

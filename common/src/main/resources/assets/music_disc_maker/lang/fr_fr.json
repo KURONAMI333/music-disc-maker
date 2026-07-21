@@ -17,6 +17,9 @@
 
   "tooltip.music_disc_maker.artist": "par %s",
   "tooltip.music_disc_maker.duration": "Durée : %s",
+  "tooltip.music_disc_maker.live": "EN DIRECT",
+  "music_disc_maker.radio.reconnecting": "Reconnexion à la radio… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Radio arrêtée (échec de la reconnexion)",
   "tooltip.music_disc_maker.empty_disc": "Aucune piste",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Disque personnalisé en cours",

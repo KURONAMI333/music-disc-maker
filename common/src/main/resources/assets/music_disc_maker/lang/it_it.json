@@ -17,6 +17,9 @@
 
   "tooltip.music_disc_maker.artist": "di %s",
   "tooltip.music_disc_maker.duration": "Durata: %s",
+  "tooltip.music_disc_maker.live": "IN DIRETTA",
+  "music_disc_maker.radio.reconnecting": "Riconnessione alla radio… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Radio interrotta (riconnessione fallita)",
   "tooltip.music_disc_maker.empty_disc": "Nessuna traccia",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Riproduzione disco personalizzato",

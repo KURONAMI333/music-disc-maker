@@ -17,6 +17,9 @@
 
   "tooltip.music_disc_maker.artist": "艺术家：%s",
   "tooltip.music_disc_maker.duration": "时长：%s",
+  "tooltip.music_disc_maker.live": "直播",
+  "music_disc_maker.radio.reconnecting": "正在重新连接电台… (%s/%s)",
+  "music_disc_maker.radio.stopped": "电台已停止（重新连接失败）",
   "tooltip.music_disc_maker.empty_disc": "无音轨",
 
   "subtitles.music_disc_maker.custom_disc_playback": "自定义唱片播放中",

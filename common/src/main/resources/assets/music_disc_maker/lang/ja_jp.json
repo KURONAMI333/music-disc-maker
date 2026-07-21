@@ -17,6 +17,9 @@
 
   "tooltip.music_disc_maker.artist": "%s",
   "tooltip.music_disc_maker.duration": "長さ: %s",
+  "tooltip.music_disc_maker.live": "ライブ",
+  "music_disc_maker.radio.reconnecting": "ラジオに再接続中… (%s/%s)",
+  "music_disc_maker.radio.stopped": "ラジオを停止しました (再接続に失敗)",
   "tooltip.music_disc_maker.empty_disc": "曲なし",
 
   "subtitles.music_disc_maker.custom_disc_playback": "カスタムディスク再生中",

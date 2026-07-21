@@ -17,6 +17,9 @@
 
   "tooltip.music_disc_maker.artist": "Wykonawca: %s",
   "tooltip.music_disc_maker.duration": "Długość: %s",
+  "tooltip.music_disc_maker.live": "NA ŻYWO",
+  "music_disc_maker.radio.reconnecting": "Ponowne łączenie z radiem… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Radio zatrzymane (ponowne łączenie nie powiodło się)",
   "tooltip.music_disc_maker.empty_disc": "Brak utworu",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Odtwarzanie własnej płyty",

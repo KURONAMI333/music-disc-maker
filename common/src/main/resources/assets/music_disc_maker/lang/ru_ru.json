@@ -17,6 +17,9 @@
 
   "tooltip.music_disc_maker.artist": "Исполнитель: %s",
   "tooltip.music_disc_maker.duration": "Длина: %s",
+  "tooltip.music_disc_maker.live": "В ЭФИРЕ",
+  "music_disc_maker.radio.reconnecting": "Переподключение к радио… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Радио остановлено (не удалось переподключиться)",
   "tooltip.music_disc_maker.empty_disc": "Нет трека",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Играет своя пластинка",

@@ -33,12 +33,20 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     /** block 再生時の jukebox 位置 (entity 再生時は null)。撤去検知に使う。 */
     @Nullable
     private final BlockPos blockPos;
+    /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
+    @Nullable
+    private final Runnable onStreamEnded;
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source) {
+        this(pos, source, null);
+    }
+
+    public DiscSoundInstance(BlockPos pos, IAudioSource source, @Nullable Runnable onStreamEnded) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
         this.followEntity = null;
         this.blockPos = pos.immutable();
+        this.onStreamEnded = onStreamEnded;
         this.x = pos.getX() + 0.5;
         this.y = pos.getY() + 0.5;
         this.z = pos.getZ() + 0.5;
@@ -50,6 +58,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         this.source = source;
         this.followEntity = entity;
         this.blockPos = null;
+        this.onStreamEnded = null;
         this.x = entity.getX();
         this.y = entity.getY();
         this.z = entity.getZ();
@@ -113,7 +122,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     }
 
     public CompletableFuture<AudioStream> getCustomStream() {
-        return CompletableFuture.completedFuture(new LavaPlayerAudioStream(source));
+        return CompletableFuture.completedFuture(new LavaPlayerAudioStream(source, onStreamEnded));
     }
 
     public void requestStop() {
