@@ -1,11 +1,11 @@
 {
   "parent": "minecraft:recipes/root",
   "criteria": {
-    "has_jukebox": {
+    "has_gold_ingot": {
       "conditions": {
         "items": [
           {
-            "items": "minecraft:jukebox"
+            "items": "minecraft:gold_ingot"
           }
         ]
       },
@@ -21,7 +21,7 @@
   "requirements": [
     [
       "has_the_recipe",
-      "has_jukebox"
+      "has_gold_ingot"
     ]
   ],
   "rewards": {

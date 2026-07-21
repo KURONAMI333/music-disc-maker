@@ -2,12 +2,12 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
-    " A ",
-    "AJA",
-    " A "
+    "GGG",
+    "GJG",
+    "GGG"
   ],
   "key": {
-    "A": { "item": "minecraft:amethyst_shard" },
+    "G": { "item": "minecraft:gold_ingot" },
     "J": { "item": "minecraft:jukebox" }
   },
   "result": {
