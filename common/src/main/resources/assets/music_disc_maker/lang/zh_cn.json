@@ -2,25 +2,21 @@
   "block.music_disc_maker.music_disc_maker": "音乐唱片制作机",
   "item.music_disc_maker.blank_disc": "空白唱片",
   "item.music_disc_maker.custom_music_disc": "自定义音乐唱片",
-
   "gui.music_disc_maker.title": "音乐唱片制作机",
   "gui.music_disc_maker.url_placeholder": "在此粘贴链接…",
   "gui.music_disc_maker.fetching": "获取中…",
   "gui.music_disc_maker.failed": "失败",
   "gui.music_disc_maker.hint": "粘贴链接并放入空白唱片",
-
   "tooltip.music_disc_maker.artist": "艺术家：%s",
   "tooltip.music_disc_maker.duration": "时长：%s",
   "tooltip.music_disc_maker.empty_disc": "无音轨",
-
   "subtitles.music_disc_maker.custom_disc_playback": "自定义唱片播放中",
-
   "music_disc_maker.configuration.title": "音乐唱片制作机设置",
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
   "music_disc_maker.configuration.maxConcurrent": "最大同时播放唱片数",
   "music_disc_maker.playback_failed": "无法播放此唱片（音频流不可用）",
-  "block.music_disc_maker.enhanced_jukebox": "强化唱片机",
-  "gui.music_disc_maker.enhanced_jukebox.title": "强化唱片机",
+  "block.music_disc_maker.enhanced_jukebox": "镀金唱片机",
+  "gui.music_disc_maker.enhanced_jukebox.title": "镀金唱片机",
   "gui.music_disc_maker.enhanced_jukebox.range": "范围：%s",
   "gui.music_disc_maker.enhanced_jukebox.volume": "音量：%s%%",
   "gui.music_disc_maker.enhanced_jukebox.repeat": "循环：%s",
