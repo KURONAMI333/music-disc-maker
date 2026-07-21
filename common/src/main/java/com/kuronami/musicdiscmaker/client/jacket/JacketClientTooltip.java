@@ -12,7 +12,7 @@ import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent
 public class JacketClientTooltip implements ClientTooltipComponent {
 
     /** 収める最大枠 (px)。 */
-    private static final int MAX = 96;
+    private static final int MAX = 64;
     /** テキストとの上下余白。 */
     private static final int PAD = 2;
 
