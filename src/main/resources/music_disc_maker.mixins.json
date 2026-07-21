@@ -4,6 +4,7 @@
   "package": "com.kuronami.musicdiscmaker.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "AlbumJukeboxTickMixin",
     "JukeboxBlockEntityMixin"
   ],
   "client": [],

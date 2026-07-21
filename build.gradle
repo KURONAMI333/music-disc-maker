@@ -145,6 +145,10 @@ dependencies {
     // 含まれない (実行時は SC 導入環境でのみ class-load される。soft dep)。
     compileOnly files('compat-libs/sophisticatedcore-26.1.2-1.4.53.1949.jar')
 
+    // Additional Additions (互換): アルバムに入れた custom disc の実音声をストリーム再生する。
+    // compileOnly = 公開 jar には含めない。実行時は additionaladditions がロードされている時だけ動く (soft dep)。
+    compileOnly files('compat-libs/additionaladditions-neoforge-10.0.9.jar')
+
     // dev (runClient) で実 SB/SC をロードし互換を動作確認するための runtime mod。localRuntime は publish
     // されない (公開 jar/依存に無影響)。26.1.2 NeoForge dev = Mojmap = production なので production jar が
     // そのまま dev で動く (1.20.1 legacyforge の SRG 不一致問題は 26.1.2 では起きない)。

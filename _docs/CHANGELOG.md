@@ -7,6 +7,7 @@
 - **Track artwork** — disc tooltips and the maker screen now show the track's cover image (downloaded and cached client-side).
 - **Failure reasons** — when a URL can't be resolved, the maker now says why (unsupported link, unavailable/private, region-locked, age-restricted, offline, or blocked).
 - **Anvil naming** — custom discs are named after their track and honor anvil renames.
+- **Additional Additions albums** — custom discs placed in an Additional Additions album now play their real audio through the album's jukebox.
 - Security: added an SSRF guard on every URL entry point (blocks internal/reserved IPs and non-http(s) schemes), image-download hardening, and a `maxPlaybackRange` config cap. Fixed an audio-source leak when playback was stopped before the stream opened.
 
 ## 1.2.1

@@ -79,6 +79,12 @@ public final class ActiveDiscRegistry {
         return map != null && map.containsKey(pos.immutable());
     }
 
+    /** 指定 pos の再生中エントリを返す (無ければ null)。アルバム互換の差分検出に使う。 */
+    public static Playing current(ResourceKey<Level> dim, BlockPos pos) {
+        final Map<BlockPos, Playing> map = BY_DIM.get(dim);
+        return map == null ? null : map.get(pos.immutable());
+    }
+
     public static void clear() {
         BY_DIM.clear();
     }
