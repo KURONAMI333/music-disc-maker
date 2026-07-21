@@ -1,4 +1,5 @@
 {
+  "itemGroup.music_disc_maker": "음반 제작기",
   "block.music_disc_maker.music_disc_maker": "음반 제작기",
   "block.music_disc_maker.golden_jukebox": "황금 주크박스",
   "gui.music_disc_maker.golden_jukebox.title": "황금 주크박스",
@@ -8,7 +9,9 @@
   "gui.music_disc_maker.golden_jukebox.on": "켜짐",
   "gui.music_disc_maker.golden_jukebox.off": "꺼짐",
   "gui.music_disc_maker.golden_jukebox.play": "재생",
+  "gui.music_disc_maker.golden_jukebox.pause": "일시정지",
   "gui.music_disc_maker.golden_jukebox.stop": "정지",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "반복",
   "gui.music_disc_maker.golden_jukebox.no_track": "디스크 없음",
   "item.music_disc_maker.blank_disc": "빈 음반",
   "item.music_disc_maker.custom_music_disc": "커스텀 음반",
@@ -24,6 +27,8 @@
   "gui.music_disc_maker.failed.connection": "연결실패",
   "gui.music_disc_maker.failed.blocked": "차단됨",
   "gui.music_disc_maker.hint": "URL을 붙여넣고 빈 음반을 넣으세요",
+  "gui.music_disc_maker.paste": "붙여넣기",
+  "gui.music_disc_maker.clear": "지우기",
 
   "tooltip.music_disc_maker.artist": "아티스트: %s",
   "tooltip.music_disc_maker.duration": "길이: %s",

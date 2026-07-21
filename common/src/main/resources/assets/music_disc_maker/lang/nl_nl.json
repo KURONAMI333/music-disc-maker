@@ -1,4 +1,5 @@
 {
+  "itemGroup.music_disc_maker": "Muziekschijfjesmaker",
   "block.music_disc_maker.music_disc_maker": "Muziekschijfjesmaker",
   "block.music_disc_maker.golden_jukebox": "Gouden jukebox",
   "gui.music_disc_maker.golden_jukebox.title": "Gouden jukebox",
@@ -8,7 +9,9 @@
   "gui.music_disc_maker.golden_jukebox.on": "Aan",
   "gui.music_disc_maker.golden_jukebox.off": "Uit",
   "gui.music_disc_maker.golden_jukebox.play": "Afspelen",
+  "gui.music_disc_maker.golden_jukebox.pause": "Pauze",
   "gui.music_disc_maker.golden_jukebox.stop": "Stop",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Herhalen",
   "gui.music_disc_maker.golden_jukebox.no_track": "Geen disc",
   "item.music_disc_maker.blank_disc": "Leeg muziekschijfje",
   "item.music_disc_maker.custom_music_disc": "Aangepast muziekschijfje",
@@ -24,6 +27,8 @@
   "gui.music_disc_maker.failed.connection": "Offline",
   "gui.music_disc_maker.failed.blocked": "Geblokkeerd",
   "gui.music_disc_maker.hint": "Plak een URL + plaats een leeg muziekschijfje",
+  "gui.music_disc_maker.paste": "Plakken",
+  "gui.music_disc_maker.clear": "Wissen",
 
   "tooltip.music_disc_maker.artist": "door %s",
   "tooltip.music_disc_maker.duration": "Lengte: %s",
