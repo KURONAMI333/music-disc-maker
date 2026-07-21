@@ -22,16 +22,15 @@ INV_X, INV_Y0 = 8, 142            # プレイヤーインベントリ 3 行の�
 HOT_Y = 200                        # ホットバー
 INV_LABEL = (8, 130)              # "Inventory" ラベル (= H-94)
 
-# transport (メインコントロール列)
-TRANSPORT_BOX = (6, 42, 170, 66)  # 凹みパネル (x0,y0,x1,y1)
+# transport (メインコントロール列)。囲み枠は持たない (kura 高評価の前デザイン = 素の配置)。
 PLAY = (8, 46, 20, 20)            # 再生/一時停止 (center y=56)
 REPEAT = (148, 46, 20, 20)        # リピート
 SEEK = (32, 48, 112, 16)          # シークバー (center y=56)
 TIME_Y = 68                        # 経過/総時間
 
-# 設定スライダー
-VOL = (8, 84, 160, 20)            # 音量
-RANGE = (8, 106, 160, 20)         # 可聴範囲
+# 設定スライダー (細身・脇役)
+VOL = (8, 84, 160, 13)            # 音量
+RANGE = (8, 102, 160, 13)         # 可聴範囲
 
 # ヘッダ テキスト (ディスクスロット右・2 行)
 TEXT_X = 32
@@ -90,66 +89,12 @@ def draw_panel(img):
     d.rectangle([0, 0, W - 1, H - 1], outline=BLACK)
 
 
-def draw_transport_recess(img):
-    """transport 列の凹みパネル。neutral 凹み + 金の 1px 天面ライン (フラットアクセント)。"""
-    x0, y0, x1, y1 = TRANSPORT_BOX
-    px = img.load()
-    for y in range(y0, y1):
-        for x in range(x0, x1):
-            px[x, y] = (188, 188, 188, 255)
-    d = ImageDraw.Draw(img)
-    # 凹み: 上辺+左辺 暗, 下辺+右辺 明 (スロットと同じ recessed 文法)
-    d.line([(x0, y0), (x1 - 1, y0)], fill=SH)
-    d.line([(x0, y0), (x0, y1 - 1)], fill=SH)
-    d.line([(x0, y1 - 1), (x1 - 1, y1 - 1)], fill=HL)
-    d.line([(x1 - 1, y0), (x1 - 1, y1 - 1)], fill=HL)
-    # 金の 1px 天面アクセント (メイン扱いの強調・フラット, glow 無し)
-    d.line([(x0 + 1, y0 + 1), (x1 - 2, y0 + 1)], fill=GOLD)
-
-
 # ── transport スプライト ────────────────────────────────────────────────
 
-def sprite_play(active=True):
-    """20x20 丸ボタン + 金の再生三角。"""
-    im = Image.new("RGBA", (20, 20), (0, 0, 0, 0))
-    _round_button(im)
-    d = ImageDraw.Draw(im)
-    g = GOLD if active else GLYPH_OFF
-    gl = GOLD_L if active else GLYPH_OFF
-    # 三角 (左詰め視覚重心補正で x=7 起点)
-    for i in range(7):
-        y0 = 6 + i
-        y1 = 14 - i
-        if y0 > y1:
-            break
-        d.line([(7, y0), (7, y1)], fill=g)
-    for i in range(7):
-        y0 = 6 + i
-        y1 = 14 - i
-        if y0 > y1:
-            break
-        d.point((7 + i, (y0 + y1) // 2), fill=gl)
-        d.line([(7 + i, y0), (7 + i, y1)], fill=g)
-    return im
-
-
-def sprite_pause(active=True):
-    im = Image.new("RGBA", (20, 20), (0, 0, 0, 0))
-    _round_button(im)
-    d = ImageDraw.Draw(im)
-    g = GOLD if active else GLYPH_OFF
-    d.rectangle([6, 6, 8, 13], fill=g)
-    d.rectangle([11, 6, 13, 13], fill=g)
-    return im
-
-
-def _round_button(im):
-    """20x20 の丸いボタン基盤 (neutral・フラット)。"""
-    d = ImageDraw.Draw(im)
-    d.ellipse([1, 1, 18, 18], fill=(176, 176, 176, 255), outline=SH)
-    # 内側 1px 明ハイライト (上半分)
-    d.arc([2, 2, 17, 17], start=180, end=360, fill=(214, 214, 214, 255))
-    d.arc([2, 2, 17, 17], start=0, end=180, fill=DARK)
+# 再生/一時停止は kura 高評価の前デザイン (金の実心ディスク + 暗い記号くり抜き) を
+# ピクセル完全一致で復元する。放射シェーディングを手描きせず、承認済みの原画を貼る。
+_TRANSPORT_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "transport_buttons_src.png")
 
 
 def _paint_art(art, color, hi):
@@ -158,7 +103,11 @@ def _paint_art(art, color, hi):
     px = im.load()
     rows = art.strip("\n").split("\n")
     for y, row in enumerate(rows):
+        if y >= 16:
+            break
         for x, ch in enumerate(row):
+            if x >= 16:
+                break
             if ch == "#":
                 px[x, y] = color
             elif ch == "o":
@@ -166,82 +115,84 @@ def _paint_art(art, color, hi):
     return im
 
 
-# メディア標準の角丸ループ + 上右/下左の三角矢じり (回転対称)。
-_ART_RRECT = """
-................
-................
-....######o.....
-...#.......##...
-..#.........##..
-.##..........#..
-###..........#..
-.#...........#..
-..#...........#o
-..#..........###
-..#...........#.
-..##.........#..
-...#.......###..
-....######o#....
-................
-................
-"""
+# リピート = 単一の循環矢印 + 大きな中実三角矢じり 1 つ (矢印は 2 つでなく 1 つ)。
+# 円弧はほぼ一周し、右上のギャップ端に「これは矢印」と一目で分かる大三角を置く。
 
-# 上下で追いかける双矢印リング (現代的な repeat 🔁)。右=上向き三角/左=下向き三角。
-_ART_CIRCLE = """
+# v1: 円環の右(3-4時)が大きな下向き三角に潜り込み、その下を開けて時計回りの循環を示す。
+_ART_V1 = """
 ................
-......####......
-....##....##....
-...#........#...
-..#.........o#..
-.#..........###.
-.#.........#####
-##...........#o.
-.o#..........#..
-#####.........#.
-..#o..........#.
+.....####.......
+...##....##.....
 ..#........##...
-...#......##....
-....##..###.....
-......####......
+.#..........#...
+.#.......#####..
+#.........###...
+#..........#....
+#...............
+#...............
+.#..............
+.#.............
+..##......##....
+....######......
+................
 ................
 """
 
-# 太めの角丸ループ (視認性重視)。
-_ART_THICK = """
+# v2: 円弧 + 右に大きな右向き三角 (外向き・3 時方向)。
+_ART_V2 = """
 ................
+...#####........
+..#.....##......
+.#........#.....
+#.........#.....
+#.........#.o...
+#.........#.##..
+#.........#.###.
+#.........#.####
+#.........#.###.
+#.........#.##..
+#.........#.o...
+.#........#.....
+.#.......#......
+..#####.#.......
 ................
-...#######o.....
-..##.....###....
-.##........##...
+"""
+
+# v3: 太い円弧 + 上部に大きな三角 (最も塊感の強い矢じり)。
+_ART_V3 = """
+................
+.......##.......
+......####......
+.....######.....
+...##########...
+..###......###..
+.##..........##.
+.##..........##.
+.##..........#..
 .##.........##..
-##.........####.
-##...........#..
-..#..........#..
-.####........#..
-..##.........#..
-...##.......##..
-....##.....##...
-.....#######....
+..##.......##...
+...##....###....
+....#######.....
+................
 ................
 ................
 """
 
 
 def _loop_variant(kind, color, hi):
-    art = {"rrect": _ART_RRECT, "circle": _ART_CIRCLE, "thick": _ART_THICK}[kind]
+    art = {"v1": _ART_V1, "v2": _ART_V2, "v3": _ART_V3}[kind]
     return _paint_art(art, color, hi)
 
 
-def sprite_loop(active, kind="rrect"):
+def sprite_loop(active, kind="v1"):
     color = GOLD if active else GLYPH_OFF
     hi = GOLD_L if active else (150, 150, 150, 255)
     return _loop_variant(kind, color, hi)
 
 
-def build(loop_kind="rrect"):
+def build(loop_kind="v1"):
     img = Image.new("RGBA", (SHEET, SHEET), (0, 0, 0, 0))
     draw_panel(img)
-    draw_transport_recess(img)
     px = img.load()
     # スロット枠
     draw_slot(px, DISC[0] - 1, DISC[1] - 1)
@@ -250,9 +201,10 @@ def build(loop_kind="rrect"):
             draw_slot(px, INV_X - 1 + col * 18, INV_Y0 - 1 + row * 18)
     for col in range(9):
         draw_slot(px, INV_X - 1 + col * 18, HOT_Y - 1)
-    # スプライト
-    img.alpha_composite(sprite_play(True), (SPR_PLAY_U, 0))
-    img.alpha_composite(sprite_pause(True), (SPR_PAUSE_U, 0))
+    # 再生/一時停止 = 承認済み原画を貼る (u=176 play / u=196 pause)。
+    src = Image.open(_TRANSPORT_SRC).convert("RGBA")
+    img.alpha_composite(src, (SPR_PLAY_U, 0))
+    # リピート = 新規の単一循環矢印。
     img.alpha_composite(sprite_loop(True, loop_kind), (SPR_LOOP_ON_U, 0))
     img.alpha_composite(sprite_loop(False, loop_kind), (SPR_LOOP_OFF_U, 0))
     return img
@@ -284,7 +236,6 @@ def print_table():
     print(f"  seekbar     = {SEEK}   time_y={TIME_Y}")
     print(f"  volume      = {VOL}")
     print(f"  range       = {RANGE}")
-    print(f"  transport   = box{TRANSPORT_BOX}")
     print(f"  header text = x={TEXT_X} title_y={TITLE_Y} author_y={AUTHOR_Y}")
     print(f"  inv label   = {INV_LABEL}")
 
@@ -293,7 +244,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="common/src/main/resources/assets/"
                     "music_disc_maker/textures/gui/golden_jukebox.png")
-    ap.add_argument("--loop", default="rrect", choices=["rrect", "circle", "thick"])
+    ap.add_argument("--loop", default="v1", choices=["v1", "v2", "v3"])
     ap.add_argument("--table", action="store_true")
     ap.add_argument("--candidates", metavar="DIR",
                     help="loop アイコン候補と比較シートを DIR に出す")
@@ -306,7 +257,7 @@ def main():
 
     if args.candidates:
         os.makedirs(args.candidates, exist_ok=True)
-        variants = ["rrect", "circle", "thick"]
+        variants = ["v1", "v2", "v3"]
         scaled = []
         for k in variants:
             on = sprite_loop(True, k)
