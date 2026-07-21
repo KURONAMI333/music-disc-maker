@@ -6,6 +6,7 @@ import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -19,13 +20,30 @@ public class CustomMusicDiscItem extends Item {
         super(properties);
     }
 
+    /**
+     * 表示名: 金床で付けたカスタム名 (あれば) > 自動取得の曲名 > 既定のアイテム名。
+     * カスタム名は vanilla の {@link ItemStack#getHoverName()} が CUSTOM_NAME で上書きするので、
+     * ここでは「曲名 > 既定名」だけを担う。
+     */
+    @Override
+    public Component getName(ItemStack stack) {
+        final CustomTrackData track = stack.get(ModDataComponents.CUSTOM_TRACK.get());
+        if (track != null && !track.isEmpty() && !track.title().isBlank()) {
+            return Component.literal(track.title());
+        }
+        return super.getName(stack);
+    }
+
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, TooltipDisplay display,
                                 Consumer<Component> tooltip, TooltipFlag flag) {
         final CustomTrackData track = stack.get(ModDataComponents.CUSTOM_TRACK.get());
         if (track != null && !track.isEmpty()) {
-            // アイテム名はコモン(白)。曲名を水色+太字でアクセントにして「何の曲か」を最も目立たせる。
-            tooltip.accept(Component.literal(track.title()).withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+            // カスタム名が付いている時だけ、アイテム名の下に曲名を水色+太字で補足する。
+            // カスタム名が無ければアイテム名 (getName) が既に曲名なので重複表示しない。
+            if (stack.has(DataComponents.CUSTOM_NAME) && !track.title().isBlank()) {
+                tooltip.accept(Component.literal(track.title()).withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+            }
             if (!track.author().isBlank()) {
                 tooltip.accept(Component.translatable("tooltip.music_disc_maker.artist", track.author())
                         .withStyle(ChatFormatting.GRAY));
