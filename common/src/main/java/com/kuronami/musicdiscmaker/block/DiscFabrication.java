@@ -70,8 +70,9 @@ public final class DiscFabrication {
                 UrlGuard.enforce(url); // SSRF 遮断: 内部 IP / 非 http(s) scheme を解決前に弾く
                 resolved = LoaderHolder.get().resolve(url);
             } catch (final UrlBlockedException blocked) {
-                // SSRF ガードが拒否。理由別表示への配線は後続の配線コミットで行う (現状は汎用 failed)。
+                // SSRF ガードが拒否 → GUI に「blocked」理由を出す (gui.music_disc_maker.failed.blocked)。
                 MusicDiscMaker.LOGGER.warn("URL を拒否 ({}): {}", blocked.reason(), url);
+                failure = FailureReason.BLOCKED_URL;
                 resolved = null;
             } catch (final ResolveException re) {
                 // impl が分類済みの失敗理由 (非公開/地域/年齢/接続/対応外)。
