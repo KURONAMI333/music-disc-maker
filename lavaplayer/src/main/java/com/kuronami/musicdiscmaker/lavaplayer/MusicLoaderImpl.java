@@ -226,7 +226,11 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
         final String raw = cause.getMessage();
         final String m = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
-        if (m.contains("age") || m.contains("confirm your age") || m.contains("sign in to confirm")) {
+        // 年齢固有の語句のみ (bare "age" は message/page 等を、"sign in to confirm" は
+        // bot チェック "sign in to confirm you're not a bot" を誤って拾うため使わない)。
+        if (m.contains("confirm your age") || m.contains("verify your age")
+                || m.contains("age-restricted") || m.contains("age restricted")
+                || m.contains("inappropriate for some users")) {
             return FailureReason.AGE_RESTRICTED;
         }
         if (m.contains("region") || m.contains("country") || m.contains("not available in your")
