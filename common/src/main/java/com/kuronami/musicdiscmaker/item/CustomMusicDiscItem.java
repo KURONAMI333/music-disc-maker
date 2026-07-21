@@ -50,8 +50,14 @@ public class CustomMusicDiscItem extends Item {
                 tooltip.add(Component.translatable("tooltip.music_disc_maker.artist", track.author())
                         .withStyle(ChatFormatting.GRAY));
             }
-            tooltip.add(Component.translatable("tooltip.music_disc_maker.duration", track.formattedDuration())
-                    .withStyle(ChatFormatting.DARK_GRAY));
+            if (track.radio()) {
+                // 無限長ストリームは尺を出さず「LIVE」を出す。
+                tooltip.add(Component.translatable("tooltip.music_disc_maker.live")
+                        .withStyle(ChatFormatting.RED));
+            } else {
+                tooltip.add(Component.translatable("tooltip.music_disc_maker.duration", track.formattedDuration())
+                        .withStyle(ChatFormatting.DARK_GRAY));
+            }
         } else {
             tooltip.add(Component.translatable("tooltip.music_disc_maker.empty_disc")
                     .withStyle(ChatFormatting.DARK_GRAY));

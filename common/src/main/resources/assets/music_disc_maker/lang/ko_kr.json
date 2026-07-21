@@ -17,6 +17,7 @@
 
   "tooltip.music_disc_maker.artist": "아티스트: %s",
   "tooltip.music_disc_maker.duration": "길이: %s",
+  "tooltip.music_disc_maker.live": "라이브",
   "tooltip.music_disc_maker.empty_disc": "트랙 없음",
 
   "subtitles.music_disc_maker.custom_disc_playback": "커스텀 음반 재생 중",
@@ -25,6 +26,8 @@
   "music_disc_maker.configuration.volumeMultiplier": "음량 배수",
   "music_disc_maker.configuration.maxConcurrent": "최대 동시 재생 음반 수",
   "music_disc_maker.playback_failed": "이 디스크를 재생할 수 없습니다 (스트림을 사용할 수 없음)",
+  "music_disc_maker.radio.reconnecting": "라디오에 재연결 중… (%s/%s)",
+  "music_disc_maker.radio.stopped": "라디오가 중지되었습니다 (재연결 실패)",
   "block.music_disc_maker.enhanced_jukebox": "강화된 주크박스",
   "gui.music_disc_maker.enhanced_jukebox.title": "강화된 주크박스",
   "gui.music_disc_maker.enhanced_jukebox.range": "범위: %s",

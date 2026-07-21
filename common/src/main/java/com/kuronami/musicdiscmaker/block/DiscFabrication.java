@@ -22,6 +22,9 @@ import net.minecraft.world.level.Level;
  */
 public final class DiscFabrication {
 
+    /** これを超える長さ (ms) は無限長ストリーム扱い (12h)。lavaplayer の長さ不明は Long.MAX_VALUE。 */
+    private static final long RADIO_DURATION_THRESHOLD_MS = 43_200_000L;
+
     /** URL 解決は最大 30s ブロックするので main thread から外す。 */
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-fabricate");
@@ -98,9 +101,16 @@ public final class DiscFabrication {
                     return;
                 }
                 final String storedUrl = (result.uri() != null && !result.uri().isBlank()) ? result.uri() : url;
+                // ラジオ判定: ライブフラグ / 長さ不明 (lavaplayer は Long.MAX_VALUE) / 12h 超の
+                // いずれかで無限長ストリーム扱い。radio 時は durationMs を 0 sentinel で保存する
+                // (ActiveDiscRegistry の prune を避け、UI は「LIVE」を出す)。
+                final boolean radio = result.stream()
+                        || result.durationMs() <= 0L
+                        || result.durationMs() > RADIO_DURATION_THRESHOLD_MS;
+                final long storedDuration = radio ? 0L : result.durationMs();
                 be.setResolvedTrack(new CustomTrackData(
-                        storedUrl, result.title(), result.author(), result.durationMs(),
-                        result.thumbnailUrl()), url);
+                        storedUrl, result.title(), result.author(), storedDuration,
+                        result.thumbnailUrl(), radio), url);
                 if (be.createDisc()) {
                     be.resetToNeutral(); // 1枚作ったら URL を消してニュートラルへ
                 }

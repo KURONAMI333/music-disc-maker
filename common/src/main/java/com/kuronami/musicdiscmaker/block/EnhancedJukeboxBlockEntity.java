@@ -116,10 +116,10 @@ public class EnhancedJukeboxBlockEntity extends BlockEntity implements Container
         return null;
     }
 
-    /** 長さ不明の custom disc (ライブ/ラジオ) か。リピートを無効化する判定に使う。 */
+    /** 無限長ストリーム (ライブ/ラジオ) の custom disc か。リピートを無効化する判定に使う。 */
     public boolean isLiveStream() {
         final CustomTrackData t = currentTrack();
-        return t != null && t.durationMs() <= 0L;
+        return t != null && (t.radio() || t.durationMs() <= 0L);
     }
 
     /** コンパレータ出力 (vanilla 同等: song の comparatorOutput)。 */
@@ -283,6 +283,15 @@ public class EnhancedJukeboxBlockEntity extends BlockEntity implements Container
         }
         // vanilla songPlayer: particle / gameEvent / 曲終了で停止。
         songPlayer.tick(level, getBlockState());
+        // 案B (ラジオ): 無限長ストリームは silent song の最大尺 (2h) で vanilla 再生状態が切れるが、
+        // client 側の音声は独立に流れ続ける。再生状態 (コンパレータ/particle) だけを再起動して
+        // 無限に維持する。client への再 broadcast はしないので音声は途切れない。
+        if (startMillis > 0L && !paused && !songPlayer.isPlaying()) {
+            final CustomTrackData track = currentTrack();
+            if (track != null && track.radio()) {
+                songFor(items.get(SLOT_DISC)).ifPresent(song -> songPlayer.play(level, song));
+            }
+        }
         // repeat: 有限曲を曲尺でループ。
         if (repeat && !paused && startMillis > 0L) {
             final CustomTrackData track = currentTrack();

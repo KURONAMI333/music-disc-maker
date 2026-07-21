@@ -17,6 +17,7 @@
 
   "tooltip.music_disc_maker.artist": "von %s",
   "tooltip.music_disc_maker.duration": "Länge: %s",
+  "tooltip.music_disc_maker.live": "LIVE",
   "tooltip.music_disc_maker.empty_disc": "Kein Titel",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Eigene Schallplatte spielt",
@@ -25,6 +26,8 @@
   "music_disc_maker.configuration.volumeMultiplier": "Lautstärkefaktor",
   "music_disc_maker.configuration.maxConcurrent": "Max. gleichzeitige Schallplatten",
   "music_disc_maker.playback_failed": "Diese Schallplatte konnte nicht abgespielt werden (Stream nicht verfügbar)",
+  "music_disc_maker.radio.reconnecting": "Verbinde erneut mit Radio… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Radio gestoppt (erneute Verbindung fehlgeschlagen)",
   "block.music_disc_maker.enhanced_jukebox": "Verbesserte Jukebox",
   "gui.music_disc_maker.enhanced_jukebox.title": "Verbesserte Jukebox",
   "gui.music_disc_maker.enhanced_jukebox.range": "Reichweite: %s",

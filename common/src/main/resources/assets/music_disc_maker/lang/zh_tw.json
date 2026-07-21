@@ -17,6 +17,7 @@
 
   "tooltip.music_disc_maker.artist": "藝術家：%s",
   "tooltip.music_disc_maker.duration": "長度：%s",
+  "tooltip.music_disc_maker.live": "直播",
   "tooltip.music_disc_maker.empty_disc": "無音軌",
 
   "subtitles.music_disc_maker.custom_disc_playback": "自訂唱片播放中",
@@ -25,6 +26,8 @@
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
   "music_disc_maker.configuration.maxConcurrent": "最大同時播放唱片數",
   "music_disc_maker.playback_failed": "無法播放此唱片（音訊串流無法取得）",
+  "music_disc_maker.radio.reconnecting": "正在重新連線電台… (%s/%s)",
+  "music_disc_maker.radio.stopped": "電台已停止（重新連線失敗）",
   "block.music_disc_maker.enhanced_jukebox": "強化唱片機",
   "gui.music_disc_maker.enhanced_jukebox.title": "強化唱片機",
   "gui.music_disc_maker.enhanced_jukebox.range": "範圍：%s",

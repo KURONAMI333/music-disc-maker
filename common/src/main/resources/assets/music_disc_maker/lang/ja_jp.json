@@ -17,6 +17,7 @@
 
   "tooltip.music_disc_maker.artist": "%s",
   "tooltip.music_disc_maker.duration": "長さ: %s",
+  "tooltip.music_disc_maker.live": "ライブ",
   "tooltip.music_disc_maker.empty_disc": "曲なし",
 
   "subtitles.music_disc_maker.custom_disc_playback": "カスタムディスク再生中",
@@ -25,6 +26,8 @@
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
   "music_disc_maker.configuration.maxConcurrent": "同時再生ディスク上限",
   "music_disc_maker.playback_failed": "このディスクを再生できませんでした（ストリーム取得失敗）",
+  "music_disc_maker.radio.reconnecting": "ラジオに再接続中… (%s/%s)",
+  "music_disc_maker.radio.stopped": "ラジオを停止しました (再接続に失敗)",
   "block.music_disc_maker.enhanced_jukebox": "強化ジュークボックス",
   "gui.music_disc_maker.enhanced_jukebox.title": "強化ジュークボックス",
   "gui.music_disc_maker.enhanced_jukebox.range": "範囲: %s",

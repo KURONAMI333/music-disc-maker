@@ -17,6 +17,7 @@
 
   "tooltip.music_disc_maker.artist": "door %s",
   "tooltip.music_disc_maker.duration": "Lengte: %s",
+  "tooltip.music_disc_maker.live": "LIVE",
   "tooltip.music_disc_maker.empty_disc": "Geen nummer",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Aangepast schijfje speelt",
@@ -25,6 +26,8 @@
   "music_disc_maker.configuration.volumeMultiplier": "Volumevermenigvuldiger",
   "music_disc_maker.configuration.maxConcurrent": "Max. gelijktijdige schijfjes",
   "music_disc_maker.playback_failed": "Kan deze schijf niet afspelen (stream niet beschikbaar)",
+  "music_disc_maker.radio.reconnecting": "Opnieuw verbinden met radio… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Radio gestopt (opnieuw verbinden mislukt)",
   "block.music_disc_maker.enhanced_jukebox": "Verbeterde jukebox",
   "gui.music_disc_maker.enhanced_jukebox.title": "Verbeterde jukebox",
   "gui.music_disc_maker.enhanced_jukebox.range": "Bereik: %s",

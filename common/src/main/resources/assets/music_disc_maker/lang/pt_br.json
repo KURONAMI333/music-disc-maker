@@ -17,6 +17,7 @@
 
   "tooltip.music_disc_maker.artist": "por %s",
   "tooltip.music_disc_maker.duration": "Duração: %s",
+  "tooltip.music_disc_maker.live": "AO VIVO",
   "tooltip.music_disc_maker.empty_disc": "Sem faixa",
 
   "subtitles.music_disc_maker.custom_disc_playback": "Tocando disco personalizado",
@@ -25,6 +26,8 @@
   "music_disc_maker.configuration.volumeMultiplier": "Multiplicador de volume",
   "music_disc_maker.configuration.maxConcurrent": "Discos simultâneos máx.",
   "music_disc_maker.playback_failed": "Não foi possível tocar este disco (transmissão indisponível)",
+  "music_disc_maker.radio.reconnecting": "Reconectando ao rádio… (%s/%s)",
+  "music_disc_maker.radio.stopped": "Rádio parado (falha na reconexão)",
   "block.music_disc_maker.enhanced_jukebox": "Jukebox aprimorada",
   "gui.music_disc_maker.enhanced_jukebox.title": "Jukebox aprimorada",
   "gui.music_disc_maker.enhanced_jukebox.range": "Alcance: %s",

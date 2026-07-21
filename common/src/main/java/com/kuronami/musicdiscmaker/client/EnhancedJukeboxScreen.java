@@ -121,6 +121,11 @@ public class EnhancedJukeboxScreen extends AbstractContainerScreen<EnhancedJukeb
             label = Component.translatable("gui.music_disc_maker.enhanced_jukebox.no_track");
         }
         g.drawString(font, label, 36, 23, TEXT, false);
+        // ラジオ (無限長ストリーム) は曲名の下に赤い「LIVE」を出す。
+        if (menu.getBlockEntity().isLiveStream()) {
+            g.drawString(font, Component.translatable("tooltip.music_disc_maker.live"),
+                    36, 34, 0xD03030, false);
+        }
     }
 
     @Override

@@ -157,7 +157,8 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         // これでバニラの挿入/ホッパー/コンパレータ/Amendments の回転等が機能する (音声は LavaPlayer)。
         // show_in_tooltip=false: song の description はツールチップに出さない (曲名は CUSTOM_TRACK 側で表示)。
         disc.set(DataComponents.JUKEBOX_PLAYABLE,
-                new JukeboxPlayable(new EitherHolder<>(SilentSongs.pick(resolvedTrack.durationMs())), false));
+                new JukeboxPlayable(new EitherHolder<>(
+                        SilentSongs.pick(resolvedTrack.durationMs(), resolvedTrack.radio())), false));
 
         // 出力を先に埋める: 直後の onContentsChanged→process は「出力が空でない」で早期 return し、
         // input 消費の onContentsChanged が再入して余計な再解決/二重生成を起こすのを防ぐ。
