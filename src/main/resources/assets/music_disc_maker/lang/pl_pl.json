@@ -2,7 +2,6 @@
   "block.music_disc_maker.music_disc_maker": "Wytwórnia płyt",
   "item.music_disc_maker.blank_disc": "Pusta płyta",
   "item.music_disc_maker.custom_music_disc": "Własna płyta",
-
   "gui.music_disc_maker.title": "Wytwórnia płyt",
   "gui.music_disc_maker.url_placeholder": "Wklej tutaj URL…",
   "gui.music_disc_maker.fetching": "Ładowanie…",
@@ -14,15 +13,24 @@
   "gui.music_disc_maker.failed.connection": "Brak sieci",
   "gui.music_disc_maker.failed.blocked": "Zablokowane",
   "gui.music_disc_maker.hint": "Wklej URL + włóż pustą płytę",
-
   "tooltip.music_disc_maker.artist": "Wykonawca: %s",
   "tooltip.music_disc_maker.duration": "Długość: %s",
   "tooltip.music_disc_maker.empty_disc": "Brak utworu",
-
   "subtitles.music_disc_maker.custom_disc_playback": "Odtwarzanie własnej płyty",
-
   "music_disc_maker.configuration.title": "Ustawienia wytwórni płyt",
   "music_disc_maker.configuration.volumeMultiplier": "Mnożnik głośności",
   "music_disc_maker.configuration.maxConcurrent": "Maks. jednoczesnych płyt",
-  "music_disc_maker.playback_failed": "Nie można odtworzyć tej płyty (strumień niedostępny)"
+  "music_disc_maker.playback_failed": "Nie można odtworzyć tej płyty (strumień niedostępny)",
+  "tooltip.music_disc_maker.live": "NA ŻYWO",
+  "block.music_disc_maker.enhanced_jukebox": "Pozłacany gramofon",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Pozłacany gramofon",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Zasięg: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Głośność: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Powtarzanie: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Wł.",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Wył.",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Odtwórz",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Zatrzymaj",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Brak płyty",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Zwykła płyta"
 }

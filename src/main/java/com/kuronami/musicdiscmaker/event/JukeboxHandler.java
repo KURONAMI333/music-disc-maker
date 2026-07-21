@@ -99,7 +99,7 @@ public final class JukeboxHandler {
         if (isOurDisc) {
             final CustomTrackData track = newItem.get(ModDataComponents.CUSTOM_TRACK.get());
             ActiveDiscRegistry.start(serverLevel.dimension(), key, track, System.currentTimeMillis());
-            broadcast(serverLevel, key, new PlayDiscPayload(key, track, 0L));
+            broadcast(serverLevel, key, PlayDiscPayload.vanilla(key, track, 0L));
         } else if (ActiveDiscRegistry.isTracked(serverLevel.dimension(), key)) {
             ActiveDiscRegistry.stop(serverLevel.dimension(), key);
             broadcast(serverLevel, key, new StopDiscPayload(key));
@@ -140,7 +140,7 @@ public final class JukeboxHandler {
                 continue;
             }
             final long elapsed = Math.max(0L, now - p.startMillis());
-            PacketDistributor.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
+            PacketDistributor.sendToPlayer(player, PlayDiscPayload.vanilla(p.pos(), p.track(), elapsed));
         }
 
         final var chunk = level.getChunk(chunkPos.x(), chunkPos.z());
@@ -153,7 +153,17 @@ public final class JukeboxHandler {
             final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
             if (track == null || track.isEmpty()) continue;
             ActiveDiscRegistry.start(level.dimension(), bePos, track, now);
-            PacketDistributor.sendToPlayer(player, new PlayDiscPayload(bePos, track, 0L));
+            PacketDistributor.sendToPlayer(player, PlayDiscPayload.vanilla(bePos, track, 0L));
+        }
+
+        // 強化版ジュークボックスは ActiveDiscRegistry を使わず BE が権威。chunk 内の BE を直接走査して
+        // 現在の再生位置 + per-block 設定で追従再生させる。
+        for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
+            if (!ChunkPos.containing(bePos).equals(chunkPos)) continue;
+            if (chunk.getBlockEntity(bePos) instanceof
+                    com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity enhanced) {
+                enhanced.resendTo(player);
+            }
         }
     }
 

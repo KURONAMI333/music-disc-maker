@@ -2,7 +2,6 @@
   "block.music_disc_maker.music_disc_maker": "Creatore di dischi",
   "item.music_disc_maker.blank_disc": "Disco vuoto",
   "item.music_disc_maker.custom_music_disc": "Disco personalizzato",
-
   "gui.music_disc_maker.title": "Creatore di dischi",
   "gui.music_disc_maker.url_placeholder": "Incolla un URL qui…",
   "gui.music_disc_maker.fetching": "Caricamento…",
@@ -14,15 +13,24 @@
   "gui.music_disc_maker.failed.connection": "Offline",
   "gui.music_disc_maker.failed.blocked": "Bloccato",
   "gui.music_disc_maker.hint": "Incolla un URL + inserisci un disco vuoto",
-
   "tooltip.music_disc_maker.artist": "di %s",
   "tooltip.music_disc_maker.duration": "Durata: %s",
   "tooltip.music_disc_maker.empty_disc": "Nessuna traccia",
-
   "subtitles.music_disc_maker.custom_disc_playback": "Riproduzione disco personalizzato",
-
   "music_disc_maker.configuration.title": "Configurazione del creatore di dischi",
   "music_disc_maker.configuration.volumeMultiplier": "Moltiplicatore del volume",
   "music_disc_maker.configuration.maxConcurrent": "Dischi simultanei max.",
-  "music_disc_maker.playback_failed": "Impossibile riprodurre questo disco (flusso non disponibile)"
+  "music_disc_maker.playback_failed": "Impossibile riprodurre questo disco (flusso non disponibile)",
+  "tooltip.music_disc_maker.live": "IN DIRETTA",
+  "block.music_disc_maker.enhanced_jukebox": "Jukebox dorato",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Jukebox dorato",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Portata: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Volume: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Ripeti: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Attivo",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Disattivo",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Riproduci",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Ferma",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Nessun disco",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Disco normale"
 }

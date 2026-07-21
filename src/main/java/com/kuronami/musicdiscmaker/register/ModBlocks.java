@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlock;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlock;
 
 import net.minecraft.world.level.block.Blocks;
@@ -16,6 +17,11 @@ public final class ModBlocks {
     // 硬さ・素材・適性ツール・音はジュークボックスと完全に同じ (素手で壊せる / 斧が効率ツール / hardness 2.0 / WOOD)。
     public static final DeferredBlock<MusicDiscMakerBlock> MUSIC_DISC_MAKER =
             BLOCKS.registerBlock("music_disc_maker", MusicDiscMakerBlock::new,
+                    () -> BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX));
+
+    // 強化版ジュークボックス。硬さ・素材・音はバニラ jukebox 準拠。
+    public static final DeferredBlock<EnhancedJukeboxBlock> ENHANCED_JUKEBOX =
+            BLOCKS.registerBlock("enhanced_jukebox", EnhancedJukeboxBlock::new,
                     () -> BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX));
 
     private ModBlocks() {

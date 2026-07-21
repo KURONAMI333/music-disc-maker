@@ -100,7 +100,7 @@ public final class DiscFabrication {
                 final String storedUrl = (result.uri() != null && !result.uri().isBlank()) ? result.uri() : url;
                 be.setResolvedTrack(new CustomTrackData(
                         storedUrl, result.title(), result.author(), result.durationMs(),
-                        result.thumbnailUrl()), url);
+                        result.thumbnailUrl(), false), url);
                 if (be.createDisc()) {
                     be.resetToNeutral(); // 1枚作ったら URL を消してニュートラルへ
                 }

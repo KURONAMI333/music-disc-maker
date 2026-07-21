@@ -48,3 +48,7 @@ run/
 .research-tmp/
 repo/
 *.token
+
+# Fable<->Opus 引き継ぎ (公開 repo に入れない)
+GAP_LOG.md
+_handoff/

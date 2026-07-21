@@ -2,7 +2,6 @@
   "block.music_disc_maker.music_disc_maker": "音楽ディスク製作機",
   "item.music_disc_maker.blank_disc": "空のディスク",
   "item.music_disc_maker.custom_music_disc": "カスタム音楽ディスク",
-
   "gui.music_disc_maker.title": "音楽ディスク製作機",
   "gui.music_disc_maker.url_placeholder": "URL を貼り付け...",
   "gui.music_disc_maker.fetching": "取得中…",
@@ -14,15 +13,24 @@
   "gui.music_disc_maker.failed.connection": "接続失敗",
   "gui.music_disc_maker.failed.blocked": "遮断",
   "gui.music_disc_maker.hint": "URL を貼って空ディスクを入れる",
-
   "tooltip.music_disc_maker.artist": "%s",
   "tooltip.music_disc_maker.duration": "長さ: %s",
   "tooltip.music_disc_maker.empty_disc": "曲なし",
-
   "subtitles.music_disc_maker.custom_disc_playback": "カスタムディスク再生中",
-
   "music_disc_maker.configuration.title": "音楽ディスク製作機設定",
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
   "music_disc_maker.configuration.maxConcurrent": "同時再生ディスク上限",
-  "music_disc_maker.playback_failed": "このディスクを再生できませんでした（ストリーム取得失敗）"
+  "music_disc_maker.playback_failed": "このディスクを再生できませんでした（ストリーム取得失敗）",
+  "tooltip.music_disc_maker.live": "ライブ",
+  "block.music_disc_maker.enhanced_jukebox": "金のジュークボックス",
+  "gui.music_disc_maker.enhanced_jukebox.title": "金のジュークボックス",
+  "gui.music_disc_maker.enhanced_jukebox.range": "範囲: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "音量: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "リピート: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "オン",
+  "gui.music_disc_maker.enhanced_jukebox.off": "オフ",
+  "gui.music_disc_maker.enhanced_jukebox.play": "再生",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "停止",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "ディスクなし",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "通常ディスク"
 }
