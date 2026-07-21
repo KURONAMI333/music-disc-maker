@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import javax.net.ssl.HttpsURLConnection;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
 import com.mojang.blaze3d.platform.NativeImage;
 
 import net.minecraft.client.Minecraft;
@@ -45,6 +46,8 @@ public final class JacketCache {
     private static final long DISK_CACHE_MAX_BYTES = 32L * 1024L * 1024L;
     private static final int CONNECT_TIMEOUT_MS = 4000;
     private static final int READ_TIMEOUT_MS = 6000;
+    /** リダイレクトの追従回数上限 (初回接続を含む総接続試行数)。各ホップで SSRF 再検査する。 */
+    private static final int MAX_REDIRECTS = 5;
     private static final String CACHE_DIR = "mdm_jacket_cache";
 
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, runnable -> {
@@ -72,7 +75,8 @@ public final class JacketCache {
      * (準備できたら次フレーム以降で non-null になる)。render スレッドから呼ぶこと。
      */
     public static Jacket get(String url) {
-        if (url == null || url.isBlank() || !isAllowedImageUrl(url)) {
+        // render スレッド: DNS を伴わない安価な scheme チェックのみ (完全なガードは loadAsync で off-thread)。
+        if (url == null || url.isBlank() || !isHttpsScheme(url)) {
             return null;
         }
         final String hash = hash(url);
@@ -88,10 +92,21 @@ public final class JacketCache {
     }
 
     /**
-     * 画像 URL の簡易ガード: https のみ許可する。
-     * Track 1 の共通 UrlGuard に統合する際はこの1メソッドを差し替える。
+     * 画像 URL のガード: scheme を https に限定し、さらに {@link UrlGuard} で内部・予約 IP (SSRF) を遮断する。
+     * {@code thumbnailUrl} はサーバ同期のデータコンポーネント = 攻撃者制御値なので必須。
+     * DNS 解決を伴うので render スレッドから呼ばない (呼び出しは {@link #loadAsync} / {@link #download} = 専用スレッド)。
      */
     static boolean isAllowedImageUrl(String url) {
+        // ジャケット取得は https のみ (UrlGuard は http も許すので scheme をここで絞る)。
+        if (!isHttpsScheme(url)) {
+            return false;
+        }
+        // 内部・予約 IP (クラウドメタデータ・LAN・ループバック等) を遮断。
+        return UrlGuard.inspect(url) == UrlGuard.Reason.OK;
+    }
+
+    /** scheme が https か (DNS を伴わない安価な判定・render スレッド安全)。 */
+    private static boolean isHttpsScheme(String url) {
         try {
             final String scheme = URI.create(url).getScheme();
             return scheme != null && scheme.equalsIgnoreCase("https");
@@ -101,6 +116,11 @@ public final class JacketCache {
     }
 
     private static void loadAsync(String url, String hash) {
+        // off-thread: https + SSRF(内部 IP) の完全ガード。DNS 解決を伴うので render スレッドから外してある。
+        if (!isAllowedImageUrl(url)) {
+            markFailed(hash);
+            return;
+        }
         try {
             byte[] bytes = readFromDisk(hash);
             if (bytes == null) {
@@ -164,33 +184,52 @@ public final class JacketCache {
         PENDING.remove(hash);
     }
 
-    private static byte[] download(String url) throws IOException {
-        final URLConnection raw = URI.create(url).toURL().openConnection();
-        if (!(raw instanceof HttpsURLConnection conn)) {
-            return null; // https 以外は弾く (isAllowedImageUrl と二重ガード)
-        }
-        conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        conn.setReadTimeout(READ_TIMEOUT_MS);
-        conn.setInstanceFollowRedirects(true);
-        conn.setRequestProperty("User-Agent", "MusicDiscMaker");
-        conn.connect();
-        if (conn.getResponseCode() / 100 != 2) {
-            return null;
-        }
-        try (InputStream in = conn.getInputStream()) {
-            final byte[] buf = new byte[8192];
-            final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            int n;
-            while ((n = in.read(buf)) != -1) {
-                out.write(buf, 0, n);
-                if (out.size() > MAX_IMAGE_BYTES) {
-                    return null; // 上限超過は破棄
-                }
+    private static byte[] download(String startUrl) throws IOException {
+        String current = startUrl;
+        for (int hop = 0; hop < MAX_REDIRECTS; hop++) {
+            // リダイレクトを手動追従し、各ホップの解決先 IP を再検査する (redirect による SSRF を塞ぐ)。
+            if (!isAllowedImageUrl(current)) {
+                return null;
             }
-            return out.toByteArray();
-        } finally {
-            conn.disconnect();
+            final URLConnection raw = URI.create(current).toURL().openConnection();
+            if (!(raw instanceof HttpsURLConnection conn)) {
+                return null; // https 以外は弾く
+            }
+            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            conn.setReadTimeout(READ_TIMEOUT_MS);
+            conn.setInstanceFollowRedirects(false); // 手動で追い、各リダイレクト先を再検査する
+            conn.setRequestProperty("User-Agent", "MusicDiscMaker");
+            conn.connect();
+            final int code = conn.getResponseCode();
+            if (code / 100 == 3) {
+                final String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                if (location == null || location.isBlank()) {
+                    return null;
+                }
+                current = URI.create(current).resolve(location).toString(); // 相対 Location も解決
+                continue;
+            }
+            if (code / 100 != 2) {
+                conn.disconnect();
+                return null;
+            }
+            try (InputStream in = conn.getInputStream()) {
+                final byte[] buf = new byte[8192];
+                final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                    if (out.size() > MAX_IMAGE_BYTES) {
+                        return null; // 上限超過は破棄
+                    }
+                }
+                return out.toByteArray();
+            } finally {
+                conn.disconnect();
+            }
         }
+        return null; // リダイレクトが多すぎる
     }
 
     private static Path cacheDir() {
