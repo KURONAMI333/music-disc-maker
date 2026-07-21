@@ -1,0 +1,278 @@
+package com.kuronami.musicdiscmaker.client.jacket;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import javax.net.ssl.HttpsURLConnection;
+
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.mojang.blaze3d.platform.NativeImage;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.ResourceLocation;
+
+/**
+ * ジャケット画像の client 側キャッシュ。URL を非同期で DL → ディスクキャッシュ → {@link DynamicTexture}
+ * 登録し、{@link ResourceLocation} を返す。すべて fail-soft (失敗しても再生・GUI に影響しない)。
+ *
+ * <p>スレッド: DL/デコードは専用スレッド、texture 登録だけ render スレッド ({@link Minecraft#execute})。
+ * 上限: メモリ内 texture 数と on-disk 合計サイズを制限。https 以外の URL は拒否。
+ */
+public final class JacketCache {
+
+    /** DL する画像の最大バイト数 (細工された巨大画像で OOM しない)。 */
+    private static final int MAX_IMAGE_BYTES = 3_000_000;
+    /** メモリに保持する texture の上限枚数 (LRU で追い出す)。 */
+    private static final int IN_MEMORY_MAX = 48;
+    /** on-disk キャッシュの合計サイズ上限。 */
+    private static final long DISK_CACHE_MAX_BYTES = 32L * 1024L * 1024L;
+    private static final int CONNECT_TIMEOUT_MS = 4000;
+    private static final int READ_TIMEOUT_MS = 6000;
+    private static final String CACHE_DIR = "mdm_jacket_cache";
+
+    private static final ExecutorService POOL = Executors.newFixedThreadPool(2, runnable -> {
+        final Thread t = new Thread(runnable, "music_disc_maker-jacket");
+        t.setDaemon(true);
+        return t;
+    });
+
+    // 登録済み texture (アクセス順 LRU)。render スレッドからのみ触る。
+    private static final LinkedHashMap<String, Jacket> READY =
+            new LinkedHashMap<>(16, 0.75F, true);
+    // DL 中 / 恒久失敗の URL ハッシュ (再要求のスパムを防ぐ)。
+    private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
+    private static final Set<String> FAILED = ConcurrentHashMap.newKeySet();
+
+    private JacketCache() {
+    }
+
+    /** 準備済みジャケット: texture の場所と元画像サイズ (アスペクト比の維持に使う)。 */
+    public record Jacket(ResourceLocation texture, int width, int height) {
+    }
+
+    /**
+     * ジャケット URL に対応するジャケットを返す。まだ無ければ非同期 DL を開始して {@code null} を返す
+     * (準備できたら次フレーム以降で non-null になる)。render スレッドから呼ぶこと。
+     */
+    public static Jacket get(String url) {
+        if (url == null || url.isBlank() || !isAllowedImageUrl(url)) {
+            return null;
+        }
+        final String hash = hash(url);
+        final Jacket ready = READY.get(hash); // LRU: get がアクセス順を更新
+        if (ready != null) {
+            return ready;
+        }
+        if (FAILED.contains(hash) || !PENDING.add(hash)) {
+            return null; // 失敗確定 or DL 中
+        }
+        POOL.submit(() -> loadAsync(url, hash));
+        return null;
+    }
+
+    /**
+     * 画像 URL の簡易ガード: https のみ許可する。
+     * Track 1 の共通 UrlGuard に統合する際はこの1メソッドを差し替える。
+     */
+    static boolean isAllowedImageUrl(String url) {
+        try {
+            final String scheme = URI.create(url).getScheme();
+            return scheme != null && scheme.equalsIgnoreCase("https");
+        } catch (final RuntimeException ex) {
+            return false;
+        }
+    }
+
+    private static void loadAsync(String url, String hash) {
+        try {
+            byte[] bytes = readFromDisk(hash);
+            if (bytes == null) {
+                bytes = download(url);
+                if (bytes != null) {
+                    writeToDisk(hash, bytes);
+                }
+            }
+            if (bytes == null) {
+                markFailed(hash);
+                return;
+            }
+            final NativeImage image;
+            try (InputStream in = new ByteArrayInputStream(bytes)) {
+                image = NativeImage.read(in);
+            }
+            // texture 登録は render スレッドで行う (off-thread 登録は OpenGL 破壊のバグ源)。
+            Minecraft.getInstance().execute(() -> register(hash, image));
+        } catch (final Throwable t) {
+            MusicDiscMaker.LOGGER.debug("ジャケット取得失敗 ({}): {}", url, t.toString());
+            markFailed(hash);
+        }
+    }
+
+    private static void register(String hash, NativeImage image) {
+        try {
+            final int w = image.getWidth();
+            final int h = image.getHeight();
+            final ResourceLocation rl = ResourceLocation.fromNamespaceAndPath(
+                    MusicDiscMaker.MODID, "jacket/" + hash);
+            Minecraft.getInstance().getTextureManager().register(rl, new DynamicTexture(image));
+            READY.put(hash, new Jacket(rl, w, h));
+            evictIfNeeded();
+        } catch (final Throwable t) {
+            image.close();
+            markFailed(hash);
+        } finally {
+            PENDING.remove(hash);
+        }
+    }
+
+    /** LRU: 上限を超えたら最古の texture を解放する (render スレッド)。 */
+    private static void evictIfNeeded() {
+        while (READY.size() > IN_MEMORY_MAX) {
+            final var it = READY.entrySet().iterator();
+            if (!it.hasNext()) {
+                break;
+            }
+            final ResourceLocation oldest = it.next().getValue().texture();
+            it.remove();
+            try {
+                Minecraft.getInstance().getTextureManager().release(oldest);
+            } catch (final Throwable ignored) {
+                // release 失敗は無視 (次回起動で GC される)
+            }
+        }
+    }
+
+    private static void markFailed(String hash) {
+        FAILED.add(hash);
+        PENDING.remove(hash);
+    }
+
+    private static byte[] download(String url) throws IOException {
+        final URLConnection raw = URI.create(url).toURL().openConnection();
+        if (!(raw instanceof HttpsURLConnection conn)) {
+            return null; // https 以外は弾く (isAllowedImageUrl と二重ガード)
+        }
+        conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        conn.setReadTimeout(READ_TIMEOUT_MS);
+        conn.setInstanceFollowRedirects(true);
+        conn.setRequestProperty("User-Agent", "MusicDiscMaker");
+        conn.connect();
+        if (conn.getResponseCode() / 100 != 2) {
+            return null;
+        }
+        try (InputStream in = conn.getInputStream()) {
+            final byte[] buf = new byte[8192];
+            final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                out.write(buf, 0, n);
+                if (out.size() > MAX_IMAGE_BYTES) {
+                    return null; // 上限超過は破棄
+                }
+            }
+            return out.toByteArray();
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    private static Path cacheDir() {
+        return Minecraft.getInstance().gameDirectory.toPath().resolve(CACHE_DIR);
+    }
+
+    private static byte[] readFromDisk(String hash) {
+        try {
+            final Path f = cacheDir().resolve(hash + ".png");
+            if (Files.isRegularFile(f)) {
+                return Files.readAllBytes(f);
+            }
+        } catch (final IOException ignored) {
+            // 読めなければ DL に回す
+        }
+        return null;
+    }
+
+    private static void writeToDisk(String hash, byte[] bytes) {
+        try {
+            final Path dir = cacheDir();
+            Files.createDirectories(dir);
+            Files.write(dir.resolve(hash + ".png"), bytes);
+            pruneDisk(dir);
+        } catch (final IOException ignored) {
+            // ディスクに書けなくてもメモリ内では使える
+        }
+    }
+
+    /** on-disk 合計が上限を超えたら古いファイルから削除する。 */
+    private static void pruneDisk(Path dir) throws IOException {
+        try (var stream = Files.list(dir)) {
+            final List<Path> files = new ArrayList<>(stream.filter(Files::isRegularFile).toList());
+            long total = 0;
+            for (final Path f : files) {
+                total += Files.size(f);
+            }
+            if (total <= DISK_CACHE_MAX_BYTES) {
+                return;
+            }
+            files.sort(Comparator.comparingLong(p -> lastModified(p)));
+            for (final Path f : files) {
+                if (total <= DISK_CACHE_MAX_BYTES) {
+                    break;
+                }
+                final long size = safeSize(f);
+                if (Files.deleteIfExists(f)) {
+                    total -= size;
+                }
+            }
+        }
+    }
+
+    private static long lastModified(Path p) {
+        try {
+            return Files.getLastModifiedTime(p).toMillis();
+        } catch (final IOException ex) {
+            return 0L;
+        }
+    }
+
+    private static long safeSize(Path p) {
+        try {
+            return Files.size(p);
+        } catch (final IOException ex) {
+            return 0L;
+        }
+    }
+
+    private static String hash(String url) {
+        try {
+            final MessageDigest md = MessageDigest.getInstance("SHA-1");
+            final byte[] digest = md.digest(url.getBytes(StandardCharsets.UTF_8));
+            final StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (final byte b : digest) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (final Exception ex) {
+            // SHA-1 は必ず在るが、念のため衝突しにくいフォールバック。
+            return Integer.toHexString(url.hashCode());
+        }
+    }
+}

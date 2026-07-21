@@ -1,13 +1,17 @@
 package com.kuronami.musicdiscmaker.item;
 
 import java.util.List;
+import java.util.Optional;
 
+import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
+import com.kuronami.musicdiscmaker.client.jacket.JacketUrls;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -53,5 +57,19 @@ public class CustomMusicDiscItem extends Item {
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
         super.appendHoverText(stack, context, tooltip, flag);
+    }
+
+    /** ツールチップにジャケット画像を差し込む (client 側で非同期 DL → 描画)。 */
+    @Override
+    public Optional<TooltipComponent> getTooltipImage(ItemStack stack) {
+        final CustomTrackData track = stack.get(ModDataComponents.CUSTOM_TRACK.get());
+        if (track == null || track.isEmpty()) {
+            return Optional.empty();
+        }
+        final String jacketUrl = JacketUrls.effectiveUrl(track);
+        if (jacketUrl.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(new JacketTooltip(jacketUrl));
     }
 }

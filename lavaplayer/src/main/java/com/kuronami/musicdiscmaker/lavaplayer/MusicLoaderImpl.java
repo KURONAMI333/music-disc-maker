@@ -96,7 +96,8 @@ public class MusicLoaderImpl implements IMusicLoader {
         final AudioTrack track = loadTrackSync(url);
         final AudioTrackInfo info = track.getInfo();
         final String[] cleaned = MetadataCleaner.clean(info.title, info.author);
-        return new TrackInfo(cleaned[0], cleaned[1], info.length, info.uri, info.identifier, info.isStream);
+        return new TrackInfo(cleaned[0], cleaned[1], info.length, info.uri, info.identifier,
+                info.isStream, safe(info.artworkUrl));
     }
 
     private TrackInfo resolveViaSpotify(String spotifyUrl) {
@@ -108,8 +109,13 @@ public class MusicLoaderImpl implements IMusicLoader {
         final String query = (meta[1].isBlank() ? "" : meta[1] + " ") + meta[0];
         final AudioTrack yt = loadTrackSync("ytsearch:" + query);
         final AudioTrackInfo info = yt.getInfo();
-        // 表示は Spotify のクリーンなメタ、再生は YouTube の uri
-        return new TrackInfo(meta[0], meta[1], info.length, info.uri, info.identifier, info.isStream);
+        // 表示は Spotify のクリーンなメタ、再生は YouTube の uri。ジャケットは YouTube 側のもの。
+        return new TrackInfo(meta[0], meta[1], info.length, info.uri, info.identifier,
+                info.isStream, safe(info.artworkUrl));
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
     }
 
     @Override
