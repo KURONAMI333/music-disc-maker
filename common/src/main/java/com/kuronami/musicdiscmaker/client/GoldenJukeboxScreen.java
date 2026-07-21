@@ -2,6 +2,8 @@ package com.kuronami.musicdiscmaker.client;
 
 import java.util.function.IntConsumer;
 
+import org.lwjgl.glfw.GLFW;
+
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
@@ -47,7 +49,9 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int PLAY_SPRITE = 20;
     private static final int LOOP_SPRITE = 16;
 
-    private static final int ACCENT = 0xFFCEA844;   // Golden Jukebox のアクセント (fill/knob)
+    private static final int ACCENT = 0xFFCEA844;   // Golden Jukebox のアクセント (fill/knob base)
+    private static final int ACCENT_HI = 0xFFE8C86C; // 金 fill 上辺ハイライト (同色相・高明度)
+    private static final int ACCENT_SH = 0xFF9C7A2E; // 金 fill 下辺シャドウ (同色相・低明度)
     private static final int LIVE_FILL = 0xFF9AA0A6; // ラジオ (LIVE) の不定進捗
 
     // レイアウト幾何 (leftPos/topPos 相対)。値は branding/gen_golden_jukebox_gui.py
@@ -67,7 +71,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int TIME_Y = 68;           // 経過/総時間
     private static final int VOLUME_Y = 84;         // 音量スライダー
     private static final int RANGE_Y = 102;         // 範囲スライダー
-    private static final int SLIDER_H = 13;         // スライダー高さ (細身・脇役)
+    private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
     private static final long SEEK_SYNC_TOL_MS = 800L; // シーク後、BE 同期が追いついたと見なす許容
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。
@@ -290,32 +294,53 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             }
         }
 
-        // 脇役スライダー: 金の transport に主張で負けるよう、暗く低コントラストな溝 +
-        // 中立グレーのつまみ + 淡色ラベルで細身に自前描画する (バニラの明るい widget を使わない)。
+        // 脇役スライダー: 金の transport に負ける暗く低コントラストな見た目のまま、
+        // ラベルがバー内に読める太さ (溝を全高) で自前描画する。バニラの明るい widget は使わない。
         @Override
         public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
             final int x = getX();
             final int y = getY();
             final int w = width;
             final int h = height;
-            final int cy = y + h / 2;
-            // 溝 (暗・低コントラスト)。
-            g.fill(x, cy - 2, x + w, cy + 2, 0xFF242424);
-            g.fill(x, cy - 1, x + w, cy + 1, 0xFF333333);
+            // 凹んだ溝 (全高)。外周 1px 暗縁 + 内側の暗い地。
+            g.fill(x, y, x + w, y + h, 0xFF161616);
+            g.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0xFF2C2C2C);
             // 進捗 (控えめなグレー)。
             final int fillW = (int) Math.round(this.value * (w - 2));
             if (fillW > 0) {
-                g.fill(x + 1, cy - 1, x + 1 + fillW, cy + 1, 0xFF555555);
+                g.fill(x + 1, y + 1, x + 1 + fillW, y + h - 1, 0xFF464646);
             }
-            // つまみ (中立グレー・小さめ)。
+            // 上辺 1px ハイライト / 下辺 1px シャドウ (わずかな奥行き)。
+            g.fill(x + 1, y + 1, x + w - 1, y + 2, 0xFF383838);
+            g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, 0xFF121212);
+            // つまみ (中立グレー・全高ハンドル)。
             final int knobX = x + (int) Math.round(this.value * (w - 4));
-            final int knob = isHoveredOrFocused() ? 0xFF9A9A9A : 0xFF787878;
-            g.fill(knobX, y + 1, knobX + 4, y + h - 1, 0xFF1C1C1C);
-            g.fill(knobX + 1, y + 2, knobX + 3, y + h - 2, knob);
-            // ラベル (淡色・中央・影なし)。
+            final int knob = isHoveredOrFocused() ? 0xFFA6A6A6 : 0xFF848484;
+            g.fill(knobX, y, knobX + 4, y + h, 0xFF121212);
+            g.fill(knobX + 1, y + 1, knobX + 3, y + h - 1, knob);
+            // ラベル (バー内に読めるよう影付き・中央)。
             final var font = net.minecraft.client.Minecraft.getInstance().font;
             final int tw = font.width(getMessage());
-            g.drawString(font, getMessage(), x + (w - tw) / 2, cy - 4, 0xFFB2B2B2, false);
+            g.drawString(font, getMessage(), x + (w - tw) / 2, y + (h - 8) / 2, 0xFFD8D8D8, true);
+        }
+
+        // 矢印キー左右で整数値を正確に ±1 する。AbstractSliderButton の既定は fraction を
+        // 微小量ずらすため丸め誤差で ±1/±2 が混ざる。整数側で離散ステップして fraction を
+        // 再計算することで常に 1 ずつ動かす。
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            final int dir = keyCode == GLFW.GLFW_KEY_RIGHT ? 1
+                    : keyCode == GLFW.GLFW_KEY_LEFT ? -1 : 0;
+            if (dir != 0) {
+                final int nv = Mth.clamp(current + dir, min, max);
+                if (nv != current) {
+                    this.value = (nv - min) / (double) (max - min);
+                    applyValue();     // current 更新 + onChange 発火
+                    updateMessage();
+                }
+                return true;
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
         }
     }
 
@@ -421,13 +446,23 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             final double f = live ? 1.0 : (scrubbing ? scrubFraction : displayFraction(be));
             final int fillW = (int) Math.round(f * gw);
             if (fillW > 0) {
-                g.fill(gx, gy, gx + fillW, gy + 6, live ? LIVE_FILL : ACCENT);
+                if (live) {
+                    g.fill(gx, gy, gx + fillW, gy + 6, LIVE_FILL);
+                } else {
+                    // 金 fill: バニラ経験値バー文法 (上辺ハイライト + 基色 + 下辺シャドウの3段)。
+                    // 形状・レイアウト・色相は不変、明暗のピクセル段だけ足す。
+                    g.fill(gx, gy, gx + fillW, gy + 6, ACCENT);
+                    g.fill(gx, gy, gx + fillW, gy + 1, ACCENT_HI);
+                    g.fill(gx, gy + 5, gx + fillW, gy + 6, ACCENT_SH);
+                }
             }
-            // つまみ (頭出し可能な時のみ)。
+            // つまみ (頭出し可能な時のみ)。fill と同じ金の質感で揃える。
             if (be.isSeekable()) {
                 final int kx = gx + fillW;
                 g.fill(kx - 2, gy - 3, kx + 3, gy + 9, 0xFF2A2A2A);
                 g.fill(kx - 1, gy - 2, kx + 2, gy + 8, ACCENT);
+                g.fill(kx - 1, gy - 2, kx + 2, gy - 1, ACCENT_HI);
+                g.fill(kx - 1, gy + 7, kx + 2, gy + 8, ACCENT_SH);
             }
         }
 
