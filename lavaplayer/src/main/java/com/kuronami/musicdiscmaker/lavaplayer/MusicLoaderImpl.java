@@ -48,7 +48,13 @@ public class MusicLoaderImpl implements IMusicLoader {
     private static final Logger LOGGER = LoggerFactory.getLogger(MusicLoaderImpl.class);
 
     static final int SAMPLE_RATE = 48000;
+    /** mod → MC に渡す実効チャンネル数 (mono = OpenAL の 3D 距離減衰に必須)。 */
     static final int CHANNELS = 1;
+    // lavaplayer には stereo 出力を要求する。mono (1ch) を要求すると一部ソース (SoundCloud の
+    // MP3 progressive 等) で downmix が適用されず、stereo PCM が mono ラベルのまま出てくる。
+    // それを MC が mono 48kHz として再生すると倍の尺 = 半速 + オクターブ低 (slow+低音) になる。
+    // stereo で確実に受け、LavaAudioSource が全ソース一律に mono へ downmix する。
+    private static final int LAVA_OUTPUT_CHANNELS = 2;
 
     // YouTube リンクの host 判定と 11 桁 video ID 抽出。host が YouTube 系の時だけ正規化する
     // (他サービスの URL に v= が含まれても触らない)。
@@ -61,8 +67,10 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     public MusicLoaderImpl() {
         this.apm = new DefaultAudioPlayerManager();
-        // mono / 48kHz / S16 little-endian。OpenAL の距離減衰には mono ソースが必要。
-        this.apm.getConfiguration().setOutputFormat(new Pcm16AudioDataFormat(CHANNELS, SAMPLE_RATE, 960, false));
+        // lavaplayer 出力は stereo / 48kHz / S16 little-endian。mono 化は LavaAudioSource が担う
+        // (lavaplayer の mono downmix はソースによって効かないため = SoundCloud slow+低音バグ)。
+        this.apm.getConfiguration().setOutputFormat(
+                new Pcm16AudioDataFormat(LAVA_OUTPUT_CHANNELS, SAMPLE_RATE, 960, false));
         register(YoutubeAudioSourceManager::new);
         register(SoundCloudAudioSourceManager::createDefault);
         register(BandcampAudioSourceManager::new);
