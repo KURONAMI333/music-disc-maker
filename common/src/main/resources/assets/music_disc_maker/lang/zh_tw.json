@@ -33,6 +33,5 @@
   "gui.music_disc_maker.golden_jukebox.off": "關",
   "gui.music_disc_maker.golden_jukebox.play": "播放",
   "gui.music_disc_maker.golden_jukebox.stop": "停止",
-  "gui.music_disc_maker.golden_jukebox.no_track": "無唱片",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "普通唱片"
+  "gui.music_disc_maker.golden_jukebox.no_track": "無唱片"
 }

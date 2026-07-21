@@ -191,11 +191,25 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 g.drawString(font, font.plainSubstrByWidth(author, TRACK_TEXT_W),
                         TRACK_TEXT_X, AUTHOR_Y, TIME_TEXT, false);
             }
+        } else if (be.hasDisc()) {
+            // vanilla / 他 MOD のディスク: jukebox_song の description (例 "C418 - cat") を 1 行目、
+            // アイテム表示名 (例 "ミュージックディスク") を 2 行目に。custom disc と同じ 2 行構造を汎用化する。
+            // description の "Artist - Title" 分割はしない (書式は vanilla lang の慣習で API 契約でなく、
+            // 他 MOD の任意 description を壊すため)。description が無ければアイテム名だけ。
+            final Component desc = be.discSongDescription();
+            final String itemName = be.getDisc().getHoverName().getString();
+            if (desc != null) {
+                g.drawString(font, font.plainSubstrByWidth(desc.getString(), TRACK_TEXT_W),
+                        TRACK_TEXT_X, TITLE_Y, TEXT, false);
+                g.drawString(font, font.plainSubstrByWidth(itemName, TRACK_TEXT_W),
+                        TRACK_TEXT_X, AUTHOR_Y, TIME_TEXT, false);
+            } else {
+                g.drawString(font, font.plainSubstrByWidth(itemName, TRACK_TEXT_W),
+                        TRACK_TEXT_X, TITLE_Y, TEXT, false);
+            }
         } else {
-            final Component label = be.hasDisc()
-                    ? Component.translatable("gui.music_disc_maker.golden_jukebox.vanilla_disc")
-                    : Component.translatable("gui.music_disc_maker.golden_jukebox.no_track");
-            g.drawString(font, label, TRACK_TEXT_X, TITLE_Y, TEXT, false);
+            g.drawString(font, Component.translatable("gui.music_disc_maker.golden_jukebox.no_track"),
+                    TRACK_TEXT_X, TITLE_Y, TEXT, false);
         }
 
         // 経過 / 総時間 (シークバー下)。ラジオは経過 + LIVE。

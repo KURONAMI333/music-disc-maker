@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.block;
 import java.util.Optional;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
@@ -18,6 +19,7 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -151,6 +153,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             return t != null && !t.isEmpty() ? t : null;
         }
         return null;
+    }
+
+    /**
+     * vanilla / 他 MOD のディスクの {@link JukeboxSong#description()}（例: "C418 - cat"）。
+     * custom disc・description を持たないディスク・{@code level==null} では {@code null}。
+     * {@code jukebox_song} は同期される動的レジストリなので client 側 BE からも解決できる。
+     */
+    @Nullable
+    public Component discSongDescription() {
+        return songFor(getDisc()).map(Holder::value).map(JukeboxSong::description).orElse(null);
     }
 
     /** 無限長ストリーム (ライブ/ラジオ) の custom disc か。リピートを無効化する判定に使う。 */

@@ -33,6 +33,5 @@
   "gui.music_disc_maker.golden_jukebox.off": "꺼짐",
   "gui.music_disc_maker.golden_jukebox.play": "재생",
   "gui.music_disc_maker.golden_jukebox.stop": "정지",
-  "gui.music_disc_maker.golden_jukebox.no_track": "디스크 없음",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "일반 디스크"
+  "gui.music_disc_maker.golden_jukebox.no_track": "디스크 없음"
 }
