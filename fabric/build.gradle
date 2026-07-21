@@ -15,6 +15,11 @@ dependencies {
     // loom が intermediary → mojmap に remap するので @Shadow で named 型を使える (compileOnly=同梱しない、
     // ソフト依存)。dev で実挙動を試すなら modLocalRuntime に変える (+ SB port jar も要る)。
     modCompileOnly files("compat-libs/sophisticatedcore-fabric-1.21.1-port.jar")
+
+    // Additional Additions (互換): アルバムに入れた custom disc の実音声をストリーム再生する。
+    // loom が named に remap するので AA の型を直接参照できる (modCompileOnly=同梱しない、ソフト依存。
+    // fabric.mod.json に依存宣言しない)。dev で実挙動を試すなら modLocalRuntime に変える。
+    modCompileOnly files("compat-libs/additionaladditions-fabric-10.0.5.jar")
 }
 
 // ─── LavaPlayer 隔離ロード wiring ────────────────────────────────────────
