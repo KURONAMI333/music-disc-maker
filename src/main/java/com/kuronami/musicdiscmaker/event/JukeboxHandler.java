@@ -113,6 +113,12 @@ public final class JukeboxHandler {
         final ServerPlayer player = event.getPlayer();
 
         for (final ActiveDiscRegistry.Playing p : playing) {
+            // 撤去済み jukebox の stale エントリを late-joiner に送らない (爆発/ピストン/コマンド除去の掃除)。
+            if (!(level.getBlockEntity(p.pos()) instanceof JukeboxBlockEntity jb)
+                    || !jb.getTheItem().is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+                ActiveDiscRegistry.stop(level.dimension(), p.pos());
+                continue;
+            }
             final long elapsed = Math.max(0L, now - p.startMillis());
             PacketDistributor.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
         }

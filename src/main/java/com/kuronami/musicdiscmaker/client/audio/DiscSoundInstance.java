@@ -8,6 +8,7 @@ import com.kuronami.musicdiscmaker.register.ModSounds;
 
 import org.jetbrains.annotations.Nullable;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.sounds.AudioStream;
@@ -19,6 +20,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 public class DiscSoundInstance extends AbstractTickableSoundInstance {
@@ -26,11 +28,15 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     private final IAudioSource source;
     @Nullable
     private final Entity followEntity;
+    /** block 再生時の jukebox 位置 (entity 再生時は null)。撤去検知に使う。 */
+    @Nullable
+    private final BlockPos blockPos;
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
         this.followEntity = null;
+        this.blockPos = pos.immutable();
         this.x = pos.getX() + 0.5;
         this.y = pos.getY() + 0.5;
         this.z = pos.getZ() + 0.5;
@@ -41,6 +47,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
         this.followEntity = entity;
+        this.blockPos = null;
         this.x = entity.getX();
         this.y = entity.getY();
         this.z = entity.getZ();
@@ -57,6 +64,16 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
 
     @Override
     public void tick() {
+        // jukebox が撤去されたら (破壊・爆発・ピストン・コマンド等いずれの経路でも) 鳴りっぱなしを止める。
+        // chunk 未ロード時は air が返るため isLoaded でゲートする (遠距離 = playbackRange 内の減衰を誤って切らない)。
+        if (blockPos != null) {
+            final Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null && mc.level.isLoaded(blockPos)
+                    && !mc.level.getBlockState(blockPos).is(Blocks.JUKEBOX)) {
+                stop();
+                return;
+            }
+        }
         if (followEntity != null) {
             if (followEntity.isRemoved()) {
                 stop();
