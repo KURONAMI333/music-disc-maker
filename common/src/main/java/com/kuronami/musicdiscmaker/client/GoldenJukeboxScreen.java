@@ -66,7 +66,9 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int SEEK_H = 16;
     private static final int TIME_Y = 68;           // 経過/総時間
     private static final int VOLUME_Y = 84;         // 音量スライダー
-    private static final int RANGE_Y = 106;         // 範囲スライダー
+    private static final int RANGE_Y = 102;         // 範囲スライダー
+    private static final int SLIDER_H = 13;         // スライダー高さ (細身・脇役)
+    private static final long SEEK_SYNC_TOL_MS = 800L; // シーク後、BE 同期が追いついたと見なす許容
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。
     private int curRange = GoldenJukeboxBlockEntity.RANGE_DEFAULT;
@@ -113,15 +115,15 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                     sendConfig();
                 }));
 
-        // ── 音量スライダー。
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + VOLUME_Y, 160, 20,
+        // ── 音量スライダー (細身・脇役)。
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + VOLUME_Y, 160, SLIDER_H,
                 GoldenJukeboxBlockEntity.VOLUME_MIN, GoldenJukeboxBlockEntity.VOLUME_MAX, curVolume,
                 "gui.music_disc_maker.golden_jukebox.volume", v -> {
                     curVolume = v;
                     sendConfig();
                 }));
-        // ── 範囲スライダー。
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + RANGE_Y, 160, 20,
+        // ── 範囲スライダー (細身・脇役)。
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + RANGE_Y, 160, SLIDER_H,
                 GoldenJukeboxBlockEntity.RANGE_MIN, GoldenJukeboxBlockEntity.RANGE_MAX, curRange,
                 "gui.music_disc_maker.golden_jukebox.range", v -> {
                     curRange = v;
@@ -287,6 +289,34 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 onChange.accept(v);
             }
         }
+
+        // 脇役スライダー: 金の transport に主張で負けるよう、暗く低コントラストな溝 +
+        // 中立グレーのつまみ + 淡色ラベルで細身に自前描画する (バニラの明るい widget を使わない)。
+        @Override
+        public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            final int x = getX();
+            final int y = getY();
+            final int w = width;
+            final int h = height;
+            final int cy = y + h / 2;
+            // 溝 (暗・低コントラスト)。
+            g.fill(x, cy - 2, x + w, cy + 2, 0xFF242424);
+            g.fill(x, cy - 1, x + w, cy + 1, 0xFF333333);
+            // 進捗 (控えめなグレー)。
+            final int fillW = (int) Math.round(this.value * (w - 2));
+            if (fillW > 0) {
+                g.fill(x + 1, cy - 1, x + 1 + fillW, cy + 1, 0xFF555555);
+            }
+            // つまみ (中立グレー・小さめ)。
+            final int knobX = x + (int) Math.round(this.value * (w - 4));
+            final int knob = isHoveredOrFocused() ? 0xFF9A9A9A : 0xFF787878;
+            g.fill(knobX, y + 1, knobX + 4, y + h - 1, 0xFF1C1C1C);
+            g.fill(knobX + 1, y + 2, knobX + 3, y + h - 2, knob);
+            // ラベル (淡色・中央・影なし)。
+            final var font = net.minecraft.client.Minecraft.getInstance().font;
+            final int tw = font.width(getMessage());
+            g.drawString(font, getMessage(), x + (w - tw) / 2, cy - 4, 0xFFB2B2B2, false);
+        }
     }
 
     /** アイコンのみのフラットボタン (音楽プレイヤー風)。sprite は TEXTURE 内 16x16。 */
@@ -337,9 +367,32 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
 
         private boolean scrubbing;
         private double scrubFraction;
+        // シーク送信後、server の新 anchor が BE 同期で届くまで scrub 位置を保持する
+        // (それまでは client の進捗描画が旧 anchor に基づき一瞬旧位置へ飛ぶため)。
+        private boolean pendingSeek;
+        private long pendingSeekMs;
+        private long pendingDeadlineMs;
 
         SeekBar(int x, int y, int width, int height) {
             super(x, y, width, height, CommonComponents.EMPTY);
+        }
+
+        /**
+         * 表示位置の分数。シーク直後は要求位置を保持し、BE 同期が要求位置±許容に追いつくか
+         * 上限時間を過ぎたら live 追従へ戻す (リリース直後のバー飛びを防ぐ)。
+         */
+        private double displayFraction(GoldenJukeboxBlockEntity be) {
+            if (pendingSeek) {
+                final long dur = be.trackDurationMs();
+                final boolean synced = dur > 0L
+                        && Math.abs(be.currentElapsedMs() - pendingSeekMs) <= SEEK_SYNC_TOL_MS;
+                if (synced || System.currentTimeMillis() > pendingDeadlineMs) {
+                    pendingSeek = false;
+                } else {
+                    return dur > 0L ? Mth.clamp(pendingSeekMs / (double) dur, 0.0, 1.0) : 0.0;
+                }
+            }
+            return liveFraction();
         }
 
         private double liveFraction() {
@@ -365,7 +418,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             g.fill(gx - 1, gy - 1, gx + gw + 1, gy + 7, 0xFF3A3A3A);
             g.fill(gx, gy, gx + gw, gy + 6, 0xFF555555);
             final boolean live = be.isLiveStream();
-            final double f = live ? 1.0 : (scrubbing ? scrubFraction : liveFraction());
+            final double f = live ? 1.0 : (scrubbing ? scrubFraction : displayFraction(be));
             final int fillW = (int) Math.round(f * gw);
             if (fillW > 0) {
                 g.fill(gx, gy, gx + fillW, gy + 6, live ? LIVE_FILL : ACCENT);
@@ -405,6 +458,10 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
                 final long offset = Math.round(scrubFraction * be.trackDurationMs());
                 Services.NETWORK.sendToServer(new SeekJukeboxPayload(be.getBlockPos(), offset));
+                // BE 同期が届くまで scrub 位置を保持する (リリース直後のバー飛び防止)。
+                pendingSeek = true;
+                pendingSeekMs = offset;
+                pendingDeadlineMs = System.currentTimeMillis() + 1000L;
                 return true;
             }
             return false;
