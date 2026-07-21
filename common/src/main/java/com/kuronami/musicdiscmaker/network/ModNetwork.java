@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.network;
 
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
 
@@ -40,7 +40,7 @@ public final class ModNetwork {
         if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
             return;
         }
-        if (player.level().getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be) {
+        if (player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be) {
             be.setRangeBlocks(payload.rangeBlocks());
             be.setVolumePercent(payload.volumePercent());
             be.setRepeat(payload.repeat());

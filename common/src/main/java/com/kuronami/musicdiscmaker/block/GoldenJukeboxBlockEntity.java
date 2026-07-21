@@ -30,7 +30,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 強化版ジュークボックス (Gilded Jukebox) の BlockEntity。
+ * 強化版ジュークボックス (Golden Jukebox) の BlockEntity。
  *
  * <p>ディスク 1 枚を持ち、再生設定 (可聴範囲・音量・リピート・再生/停止) を NBT に永続化する。
  * 1.20.1 には {@code JukeboxSongPlayer} が無いため、vanilla の「再生中」状態は自前で表現する:
@@ -40,7 +40,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <p>late-join は {@link #resendTo(ServerPlayer)} を既存の chunk-watch 経路から呼んで現在位置を送る。
  */
-public class EnhancedJukeboxBlockEntity extends BlockEntity implements Container {
+public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     public static final int SLOT_DISC = 0;
     private static final int SIZE = 1;
@@ -73,8 +73,8 @@ public class EnhancedJukeboxBlockEntity extends BlockEntity implements Container
     /** 初回 server tick で chunk load 後の再生復帰を 1 度だけ行うためのフラグ。 */
     private boolean initialized = false;
 
-    public EnhancedJukeboxBlockEntity(BlockPos pos, BlockState state) {
-        super(ModBlockEntities.ENHANCED_JUKEBOX.get(), pos, state);
+    public GoldenJukeboxBlockEntity(BlockPos pos, BlockState state) {
+        super(ModBlockEntities.GOLDEN_JUKEBOX.get(), pos, state);
     }
 
     // ── GUI / block 用アクセサ ──
@@ -227,9 +227,9 @@ public class EnhancedJukeboxBlockEntity extends BlockEntity implements Container
 
     private void updateHasRecordState(boolean hasRecord) {
         if (level != null && level.getBlockState(getBlockPos()) == getBlockState()
-                && getBlockState().hasProperty(EnhancedJukeboxBlock.HAS_RECORD)
-                && getBlockState().getValue(EnhancedJukeboxBlock.HAS_RECORD) != hasRecord) {
-            level.setBlock(getBlockPos(), getBlockState().setValue(EnhancedJukeboxBlock.HAS_RECORD, hasRecord), 2);
+                && getBlockState().hasProperty(GoldenJukeboxBlock.HAS_RECORD)
+                && getBlockState().getValue(GoldenJukeboxBlock.HAS_RECORD) != hasRecord) {
+            level.setBlock(getBlockPos(), getBlockState().setValue(GoldenJukeboxBlock.HAS_RECORD, hasRecord), 2);
         }
     }
 
@@ -259,7 +259,7 @@ public class EnhancedJukeboxBlockEntity extends BlockEntity implements Container
 
     // ── tick (server) ──
 
-    public static void serverTick(Level level, BlockPos pos, BlockState state, EnhancedJukeboxBlockEntity be) {
+    public static void serverTick(Level level, BlockPos pos, BlockState state, GoldenJukeboxBlockEntity be) {
         be.tickServer();
     }
 

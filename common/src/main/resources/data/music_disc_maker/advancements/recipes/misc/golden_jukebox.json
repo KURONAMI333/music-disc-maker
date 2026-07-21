@@ -15,7 +15,7 @@
     },
     "has_the_recipe": {
       "conditions": {
-        "recipe": "music_disc_maker:enhanced_jukebox"
+        "recipe": "music_disc_maker:golden_jukebox"
       },
       "trigger": "minecraft:recipe_unlocked"
     }
@@ -28,7 +28,7 @@
   ],
   "rewards": {
     "recipes": [
-      "music_disc_maker:enhanced_jukebox"
+      "music_disc_maker:golden_jukebox"
     ]
   }
 }

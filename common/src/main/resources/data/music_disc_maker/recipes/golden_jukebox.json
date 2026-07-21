@@ -11,7 +11,7 @@
     "J": { "item": "minecraft:jukebox" }
   },
   "result": {
-    "item": "music_disc_maker:enhanced_jukebox",
+    "item": "music_disc_maker:golden_jukebox",
     "count": 1
   }
 }

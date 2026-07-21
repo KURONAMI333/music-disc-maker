@@ -3,7 +3,7 @@ package com.kuronami.musicdiscmaker.event;
 import java.util.List;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.network.ModPayload;
@@ -134,7 +134,7 @@ public final class ForgeJukeboxHandler {
         for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
             if (!new ChunkPos(bePos).equals(chunkPos)) continue;
             // 強化版ジュークボックスは BE 自身が権威。現在位置で per-block 設定つきの再送を任せる。
-            if (chunk.getBlockEntity(bePos) instanceof EnhancedJukeboxBlockEntity enhanced) {
+            if (chunk.getBlockEntity(bePos) instanceof GoldenJukeboxBlockEntity enhanced) {
                 enhanced.resendTo(player);
                 continue;
             }
