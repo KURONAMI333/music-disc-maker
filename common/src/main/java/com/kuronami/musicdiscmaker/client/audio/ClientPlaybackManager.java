@@ -40,6 +40,10 @@ public final class ClientPlaybackManager {
     }
 
     public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs) {
+        startPlayback(pos, track, startOffsetMs, 0, 100);
+    }
+
+    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs, int rangeBlocks, int volumePercent) {
         if (track == null || track.isEmpty()) {
             return;
         }
@@ -85,7 +89,7 @@ public final class ClientPlaybackManager {
                     wanted.remove(key);
                     return;
                 }
-                final DiscSoundInstance instance = new DiscSoundInstance(key, resolved);
+                final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent);
                 active.put(key, instance);
                 playingUrl.put(key, track.url());
                 Minecraft.getInstance().getSoundManager().play(instance);

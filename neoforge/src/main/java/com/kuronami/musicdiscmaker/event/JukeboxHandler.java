@@ -102,6 +102,9 @@ public final class JukeboxHandler {
                 ActiveDiscRegistry.activeInChunk(level.dimension(), chunkPos, now);
         final ServerPlayer player = event.getPlayer();
 
+        // 強化版ジュークボックス (BE 権威・ActiveDiscRegistry 非使用) の late-join 再送。
+        EnhancedJukeboxLateJoin.resend(level, chunkPos, player);
+
         for (final ActiveDiscRegistry.Playing p : playing) {
             // 撤去済み jukebox の stale エントリを late-joiner に送らない (爆発/ピストン/コマンド除去の掃除)。
             if (!(level.getBlockEntity(p.pos()) instanceof JukeboxBlockEntity jb)
@@ -110,7 +113,7 @@ public final class JukeboxHandler {
                 continue;
             }
             final long elapsed = Math.max(0L, now - p.startMillis());
-            Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
+            Services.NETWORK.sendToPlayer(player, PlayDiscPayload.vanilla(p.pos(), p.track(), elapsed));
         }
 
         final var chunk = level.getChunk(chunkPos.x, chunkPos.z);
@@ -123,7 +126,7 @@ public final class JukeboxHandler {
             final var track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
             if (track == null || track.isEmpty()) continue;
             ActiveDiscRegistry.start(level.dimension(), bePos, track, now);
-            Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(bePos, track, 0L));
+            Services.NETWORK.sendToPlayer(player, PlayDiscPayload.vanilla(bePos, track, 0L));
         }
     }
 

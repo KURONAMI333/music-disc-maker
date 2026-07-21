@@ -3,7 +3,9 @@ package com.kuronami.musicdiscmaker.client.audio;
 import java.util.concurrent.CompletableFuture;
 
 import com.kuronami.musicdiscmaker.Config;
+import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModSounds;
 
 import org.jetbrains.annotations.Nullable;
@@ -20,6 +22,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public class DiscSoundInstance extends AbstractTickableSoundInstance {
@@ -30,12 +33,25 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     /** block 再生時の jukebox 位置 (entity 再生時は null)。撤去検知に使う。 */
     @Nullable
     private final BlockPos blockPos;
+    /**
+     * 強化版ジュークボックス由来の可聴範囲 (ブロック)。0 = per-block 設定なし (client config を使う)。
+     * 実効範囲は {@link #resolve} で min(rangeBlocks, config) にする。
+     */
+    private final int rangeBlocks;
+    /** 強化版ジュークボックス由来の音量 (%)。100 = 通常 (config volumeMultiplier のみ)。 */
+    private int volumePercent;
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source) {
+        this(pos, source, 0, 100);
+    }
+
+    public DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
         this.followEntity = null;
         this.blockPos = pos.immutable();
+        this.rangeBlocks = rangeBlocks;
+        this.volumePercent = volumePercent;
         this.x = pos.getX() + 0.5;
         this.y = pos.getY() + 0.5;
         this.z = pos.getZ() + 0.5;
@@ -47,6 +63,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         this.source = source;
         this.followEntity = entity;
         this.blockPos = null;
+        this.rangeBlocks = 0;
+        this.volumePercent = 100;
         this.x = entity.getX();
         this.y = entity.getY();
         this.z = entity.getZ();
@@ -54,23 +72,43 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     }
 
     private void initCommon() {
-        this.volume = (float) Config.volumeMultiplier();
+        this.volume = computeVolume();
         this.pitch = 1.0F;
         this.looping = false;
         this.relative = false;
         this.attenuation = Attenuation.LINEAR;
     }
 
+    /** 実効音量 = (volumePercent/100) × client の Records 相対倍率。 */
+    private float computeVolume() {
+        return (float) (volumePercent / 100.0 * Config.volumeMultiplier());
+    }
+
+    /** 実効可聴範囲 = per-block 設定があれば min(rangeBlocks, config)、無ければ config。 */
+    private int effectiveRange() {
+        final int configRange = Config.playbackRange();
+        return rangeBlocks > 0 ? Math.min(rangeBlocks, configRange) : configRange;
+    }
+
     @Override
     public void tick() {
         // jukebox が撤去されたら (破壊・爆発・ピストン・コマンド等いずれの経路でも) 鳴りっぱなしを止める。
         // chunk 未ロード時は air が返るため isLoaded でゲートする (遠距離 = playbackRange 内の減衰を誤って切らない)。
+        // 対象は vanilla jukebox と強化版ジュークボックスの両方 (強化版は独自ブロックなので明示的に許可する)。
         if (blockPos != null) {
             final Minecraft mc = Minecraft.getInstance();
-            if (mc.level != null && mc.level.isLoaded(blockPos)
-                    && !mc.level.getBlockState(blockPos).is(Blocks.JUKEBOX)) {
-                stop();
-                return;
+            if (mc.level != null && mc.level.isLoaded(blockPos)) {
+                final BlockState state = mc.level.getBlockState(blockPos);
+                final boolean isEnhanced = state.is(ModBlocks.ENHANCED_JUKEBOX.get());
+                if (!state.is(Blocks.JUKEBOX) && !isEnhanced) {
+                    stop();
+                    return;
+                }
+                // 強化版: client 側 BE から音量を毎 tick 再読し、スライダー操作を再ロードなしで即反映する。
+                if (isEnhanced && mc.level.getBlockEntity(blockPos) instanceof EnhancedJukeboxBlockEntity be) {
+                    this.volumePercent = be.getVolumePercent();
+                    this.volume = computeVolume();
+                }
             }
         }
         if (followEntity != null) {
@@ -95,7 +133,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     public WeighedSoundEvents resolve(SoundManager handler) {
         WeighedSoundEvents result = super.resolve(handler);
         if (this.sound != null && this.sound != SoundManager.EMPTY_SOUND) {
-            int range = Config.playbackRange();
+            int range = effectiveRange();
             this.sound = new Sound(
                     this.sound.getLocation(),
                     this.sound.getVolume(),
