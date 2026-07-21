@@ -24,5 +24,16 @@
   "music_disc_maker.configuration.title": "음반 제작기 설정",
   "music_disc_maker.configuration.volumeMultiplier": "음량 배수",
   "music_disc_maker.configuration.maxConcurrent": "최대 동시 재생 음반 수",
-  "music_disc_maker.playback_failed": "이 디스크를 재생할 수 없습니다 (스트림을 사용할 수 없음)"
+  "music_disc_maker.playback_failed": "이 디스크를 재생할 수 없습니다 (스트림을 사용할 수 없음)",
+  "block.music_disc_maker.enhanced_jukebox": "강화된 주크박스",
+  "gui.music_disc_maker.enhanced_jukebox.title": "강화된 주크박스",
+  "gui.music_disc_maker.enhanced_jukebox.range": "범위: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "음량: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "반복: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "켜짐",
+  "gui.music_disc_maker.enhanced_jukebox.off": "꺼짐",
+  "gui.music_disc_maker.enhanced_jukebox.play": "재생",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "정지",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "디스크 없음",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "일반 디스크"
 }

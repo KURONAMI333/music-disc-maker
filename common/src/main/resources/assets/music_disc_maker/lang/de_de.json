@@ -24,5 +24,16 @@
   "music_disc_maker.configuration.title": "Schallplatten-Hersteller-Einstellungen",
   "music_disc_maker.configuration.volumeMultiplier": "Lautstärkefaktor",
   "music_disc_maker.configuration.maxConcurrent": "Max. gleichzeitige Schallplatten",
-  "music_disc_maker.playback_failed": "Diese Schallplatte konnte nicht abgespielt werden (Stream nicht verfügbar)"
+  "music_disc_maker.playback_failed": "Diese Schallplatte konnte nicht abgespielt werden (Stream nicht verfügbar)",
+  "block.music_disc_maker.enhanced_jukebox": "Verbesserte Jukebox",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Verbesserte Jukebox",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Reichweite: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Lautstärke: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Wiederholen: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "An",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Aus",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Abspielen",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Stopp",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Keine Disc",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Normale Disc"
 }

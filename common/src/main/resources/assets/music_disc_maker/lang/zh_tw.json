@@ -24,5 +24,16 @@
   "music_disc_maker.configuration.title": "音樂唱片製作機設定",
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
   "music_disc_maker.configuration.maxConcurrent": "最大同時播放唱片數",
-  "music_disc_maker.playback_failed": "無法播放此唱片（音訊串流無法取得）"
+  "music_disc_maker.playback_failed": "無法播放此唱片（音訊串流無法取得）",
+  "block.music_disc_maker.enhanced_jukebox": "強化唱片機",
+  "gui.music_disc_maker.enhanced_jukebox.title": "強化唱片機",
+  "gui.music_disc_maker.enhanced_jukebox.range": "範圍：%s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "音量：%s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "循環：%s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "開",
+  "gui.music_disc_maker.enhanced_jukebox.off": "關",
+  "gui.music_disc_maker.enhanced_jukebox.play": "播放",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "停止",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "無唱片",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "普通唱片"
 }

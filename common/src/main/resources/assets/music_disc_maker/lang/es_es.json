@@ -24,5 +24,16 @@
   "music_disc_maker.configuration.title": "Configuración del fabricante de discos",
   "music_disc_maker.configuration.volumeMultiplier": "Multiplicador de volumen",
   "music_disc_maker.configuration.maxConcurrent": "Discos simultáneos máx.",
-  "music_disc_maker.playback_failed": "No se pudo reproducir este disco (transmisión no disponible)"
+  "music_disc_maker.playback_failed": "No se pudo reproducir este disco (transmisión no disponible)",
+  "block.music_disc_maker.enhanced_jukebox": "Tocadiscos mejorado",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Tocadiscos mejorado",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Alcance: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Volumen: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Repetir: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Activado",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Desactivado",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Reproducir",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Detener",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Sin disco",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Disco normal"
 }

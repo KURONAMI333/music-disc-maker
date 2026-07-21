@@ -41,6 +41,10 @@ public abstract class ChunkWatchMixin {
         final ServerLevel level = player.serverLevel();
         final ChunkPos chunkPos = chunk.getPos();
         final long now = System.currentTimeMillis();
+
+        // 強化版ジュークボックス (BE 権威・ActiveDiscRegistry 非使用) の late-join 再送。
+        com.kuronami.musicdiscmaker.event.EnhancedJukeboxLateJoin.resend(level, chunkPos, player);
+
         final List<ActiveDiscRegistry.Playing> playing =
                 ActiveDiscRegistry.activeInChunk(level.dimension(), chunkPos, now);
         for (final ActiveDiscRegistry.Playing p : playing) {
@@ -51,7 +55,7 @@ public abstract class ChunkWatchMixin {
                 continue;
             }
             final long elapsed = Math.max(0L, now - p.startMillis());
-            Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
+            Services.NETWORK.sendToPlayer(player, PlayDiscPayload.vanilla(p.pos(), p.track(), elapsed));
         }
 
         for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
@@ -63,7 +67,7 @@ public abstract class ChunkWatchMixin {
             final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
             if (track == null || track.isEmpty()) continue;
             ActiveDiscRegistry.start(level.dimension(), bePos, track, now);
-            Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(bePos, track, 0L));
+            Services.NETWORK.sendToPlayer(player, PlayDiscPayload.vanilla(bePos, track, 0L));
         }
     }
 }

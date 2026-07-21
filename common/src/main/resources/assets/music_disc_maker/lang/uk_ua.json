@@ -24,5 +24,16 @@
   "music_disc_maker.configuration.title": "Налаштування виготовлювача платівок",
   "music_disc_maker.configuration.volumeMultiplier": "Множник гучності",
   "music_disc_maker.configuration.maxConcurrent": "Макс. одночасних платівок",
-  "music_disc_maker.playback_failed": "Не вдалося відтворити цей диск (потік недоступний)"
+  "music_disc_maker.playback_failed": "Не вдалося відтворити цей диск (потік недоступний)",
+  "block.music_disc_maker.enhanced_jukebox": "Покращений програвач",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Покращений програвач",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Радіус: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Гучність: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Повтор: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Увімк",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Вимк",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Грати",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Стоп",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Немає платівки",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Звичайна платівка"
 }

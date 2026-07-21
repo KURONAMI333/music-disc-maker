@@ -49,8 +49,9 @@ public final class AlbumPlaybackMirror {
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
+                // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
                 Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
-                        new PlayDiscPayload(key, track, 0L));
+                        PlayDiscPayload.vanilla(key, track, 0L));
                 return;
             }
         }

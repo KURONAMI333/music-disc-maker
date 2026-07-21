@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker;
 
 import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
 import com.kuronami.musicdiscmaker.event.FabricJukeboxEvents;
+import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
@@ -27,6 +28,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
 
         // payload 型を登録する。
         PayloadTypeRegistry.playC2S().register(ResolveUrlPayload.TYPE, ResolveUrlPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ConfigureJukeboxPayload.TYPE, ConfigureJukeboxPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(StopDiscPayload.TYPE, StopDiscPayload.STREAM_CODEC);
         // SB Fabric port の backpack jukebox 用 (port 非依存。port が無ければ送信されないだけ)。
@@ -35,6 +37,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // server 受信: URL コミット (main thread へ enqueue して BlockEntity に保存)。
         ServerPlayNetworking.registerGlobalReceiver(ResolveUrlPayload.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleResolveUrl(payload, ctx.player())));
+        // server 受信: 強化版ジュークボックスの設定適用。
+        ServerPlayNetworking.registerGlobalReceiver(ConfigureJukeboxPayload.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleConfigureJukebox(payload, ctx.player())));
 
         // jukebox 出し入れ / 破壊イベント。
         FabricJukeboxEvents.register();

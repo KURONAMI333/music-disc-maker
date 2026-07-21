@@ -24,5 +24,16 @@
   "music_disc_maker.configuration.title": "Configuration du fabricant de disques",
   "music_disc_maker.configuration.volumeMultiplier": "Multiplicateur de volume",
   "music_disc_maker.configuration.maxConcurrent": "Disques simultanés max.",
-  "music_disc_maker.playback_failed": "Impossible de lire ce disque (flux indisponible)"
+  "music_disc_maker.playback_failed": "Impossible de lire ce disque (flux indisponible)",
+  "block.music_disc_maker.enhanced_jukebox": "Juke-box amélioré",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Juke-box amélioré",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Portée : %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Volume : %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Répéter : %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Activé",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Désactivé",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Lecture",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Arrêt",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Aucun disque",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Disque normal"
 }
