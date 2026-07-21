@@ -10,7 +10,6 @@
   "gui.music_disc_maker.golden_jukebox.play": "Lecture",
   "gui.music_disc_maker.golden_jukebox.stop": "Arrêt",
   "gui.music_disc_maker.golden_jukebox.no_track": "Aucun disque",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "Disque normal",
   "item.music_disc_maker.blank_disc": "Disque vierge",
   "item.music_disc_maker.custom_music_disc": "Disque personnalisé",
 

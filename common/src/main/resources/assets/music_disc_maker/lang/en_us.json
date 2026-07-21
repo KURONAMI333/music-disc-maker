@@ -9,9 +9,10 @@
   "gui.music_disc_maker.golden_jukebox.on": "On",
   "gui.music_disc_maker.golden_jukebox.off": "Off",
   "gui.music_disc_maker.golden_jukebox.play": "Play",
+  "gui.music_disc_maker.golden_jukebox.pause": "Pause",
   "gui.music_disc_maker.golden_jukebox.stop": "Stop",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Repeat",
   "gui.music_disc_maker.golden_jukebox.no_track": "No disc",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "Vanilla disc",
   "item.music_disc_maker.blank_disc": "Blank Disc",
   "item.music_disc_maker.custom_music_disc": "Custom Music Disc",
 

@@ -10,7 +10,6 @@
   "gui.music_disc_maker.golden_jukebox.play": "재생",
   "gui.music_disc_maker.golden_jukebox.stop": "정지",
   "gui.music_disc_maker.golden_jukebox.no_track": "디스크 없음",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "일반 디스크",
   "item.music_disc_maker.blank_disc": "빈 음반",
   "item.music_disc_maker.custom_music_disc": "커스텀 음반",
 

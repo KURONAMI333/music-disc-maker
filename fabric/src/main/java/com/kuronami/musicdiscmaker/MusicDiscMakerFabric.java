@@ -5,6 +5,7 @@ import com.kuronami.musicdiscmaker.event.FabricJukeboxEvents;
 import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
+import com.kuronami.musicdiscmaker.network.SeekJukeboxPayload;
 import com.kuronami.musicdiscmaker.register.ModRegistries;
 
 import net.fabricmc.api.ModInitializer;
@@ -37,6 +38,13 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (server, player, handler, buf, responseSender) -> {
                     final ConfigureJukeboxPayload payload = ConfigureJukeboxPayload.read(buf);
                     server.execute(() -> ModNetwork.handleConfigureJukebox(payload, player));
+                });
+
+        // server 受信: 強化版ジュークボックスのシークバー頭出し。
+        ServerPlayNetworking.registerGlobalReceiver(SeekJukeboxPayload.ID,
+                (server, player, handler, buf, responseSender) -> {
+                    final SeekJukeboxPayload payload = SeekJukeboxPayload.read(buf);
+                    server.execute(() -> ModNetwork.handleSeekJukebox(payload, player));
                 });
 
         // jukebox 出し入れ / 破壊イベント。
