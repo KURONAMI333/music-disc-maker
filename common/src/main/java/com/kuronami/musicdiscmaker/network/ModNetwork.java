@@ -49,6 +49,17 @@ public final class ModNetwork {
         }
     }
 
+    /** server 受信: 強化版ジュークボックスのシークバー頭出し。 */
+    public static void handleSeekJukebox(SeekJukeboxPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity jukebox) {
+            jukebox.seekTo(payload.offsetMs());
+        }
+    }
+
     /** client 受信: 再生開始 (client 専用経路。dedicated server では never-load)。 */
     public static void handlePlay(PlayDiscPayload payload) {
         ClientPlaybackHandler.play(payload);

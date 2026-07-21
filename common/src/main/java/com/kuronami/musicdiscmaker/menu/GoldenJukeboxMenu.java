@@ -35,15 +35,15 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
         // ディスクスロット (再生可能ディスクのみ)
         addSlot(new DiscSlot(blockEntity, GoldenJukeboxBlockEntity.SLOT_DISC, 12, 18));
 
-        // プレイヤーインベントリ 3 行
+        // プレイヤーインベントリ 3 行 (texture のスロット位置に整合)
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 120 + row * 18));
+                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 128 + row * 18));
             }
         }
         // ホットバー
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 8 + col * 18, 180));
+            addSlot(new Slot(playerInventory, col, 8 + col * 18, 188));
         }
     }
 

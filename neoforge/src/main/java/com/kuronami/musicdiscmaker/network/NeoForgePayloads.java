@@ -26,6 +26,10 @@ public final class NeoForgePayloads {
         registrar.playToServer(ConfigureJukeboxPayload.TYPE, ConfigureJukeboxPayload.STREAM_CODEC,
                 NeoForgePayloads::handleConfigureJukebox);
 
+        // client → server: 強化版ジュークボックスのシークバー頭出し
+        registrar.playToServer(SeekJukeboxPayload.TYPE, SeekJukeboxPayload.STREAM_CODEC,
+                NeoForgePayloads::handleSeekJukebox);
+
         // server → client (再生制御)。
         registrar.playToClient(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> ModNetwork.handlePlay(payload)));
@@ -48,5 +52,12 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleConfigureJukebox(payload, player));
+    }
+
+    private static void handleSeekJukebox(SeekJukeboxPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleSeekJukebox(payload, player));
     }
 }
