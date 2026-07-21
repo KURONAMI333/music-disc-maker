@@ -213,12 +213,18 @@ public class EnhancedJukeboxBlockEntity extends BlockEntity implements Container
     private void onDiscChanged() {
         final boolean hasDisc = hasDisc();
         updateHasRecordState(hasDisc);
+        if (isServer()) {
+            pausedOffsetMs = 0L;
+            if (!hasDisc) {
+                // ディスク取り出しで停止状態を解除する (次に入れたディスクは自動再生される)。
+                paused = false;
+            }
+        }
         setChanged();
         sync();
         if (!isServer()) {
             return;
         }
-        pausedOffsetMs = 0L;
         if (hasDisc && !paused) {
             startPlayback(0L);
         } else {
