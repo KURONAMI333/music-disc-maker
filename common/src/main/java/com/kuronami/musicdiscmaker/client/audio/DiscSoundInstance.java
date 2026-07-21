@@ -4,7 +4,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.kuronami.musicdiscmaker.Config;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModSounds;
 
 import org.jetbrains.annotations.Nullable;
@@ -21,6 +23,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public class DiscSoundInstance extends AbstractTickableSoundInstance {
@@ -35,8 +38,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     private final BlockPos blockPos;
     /** 強化版ジュークボックス由来の per-block 可聴範囲 (ブロック)。0 = client config の playbackRange。 */
     private final int rangeBlocks;
-    /** 強化版ジュークボックス由来の音量 (%)。100 = 通常 (config volumeMultiplier のみ)。 */
-    private final int volumePercent;
+    /** 強化版ジュークボックス由来の音量 (%)。100 = 通常 (config volumeMultiplier のみ)。強化版は毎 tick 再読する。 */
+    private int volumePercent;
     /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
     @Nullable
     private final Runnable onStreamEnded;
@@ -102,12 +105,21 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     public void tick() {
         // jukebox が撤去されたら (破壊・爆発・ピストン・コマンド等いずれの経路でも) 鳴りっぱなしを止める。
         // chunk 未ロード時は air が返るため isLoaded でゲートする (遠距離 = playbackRange 内の減衰を誤って切らない)。
+        // 対象は vanilla jukebox と強化版ジュークボックスの両方 (強化版は独自ブロックなので明示的に許可する)。
         if (blockPos != null) {
             final Minecraft mc = Minecraft.getInstance();
-            if (mc.level != null && mc.level.isLoaded(blockPos)
-                    && !mc.level.getBlockState(blockPos).is(Blocks.JUKEBOX)) {
-                stop();
-                return;
+            if (mc.level != null && mc.level.isLoaded(blockPos)) {
+                final BlockState state = mc.level.getBlockState(blockPos);
+                final boolean isEnhanced = state.is(ModBlocks.GOLDEN_JUKEBOX.get());
+                if (!state.is(Blocks.JUKEBOX) && !isEnhanced) {
+                    stop();
+                    return;
+                }
+                // 強化版: client 側 BE から音量を毎 tick 再読し、スライダー操作を再ロードなしで即反映する。
+                if (isEnhanced && mc.level.getBlockEntity(blockPos) instanceof GoldenJukeboxBlockEntity be) {
+                    this.volumePercent = be.getVolumePercent();
+                    this.volume = computeVolume();
+                }
             }
         }
         if (followEntity != null) {
