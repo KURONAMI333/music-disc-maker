@@ -223,6 +223,73 @@ def slot_rects():
     return rects
 
 
+def emit_java(path):
+    """レイアウト正本 (LAYOUT) を Java 定数クラスとして書き出す。
+
+    テクスチャを描いた同じ座標を Menu (addSlot) / Screen (widget) がここから参照する。
+    これで「テクスチャとスロット座標の別管理ズレ」が構造的に起きない (単一座標源)。
+    手で編集しない。座標を変えるときはこのスクリプトを編集して再生成する。
+    """
+    pkg = "com.kuronami.musicdiscmaker.client"
+    lines = [
+        "package " + pkg + ";",
+        "",
+        "/**",
+        " * Golden Jukebox GUI レイアウトの単一座標源。",
+        " *",
+        " * <p>branding/gen_golden_jukebox_gui.py (テクスチャ生成器) が自動生成する。",
+        " * テクスチャのスロット枠・transport 凹み・スプライトと同じ座標をここに出力し、",
+        " * {@code GoldenJukeboxMenu} (addSlot) と {@code GoldenJukeboxScreen} (widget)",
+        " * がこの定数を参照する。手で編集しないこと。座標変更はスクリプトを直して再生成する。",
+        " */",
+        "public final class GoldenJukeboxLayout {",
+        "",
+        "    private GoldenJukeboxLayout() {",
+        "    }",
+        "",
+        "    // パネル寸法 (imageWidth / imageHeight)。",
+        f"    public static final int IMAGE_W = {W};",
+        f"    public static final int IMAGE_H = {H};",
+        "",
+        "    // スロット (addSlot 座標 = アイテム左上 16x16。テクスチャ枠は addSlot-1 の 18x18)。",
+        f"    public static final int DISC_X = {DISC[0]};",
+        f"    public static final int DISC_Y = {DISC[1]};",
+        f"    public static final int INV_X = {INV_X};",
+        f"    public static final int INV_Y0 = {INV_Y0};",
+        f"    public static final int HOT_Y = {HOT_Y};",
+        f"    public static final int INV_LABEL_X = {INV_LABEL[0]};",
+        f"    public static final int INV_LABEL_Y = {INV_LABEL[1]};",
+        "",
+        "    // ヘッダ テキスト (ディスクスロット右・2 行)。",
+        f"    public static final int TRACK_TEXT_X = {TEXT_X};",
+        f"    public static final int TITLE_Y = {TITLE_Y};",
+        f"    public static final int AUTHOR_Y = {AUTHOR_Y};",
+        "",
+        "    // transport (メインコントロール列): 再生/一時停止・シーク・リピート。",
+        f"    public static final int PLAY_X = {PLAY[0]};",
+        f"    public static final int REPEAT_X = {REPEAT[0]};",
+        f"    public static final int TRANSPORT_Y = {PLAY[1]};",
+        f"    public static final int PLAY_SPRITE = {PLAY[2]};",
+        f"    public static final int SEEK_X = {SEEK[0]};",
+        f"    public static final int SEEK_Y = {SEEK[1]};",
+        f"    public static final int SEEK_W = {SEEK[2]};",
+        f"    public static final int SEEK_H = {SEEK[3]};",
+        f"    public static final int TIME_Y = {TIME_Y};",
+        "",
+        "    // 設定スライダー (音量・範囲)。",
+        f"    public static final int VOLUME_Y = {VOL[1]};",
+        f"    public static final int RANGE_Y = {RANGE[1]};",
+        f"    public static final int SLIDER_W = {VOL[2]};",
+        f"    public static final int SLIDER_H = {VOL[3]};",
+        "}",
+        "",
+    ]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines))
+    print(f"wrote {path}")
+
+
 def print_table():
     print("=== GoldenJukebox GUI layout (source of truth) ===")
     print(f"imageWidth={W}  imageHeight={H}  (vanilla: row0=H-82={H-82}, "
@@ -248,12 +315,18 @@ def main():
     ap.add_argument("--table", action="store_true")
     ap.add_argument("--candidates", metavar="DIR",
                     help="loop アイコン候補と比較シートを DIR に出す")
+    ap.add_argument("--java", default="common/src/main/java/com/kuronami/"
+                    "musicdiscmaker/client/GoldenJukeboxLayout.java",
+                    help="レイアウト座標を書き出す Java 定数クラスのパス")
     args = ap.parse_args()
 
     img = build(args.loop)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     img.save(args.out)
     print(f"wrote {args.out}  ({img.size})")
+
+    # テクスチャと同じ座標源から Java 定数を出力する (Menu/Screen がこれを参照 = 単一座標源)。
+    emit_java(args.java)
 
     if args.candidates:
         os.makedirs(args.candidates, exist_ok=True)

@@ -46,7 +46,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int ICON_LOOP_ON_U = 216;
     private static final int ICON_LOOP_OFF_U = 232;
     private static final int ICON_V = 0;
-    private static final int PLAY_SPRITE = 20;
+    private static final int PLAY_SPRITE = GoldenJukeboxLayout.PLAY_SPRITE;
     private static final int LOOP_SPRITE = 16;
 
     private static final int ACCENT = 0xFFCEA844;   // Golden Jukebox のアクセント (fill/knob base)
@@ -54,24 +54,28 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int ACCENT_SH = 0xFF9C7A2E; // 金 fill 下辺シャドウ (同色相・低明度)
     private static final int LIVE_FILL = 0xFF9AA0A6; // ラジオ (LIVE) の不定進捗
 
-    // レイアウト幾何 (leftPos/topPos 相対)。値は branding/gen_golden_jukebox_gui.py
-    // (レイアウトの正本) の widget 矩形と一致させる。上から: ヘッダ(disc+2行) →
+    // レイアウト幾何 (leftPos/topPos 相対)。値は GoldenJukeboxLayout (テクスチャと同じ
+    // 座標源から branding/gen_golden_jukebox_gui.py が生成) を参照する = テクスチャの
+    // widget 凹み・スロット枠と別管理でズレない。上から: ヘッダ(disc+2行) →
     // transport(メイン: 再生/シーク/リピート) → 音量 → 範囲 → インベントリ。
-    private static final int TRACK_TEXT_X = 32;     // ヘッダ テキスト x (disc スロット右)
-    private static final int TITLE_Y = 19;          // 曲名 (1 行目)
-    private static final int AUTHOR_Y = 31;         // 作者名 (2 行目)
-    private static final int TRACK_TEXT_W = 136;    // ヘッダ テキストの折り返し幅 (176-32-8)
-    private static final int PLAY_X = 8;            // 再生/一時停止 ボタン x
-    private static final int REPEAT_X = 148;        // リピート ボタン x
-    private static final int TRANSPORT_Y = 46;      // transport ボタン行 y (20px, center 56)
-    private static final int SEEK_X = 32;
-    private static final int SEEK_Y = 48;           // シークバー y (h16, center 56)
-    private static final int SEEK_W = 112;
-    private static final int SEEK_H = 16;
-    private static final int TIME_Y = 68;           // 経過/総時間
-    private static final int VOLUME_Y = 84;         // 音量スライダー
-    private static final int RANGE_Y = 102;         // 範囲スライダー
-    private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
+    private static final int TRACK_TEXT_X = GoldenJukeboxLayout.TRACK_TEXT_X; // ヘッダ テキスト x (disc スロット右)
+    private static final int TITLE_Y = GoldenJukeboxLayout.TITLE_Y;          // 曲名 (1 行目)
+    private static final int AUTHOR_Y = GoldenJukeboxLayout.AUTHOR_Y;        // 作者名 (2 行目)
+    // ヘッダ テキストの折り返し幅 (パネル右端まで、右余白 8)。
+    private static final int TRACK_TEXT_W = GoldenJukeboxLayout.IMAGE_W - GoldenJukeboxLayout.TRACK_TEXT_X - 8;
+    private static final int SLIDER_X = GoldenJukeboxLayout.INV_X;   // スライダー x (インベントリ左端に揃える)
+    private static final int SLIDER_W = GoldenJukeboxLayout.SLIDER_W; // スライダー幅
+    private static final int PLAY_X = GoldenJukeboxLayout.PLAY_X;    // 再生/一時停止 ボタン x
+    private static final int REPEAT_X = GoldenJukeboxLayout.REPEAT_X; // リピート ボタン x
+    private static final int TRANSPORT_Y = GoldenJukeboxLayout.TRANSPORT_Y; // transport ボタン行 y (20px, center 56)
+    private static final int SEEK_X = GoldenJukeboxLayout.SEEK_X;
+    private static final int SEEK_Y = GoldenJukeboxLayout.SEEK_Y;    // シークバー y (h16, center 56)
+    private static final int SEEK_W = GoldenJukeboxLayout.SEEK_W;
+    private static final int SEEK_H = GoldenJukeboxLayout.SEEK_H;
+    private static final int TIME_Y = GoldenJukeboxLayout.TIME_Y;    // 経過/総時間
+    private static final int VOLUME_Y = GoldenJukeboxLayout.VOLUME_Y; // 音量スライダー
+    private static final int RANGE_Y = GoldenJukeboxLayout.RANGE_Y;  // 範囲スライダー
+    private static final int SLIDER_H = GoldenJukeboxLayout.SLIDER_H; // スライダー高さ (ラベルがバー内に読める太さ)
     private static final long SEEK_SYNC_TOL_MS = 800L; // シーク後、BE 同期が追いついたと見なす許容
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。

@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.menu;
 import org.jetbrains.annotations.NotNull;
 
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.client.GoldenJukeboxLayout;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
@@ -32,18 +33,25 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
         super(ModMenus.GOLDEN_JUKEBOX.get(), containerId);
         this.blockEntity = blockEntity;
 
+        // スロット座標は GoldenJukeboxLayout (branding/gen_golden_jukebox_gui.py が
+        // テクスチャと同じ座標源から生成) を参照する。テクスチャのスロット枠 (frame =
+        // addSlot-1 の 18x18) と 1px 単位で整合し、テクスチャと座標が別管理でズレない。
+
         // ディスクスロット (再生可能ディスクのみ)
-        addSlot(new DiscSlot(blockEntity, GoldenJukeboxBlockEntity.SLOT_DISC, 12, 18));
+        addSlot(new DiscSlot(blockEntity, GoldenJukeboxBlockEntity.SLOT_DISC,
+                GoldenJukeboxLayout.DISC_X, GoldenJukeboxLayout.DISC_Y));
 
         // プレイヤーインベントリ 3 行
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 120 + row * 18));
+                addSlot(new Slot(playerInventory, col + row * 9 + 9,
+                        GoldenJukeboxLayout.INV_X + col * 18, GoldenJukeboxLayout.INV_Y0 + row * 18));
             }
         }
         // ホットバー
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 8 + col * 18, 180));
+            addSlot(new Slot(playerInventory, col,
+                    GoldenJukeboxLayout.INV_X + col * 18, GoldenJukeboxLayout.HOT_Y));
         }
     }
 
