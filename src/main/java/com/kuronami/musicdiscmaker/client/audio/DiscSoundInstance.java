@@ -44,18 +44,27 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     private final int rangeBlocks;
     /** 強化版ジュークボックス由来の音量 (%)。100 = 通常 (config volumeMultiplier のみ)。 */
     private int volumePercent;
+    /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
+    @Nullable
+    private final Runnable onStreamEnded;
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source) {
-        this(pos, source, 0, 100);
+        this(pos, source, 0, 100, null);
     }
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent) {
+        this(pos, source, rangeBlocks, volumePercent, null);
+    }
+
+    public DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent,
+            @Nullable Runnable onStreamEnded) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
         this.followEntity = null;
         this.blockPos = pos.immutable();
         this.rangeBlocks = rangeBlocks;
         this.volumePercent = volumePercent;
+        this.onStreamEnded = onStreamEnded;
         this.x = pos.getX() + 0.5;
         this.y = pos.getY() + 0.5;
         this.z = pos.getZ() + 0.5;
@@ -69,6 +78,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         this.blockPos = null;
         this.rangeBlocks = 0;
         this.volumePercent = 100;
+        this.onStreamEnded = null;
         this.x = entity.getX();
         this.y = entity.getY();
         this.z = entity.getZ();
@@ -158,7 +168,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
 
     @Override
     public CompletableFuture<AudioStream> getStream(SoundBufferLibrary soundBuffers, Sound sound, boolean looping) {
-        return CompletableFuture.completedFuture(new LavaPlayerAudioStream(source));
+        return CompletableFuture.completedFuture(new LavaPlayerAudioStream(source, onStreamEnded));
     }
 
     public void requestStop() {

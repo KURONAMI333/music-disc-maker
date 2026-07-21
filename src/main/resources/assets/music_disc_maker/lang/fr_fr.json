@@ -32,5 +32,7 @@
   "gui.music_disc_maker.enhanced_jukebox.play": "Lecture",
   "gui.music_disc_maker.enhanced_jukebox.stop": "Arrêt",
   "gui.music_disc_maker.enhanced_jukebox.no_track": "Aucun disque",
-  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Disque normal"
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Disque normal",
+  "music_disc_maker.radio.stopped": "Radio arrêtée (échec de la reconnexion)",
+  "music_disc_maker.radio.reconnecting": "Reconnexion à la radio… (%s/%s)"
 }

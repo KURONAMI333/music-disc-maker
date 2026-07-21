@@ -32,5 +32,7 @@
   "gui.music_disc_maker.enhanced_jukebox.play": "Odtwórz",
   "gui.music_disc_maker.enhanced_jukebox.stop": "Zatrzymaj",
   "gui.music_disc_maker.enhanced_jukebox.no_track": "Brak płyty",
-  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Zwykła płyta"
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Zwykła płyta",
+  "music_disc_maker.radio.stopped": "Radio zatrzymane (ponowne łączenie nie powiodło się)",
+  "music_disc_maker.radio.reconnecting": "Ponowne łączenie z radiem… (%s/%s)"
 }

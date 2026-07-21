@@ -32,5 +32,7 @@
   "gui.music_disc_maker.enhanced_jukebox.play": "Afspelen",
   "gui.music_disc_maker.enhanced_jukebox.stop": "Stop",
   "gui.music_disc_maker.enhanced_jukebox.no_track": "Geen disc",
-  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Normale disc"
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Normale disc",
+  "music_disc_maker.radio.stopped": "Radio gestopt (opnieuw verbinden mislukt)",
+  "music_disc_maker.radio.reconnecting": "Opnieuw verbinden met radio… (%s/%s)"
 }

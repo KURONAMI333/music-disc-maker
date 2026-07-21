@@ -44,8 +44,19 @@ public final class SilentSongs {
     }
 
     /**
+     * ラジオ (無限長ストリーム) は最長バケット {@code silent_7200s} 固定で選ぶ (案A)。
+     * バニラの「再生中」状態は 2h で切れるが、ストリーム自体は client 側で流れ続ける。
+     */
+    public static ResourceKey<JukeboxSong> pick(long durationMs, boolean radio) {
+        if (radio) {
+            return key(BUCKETS[BUCKETS.length - 1]);
+        }
+        return pick(durationMs);
+    }
+
+    /**
      * 曲の長さ (ms) 以上で最小のバケットに対応する jukebox_song key を返す。
-     * 長さ不明 (dur &lt;= 0、ライブ等) は 3600s。最長バケットを超える曲は最長で頭打ち。
+     * 長さ不明 (dur &lt;= 0) は 3600s。最長バケットを超える曲は最長で頭打ち。
      */
     public static ResourceKey<JukeboxSong> pick(long durationMs) {
         final int sec = durationMs <= 0L ? 3600 : (int) Math.ceil(durationMs / 1000.0);
@@ -56,7 +67,11 @@ public final class SilentSongs {
                 break;
             }
         }
+        return key(chosen);
+    }
+
+    private static ResourceKey<JukeboxSong> key(int seconds) {
         return ResourceKey.create(Registries.JUKEBOX_SONG,
-                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "silent_" + chosen + "s"));
+                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "silent_" + seconds + "s"));
     }
 }

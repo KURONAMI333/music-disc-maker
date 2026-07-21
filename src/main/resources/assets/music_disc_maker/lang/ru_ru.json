@@ -32,5 +32,7 @@
   "gui.music_disc_maker.enhanced_jukebox.play": "Играть",
   "gui.music_disc_maker.enhanced_jukebox.stop": "Стоп",
   "gui.music_disc_maker.enhanced_jukebox.no_track": "Нет пластинки",
-  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Обычная пластинка"
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Обычная пластинка",
+  "music_disc_maker.radio.stopped": "Радио остановлено (не удалось переподключиться)",
+  "music_disc_maker.radio.reconnecting": "Переподключение к радио… (%s/%s)"
 }

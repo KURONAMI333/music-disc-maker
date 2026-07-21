@@ -162,7 +162,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         // 26.1.2 の JukeboxPlayable は Holder<JukeboxSong> 単独 (1.21.1 の EitherHolder+boolean とは別形)。
         if (this.level != null) {
             this.level.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG)
-                    .get(SilentSongs.pick(resolvedTrack.durationMs()))
+                    .get(SilentSongs.pick(resolvedTrack.durationMs(), resolvedTrack.radio()))
                     .ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(holder)));
         }
 

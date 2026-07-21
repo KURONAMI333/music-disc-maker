@@ -32,5 +32,7 @@
   "gui.music_disc_maker.enhanced_jukebox.play": "재생",
   "gui.music_disc_maker.enhanced_jukebox.stop": "정지",
   "gui.music_disc_maker.enhanced_jukebox.no_track": "디스크 없음",
-  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "일반 디스크"
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "일반 디스크",
+  "music_disc_maker.radio.stopped": "라디오가 중지되었습니다 (재연결 실패)",
+  "music_disc_maker.radio.reconnecting": "라디오에 재연결 중… (%s/%s)"
 }

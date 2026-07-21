@@ -32,5 +32,7 @@
   "gui.music_disc_maker.enhanced_jukebox.play": "Грати",
   "gui.music_disc_maker.enhanced_jukebox.stop": "Стоп",
   "gui.music_disc_maker.enhanced_jukebox.no_track": "Немає платівки",
-  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Звичайна платівка"
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Звичайна платівка",
+  "music_disc_maker.radio.stopped": "Радіо зупинено (не вдалося перепідключитися)",
+  "music_disc_maker.radio.reconnecting": "Повторне підключення до радіо… (%s/%s)"
 }

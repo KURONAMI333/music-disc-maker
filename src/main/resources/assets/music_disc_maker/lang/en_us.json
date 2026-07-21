@@ -35,5 +35,7 @@
   "gui.music_disc_maker.enhanced_jukebox.play": "Play",
   "gui.music_disc_maker.enhanced_jukebox.stop": "Stop",
   "gui.music_disc_maker.enhanced_jukebox.no_track": "No disc",
-  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Vanilla disc"
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Vanilla disc",
+  "music_disc_maker.radio.stopped": "Radio stopped (reconnection failed)",
+  "music_disc_maker.radio.reconnecting": "Reconnecting to radio… (%s/%s)"
 }
