@@ -69,13 +69,13 @@ public final class ForgeJukeboxHandler {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide));
             if (level instanceof ServerLevel serverLevel) {
-                final CustomTrackData track = CustomMusicDiscItem.getTrack(held);
+                // 再生開始/broadcast は JukeboxBlockEntityMixin (setItem フック) が担う。
+                // insertOurDisc→setFirstItem→setItem 経由で onContentChanged が発火するので、
+                // ここで明示 start すると二重 broadcast になる (client 側 async ロードが競合)。
                 insertOurDisc(serverLevel, pos, state, jukebox, held.copyWithCount(1));
                 if (!player.getAbilities().instabuild) {
                     held.shrink(1);
                 }
-                ActiveDiscRegistry.start(serverLevel.dimension(), pos, track, System.currentTimeMillis());
-                broadcast(serverLevel, pos, new PlayDiscPayload(pos, track, 0L));
             }
         } else if (jukeboxHasOurDisc) {
             event.setCanceled(true);

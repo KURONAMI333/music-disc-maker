@@ -1,9 +1,7 @@
 package com.kuronami.musicdiscmaker.event;
 
-import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.network.ModPayload;
-import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -74,13 +72,13 @@ public final class FabricJukeboxEvents {
                 && CustomMusicDiscItem.hasTrack(held);
 
         if (jukebox.getFirstItem().isEmpty() && holdingOurDisc) {
-            final CustomTrackData track = CustomMusicDiscItem.getTrack(held);
+            // 再生開始/broadcast は JukeboxBlockEntityMixin (setItem フック) が担う。
+            // insertOurDisc→setFirstItem→setItem 経由で onContentChanged が発火するので、
+            // ここで明示 start すると二重 broadcast になる (client 側 async ロードが競合)。
             insertOurDisc(serverLevel, pos, state, jukebox, held.copyWithCount(1));
             if (!player.getAbilities().instabuild) {
                 held.shrink(1);
             }
-            ActiveDiscRegistry.start(serverLevel.dimension(), pos, track, System.currentTimeMillis());
-            broadcast(serverLevel, pos, new PlayDiscPayload(pos, track, 0L));
             return InteractionResult.SUCCESS;
         } else if (jukeboxHasOurDisc) {
             final ItemStack disc = jukebox.getFirstItem().copy();
