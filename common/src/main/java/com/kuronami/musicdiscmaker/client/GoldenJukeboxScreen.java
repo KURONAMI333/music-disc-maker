@@ -370,9 +370,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
 
         @Override
         protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            if (this.active && isHoveredOrFocused()) {
-                g.fill(getX(), getY(), getX() + width, getY() + height, 0x33FFFFFF);
-            }
+            // スプライトのみ描画。focus/hover 背景は出さない (renderWidget を super 無しで全上書き
+            // しているのでバニラ AbstractWidget の背景も元々描かれない)。
             final int ix = getX() + (width - spriteSize) / 2;
             final int iy = getY() + (height - spriteSize) / 2;
             g.blit(TEXTURE, ix, iy, (float) u, (float) v, spriteSize, spriteSize, 256, 256);
