@@ -161,7 +161,7 @@ public final class JukeboxHandler {
         for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
             if (!ChunkPos.containing(bePos).equals(chunkPos)) continue;
             if (chunk.getBlockEntity(bePos) instanceof
-                    com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity enhanced) {
+                    com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity enhanced) {
                 enhanced.resendTo(player);
             }
         }

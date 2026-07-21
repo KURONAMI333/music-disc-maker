@@ -27,8 +27,8 @@ public final class ModItems {
             ITEMS.registerSimpleBlockItem("music_disc_maker", ModBlocks.MUSIC_DISC_MAKER);
 
     /** 強化版ジュークボックスの BlockItem。 */
-    public static final DeferredItem<BlockItem> ENHANCED_JUKEBOX =
-            ITEMS.registerSimpleBlockItem("enhanced_jukebox", ModBlocks.ENHANCED_JUKEBOX);
+    public static final DeferredItem<BlockItem> GOLDEN_JUKEBOX =
+            ITEMS.registerSimpleBlockItem("golden_jukebox", ModBlocks.GOLDEN_JUKEBOX);
 
     private ModItems() {
     }

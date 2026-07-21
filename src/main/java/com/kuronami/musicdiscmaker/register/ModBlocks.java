@@ -1,7 +1,7 @@
 package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlock;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlock;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlock;
 
 import net.minecraft.world.level.block.Blocks;
@@ -20,8 +20,8 @@ public final class ModBlocks {
                     () -> BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX));
 
     // 強化版ジュークボックス。硬さ・素材・音はバニラ jukebox 準拠。
-    public static final DeferredBlock<EnhancedJukeboxBlock> ENHANCED_JUKEBOX =
-            BLOCKS.registerBlock("enhanced_jukebox", EnhancedJukeboxBlock::new,
+    public static final DeferredBlock<GoldenJukeboxBlock> GOLDEN_JUKEBOX =
+            BLOCKS.registerBlock("golden_jukebox", GoldenJukeboxBlock::new,
                     () -> BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX));
 
     private ModBlocks() {

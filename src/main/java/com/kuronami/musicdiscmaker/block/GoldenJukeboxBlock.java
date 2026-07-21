@@ -2,7 +2,7 @@ package com.kuronami.musicdiscmaker.block;
 
 import org.jetbrains.annotations.Nullable;
 
-import com.kuronami.musicdiscmaker.menu.EnhancedJukeboxMenu;
+import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 
 import net.minecraft.core.BlockPos;
@@ -39,11 +39,11 @@ import net.minecraft.world.phys.BlockHitResult;
  * 右クリック → 設定 GUI。ディスクの取り出しは GUI 内スロットで行う。コンパレータ出力・再生中の
  * redstone 信号 (15) はバニラ jukebox と同等。
  */
-public class EnhancedJukeboxBlock extends Block implements EntityBlock {
+public class GoldenJukeboxBlock extends Block implements EntityBlock {
 
     public static final BooleanProperty HAS_RECORD = BlockStateProperties.HAS_RECORD;
 
-    public EnhancedJukeboxBlock(Properties properties) {
+    public GoldenJukeboxBlock(Properties properties) {
         super(properties);
         registerDefaultState(stateDefinition.any().setValue(HAS_RECORD, Boolean.FALSE));
     }
@@ -56,7 +56,7 @@ public class EnhancedJukeboxBlock extends Block implements EntityBlock {
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new EnhancedJukeboxBlockEntity(pos, state);
+        return new GoldenJukeboxBlockEntity(pos, state);
     }
 
     @Nullable
@@ -65,8 +65,8 @@ public class EnhancedJukeboxBlock extends Block implements EntityBlock {
         if (level.isClientSide() || !state.getValue(HAS_RECORD)) {
             return null;
         }
-        return createTickerHelper(type, ModBlockEntities.ENHANCED_JUKEBOX.get(),
-                EnhancedJukeboxBlockEntity::serverTick);
+        return createTickerHelper(type, ModBlockEntities.GOLDEN_JUKEBOX.get(),
+                GoldenJukeboxBlockEntity::serverTick);
     }
 
     @SuppressWarnings("unchecked")
@@ -81,11 +81,11 @@ public class EnhancedJukeboxBlock extends Block implements EntityBlock {
             Player player, InteractionHand hand, BlockHitResult hit) {
         // 手にディスク & スロット空 → 挿入 (vanilla 同等)。それ以外は空手インタラクション (= GUI) へ流す。
         if (stack.has(DataComponents.JUKEBOX_PLAYABLE)
-                && level.getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be
+                && level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be
                 && be.getDisc().isEmpty()) {
             if (!level.isClientSide()) {
                 final ItemStack one = stack.consumeAndReturn(1, player);
-                be.setItem(EnhancedJukeboxBlockEntity.SLOT_DISC, one);
+                be.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, one);
                 player.awardStat(Stats.PLAY_RECORD);
             }
             return InteractionResult.SUCCESS;
@@ -97,10 +97,10 @@ public class EnhancedJukeboxBlock extends Block implements EntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
             BlockHitResult hit) {
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
-                && level.getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be) {
+                && level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be) {
             serverPlayer.openMenu(new SimpleMenuProvider(
-                    (id, inv, p) -> new EnhancedJukeboxMenu(id, inv, be),
-                    Component.translatable("block.music_disc_maker.enhanced_jukebox")
+                    (id, inv, p) -> new GoldenJukeboxMenu(id, inv, be),
+                    Component.translatable("block.music_disc_maker.golden_jukebox")
             ), buf -> buf.writeBlockPos(pos));
         }
         return InteractionResult.SUCCESS;
@@ -108,7 +108,7 @@ public class EnhancedJukeboxBlock extends Block implements EntityBlock {
 
     @Override
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
-        if (level.getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be) {
+        if (level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be) {
             be.onBlockRemoved();
             Containers.dropContents(level, pos, be);
         }
@@ -122,7 +122,7 @@ public class EnhancedJukeboxBlock extends Block implements EntityBlock {
 
     @Override
     protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos, Direction direction) {
-        return level.getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be ? be.getComparatorOutput() : 0;
+        return level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be ? be.getComparatorOutput() : 0;
     }
 
     @Override
@@ -132,6 +132,6 @@ public class EnhancedJukeboxBlock extends Block implements EntityBlock {
 
     @Override
     protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-        return level.getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be && be.isVanillaPlaying() ? 15 : 0;
+        return level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be && be.isVanillaPlaying() ? 15 : 0;
     }
 }

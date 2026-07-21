@@ -1,6 +1,0 @@
-{
-  "variants": {
-    "has_record=false": { "model": "music_disc_maker:block/enhanced_jukebox" },
-    "has_record=true":  { "model": "music_disc_maker:block/enhanced_jukebox" }
-  }
-}

@@ -7,7 +7,7 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "music_disc_maker:enhanced_jukebox"
+          "name": "music_disc_maker:golden_jukebox"
         }
       ],
       "conditions": [

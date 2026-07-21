@@ -2,7 +2,7 @@
 
 ## 2.0.0
 
-- **Gilded Jukebox** — a new block that plays custom discs with per-block controls: audible range, volume, repeat, and play/stop, all in a settings screen. Crafted by surrounding a jukebox with gold ingots. Comparator output and redstone behave like a vanilla jukebox.
+- **Golden Jukebox** — a new block that plays custom discs with per-block controls: audible range, volume, repeat, and play/stop, all in a settings screen. Crafted by surrounding a jukebox with gold ingots. Comparator output and redstone behave like a vanilla jukebox.
 - **Radio discs** — HTTP/icecast radio and live streams now play as endless streams (shown as "LIVE" instead of a length), with automatic reconnection on brief dropouts.
 - **Track artwork** — disc tooltips and the maker screen now show the track's cover image (downloaded and cached client-side).
 - **Failure reasons** — when a URL can't be resolved, the maker now says why (unsupported link, unavailable/private, region-locked, age-restricted, offline, or blocked).

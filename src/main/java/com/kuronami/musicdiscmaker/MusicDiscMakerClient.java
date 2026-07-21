@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker;
 
-import com.kuronami.musicdiscmaker.client.EnhancedJukeboxScreen;
+import com.kuronami.musicdiscmaker.client.GoldenJukeboxScreen;
 import com.kuronami.musicdiscmaker.client.MusicDiscMakerScreen;
 import com.kuronami.musicdiscmaker.client.VariantItemModelProperty;
 import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
@@ -32,7 +32,7 @@ public class MusicDiscMakerClient {
     @SubscribeEvent
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
-        event.register(ModMenus.ENHANCED_JUKEBOX.get(), EnhancedJukeboxScreen::new);
+        event.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
     }
 
     /** ディスクのツールチップにジャケット画像を出すための factory (JacketTooltip→JacketClientTooltip)。 */

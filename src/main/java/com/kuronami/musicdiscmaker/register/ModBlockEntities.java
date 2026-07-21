@@ -3,7 +3,7 @@ package com.kuronami.musicdiscmaker.register;
 import java.util.function.Supplier;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 
 import net.minecraft.core.registries.Registries;
@@ -20,9 +20,9 @@ public final class ModBlockEntities {
             BLOCK_ENTITIES.register("music_disc_maker",
                     () -> new BlockEntityType<>(MusicDiscMakerBlockEntity::new, ModBlocks.MUSIC_DISC_MAKER.get()));
 
-    public static final Supplier<BlockEntityType<EnhancedJukeboxBlockEntity>> ENHANCED_JUKEBOX =
-            BLOCK_ENTITIES.register("enhanced_jukebox",
-                    () -> new BlockEntityType<>(EnhancedJukeboxBlockEntity::new, ModBlocks.ENHANCED_JUKEBOX.get()));
+    public static final Supplier<BlockEntityType<GoldenJukeboxBlockEntity>> GOLDEN_JUKEBOX =
+            BLOCK_ENTITIES.register("golden_jukebox",
+                    () -> new BlockEntityType<>(GoldenJukeboxBlockEntity::new, ModBlocks.GOLDEN_JUKEBOX.get()));
 
     private ModBlockEntities() {
     }

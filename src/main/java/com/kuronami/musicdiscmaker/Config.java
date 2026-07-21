@@ -20,7 +20,7 @@ public final class Config {
             .defineInRange("playbackRange", 64, 16, 256);
 
     public static final ModConfigSpec.IntValue MAX_PLAYBACK_RANGE = BUILDER
-            .comment("Upper cap for the Gilded Jukebox per-block range setting (blocks). "
+            .comment("Upper cap for the Golden Jukebox per-block range setting (blocks). "
                     + "Effective range = min(block setting, this). Separate from playbackRange.")
             .defineInRange("maxPlaybackRange", 256, 16, 256);
 
