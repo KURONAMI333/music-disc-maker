@@ -62,27 +62,47 @@ public final class JukeboxHandler {
         if (jukebox.getTheItem().isEmpty() && holdingOurDisc) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.SUCCESS);
-            if (level instanceof ServerLevel serverLevel) {
-                final CustomTrackData track = held.get(ModDataComponents.CUSTOM_TRACK.get());
+            if (level instanceof ServerLevel) {
+                // 再生開始/broadcast は JukeboxBlockEntityMixin (setTheItem フック) の onContentChanged が担う。
                 jukebox.setTheItem(held.copyWithCount(1));
                 if (!player.getAbilities().instabuild) {
                     held.shrink(1);
                 }
-                ActiveDiscRegistry.start(serverLevel.dimension(), pos, track, System.currentTimeMillis());
-                broadcast(serverLevel, pos, new PlayDiscPayload(pos, track, 0L));
             }
         } else if (jukeboxHasOurDisc) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.SUCCESS);
-            if (level instanceof ServerLevel serverLevel) {
+            if (level instanceof ServerLevel) {
                 final ItemStack disc = jukebox.getTheItem().copy();
+                // setTheItem(EMPTY) が mixin 経由で onContentChanged→停止/broadcast を発火する。
                 jukebox.setTheItem(ItemStack.EMPTY);
                 if (!player.addItem(disc)) {
                     player.drop(disc, false);
                 }
-                ActiveDiscRegistry.stop(serverLevel.dimension(), pos);
-                broadcast(serverLevel, pos, new StopDiscPayload(pos));
             }
+        }
+    }
+
+    /**
+     * jukebox の中身が {@code newItem} に変わった直後に {@link com.kuronami.musicdiscmaker.mixin.JukeboxBlockEntityMixin}
+     * から呼ぶ (server 側)。custom disc なら再生開始、それ以外 (空含む) で再生中なら停止。右クリック・ホッパー・
+     * コマンドを問わず、あらゆる setTheItem 経路の再生を1点に集約する。
+     */
+    public static void onContentChanged(Level level, BlockPos pos, ItemStack newItem) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        final BlockPos key = pos.immutable();
+        final boolean isOurDisc = newItem != null
+                && newItem.is(ModItems.CUSTOM_MUSIC_DISC.get())
+                && newItem.has(ModDataComponents.CUSTOM_TRACK.get());
+        if (isOurDisc) {
+            final CustomTrackData track = newItem.get(ModDataComponents.CUSTOM_TRACK.get());
+            ActiveDiscRegistry.start(serverLevel.dimension(), key, track, System.currentTimeMillis());
+            broadcast(serverLevel, key, new PlayDiscPayload(key, track, 0L));
+        } else if (ActiveDiscRegistry.isTracked(serverLevel.dimension(), key)) {
+            ActiveDiscRegistry.stop(serverLevel.dimension(), key);
+            broadcast(serverLevel, key, new StopDiscPayload(key));
         }
     }
 
