@@ -21,4 +21,10 @@ public class FabricConfigHelper implements IConfigHelper {
     public int playbackRange() {
         return 64;
     }
+
+    @Override
+    public int maxPlaybackRange() {
+        // Fabric は config 画面が無いので既定 256。強化版ジュークボックスはこの上限まで到達できる。
+        return 256;
+    }
 }

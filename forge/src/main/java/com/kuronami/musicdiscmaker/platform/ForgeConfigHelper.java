@@ -24,6 +24,11 @@ public class ForgeConfigHelper implements IConfigHelper {
             .comment("Distance in blocks at which custom disc audio fades to silence (vanilla discs use 16).")
             .defineInRange("playbackRange", 64, 16, 256);
 
+    public static final ForgeConfigSpec.IntValue MAX_PLAYBACK_RANGE = BUILDER
+            .comment("Upper cap for the Enhanced Jukebox per-block range setting (blocks). "
+                    + "Effective range = min(block setting, this). Separate from playbackRange.")
+            .defineInRange("maxPlaybackRange", 256, 16, 256);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     @Override
@@ -39,5 +44,10 @@ public class ForgeConfigHelper implements IConfigHelper {
     @Override
     public int playbackRange() {
         return PLAYBACK_RANGE.get();
+    }
+
+    @Override
+    public int maxPlaybackRange() {
+        return MAX_PLAYBACK_RANGE.get();
     }
 }

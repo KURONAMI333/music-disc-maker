@@ -22,4 +22,8 @@ public final class Config {
     public static int playbackRange() {
         return Services.CONFIG.playbackRange();
     }
+
+    public static int maxPlaybackRange() {
+        return Services.CONFIG.maxPlaybackRange();
+    }
 }
