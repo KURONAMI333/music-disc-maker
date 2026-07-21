@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
@@ -19,6 +20,11 @@ public final class ModBlockEntities {
             BLOCK_ENTITIES.register("music_disc_maker",
                     () -> Services.PLATFORM.createBlockEntityType(
                             MusicDiscMakerBlockEntity::new, ModBlocks.MUSIC_DISC_MAKER.get()));
+
+    public static final RegistryHolder<BlockEntityType<EnhancedJukeboxBlockEntity>> ENHANCED_JUKEBOX =
+            BLOCK_ENTITIES.register("enhanced_jukebox",
+                    () -> Services.PLATFORM.createBlockEntityType(
+                            EnhancedJukeboxBlockEntity::new, ModBlocks.ENHANCED_JUKEBOX.get()));
 
     private ModBlockEntities() {
     }

@@ -1,5 +1,16 @@
 {
   "block.music_disc_maker.music_disc_maker": "音楽ディスク製作機",
+  "block.music_disc_maker.enhanced_jukebox": "金のジュークボックス",
+  "gui.music_disc_maker.enhanced_jukebox.title": "金のジュークボックス",
+  "gui.music_disc_maker.enhanced_jukebox.range": "範囲: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "音量: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "リピート: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "オン",
+  "gui.music_disc_maker.enhanced_jukebox.off": "オフ",
+  "gui.music_disc_maker.enhanced_jukebox.play": "再生",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "停止",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "ディスクなし",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "通常ディスク",
   "item.music_disc_maker.blank_disc": "空のディスク",
   "item.music_disc_maker.custom_music_disc": "カスタム音楽ディスク",
 

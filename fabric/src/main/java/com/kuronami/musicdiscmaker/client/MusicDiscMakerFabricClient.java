@@ -29,6 +29,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
+        MenuScreens.register(ModMenus.ENHANCED_JUKEBOX.get(), EnhancedJukeboxScreen::new);
 
         // ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する。
         TooltipComponentCallback.EVENT.register(

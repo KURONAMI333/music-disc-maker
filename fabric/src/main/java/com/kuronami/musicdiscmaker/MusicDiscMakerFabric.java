@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker;
 
 import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
 import com.kuronami.musicdiscmaker.event.FabricJukeboxEvents;
+import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
 import com.kuronami.musicdiscmaker.register.ModRegistries;
@@ -29,6 +30,13 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (server, player, handler, buf, responseSender) -> {
                     final ResolveUrlPayload payload = ResolveUrlPayload.read(buf);
                     server.execute(() -> ModNetwork.handleResolveUrl(payload, player));
+                });
+
+        // server 受信: 強化版ジュークボックスの設定変更。
+        ServerPlayNetworking.registerGlobalReceiver(ConfigureJukeboxPayload.ID,
+                (server, player, handler, buf, responseSender) -> {
+                    final ConfigureJukeboxPayload payload = ConfigureJukeboxPayload.read(buf);
+                    server.execute(() -> ModNetwork.handleConfigureJukebox(payload, player));
                 });
 
         // jukebox 出し入れ / 破壊イベント。

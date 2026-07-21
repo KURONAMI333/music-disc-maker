@@ -1,5 +1,16 @@
 {
   "block.music_disc_maker.music_disc_maker": "Wytwórnia płyt",
+  "block.music_disc_maker.enhanced_jukebox": "Pozłacany gramofon",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Pozłacany gramofon",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Zasięg: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Głośność: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Powtarzanie: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Wł.",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Wył.",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Odtwórz",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Zatrzymaj",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Brak płyty",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Zwykła płyta",
   "item.music_disc_maker.blank_disc": "Pusta płyta",
   "item.music_disc_maker.custom_music_disc": "Własna płyta",
 

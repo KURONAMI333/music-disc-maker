@@ -1,5 +1,16 @@
 {
   "block.music_disc_maker.music_disc_maker": "音乐唱片制作机",
+  "block.music_disc_maker.enhanced_jukebox": "镀金唱片机",
+  "gui.music_disc_maker.enhanced_jukebox.title": "镀金唱片机",
+  "gui.music_disc_maker.enhanced_jukebox.range": "范围：%s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "音量：%s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "循环：%s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "开",
+  "gui.music_disc_maker.enhanced_jukebox.off": "关",
+  "gui.music_disc_maker.enhanced_jukebox.play": "播放",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "停止",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "无唱片",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "普通唱片",
   "item.music_disc_maker.blank_disc": "空白唱片",
   "item.music_disc_maker.custom_music_disc": "自定义音乐唱片",
 

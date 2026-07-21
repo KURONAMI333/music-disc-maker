@@ -33,19 +33,26 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     /** block 再生時の jukebox 位置 (entity 再生時は null)。撤去検知に使う。 */
     @Nullable
     private final BlockPos blockPos;
+    /** 強化版ジュークボックス由来の per-block 可聴範囲 (ブロック)。0 = client config の playbackRange。 */
+    private final int rangeBlocks;
+    /** 強化版ジュークボックス由来の音量 (%)。100 = 通常 (config volumeMultiplier のみ)。 */
+    private final int volumePercent;
     /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
     @Nullable
     private final Runnable onStreamEnded;
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source) {
-        this(pos, source, null);
+        this(pos, source, 0, 100, null);
     }
 
-    public DiscSoundInstance(BlockPos pos, IAudioSource source, @Nullable Runnable onStreamEnded) {
+    public DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent,
+            @Nullable Runnable onStreamEnded) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
         this.followEntity = null;
         this.blockPos = pos.immutable();
+        this.rangeBlocks = rangeBlocks;
+        this.volumePercent = volumePercent;
         this.onStreamEnded = onStreamEnded;
         this.x = pos.getX() + 0.5;
         this.y = pos.getY() + 0.5;
@@ -58,6 +65,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         this.source = source;
         this.followEntity = entity;
         this.blockPos = null;
+        this.rangeBlocks = 0;
+        this.volumePercent = 100;
         this.onStreamEnded = null;
         this.x = entity.getX();
         this.y = entity.getY();
@@ -66,11 +75,27 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     }
 
     private void initCommon() {
-        this.volume = (float) Config.volumeMultiplier();
+        this.volume = computeVolume();
         this.pitch = 1.0F;
         this.looping = false;
         this.relative = false;
         this.attenuation = Attenuation.LINEAR;
+    }
+
+    /** 実効音量 = (volumePercent/100) × client の Records 相対倍率。 */
+    private float computeVolume() {
+        return (float) (volumePercent / 100.0 * Config.volumeMultiplier());
+    }
+
+    /**
+     * 実効可聴範囲。強化版 (rangeBlocks>0) は per-block 設定を maxPlaybackRange (既定 256) で頭打ちにし、
+     * 通常 jukebox の playbackRange (Fabric は 64 固定) には縛られない。無設定は従来通り playbackRange。
+     */
+    private int effectiveRange() {
+        if (rangeBlocks > 0) {
+            return Math.min(rangeBlocks, Config.maxPlaybackRange());
+        }
+        return Config.playbackRange();
     }
 
     @Override
@@ -107,7 +132,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     public WeighedSoundEvents resolve(SoundManager handler) {
         WeighedSoundEvents result = super.resolve(handler);
         if (this.sound != null && this.sound != SoundManager.EMPTY_SOUND) {
-            int range = Config.playbackRange();
+            int range = effectiveRange();
             this.sound = new Sound(
                     this.sound.getLocation().toString(),
                     this.sound.getVolume(),

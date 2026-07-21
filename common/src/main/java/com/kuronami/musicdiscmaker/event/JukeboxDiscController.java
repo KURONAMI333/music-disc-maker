@@ -45,7 +45,7 @@ public final class JukeboxDiscController {
             final CustomTrackData track = CustomMusicDiscItem.getTrack(newItem);
             ActiveDiscRegistry.start(serverLevel.dimension(), key, track, System.currentTimeMillis());
             Services.NETWORK.sendToPlayersTrackingChunk(serverLevel, new ChunkPos(key),
-                    new PlayDiscPayload(key, track, 0L));
+                    PlayDiscPayload.vanilla(key, track, 0L));
         } else if (ActiveDiscRegistry.isTracked(serverLevel.dimension(), key)) {
             ActiveDiscRegistry.stop(serverLevel.dimension(), key);
             Services.NETWORK.sendToPlayersTrackingChunk(serverLevel, new ChunkPos(key),

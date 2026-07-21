@@ -67,5 +67,17 @@ public final class ForgeNetwork {
                 .consumerMainThread((msg, ctx) ->
                         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompatClient.play(msg))
                 .add();
+
+        // client → server: 強化版ジュークボックスの設定変更 (末尾に追加して既存 id を動かさない)。
+        CHANNEL.messageBuilder(ConfigureJukeboxPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ConfigureJukeboxPayload::write)
+                .decoder(ConfigureJukeboxPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    final ServerPlayer sender = ctx.get().getSender();
+                    if (sender != null) {
+                        ModNetwork.handleConfigureJukebox(msg, sender);
+                    }
+                })
+                .add();
     }
 }

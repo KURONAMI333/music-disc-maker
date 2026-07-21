@@ -23,6 +23,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
 
+import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
+
 /**
  * 後から jukebox の chunk に入った player へ、経過 offset 付きで再生 packet を送る (途中から同期再生)。
  *
@@ -54,12 +56,17 @@ public abstract class ChunkWatchMixin {
                 continue;
             }
             final long elapsed = Math.max(0L, now - p.startMillis());
-            Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(p.pos(), p.track(), elapsed));
+            Services.NETWORK.sendToPlayer(player, PlayDiscPayload.vanilla(p.pos(), p.track(), elapsed));
         }
 
         final var chunk = level.getChunk(chunkPos.x, chunkPos.z);
         for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
             if (!new ChunkPos(bePos).equals(chunkPos)) continue;
+            // 強化版ジュークボックスは BE 自身が権威。現在位置で per-block 設定つきの再送を任せる。
+            if (chunk.getBlockEntity(bePos) instanceof EnhancedJukeboxBlockEntity enhanced) {
+                enhanced.resendTo(player);
+                continue;
+            }
             if (ActiveDiscRegistry.isTracked(level.dimension(), bePos)) continue;
             if (!(chunk.getBlockEntity(bePos) instanceof JukeboxBlockEntity jukebox)) continue;
             final ItemStack disc = jukebox.getFirstItem();
@@ -68,7 +75,7 @@ public abstract class ChunkWatchMixin {
             final CustomTrackData track = CustomMusicDiscItem.getTrack(disc);
             if (track == null || track.isEmpty()) continue;
             ActiveDiscRegistry.start(level.dimension(), bePos, track, now);
-            Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(bePos, track, 0L));
+            Services.NETWORK.sendToPlayer(player, PlayDiscPayload.vanilla(bePos, track, 0L));
         }
     }
 }

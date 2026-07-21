@@ -20,6 +20,7 @@ public final class ModCreativeTab {
                     .icon(() -> new ItemStack(ModItems.MUSIC_DISC_MAKER.get()))
                     .displayItems((params, output) -> {
                         output.accept(ModItems.MUSIC_DISC_MAKER.get());
+                        output.accept(ModItems.ENHANCED_JUKEBOX.get());
                         output.accept(ModItems.BLANK_DISC.get());
                     })
                     .build());

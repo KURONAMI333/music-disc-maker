@@ -34,6 +34,7 @@ public final class MusicDiscMakerForgeClient {
     public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
+            MenuScreens.register(ModMenus.ENHANCED_JUKEBOX.get(), EnhancedJukeboxScreen::new);
 
             // custom disc の texture variant を曲名+アーティストから決定的に選ぶ。
             // 返り値 (index+0.5)/VARIANTS が model override の threshold (i/VARIANTS) に対応。

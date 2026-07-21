@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "GGG",
+    "GJG",
+    "GGG"
+  ],
+  "key": {
+    "G": { "item": "minecraft:gold_ingot" },
+    "J": { "item": "minecraft:jukebox" }
+  },
+  "result": {
+    "item": "music_disc_maker:enhanced_jukebox",
+    "count": 1
+  }
+}

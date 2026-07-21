@@ -40,12 +40,16 @@ public final class ClientPlaybackManager {
         return INSTANCE;
     }
 
+    /** pos ごとの再生要求。ラジオ再接続で同じ track/range/volume を再利用する。 */
+    private record PlaybackRequest(CustomTrackData track, int rangeBlocks, int volumePercent) {
+    }
+
     private final Map<BlockPos, DiscSoundInstance> active = new ConcurrentHashMap<>();
     private final Set<BlockPos> wanted = ConcurrentHashMap.newKeySet();
     // pos ごとの現在再生中 URL。chunk 再入での無駄な再ロードを避ける判定に使う。
     private final Map<BlockPos, String> playingUrl = new ConcurrentHashMap<>();
-    // pos ごとの再生要求 (ラジオ再接続で同じ track を再利用する)。
-    private final Map<BlockPos, CustomTrackData> requests = new ConcurrentHashMap<>();
+    // pos ごとの再生要求 (ラジオ再接続で再利用)。
+    private final Map<BlockPos, PlaybackRequest> requests = new ConcurrentHashMap<>();
     // pos ごとの連続再接続試行回数 (安定再生でリセット)。
     private final Map<BlockPos, Integer> reconnectAttempts = new ConcurrentHashMap<>();
     // pos ごとの現インスタンスの再生開始時刻 (安定判定用)。
@@ -59,7 +63,8 @@ public final class ClientPlaybackManager {
     private ClientPlaybackManager() {
     }
 
-    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs) {
+    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs,
+            int rangeBlocks, int volumePercent) {
         if (track == null || track.isEmpty()) {
             return;
         }
@@ -71,15 +76,16 @@ public final class ClientPlaybackManager {
         }
         stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生)
         wanted.add(key);
-        requests.put(key, track);
-        submitLoad(key, track, startOffsetMs, 0L);
+        requests.put(key, new PlaybackRequest(track, rangeBlocks, volumePercent));
+        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L);
     }
 
     /**
      * URL を (任意の遅延後) 別 thread でロードし、成功したら main thread で再生を開始する。
      * startPlayback (遅延0) とラジオ再接続 (遅延あり) の共通経路。
      */
-    private void submitLoad(BlockPos key, CustomTrackData track, long startOffsetMs, long delayMs) {
+    private void submitLoad(BlockPos key, CustomTrackData track, long startOffsetMs,
+            int rangeBlocks, int volumePercent, long delayMs) {
         pool.submit(() -> {
             if (delayMs > 0L) {
                 try {
@@ -105,12 +111,13 @@ public final class ClientPlaybackManager {
                 source = null;
             }
             final IAudioSource resolved = source;
-            Minecraft.getInstance().execute(() -> onLoaded(key, track, resolved));
+            Minecraft.getInstance().execute(() -> onLoaded(key, track, rangeBlocks, volumePercent, resolved));
         });
     }
 
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
-    private void onLoaded(BlockPos key, CustomTrackData track, IAudioSource resolved) {
+    private void onLoaded(BlockPos key, CustomTrackData track, int rangeBlocks, int volumePercent,
+            IAudioSource resolved) {
         if (resolved == null) {
             if (track.radio() && wanted.contains(key)) {
                 onRadioStreamEnded(key); // ロード失敗も 1 回の再接続試行として数える
@@ -144,7 +151,7 @@ public final class ClientPlaybackManager {
         final Runnable endCb = track.radio()
                 ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
                 : null;
-        final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, endCb);
+        final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
         active.put(key, instance);
         playingUrl.put(key, track.url());
         playStartMillis.put(key, System.currentTimeMillis());
@@ -166,8 +173,8 @@ public final class ClientPlaybackManager {
         if (!wanted.contains(key)) {
             return; // ディスク撤去/停止済み → 再接続しない
         }
-        final CustomTrackData req = requests.get(key);
-        if (req == null || !req.radio()) {
+        final PlaybackRequest req = requests.get(key);
+        if (req == null || !req.track().radio()) {
             return;
         }
         // 直前の再生が安定していたら (瞬断が久しぶりなら) 試行回数をリセットする。
@@ -195,7 +202,7 @@ public final class ClientPlaybackManager {
         }
         reconnectAttempts.put(key, attempt);
         notifyActionBar(Component.translatable("music_disc_maker.radio.reconnecting", attempt, MAX_RECONNECT));
-        submitLoad(key, req, 0L, RECONNECT_DELAY_MS);
+        submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(), RECONNECT_DELAY_MS);
     }
 
     /** 再生失敗をアクションバーに表示する (main thread から呼ぶこと)。 */

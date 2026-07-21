@@ -2,7 +2,9 @@ package com.kuronami.musicdiscmaker.platform;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
+import com.kuronami.musicdiscmaker.menu.EnhancedJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.platform.services.IMenuHelper;
 
@@ -51,6 +53,37 @@ public class FabricMenuHelper implements IMenuHelper {
                 final BlockEntity be = p.level().getBlockEntity(pos);
                 return be instanceof MusicDiscMakerBlockEntity maker
                         ? new MusicDiscMakerMenu(id, inv, maker)
+                        : null;
+            }
+        });
+    }
+
+    @Override
+    public MenuType<EnhancedJukeboxMenu> createEnhancedJukeboxMenuType() {
+        return new ExtendedScreenHandlerType<>(
+                (id, inv, buf) -> new EnhancedJukeboxMenu(id, inv, buf.readBlockPos()));
+    }
+
+    @Override
+    public void openEnhancedJukeboxMenu(ServerPlayer player, BlockPos pos) {
+        player.openMenu(new ExtendedScreenHandlerFactory() {
+
+            @Override
+            public void writeScreenOpeningData(ServerPlayer p, FriendlyByteBuf buf) {
+                buf.writeBlockPos(pos);
+            }
+
+            @Override
+            public Component getDisplayName() {
+                return Component.translatable("gui.music_disc_maker.enhanced_jukebox.title");
+            }
+
+            @Nullable
+            @Override
+            public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
+                final BlockEntity be = p.level().getBlockEntity(pos);
+                return be instanceof EnhancedJukeboxBlockEntity jukebox
+                        ? new EnhancedJukeboxMenu(id, inv, jukebox)
                         : null;
             }
         });

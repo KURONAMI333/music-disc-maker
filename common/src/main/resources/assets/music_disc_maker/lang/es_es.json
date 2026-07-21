@@ -1,5 +1,16 @@
 {
   "block.music_disc_maker.music_disc_maker": "Fabricante de discos",
+  "block.music_disc_maker.enhanced_jukebox": "Tocadiscos dorado",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Tocadiscos dorado",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Alcance: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Volumen: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Repetir: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "Activado",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Desactivado",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Reproducir",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Detener",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Sin disco",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Disco normal",
   "item.music_disc_maker.blank_disc": "Disco en blanco",
   "item.music_disc_maker.custom_music_disc": "Disco personalizado",
 

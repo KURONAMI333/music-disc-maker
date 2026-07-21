@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.network;
 
+import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
 
@@ -30,6 +31,20 @@ public final class ModNetwork {
         }
         if (player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
             maker.setCurrentUrl(payload.url()); // setCurrentUrl が DiscFabrication.process を呼ぶ
+        }
+    }
+
+    /** server 受信: 強化版ジュークボックスの設定変更 (client → server)。到達距離チェック後 BE に反映。 */
+    public static void handleConfigureJukebox(ConfigureJukeboxPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.level().getBlockEntity(pos) instanceof EnhancedJukeboxBlockEntity be) {
+            be.setRangeBlocks(payload.rangeBlocks());
+            be.setVolumePercent(payload.volumePercent());
+            be.setRepeat(payload.repeat());
+            be.setPaused(payload.paused()); // 値保存を先に、最後に paused で再生調停
         }
     }
 

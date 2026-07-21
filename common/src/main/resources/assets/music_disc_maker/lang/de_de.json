@@ -1,5 +1,16 @@
 {
   "block.music_disc_maker.music_disc_maker": "Schallplatten-Hersteller",
+  "block.music_disc_maker.enhanced_jukebox": "Vergoldete Jukebox",
+  "gui.music_disc_maker.enhanced_jukebox.title": "Vergoldete Jukebox",
+  "gui.music_disc_maker.enhanced_jukebox.range": "Reichweite: %s",
+  "gui.music_disc_maker.enhanced_jukebox.volume": "Lautstärke: %s%%",
+  "gui.music_disc_maker.enhanced_jukebox.repeat": "Wiederholen: %s",
+  "gui.music_disc_maker.enhanced_jukebox.on": "An",
+  "gui.music_disc_maker.enhanced_jukebox.off": "Aus",
+  "gui.music_disc_maker.enhanced_jukebox.play": "Abspielen",
+  "gui.music_disc_maker.enhanced_jukebox.stop": "Stopp",
+  "gui.music_disc_maker.enhanced_jukebox.no_track": "Keine Disc",
+  "gui.music_disc_maker.enhanced_jukebox.vanilla_disc": "Normale Disc",
   "item.music_disc_maker.blank_disc": "Leere Schallplatte",
   "item.music_disc_maker.custom_music_disc": "Eigene Schallplatte",
 

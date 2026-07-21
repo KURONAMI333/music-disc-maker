@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.block.EnhancedJukeboxBlock;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlock;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
@@ -19,6 +20,11 @@ public final class ModBlocks {
     public static final RegistryHolder<MusicDiscMakerBlock> MUSIC_DISC_MAKER =
             BLOCKS.register("music_disc_maker",
                     () -> new MusicDiscMakerBlock(BlockBehaviour.Properties.copy(Blocks.JUKEBOX)));
+
+    // 強化版ジュークボックス (Gilded Jukebox)。硬さ・音などはジュークボックス基準。
+    public static final RegistryHolder<EnhancedJukeboxBlock> ENHANCED_JUKEBOX =
+            BLOCKS.register("enhanced_jukebox",
+                    () -> new EnhancedJukeboxBlock(BlockBehaviour.Properties.copy(Blocks.JUKEBOX)));
 
     private ModBlocks() {
     }
