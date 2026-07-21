@@ -35,6 +35,5 @@
   "gui.music_disc_maker.golden_jukebox.pause": "一時停止",
   "gui.music_disc_maker.golden_jukebox.stop": "停止",
   "gui.music_disc_maker.golden_jukebox.repeat_toggle": "リピート",
-  "gui.music_disc_maker.golden_jukebox.no_track": "ディスクなし",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "通常ディスク"
+  "gui.music_disc_maker.golden_jukebox.no_track": "ディスクなし"
 }

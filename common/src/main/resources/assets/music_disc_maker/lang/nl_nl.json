@@ -33,6 +33,5 @@
   "gui.music_disc_maker.golden_jukebox.off": "Uit",
   "gui.music_disc_maker.golden_jukebox.play": "Afspelen",
   "gui.music_disc_maker.golden_jukebox.stop": "Stop",
-  "gui.music_disc_maker.golden_jukebox.no_track": "Geen disc",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "Normale disc"
+  "gui.music_disc_maker.golden_jukebox.no_track": "Geen disc"
 }
