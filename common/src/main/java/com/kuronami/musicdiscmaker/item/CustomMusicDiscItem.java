@@ -45,6 +45,20 @@ public class CustomMusicDiscItem extends RecordItem {
         return Component.translatable(this.getDescriptionId());
     }
 
+    /**
+     * 表示名: 金床で付けたカスタム名 (あれば) &gt; 自動取得の曲名 &gt; 既定のアイテム名。
+     * カスタム名は vanilla の {@link ItemStack#getHoverName()} が優先するので、ここでは
+     * 「曲名 &gt; 既定名」だけを担う。
+     */
+    @Override
+    public Component getName(ItemStack stack) {
+        final CustomTrackData track = getTrack(stack);
+        if (!track.isEmpty() && !track.title().isBlank()) {
+            return Component.literal(track.title());
+        }
+        return super.getName(stack);
+    }
+
     /** stack の NBT から曲メタを読む (無ければ {@link CustomTrackData#EMPTY})。 */
     public static CustomTrackData getTrack(ItemStack stack) {
         final CompoundTag tag = stack.getTag();
@@ -69,8 +83,11 @@ public class CustomMusicDiscItem extends RecordItem {
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         final CustomTrackData track = getTrack(stack);
         if (!track.isEmpty()) {
-            // アイテム名はコモン(白)。曲名を水色+太字でアクセントにして「何の曲か」を最も目立たせる。
-            tooltip.add(Component.literal(track.title()).withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+            // カスタム名 (金床) が付いている時だけ、アイテム名の下に曲名を水色+太字で補足する。
+            // カスタム名が無ければアイテム名 (getName) が既に曲名なので重複表示しない。
+            if (stack.hasCustomHoverName() && !track.title().isBlank()) {
+                tooltip.add(Component.literal(track.title()).withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+            }
             if (!track.author().isBlank()) {
                 tooltip.add(Component.translatable("tooltip.music_disc_maker.artist", track.author())
                         .withStyle(ChatFormatting.GRAY));
