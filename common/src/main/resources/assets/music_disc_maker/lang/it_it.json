@@ -10,7 +10,6 @@
   "gui.music_disc_maker.golden_jukebox.play": "Riproduci",
   "gui.music_disc_maker.golden_jukebox.stop": "Ferma",
   "gui.music_disc_maker.golden_jukebox.no_track": "Nessun disco",
-  "gui.music_disc_maker.golden_jukebox.vanilla_disc": "Disco normale",
   "item.music_disc_maker.blank_disc": "Disco vuoto",
   "item.music_disc_maker.custom_music_disc": "Disco personalizzato",
 

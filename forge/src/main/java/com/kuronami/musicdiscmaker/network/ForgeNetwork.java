@@ -79,5 +79,17 @@ public final class ForgeNetwork {
                     }
                 })
                 .add();
+
+        // client → server: 強化版ジュークボックスのシークバー頭出し (末尾に追加して既存 id を動かさない)。
+        CHANNEL.messageBuilder(SeekJukeboxPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SeekJukeboxPayload::write)
+                .decoder(SeekJukeboxPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    final ServerPlayer sender = ctx.get().getSender();
+                    if (sender != null) {
+                        ModNetwork.handleSeekJukebox(msg, sender);
+                    }
+                })
+                .add();
     }
 }

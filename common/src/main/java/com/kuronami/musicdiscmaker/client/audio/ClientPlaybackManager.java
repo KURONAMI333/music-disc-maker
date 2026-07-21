@@ -54,6 +54,8 @@ public final class ClientPlaybackManager {
     private final Map<BlockPos, Integer> reconnectAttempts = new ConcurrentHashMap<>();
     // pos ごとの現インスタンスの再生開始時刻 (安定判定用)。
     private final Map<BlockPos, Long> playStartMillis = new ConcurrentHashMap<>();
+    // pos ごとの現インスタンスのロード開始オフセット (GUI シークと chunk 再入再送の判別に使う)。
+    private final Map<BlockPos, Long> loadOffsetMs = new ConcurrentHashMap<>();
     private final ExecutorService pool = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-playback");
         thread.setDaemon(true);
@@ -69,15 +71,35 @@ public final class ClientPlaybackManager {
             return;
         }
         final BlockPos key = pos.immutable();
-        // chunk 再入などで同じ曲の再生要求が再来した時は再ロードしない (音飛び・無駄な再バッファ防止)。
+        // 同じ曲の再生要求が再来した時: それが chunk 再入等の再送 (現在の推定再生位置とほぼ同じ
+        // オフセット) なら再ロードしない (音飛び・無駄な再バッファ防止)。GUI シークは現在位置から
+        // 大きく離れたオフセットで来る = 本物の頭出しなので dedup せず再ロードして即反映する。
         final DiscSoundInstance existing = active.get(key);
-        if (existing != null && !existing.isStopped() && track.url().equals(playingUrl.get(key))) {
+        if (existing != null && !existing.isStopped() && track.url().equals(playingUrl.get(key))
+                && !isSeekRequest(key, startOffsetMs)) {
             return;
         }
-        stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生)
+        stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生 or シーク)
         wanted.add(key);
         requests.put(key, new PlaybackRequest(track, rangeBlocks, volumePercent));
         submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L);
+    }
+
+    /**
+     * 同じ曲の再生要求が「現在の推定再生位置」から一定以上離れていれば本物のシーク (頭出し)
+     * とみなす。chunk 再入の再送は server 側で現在の経過 ms を載せて来るため推定位置とほぼ
+     * 一致し、dedup される。後方シークは常に推定位置 (前進中) と乖離するので確実に通る。
+     */
+    private static final long SEEK_TOLERANCE_MS = 1200L;
+
+    private boolean isSeekRequest(BlockPos key, long requestedOffsetMs) {
+        final Long started = playStartMillis.get(key);
+        final Long loaded = loadOffsetMs.get(key);
+        if (started == null || loaded == null) {
+            return false; // 位置不明 → 従来通り dedup (再ロードしない)
+        }
+        final long estimatedNowMs = loaded + (System.currentTimeMillis() - started);
+        return Math.abs(requestedOffsetMs - estimatedNowMs) >= SEEK_TOLERANCE_MS;
     }
 
     /**
@@ -111,13 +133,14 @@ public final class ClientPlaybackManager {
                 source = null;
             }
             final IAudioSource resolved = source;
-            Minecraft.getInstance().execute(() -> onLoaded(key, track, rangeBlocks, volumePercent, resolved));
+            Minecraft.getInstance().execute(
+                    () -> onLoaded(key, track, startOffsetMs, rangeBlocks, volumePercent, resolved));
         });
     }
 
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
-    private void onLoaded(BlockPos key, CustomTrackData track, int rangeBlocks, int volumePercent,
-            IAudioSource resolved) {
+    private void onLoaded(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
+            int volumePercent, IAudioSource resolved) {
         if (resolved == null) {
             if (track.radio() && wanted.contains(key)) {
                 onRadioStreamEnded(key); // ロード失敗も 1 回の再接続試行として数える
@@ -136,6 +159,7 @@ public final class ClientPlaybackManager {
         active.entrySet().removeIf(e -> {
             if (e.getValue().isStopped()) {
                 playingUrl.remove(e.getKey());
+                loadOffsetMs.remove(e.getKey());
                 return true;
             }
             return false;
@@ -155,6 +179,7 @@ public final class ClientPlaybackManager {
         active.put(key, instance);
         playingUrl.put(key, track.url());
         playStartMillis.put(key, System.currentTimeMillis());
+        loadOffsetMs.put(key, startOffsetMs); // シーク判定の基準位置
         Minecraft.getInstance().getSoundManager().play(instance);
         // vanilla disc と同じ "Now Playing: ..." overlay を出す
         final String desc = (track.author() != null && !track.author().isBlank())
@@ -190,6 +215,7 @@ public final class ClientPlaybackManager {
         }
         playingUrl.remove(key);
         playStartMillis.remove(key);
+        loadOffsetMs.remove(key);
 
         final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
         if (attempt > MAX_RECONNECT) {
@@ -225,6 +251,7 @@ public final class ClientPlaybackManager {
         requests.remove(key);
         reconnectAttempts.remove(key);
         playStartMillis.remove(key);
+        loadOffsetMs.remove(key);
         final DiscSoundInstance instance = active.remove(key);
         if (instance != null) {
             instance.requestStop();
@@ -238,6 +265,7 @@ public final class ClientPlaybackManager {
         requests.clear();
         reconnectAttempts.clear();
         playStartMillis.clear();
+        loadOffsetMs.clear();
         active.values().forEach(instance -> {
             instance.requestStop();
             Minecraft.getInstance().getSoundManager().stop(instance);
