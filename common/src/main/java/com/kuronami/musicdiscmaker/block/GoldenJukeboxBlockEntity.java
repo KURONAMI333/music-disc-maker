@@ -114,7 +114,14 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (playbackStartGameTime < 0L || level == null) {
             return 0L;
         }
-        return Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
+        long elapsed = Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
+        // 有限尺は総尺でクランプ (非リピートの自然終了後に経過が尺を超えて増え続けるのを防ぐ)。
+        // リピート時はループごとに anchor がリセットされるため境界クランプは無害。
+        final long dur = trackDurationMs();
+        if (dur > 0L) {
+            elapsed = Math.min(elapsed, dur);
+        }
+        return elapsed;
     }
 
     /** 現在のディスクの総尺 (ms)。custom disc のみ。0 = 不明/ラジオ/vanilla disc。 */
