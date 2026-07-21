@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "在此粘贴链接…",
   "gui.music_disc_maker.fetching": "获取中…",
   "gui.music_disc_maker.failed": "失败",
+  "gui.music_disc_maker.failed.unsupported": "不支持",
+  "gui.music_disc_maker.failed.private": "不可用",
+  "gui.music_disc_maker.failed.region": "地区限制",
+  "gui.music_disc_maker.failed.age": "年龄限制",
+  "gui.music_disc_maker.failed.connection": "连接失败",
+  "gui.music_disc_maker.failed.blocked": "已拦截",
   "gui.music_disc_maker.hint": "粘贴链接并放入空白唱片",
 
   "tooltip.music_disc_maker.artist": "艺术家：%s",

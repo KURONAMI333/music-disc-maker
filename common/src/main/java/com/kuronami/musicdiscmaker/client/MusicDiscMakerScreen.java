@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.client;
 import org.lwjgl.glfw.GLFW;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
@@ -95,17 +96,36 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         g.blit(TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
     }
 
+    // 取得中スピナー: 8 分の 1 回転を 100ms ごとに進める点棒。
+    private static final String[] SPINNER = {"|", "/", "-", "\\"};
+
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
         // 出力スロット右の空き領域に右寄せ (パネル幅 200 をはみ出さない)
         if (menu.getBlockEntity().isResolving()) {
-            final Component fetching = Component.translatable("gui.music_disc_maker.fetching");
+            final String spin = SPINNER[(int) ((System.currentTimeMillis() / 120L) % SPINNER.length)];
+            final Component fetching = Component.translatable("gui.music_disc_maker.fetching")
+                    .copy().append(" " + spin);
             g.drawString(font, fetching, imageWidth - 8 - font.width(fetching), 51, TEXT, false);
         } else if (menu.getBlockEntity().isResolveFailed()) {
-            final Component failed = Component.translatable("gui.music_disc_maker.failed");
+            final Component failed = failedMessage(menu.getBlockEntity().getFailureReason());
             g.drawString(font, failed, imageWidth - 8 - font.width(failed), 51, ERROR, false);
         }
+    }
+
+    /** 失敗理由に対応する翻訳キーの短いメッセージ。未知は汎用の「取得失敗」。 */
+    private static Component failedMessage(FailureReason reason) {
+        final String key = switch (reason == null ? FailureReason.UNKNOWN : reason) {
+            case UNSUPPORTED_URL -> "gui.music_disc_maker.failed.unsupported";
+            case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.failed.private";
+            case REGION_LOCKED -> "gui.music_disc_maker.failed.region";
+            case AGE_RESTRICTED -> "gui.music_disc_maker.failed.age";
+            case CONNECTION_FAILED -> "gui.music_disc_maker.failed.connection";
+            case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
+            default -> "gui.music_disc_maker.failed";
+        };
+        return Component.translatable(key);
     }
 
     @Override

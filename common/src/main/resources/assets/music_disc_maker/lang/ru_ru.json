@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "Вставьте ссылку…",
   "gui.music_disc_maker.fetching": "Загрузка…",
   "gui.music_disc_maker.failed": "Ошибка",
+  "gui.music_disc_maker.failed.unsupported": "Неверно",
+  "gui.music_disc_maker.failed.private": "Приватно",
+  "gui.music_disc_maker.failed.region": "Регион",
+  "gui.music_disc_maker.failed.age": "Возраст",
+  "gui.music_disc_maker.failed.connection": "Нет сети",
+  "gui.music_disc_maker.failed.blocked": "Заблок.",
   "gui.music_disc_maker.hint": "Вставьте ссылку и пустую пластинку",
 
   "tooltip.music_disc_maker.artist": "Исполнитель: %s",

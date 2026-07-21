@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "Wklej tutaj URL…",
   "gui.music_disc_maker.fetching": "Ładowanie…",
   "gui.music_disc_maker.failed": "Błąd",
+  "gui.music_disc_maker.failed.unsupported": "Zły adres",
+  "gui.music_disc_maker.failed.private": "Prywatne",
+  "gui.music_disc_maker.failed.region": "Region",
+  "gui.music_disc_maker.failed.age": "Wiek",
+  "gui.music_disc_maker.failed.connection": "Brak sieci",
+  "gui.music_disc_maker.failed.blocked": "Zablokowane",
   "gui.music_disc_maker.hint": "Wklej URL + włóż pustą płytę",
 
   "tooltip.music_disc_maker.artist": "Wykonawca: %s",
