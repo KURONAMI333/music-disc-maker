@@ -7,6 +7,12 @@
   "gui.music_disc_maker.url_placeholder": "URL hier einfügen…",
   "gui.music_disc_maker.fetching": "Lädt…",
   "gui.music_disc_maker.failed": "Fehler",
+  "gui.music_disc_maker.failed.unsupported": "Falsche URL",
+  "gui.music_disc_maker.failed.private": "Privat",
+  "gui.music_disc_maker.failed.region": "Gesperrt",
+  "gui.music_disc_maker.failed.age": "Alterslimit",
+  "gui.music_disc_maker.failed.connection": "Offline",
+  "gui.music_disc_maker.failed.blocked": "Blockiert",
   "gui.music_disc_maker.hint": "URL einfügen + leere Schallplatte einlegen",
 
   "tooltip.music_disc_maker.artist": "von %s",

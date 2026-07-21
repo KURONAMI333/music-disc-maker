@@ -1,7 +1,10 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -9,8 +12,10 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
+import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 import com.sedmelluq.discord.lavaplayer.format.Pcm16AudioDataFormat;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
@@ -78,6 +83,10 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
     }
 
+    /**
+     * URL を解決する。失敗時は理由つき {@link ResolveException} を投げる
+     * (mod 側の GUI が理由別メッセージを出せるように分類する)。
+     */
     @Override
     public TrackInfo resolve(String url) {
         // Spotify URL: og タグからクリーンなメタを取り、YouTube 検索で再生ソースを得る (クレデンシャル不要)
@@ -85,9 +94,6 @@ public class MusicLoaderImpl implements IMusicLoader {
             return resolveViaSpotify(url);
         }
         final AudioTrack track = loadTrackSync(url);
-        if (track == null) {
-            return null;
-        }
         final AudioTrackInfo info = track.getInfo();
         final String[] cleaned = MetadataCleaner.clean(info.title, info.author);
         return new TrackInfo(cleaned[0], cleaned[1], info.length, info.uri, info.identifier, info.isStream);
@@ -97,14 +103,10 @@ public class MusicLoaderImpl implements IMusicLoader {
         final String[] meta = SpotifyResolver.fetchMeta(spotifyUrl);
         if (meta == null || meta[0].isBlank()) {
             LOGGER.warn("Spotify メタ取得失敗: {}", spotifyUrl);
-            return null;
+            throw new ResolveException(FailureReason.CONNECTION_FAILED);
         }
         final String query = (meta[1].isBlank() ? "" : meta[1] + " ") + meta[0];
         final AudioTrack yt = loadTrackSync("ytsearch:" + query);
-        if (yt == null) {
-            LOGGER.warn("Spotify→YouTube 検索失敗: {}", query);
-            return null;
-        }
         final AudioTrackInfo info = yt.getInfo();
         // 表示は Spotify のクリーンなメタ、再生は YouTube の uri
         return new TrackInfo(meta[0], meta[1], info.length, info.uri, info.identifier, info.isStream);
@@ -112,8 +114,12 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     @Override
     public IAudioSource openStream(String url, long startMs) {
-        final AudioTrack track = loadTrackSync(url);
-        if (track == null) {
+        final AudioTrack track;
+        try {
+            track = loadTrackSync(url);
+        } catch (final ResolveException ex) {
+            // 再生側 (client) は理由を使わないので従来どおり null で失敗を表す。
+            LOGGER.warn("再生用ロード失敗 ({}): {}", url, ex.reason());
             return null;
         }
         // 後から chunk に入った player へ途中から同期再生させるための seek。
@@ -150,6 +156,11 @@ public class MusicLoaderImpl implements IMusicLoader {
         return url;
     }
 
+    /**
+     * URL を同期ロードする。失敗時は理由つき {@link ResolveException} を投げる (null を返さない)。
+     * noMatches → UNSUPPORTED_URL / タイムアウト → CONNECTION_FAILED / loadFailed →
+     * 例外メッセージから PRIVATE / REGION / AGE / CONNECTION に分類。
+     */
     private AudioTrack loadTrackSync(String url) {
         final String normalized = normalizeYoutubeUrl(url);
         final CompletableFuture<AudioTrack> future = new CompletableFuture<>();
@@ -179,11 +190,52 @@ public class MusicLoaderImpl implements IMusicLoader {
             }
         });
 
+        final AudioTrack track;
         try {
-            return future.get(30, TimeUnit.SECONDS);
-        } catch (final Exception ex) {
-            LOGGER.warn("URL ロード失敗 ({}): {}", url, ex.toString());
-            return null;
+            track = future.get(30, TimeUnit.SECONDS);
+        } catch (final TimeoutException ex) {
+            LOGGER.warn("URL ロードがタイムアウト ({})", url);
+            throw new ResolveException(FailureReason.CONNECTION_FAILED);
+        } catch (final ExecutionException ex) {
+            LOGGER.warn("URL ロード失敗 ({}): {}", url, String.valueOf(ex.getCause()));
+            throw new ResolveException(classify(ex.getCause()));
+        } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResolveException(FailureReason.CONNECTION_FAILED);
         }
+        if (track == null) {
+            // どの source manager も一致しない = 対応外 URL / 検索ヒットなし。
+            throw new ResolveException(FailureReason.UNSUPPORTED_URL);
+        }
+        return track;
+    }
+
+    /**
+     * ロード失敗の原因を {@link FailureReason} に分類する。lavaplayer/YouTube のエラーメッセージは
+     * 英語固定なので語句一致で判別する。判別できない失敗は接続失敗として扱う。
+     */
+    private static FailureReason classify(Throwable cause) {
+        if (cause == null) {
+            return FailureReason.CONNECTION_FAILED;
+        }
+        final String raw = cause.getMessage();
+        final String m = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
+        // 年齢固有の語句のみ (bare "age" は message/page 等を、"sign in to confirm" は
+        // bot チェック "sign in to confirm you're not a bot" を誤って拾うため使わない)。
+        if (m.contains("confirm your age") || m.contains("verify your age")
+                || m.contains("age-restricted") || m.contains("age restricted")
+                || m.contains("inappropriate for some users")) {
+            return FailureReason.AGE_RESTRICTED;
+        }
+        if (m.contains("region") || m.contains("country") || m.contains("not available in your")
+                || m.contains("blocked it in your")) {
+            return FailureReason.REGION_LOCKED;
+        }
+        if (m.contains("private") || m.contains("removed") || m.contains("deleted")
+                || m.contains("no longer available") || m.contains("does not exist")
+                || m.contains("unavailable") || m.contains("terminated")) {
+            return FailureReason.PRIVATE_OR_REMOVED;
+        }
+        return FailureReason.CONNECTION_FAILED;
     }
 }

@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
@@ -48,6 +49,8 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
     private boolean resolving = false;
     /** 直近の解決が失敗したか (GUI のエラー表示用)。同期のみ・永続化しない。 */
     private boolean resolveFailed = false;
+    /** 直近の失敗理由 (GUI の理由別メッセージ用)。{@link #resolveFailed} が true の時だけ意味を持つ。 */
+    private FailureReason failureReason = FailureReason.UNKNOWN;
 
     public MusicDiscMakerBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.MUSIC_DISC_MAKER.get(), pos, state);
@@ -90,8 +93,14 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         return resolveFailed;
     }
 
-    public void setResolveFailed(boolean failed) {
-        this.resolveFailed = failed;
+    public FailureReason getFailureReason() {
+        return failureReason;
+    }
+
+    /** 解決失敗を理由つきで記録する (GUI が理由別メッセージを出す)。 */
+    public void setResolveFailed(FailureReason reason) {
+        this.resolveFailed = true;
+        this.failureReason = reason == null ? FailureReason.UNKNOWN : reason;
         sync();
     }
 
@@ -185,6 +194,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         }
         this.resolving = tag.getBoolean("resolving");
         this.resolveFailed = tag.getBoolean("resolveFailed");
+        this.failureReason = FailureReason.fromName(tag.getString("failureReason"));
     }
 
     @Override
@@ -209,6 +219,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         saveAdditional(tag);
         tag.putBoolean("resolving", resolving);
         tag.putBoolean("resolveFailed", resolveFailed);
+        tag.putString("failureReason", failureReason.name());
         return tag;
     }
 
