@@ -3,10 +3,7 @@ KURONAMI store description (Modrinth body / CurseForge description — shared, E
 Written to knowledge/STORE_BODY_FRAMEWORK.md (no version table, function-first hook, facts over adjectives).
 
 DRAFT for v2.0.0 — publish at release, not before.
-
-== Reconcile against the shipped build before publishing ==
-- Enhanced-jukebox display name is not final. Candidates: "Tuned Jukebox" (current en_us.json) / "Gilded Jukebox". This body uses "Tuned Jukebox" to match the shipped lang. If the final name differs, swap it here and in the changelog.
-- Gallery screenshots (jacket display, Tuned Jukebox GUI) are a separate asset step — add captioned images before publish.
+Gallery screenshots (jacket display, Gilded Jukebox GUI) are a separate asset step — add captioned images before publish.
 
 == Store fields (set separately from the body) ==
 SUMMARY: Craft playable music discs from any YouTube, Spotify, or SoundCloud link and play them in a vanilla jukebox.
@@ -33,7 +30,7 @@ Demo: https://youtu.be/7sUJqdRrS3M
 - On a multiplayer server everyone hears it, including players who walk up mid-song, synced to the current position
 - If a link can't be used, the maker tells you why (unavailable, geo-blocked, age-locked, offline, or unsupported) instead of a generic failure
 
-**Tuned Jukebox**
+**Gilded Jukebox**
 
 A jukebox crafted with gold that adds playback controls. Open it to set:
 
@@ -52,7 +49,7 @@ Paste an internet radio stream (Icecast/SHOUTcast) or a YouTube live URL and you
 
 1. Craft a Blank Disc (lapis lazuli + iron) and a Music Disc Maker block. Both recipes show up in the recipe book.
 2. Open the block, paste a track URL, and insert the Blank Disc. A Custom Music Disc appears in the output.
-3. Put the disc in a vanilla jukebox, or a Tuned Jukebox if you want range, volume, and repeat control.
+3. Put the disc in a vanilla jukebox, or a Gilded Jukebox if you want range, volume, and repeat control.
 
 **Compatibility**
 
@@ -72,7 +69,7 @@ Free to use in any modpack. Source and issues: https://github.com/KURONAMI333/mu
 
 ### 2.0.0
 
-- New **Tuned Jukebox**: a gold-crafted jukebox with in-game controls for audible range (16–256 blocks), volume, repeat, and play/stop.
+- New **Gilded Jukebox**: a gold-crafted jukebox with in-game controls for audible range (16–256 blocks), volume, repeat, and play/stop.
 - **Radio discs**: internet radio (Icecast/SHOUTcast) and YouTube live URLs now make endless discs that show LIVE and reconnect automatically. Twitch is not supported.
 - Discs now show the track's **cover art** in the tooltip and in the maker's preview.
 - **Failed links report a reason** (unavailable, geo-blocked, age-locked, offline, or unsupported) instead of a generic failure.
