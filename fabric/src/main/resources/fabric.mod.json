@@ -14,6 +14,9 @@
     "entrypoints": {
         "main": [
             "com.kuronami.musicdiscmaker.MusicDiscMakerFabric"
+        ],
+        "client": [
+            "com.kuronami.musicdiscmaker.client.MusicDiscMakerFabricClient"
         ]
     },
     "mixins": [

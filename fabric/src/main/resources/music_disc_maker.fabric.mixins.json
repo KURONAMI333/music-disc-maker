@@ -2,10 +2,14 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.kuronami.musicdiscmaker.mixin",
-  "refmap": "${mod_id}.refmap.json",
-  "compatibilityLevel": "JAVA_21",
-  "mixins": [],
-  "client": [],
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "AlbumJukeboxTickMixin",
+    "ChunkWatchMixin"
+  ],
+  "client": [
+    "MixinDiscSoundInstance"
+  ],
   "server": [],
   "injectors": {
     "defaultRequire": 1
