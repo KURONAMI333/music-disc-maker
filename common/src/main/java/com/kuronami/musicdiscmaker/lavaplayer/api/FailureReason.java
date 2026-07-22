@@ -20,7 +20,7 @@ public enum FailureReason {
     AGE_RESTRICTED,
     /** ネットワーク接続失敗・タイムアウト・一時的な障害。 */
     CONNECTION_FAILED,
-    /** SSRF ガードが URL を拒否した (Track 1 が設定する)。 */
+    /** SSRF ガードが URL を拒否した。 */
     BLOCKED_URL,
     /** YouTube の bot 判定でログインを要求された (datacenter IP でよく起きる。接続失敗ではない)。 */
     BOT_CHECK;
