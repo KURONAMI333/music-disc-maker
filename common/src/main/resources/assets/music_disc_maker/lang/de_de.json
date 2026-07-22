@@ -12,6 +12,8 @@
   "gui.music_disc_maker.failed.age": "Alterslimit",
   "gui.music_disc_maker.failed.connection": "Offline",
   "gui.music_disc_maker.failed.blocked": "Blockiert",
+  "gui.music_disc_maker.failed.botcheck": "Anmeldung",
+  "gui.music_disc_maker.failed.botcheck.tip": "YouTube stuft die IP dieses Servers als Bot ein und verlangt eine Anmeldung. Das ist kein Verbindungsproblem. Es tritt häufig bei gehosteten oder gemieteten Servern auf.",
   "gui.music_disc_maker.hint": "URL einfügen + leere Schallplatte einlegen",
   "tooltip.music_disc_maker.artist": "von %s",
   "tooltip.music_disc_maker.duration": "Länge: %s",

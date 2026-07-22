@@ -12,6 +12,8 @@
   "gui.music_disc_maker.failed.age": "Idade",
   "gui.music_disc_maker.failed.connection": "Sem rede",
   "gui.music_disc_maker.failed.blocked": "Bloqueado",
+  "gui.music_disc_maker.failed.botcheck": "Login",
+  "gui.music_disc_maker.failed.botcheck.tip": "O YouTube está marcando o IP deste servidor como um bot e exigindo login. Não é um problema de conexão. Costuma acontecer em servidores hospedados ou alugados.",
   "gui.music_disc_maker.hint": "Cole uma URL + insira um disco em branco",
   "tooltip.music_disc_maker.artist": "por %s",
   "tooltip.music_disc_maker.duration": "Duração: %s",

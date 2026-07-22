@@ -123,9 +123,40 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             case AGE_RESTRICTED -> "gui.music_disc_maker.failed.age";
             case CONNECTION_FAILED -> "gui.music_disc_maker.failed.connection";
             case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
+            case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
             default -> "gui.music_disc_maker.failed";
         };
         return Component.translatable(key);
+    }
+
+    /**
+     * 失敗ラベルにホバーした時の補足ツールチップ。今は bot 判定 (接続失敗と紛らわしい) だけ、
+     * 「接続の問題ではない」旨を案内する。他の理由はラベルだけで自明なので null。
+     */
+    private static Component failedTooltip(FailureReason reason) {
+        if (reason == FailureReason.BOT_CHECK) {
+            return Component.translatable("gui.music_disc_maker.failed.botcheck.tip");
+        }
+        return null;
+    }
+
+    /** 失敗ラベルの上にマウスがあれば補足ツールチップを描く (screen 座標で判定)。 */
+    private void renderFailedTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        if (!menu.getBlockEntity().isResolveFailed()) {
+            return;
+        }
+        final FailureReason reason = menu.getBlockEntity().getFailureReason();
+        final Component tip = failedTooltip(reason);
+        if (tip == null) {
+            return;
+        }
+        final Component failed = failedMessage(reason);
+        final int right = leftPos + imageWidth - 8;
+        final int left = right - font.width(failed);
+        final int top = topPos + 51;
+        if (mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= top + font.lineHeight) {
+            g.renderTooltip(font, font.split(tip, 200), mouseX, mouseY);
+        }
     }
 
     @Override
@@ -170,5 +201,6 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
+        renderFailedTooltip(g, mouseX, mouseY);
     }
 }
