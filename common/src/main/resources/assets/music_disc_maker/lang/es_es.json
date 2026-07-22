@@ -15,6 +15,8 @@
   "gui.music_disc_maker.failed.botcheck": "Sesión",
   "gui.music_disc_maker.failed.botcheck.tip": "YouTube marca la IP de este servidor como un bot y exige iniciar sesión. No es un problema de conexión. Suele ocurrir en servidores alojados o alquilados.",
   "gui.music_disc_maker.hint": "Pega una URL + inserta un disco en blanco",
+  "gui.music_disc_maker.paste": "Pegar",
+  "gui.music_disc_maker.clear": "Borrar",
   "tooltip.music_disc_maker.artist": "por %s",
   "tooltip.music_disc_maker.duration": "Duración: %s",
   "tooltip.music_disc_maker.live": "EN VIVO",
@@ -31,9 +33,11 @@
   "gui.music_disc_maker.golden_jukebox.range": "Alcance: %s",
   "gui.music_disc_maker.golden_jukebox.volume": "Volumen: %s%%",
   "gui.music_disc_maker.golden_jukebox.repeat": "Repetir: %s",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Repetir",
   "gui.music_disc_maker.golden_jukebox.on": "Activado",
   "gui.music_disc_maker.golden_jukebox.off": "Desactivado",
   "gui.music_disc_maker.golden_jukebox.play": "Reproducir",
+  "gui.music_disc_maker.golden_jukebox.pause": "Pausar",
   "gui.music_disc_maker.golden_jukebox.stop": "Detener",
   "gui.music_disc_maker.golden_jukebox.no_track": "Sin disco"
 }

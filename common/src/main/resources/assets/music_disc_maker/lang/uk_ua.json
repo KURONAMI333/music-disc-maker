@@ -15,6 +15,8 @@
   "gui.music_disc_maker.failed.botcheck": "Вхід",
   "gui.music_disc_maker.failed.botcheck.tip": "YouTube вважає IP цього сервера ботом і вимагає входу в акаунт. Це не проблема з’єднання. Часто трапляється на хостингових або орендованих серверах.",
   "gui.music_disc_maker.hint": "Вставте посилання та порожню платівку",
+  "gui.music_disc_maker.paste": "Вставити",
+  "gui.music_disc_maker.clear": "Очистити",
   "tooltip.music_disc_maker.artist": "Виконавець: %s",
   "tooltip.music_disc_maker.duration": "Тривалість: %s",
   "tooltip.music_disc_maker.live": "НАЖИВО",
@@ -31,9 +33,11 @@
   "gui.music_disc_maker.golden_jukebox.range": "Радіус: %s",
   "gui.music_disc_maker.golden_jukebox.volume": "Гучність: %s%%",
   "gui.music_disc_maker.golden_jukebox.repeat": "Повтор: %s",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Повтор",
   "gui.music_disc_maker.golden_jukebox.on": "Увімк",
   "gui.music_disc_maker.golden_jukebox.off": "Вимк",
   "gui.music_disc_maker.golden_jukebox.play": "Грати",
+  "gui.music_disc_maker.golden_jukebox.pause": "Пауза",
   "gui.music_disc_maker.golden_jukebox.stop": "Стоп",
   "gui.music_disc_maker.golden_jukebox.no_track": "Немає платівки"
 }
