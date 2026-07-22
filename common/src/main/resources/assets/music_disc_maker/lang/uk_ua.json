@@ -26,6 +26,8 @@
   "gui.music_disc_maker.failed.age": "Вік",
   "gui.music_disc_maker.failed.connection": "Без мережі",
   "gui.music_disc_maker.failed.blocked": "Заблок.",
+  "gui.music_disc_maker.failed.botcheck": "Вхід",
+  "gui.music_disc_maker.failed.botcheck.tip": "YouTube вважає IP цього сервера ботом і вимагає входу в акаунт. Це не проблема з’єднання. Часто трапляється на хостингових або орендованих серверах.",
   "gui.music_disc_maker.hint": "Вставте посилання та порожню платівку",
   "gui.music_disc_maker.paste": "Вставити",
   "gui.music_disc_maker.clear": "Очистити",

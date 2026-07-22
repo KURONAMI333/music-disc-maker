@@ -234,8 +234,14 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
         final String raw = cause.getMessage();
         final String m = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
-        // 年齢固有の語句のみ (bare "age" は message/page 等を、"sign in to confirm" は
-        // bot チェック "sign in to confirm you're not a bot" を誤って拾うため使わない)。
+        // YouTube の bot 判定は「ログイン要求」として現れる (datacenter IP でよく起きる)。
+        // youtube-source は "This video requires login." を投げ、UI 文言は "sign in to
+        // confirm you're not a bot"。接続失敗ではないので age より前に専用分類する。
+        if (m.contains("requires login") || m.contains("sign in to confirm")
+                || m.contains("not a bot")) {
+            return FailureReason.BOT_CHECK;
+        }
+        // 年齢固有の語句のみ (bare "age" は message/page 等を誤って拾うため使わない)。
         if (m.contains("confirm your age") || m.contains("verify your age")
                 || m.contains("age-restricted") || m.contains("age restricted")
                 || m.contains("inappropriate for some users")) {

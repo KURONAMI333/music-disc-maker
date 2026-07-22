@@ -26,6 +26,8 @@
   "gui.music_disc_maker.failed.age": "Âge",
   "gui.music_disc_maker.failed.connection": "Hors ligne",
   "gui.music_disc_maker.failed.blocked": "Bloqué",
+  "gui.music_disc_maker.failed.botcheck": "Login",
+  "gui.music_disc_maker.failed.botcheck.tip": "YouTube considère l'IP de ce serveur comme un bot et exige une connexion. Ce n'est pas un problème de réseau. Cela arrive souvent sur les serveurs hébergés ou loués.",
   "gui.music_disc_maker.hint": "Collez une URL + insérez un disque vierge",
   "gui.music_disc_maker.paste": "Coller",
   "gui.music_disc_maker.clear": "Effacer",

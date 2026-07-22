@@ -2,6 +2,7 @@
 
 ## 2.0.1
 
+- Fixed **YouTube bot-check failures showing as "Offline"**. When YouTube flags the server's IP as a bot and demands sign-in (common on hosted or rented servers), the maker now shows a distinct "Login wall" status with a hover tooltip explaining it isn't a connection problem.
 - Fixed **SoundCloud tracks playing at half speed and an octave too low**. SoundCloud audio was reaching the game as stereo but labelled mono, so it played back at the wrong rate. Audio is now reliably downmixed to mono for all sources; SoundCloud, YouTube, and radio all play at the correct speed and pitch.
 - Fixed the **Golden Jukebox playing silently** — the progress bar advanced but no sound came out. The disc's sound instance was being stopped on the first client tick because the Golden Jukebox wasn't recognised as a valid playback block.
 - Fixed the **Golden Jukebox GUI** — inventory slots and items were misaligned with their slot frames. Slot coordinates now come from a single source shared with the texture generator so they can't drift apart.

@@ -26,6 +26,8 @@
   "gui.music_disc_maker.failed.age": "年龄限制",
   "gui.music_disc_maker.failed.connection": "连接失败",
   "gui.music_disc_maker.failed.blocked": "已拦截",
+  "gui.music_disc_maker.failed.botcheck": "需登录",
+  "gui.music_disc_maker.failed.botcheck.tip": "YouTube 将此服务器的 IP 判定为机器人并要求登录。这不是连接问题，常见于托管或租用的服务器。",
   "gui.music_disc_maker.hint": "粘贴链接并放入空白唱片",
   "gui.music_disc_maker.paste": "粘贴",
   "gui.music_disc_maker.clear": "清除",
