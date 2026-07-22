@@ -30,6 +30,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gameevent.GameEvent;
 
 /**
  * 強化版ジュークボックス (Golden Jukebox) の BlockEntity。
@@ -288,6 +289,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (track != null) {
             // custom disc は LavaPlayer ストリームを per-block 設定つきで broadcast。
             broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent));
+            // 再生開始を sculk 等へ即通知する (以後 tick で周期的に再発火)。
+            level.gameEvent(GameEvent.JUKEBOX_PLAY, getBlockPos(), GameEvent.Context.of(getBlockState()));
         } else {
             // vanilla レコードは vanilla の levelEvent でその場再生 (particle / now-playing 込み)。
             level.levelEvent(EVENT_PLAY_RECORD, getBlockPos(), Item.getId(disc.getItem()));
@@ -300,11 +303,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (!isServer()) {
             return;
         }
+        final boolean wasPlaying = startMillis != 0L;
         startMillis = 0L;
         playbackStartGameTime = -1L;
         // custom (LavaPlayer) / vanilla (levelEvent) の両経路を冪等に止める。
         level.levelEvent(EVENT_STOP_RECORD, getBlockPos(), 0);
         broadcast(new StopDiscPayload(getBlockPos()));
+        // 再生していた時だけ JUKEBOX_STOP を出す (sculk 等の検知解除)。
+        if (wasPlaying) {
+            level.gameEvent(GameEvent.JUKEBOX_STOP_PLAY, getBlockPos(), GameEvent.Context.of(getBlockState()));
+        }
         sync();
     }
 
@@ -391,6 +399,32 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
                 startPlayback(0L);
             }
         }
+        // 非リピートの有限 custom disc が総尺に達したら再生状態を解除する (disc はスロットに残す)。
+        // 1.20.1 は JukeboxSongPlayer が無く曲終了を自前で検知する必要がある。これが無いと
+        // startMillis が落ちず isVanillaPlaying() が恒真になり、コンパレータ出力が 15 に張り付く。
+        if (!repeat && !paused && startMillis > 0L) {
+            final CustomTrackData track = currentTrack();
+            if (track != null && track.durationMs() > 0L
+                    && System.currentTimeMillis() - startMillis >= track.durationMs()) {
+                stopPlayback();
+            }
+        }
+        // 再生中 (custom disc) は音符パーティクルと JUKEBOX_PLAY gameEvent を周期的に出す。
+        // vanilla jukebox は JukeboxSongPlayer がこれを担うが 1.20.1 の強化版には無いため代替する。
+        // sculk センサー/アレイが再生を検知でき、ブロック上に音符が舞う (バニラ相当・20t 周期)。
+        if (startMillis > 0L && !paused && currentTrack() != null
+                && level instanceof ServerLevel serverLevel && level.getGameTime() % 20L == 0L) {
+            level.gameEvent(GameEvent.JUKEBOX_PLAY, getBlockPos(), GameEvent.Context.of(getBlockState()));
+            spawnNoteParticle(serverLevel);
+        }
+    }
+
+    /** ブロック上に音符パーティクルを 1 つ出す (バニラ note block と同じ色エンコード)。 */
+    private void spawnNoteParticle(ServerLevel serverLevel) {
+        final BlockPos pos = getBlockPos();
+        final double note = serverLevel.getRandom().nextInt(24) / 24.0;
+        serverLevel.sendParticles(net.minecraft.core.particles.ParticleTypes.NOTE,
+                pos.getX() + 0.5, pos.getY() + 1.2, pos.getZ() + 0.5, 0, note, 0.0, 0.0, 1.0);
     }
 
     private void broadcast(com.kuronami.musicdiscmaker.network.ModPayload payload) {
