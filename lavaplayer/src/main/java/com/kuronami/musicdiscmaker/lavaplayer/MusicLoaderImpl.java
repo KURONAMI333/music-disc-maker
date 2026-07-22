@@ -242,7 +242,10 @@ public class MusicLoaderImpl implements IMusicLoader {
             return FailureReason.BOT_CHECK;
         }
         // 年齢固有の語句のみ (bare "age" は message/page 等を誤って拾うため使わない)。
+        // youtube-source は "This video requires age verification." を投げる ("requires
+        // login" とは別語句なので BOT_CHECK と衝突しない)。
         if (m.contains("confirm your age") || m.contains("verify your age")
+                || m.contains("age verification")
                 || m.contains("age-restricted") || m.contains("age restricted")
                 || m.contains("inappropriate for some users")) {
             return FailureReason.AGE_RESTRICTED;
