@@ -12,6 +12,8 @@
   "gui.music_disc_maker.failed.age": "年齢制限",
   "gui.music_disc_maker.failed.connection": "接続失敗",
   "gui.music_disc_maker.failed.blocked": "遮断",
+  "gui.music_disc_maker.failed.botcheck": "ログイン",
+  "gui.music_disc_maker.failed.botcheck.tip": "このサーバーの IP が YouTube に bot と判定され、ログインを求められています。接続の問題ではありません。ホスティングやレンタルサーバーで起きやすい現象です。",
   "gui.music_disc_maker.hint": "URL を貼って空ディスクを入れる",
   "tooltip.music_disc_maker.artist": "%s",
   "tooltip.music_disc_maker.duration": "長さ: %s",

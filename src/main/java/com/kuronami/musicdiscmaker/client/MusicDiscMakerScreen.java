@@ -127,9 +127,36 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             case AGE_RESTRICTED -> "gui.music_disc_maker.failed.age";
             case CONNECTION_FAILED -> "gui.music_disc_maker.failed.connection";
             case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
+            case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
             default -> "gui.music_disc_maker.failed";
         };
         return Component.translatable(key);
+    }
+
+    /**
+     * 失敗ラベル (screen 座標) にホバーしたら補足ツールチップを予約する。今は bot 判定
+     * (接続失敗と紛らわしい) だけ「接続の問題ではない」旨を案内する。26.1.2 の extract
+     * パイプラインでは extractTooltip が hover ツールチップのフック。
+     */
+    @Override
+    protected void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
+        super.extractTooltip(graphics, mouseX, mouseY);
+        if (!menu.getBlockEntity().isResolveFailed()) {
+            return;
+        }
+        final FailureReason reason = menu.getBlockEntity().getFailureReason();
+        if (reason != FailureReason.BOT_CHECK) {
+            return;
+        }
+        final Component failed = failedMessage(reason);
+        final int right = leftPos + imageWidth - 8;
+        final int left = right - font.width(failed);
+        final int top = topPos + 51;
+        if (mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= top + font.lineHeight) {
+            graphics.setTooltipForNextFrame(
+                    font.split(Component.translatable("gui.music_disc_maker.failed.botcheck.tip"), 200),
+                    mouseX, mouseY);
+        }
     }
 
     @Override

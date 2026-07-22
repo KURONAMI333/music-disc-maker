@@ -21,7 +21,9 @@ public enum FailureReason {
     /** ネットワーク接続失敗・タイムアウト・一時的な障害。 */
     CONNECTION_FAILED,
     /** SSRF ガードが URL を拒否した。 */
-    BLOCKED_URL;
+    BLOCKED_URL,
+    /** YouTube の bot 判定でログインを要求された (datacenter IP でよく起きる。接続失敗ではない)。 */
+    BOT_CHECK;
 
     /** NBT / 同期から安全に復元する (未知の名前は UNKNOWN)。 */
     public static FailureReason fromName(String name) {

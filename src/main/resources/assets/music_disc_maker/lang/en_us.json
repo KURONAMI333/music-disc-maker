@@ -13,6 +13,8 @@
   "gui.music_disc_maker.failed.age": "Age-locked",
   "gui.music_disc_maker.failed.connection": "Offline",
   "gui.music_disc_maker.failed.blocked": "Blocked",
+  "gui.music_disc_maker.failed.botcheck": "Login wall",
+  "gui.music_disc_maker.failed.botcheck.tip": "YouTube is flagging this server's IP as a bot and asking to sign in. It's not a connection problem. It commonly happens on hosted or rented servers.",
   "gui.music_disc_maker.hint": "Paste a URL + insert a Blank Disc",
   "gui.music_disc_maker.paste": "Paste",
   "gui.music_disc_maker.clear": "Clear",
