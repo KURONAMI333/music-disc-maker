@@ -108,6 +108,15 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         return Config.playbackRange();
     }
 
+    /**
+     * このインスタンスに焼き込まれた可聴範囲 (ブロック)。0 = per-block 設定なし。
+     * 減衰半径は {@link #resolve} で固定されるため、範囲変更の反映には再ストリームが要る。
+     * その要否判定 ({@link ClientPlaybackManager} の dedup) に使う。
+     */
+    public int getRangeBlocks() {
+        return rangeBlocks;
+    }
+
     @Override
     public void tick() {
         // jukebox が撤去されたら (破壊・爆発・ピストン・コマンド等いずれの経路でも) 鳴りっぱなしを止める。
