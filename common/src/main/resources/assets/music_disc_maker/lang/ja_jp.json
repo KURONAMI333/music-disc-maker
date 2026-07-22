@@ -15,6 +15,8 @@
   "gui.music_disc_maker.failed.botcheck": "ログイン",
   "gui.music_disc_maker.failed.botcheck.tip": "このサーバーの IP が YouTube に bot と判定され、ログインを求められています。接続の問題ではありません。ホスティングやレンタルサーバーで起きやすい現象です。",
   "gui.music_disc_maker.hint": "URL を貼って空ディスクを入れる",
+  "gui.music_disc_maker.paste": "貼り付け",
+  "gui.music_disc_maker.clear": "クリア",
   "tooltip.music_disc_maker.artist": "%s",
   "tooltip.music_disc_maker.duration": "長さ: %s",
   "tooltip.music_disc_maker.live": "ライブ",

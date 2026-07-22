@@ -15,6 +15,8 @@
   "gui.music_disc_maker.failed.botcheck": "Inloggen",
   "gui.music_disc_maker.failed.botcheck.tip": "YouTube markeert het IP van deze server als een bot en vraagt om in te loggen. Dit is geen verbindingsprobleem. Het gebeurt vaak op gehoste of gehuurde servers.",
   "gui.music_disc_maker.hint": "Plak een URL + plaats een leeg muziekschijfje",
+  "gui.music_disc_maker.paste": "Plakken",
+  "gui.music_disc_maker.clear": "Wissen",
   "tooltip.music_disc_maker.artist": "door %s",
   "tooltip.music_disc_maker.duration": "Lengte: %s",
   "tooltip.music_disc_maker.live": "LIVE",
@@ -31,9 +33,11 @@
   "gui.music_disc_maker.golden_jukebox.range": "Bereik: %s",
   "gui.music_disc_maker.golden_jukebox.volume": "Volume: %s%%",
   "gui.music_disc_maker.golden_jukebox.repeat": "Herhalen: %s",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Herhalen",
   "gui.music_disc_maker.golden_jukebox.on": "Aan",
   "gui.music_disc_maker.golden_jukebox.off": "Uit",
   "gui.music_disc_maker.golden_jukebox.play": "Afspelen",
+  "gui.music_disc_maker.golden_jukebox.pause": "Pauze",
   "gui.music_disc_maker.golden_jukebox.stop": "Stop",
   "gui.music_disc_maker.golden_jukebox.no_track": "Geen disc"
 }

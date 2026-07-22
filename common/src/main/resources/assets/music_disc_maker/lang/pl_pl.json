@@ -15,6 +15,8 @@
   "gui.music_disc_maker.failed.botcheck": "Logowanie",
   "gui.music_disc_maker.failed.botcheck.tip": "YouTube uznaje adres IP tego serwera za bota i wymaga zalogowania. To nie jest problem z połączeniem. Zdarza się to często na serwerach hostowanych lub wynajmowanych.",
   "gui.music_disc_maker.hint": "Wklej URL + włóż pustą płytę",
+  "gui.music_disc_maker.paste": "Wklej",
+  "gui.music_disc_maker.clear": "Wyczyść",
   "tooltip.music_disc_maker.artist": "Wykonawca: %s",
   "tooltip.music_disc_maker.duration": "Długość: %s",
   "tooltip.music_disc_maker.live": "NA ŻYWO",
@@ -31,9 +33,11 @@
   "gui.music_disc_maker.golden_jukebox.range": "Zasięg: %s",
   "gui.music_disc_maker.golden_jukebox.volume": "Głośność: %s%%",
   "gui.music_disc_maker.golden_jukebox.repeat": "Powtarzanie: %s",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Powtarzanie",
   "gui.music_disc_maker.golden_jukebox.on": "Wł.",
   "gui.music_disc_maker.golden_jukebox.off": "Wył.",
   "gui.music_disc_maker.golden_jukebox.play": "Odtwórz",
+  "gui.music_disc_maker.golden_jukebox.pause": "Wstrzymaj",
   "gui.music_disc_maker.golden_jukebox.stop": "Zatrzymaj",
   "gui.music_disc_maker.golden_jukebox.no_track": "Brak płyty"
 }

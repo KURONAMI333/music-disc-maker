@@ -15,6 +15,8 @@
   "gui.music_disc_maker.failed.botcheck": "로그인",
   "gui.music_disc_maker.failed.botcheck.tip": "YouTube가 이 서버의 IP를 봇으로 판단하여 로그인을 요구합니다. 연결 문제가 아닙니다. 호스팅되거나 임대한 서버에서 자주 발생합니다.",
   "gui.music_disc_maker.hint": "URL을 붙여넣고 빈 음반을 넣으세요",
+  "gui.music_disc_maker.paste": "붙여넣기",
+  "gui.music_disc_maker.clear": "지우기",
   "tooltip.music_disc_maker.artist": "아티스트: %s",
   "tooltip.music_disc_maker.duration": "길이: %s",
   "tooltip.music_disc_maker.live": "라이브",
@@ -31,9 +33,11 @@
   "gui.music_disc_maker.golden_jukebox.range": "범위: %s",
   "gui.music_disc_maker.golden_jukebox.volume": "음량: %s%%",
   "gui.music_disc_maker.golden_jukebox.repeat": "반복: %s",
+  "gui.music_disc_maker.golden_jukebox.repeat_toggle": "반복",
   "gui.music_disc_maker.golden_jukebox.on": "켜짐",
   "gui.music_disc_maker.golden_jukebox.off": "꺼짐",
   "gui.music_disc_maker.golden_jukebox.play": "재생",
+  "gui.music_disc_maker.golden_jukebox.pause": "일시정지",
   "gui.music_disc_maker.golden_jukebox.stop": "정지",
   "gui.music_disc_maker.golden_jukebox.no_track": "디스크 없음"
 }
