@@ -23,7 +23,7 @@ import net.minecraft.client.sounds.SoundEngine;
 public class MixinSoundEngine {
 
     @Redirect(
-            method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V",
+            method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)Lnet/minecraft/client/sounds/SoundEngine$PlayResult;",
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/client/resources/sounds/SoundInstance;getStream(Lnet/minecraft/client/sounds/SoundBufferLibrary;Lnet/minecraft/client/resources/sounds/Sound;Z)Ljava/util/concurrent/CompletableFuture;"))
     private CompletableFuture<AudioStream> mdm$redirectStream(SoundInstance instance, SoundBufferLibrary buffers, Sound sound, boolean looping) {
