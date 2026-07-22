@@ -2,6 +2,7 @@
 
 ## 2.0.1
 
+- Fixed YouTube bot-check failures being mislabeled as "Offline". When YouTube flags the server's IP as a bot and demands sign-in (common on hosted or rented servers), the maker now shows a distinct "Login wall" status with a hover tooltip explaining it isn't a connection problem, instead of a misleading "Offline".
 - Removed the cover art preview from the Music Disc Maker screen (it overlapped the UI). The album art still shows as a tooltip image on the disc itself.
 
 ## 2.0.0
