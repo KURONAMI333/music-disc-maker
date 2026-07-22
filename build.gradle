@@ -1,0 +1,8 @@
+plugins {
+    // see https://fabricmc.net/develop/ for new versions
+    // MultiLoader-Template の 26.2 branch が使う版。1.16.3 は MC 26.x (難読化解除・intermediary/
+    // proguard mappings 廃止) を mappings 宣言なしでビルドできる。1.17.16 は空 mappings で失敗する。
+    id 'net.fabricmc.fabric-loom' version '1.16.3' apply false
+    // see https://projects.neoforged.net/neoforged/moddevgradle for new versions
+    id 'net.neoforged.moddev' version '2.0.142' apply false
+}
