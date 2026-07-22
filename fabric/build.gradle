@@ -12,12 +12,10 @@ dependencies {
 
     // ─── 互換 mod (ソフト依存・compileOnly = 公開 jar には含めない) ─────────────
     // AA=両ローダー対象。SC/SB は 26.2 Fabric port が存在しないため Fabric では no-op (GAP_LOG P3 §compat)。
-    // AA は両ローダーで同一 package (one.dqu.additionaladditions.*) を使い、compat コードが参照する
-    // album API シグネチャは mojmap の vanilla/AA 型のみ。26.2 は難読化解除済みで loom も remap しないため、
-    // mojmap 名前空間の AA jar が要る (1.21.1 の intermediary 版は不可)。26.2 fabric AA jar 未取得のため
-    // mojmap の AA jar (10.0.9・namespace は loader 非依存) を compileOnly classpath として流用する。
-    // runtime は実 fabric AA が同 package を供給 (compileOnly=非同梱)。26.2 fabric AA jar 取得後に差し替え可。
-    compileOnly files('compat-libs/additionaladditions-10.0.9-mojmap.jar')
+    // AA は両ローダーで同一 package (one.dqu.additionaladditions.*) を使う。26.2 fabric 実 jar
+    // (10.0.10) を compileOnly classpath として使う。runtime は実 fabric AA が同 package を供給
+    // (compileOnly=非同梱)。
+    compileOnly files('compat-libs/additionaladditions-fabric-10.0.10.jar')
 }
 
 // ─── LavaPlayer 隔離ロード wiring ────────────────────────────────────────

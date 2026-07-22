@@ -67,10 +67,9 @@ tasks.matching { it.name in ['runClient', 'runServer', 'runData'] }.configureEac
 }
 
 // ─── 互換 mod (ソフト依存・compileOnly = 公開 jar には含めない) ───────────────
-// AA=両ローダー対象 (P2 では NeoForge のみ)、SC/SB=NeoForge 専用。実行時にロードされている時だけ動く。
-// compat jar は 26.1.2 ビルドだが album/IDiscHandler API シグネチャは 26.2 と一致 (compileOnly なので
-// 実バイトコードは 26.2 の実 mod がロードされた時に解決される)。
+// AA=両ローダー対象、SC/SB=NeoForge 専用。実行時にロードされている時だけ動く。
+// compat jar は 26.2 実 jar (compileOnly なので実バイトコードは 26.2 の実 mod がロードされた時に解決される)。
 dependencies {
-    compileOnly files('compat-libs/sophisticatedcore-26.1.2-1.4.53.1949.jar')
-    compileOnly files('compat-libs/additionaladditions-neoforge-10.0.9.jar')
+    compileOnly files('compat-libs/sophisticatedcore-26.2-1.4.87.2179.jar')
+    compileOnly files('compat-libs/additionaladditions-neoforge-10.0.10.jar')
 }
