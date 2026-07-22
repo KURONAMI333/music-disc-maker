@@ -123,17 +123,18 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                     sendConfig();
                 }));
 
-        // ── 音量スライダー (細身・脇役)。
+        // ── 音量スライダー (細身・脇役)。音量は毎 tick 反映されるのでドラッグ中も逐次送る。
         addRenderableWidget(new SettingSlider(leftPos + 8, topPos + VOLUME_Y, 160, SLIDER_H,
                 GoldenJukeboxBlockEntity.VOLUME_MIN, GoldenJukeboxBlockEntity.VOLUME_MAX, curVolume,
-                "gui.music_disc_maker.golden_jukebox.volume", v -> {
+                "gui.music_disc_maker.golden_jukebox.volume", false, v -> {
                     curVolume = v;
                     sendConfig();
                 }));
-        // ── 範囲スライダー (細身・脇役)。
+        // ── 範囲スライダー (細身・脇役)。範囲変更は再ストリームを伴うため、ドラッグ中は送らず
+        // リリース (確定) 時に一度だけ送る。矢印キーは離散操作なので即確定する。
         addRenderableWidget(new SettingSlider(leftPos + 8, topPos + RANGE_Y, 160, SLIDER_H,
                 GoldenJukeboxBlockEntity.RANGE_MIN, GoldenJukeboxBlockEntity.RANGE_MAX, curRange,
-                "gui.music_disc_maker.golden_jukebox.range", v -> {
+                "gui.music_disc_maker.golden_jukebox.range", true, v -> {
                     curRange = v;
                     sendConfig();
                 }));
@@ -254,14 +255,19 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         private final int max;
         private final String labelKey;
         private final IntConsumer onChange;
+        /** true = ドラッグ中は onChange を送らず、リリース/キー操作の確定時に一度だけ送る。 */
+        private final boolean commitOnRelease;
         private int current;
+        /** commitOnRelease 時、未送信の変更があるか。 */
+        private boolean pendingCommit;
 
         SettingSlider(int x, int y, int width, int height, int min, int max, int initial,
-                String labelKey, IntConsumer onChange) {
+                String labelKey, boolean commitOnRelease, IntConsumer onChange) {
             super(x, y, width, height, CommonComponents.EMPTY, (initial - min) / (double) (max - min));
             this.min = min;
             this.max = max;
             this.labelKey = labelKey;
+            this.commitOnRelease = commitOnRelease;
             this.onChange = onChange;
             this.current = initial;
             updateMessage();
@@ -281,8 +287,27 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             final int v = compute();
             if (v != current) {
                 current = v;
-                onChange.accept(v);
+                if (commitOnRelease) {
+                    pendingCommit = true; // ドラッグ中は送らない。ラベルだけ追従させる。
+                } else {
+                    onChange.accept(v);
+                }
             }
+        }
+
+        /** 保留中の変更を確定 (送信) する。 */
+        private void commitPending() {
+            if (pendingCommit) {
+                pendingCommit = false;
+                onChange.accept(current);
+            }
+        }
+
+        @Override
+        public boolean mouseReleased(MouseButtonEvent event) {
+            final boolean handled = super.mouseReleased(event);
+            commitPending(); // ドラッグ/クリックの確定
+            return handled;
         }
 
         // 脇役スライダー: 金の transport に負ける暗く低コントラストな見た目のまま、
@@ -325,7 +350,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 final int nv = Mth.clamp(current + dir, min, max);
                 if (nv != current) {
                     this.value = (nv - min) / (double) (max - min);
-                    applyValue();     // current 更新 + onChange 発火
+                    applyValue();     // current 更新 (+ 非 defer なら onChange 発火)
+                    commitPending();  // 矢印は離散操作なので即確定
                     updateMessage();
                 }
                 return true;
