@@ -78,12 +78,10 @@ public final class ClientPlaybackManager {
         // オフセット) なら再ロードしない (音飛び・無駄な再バッファ防止)。GUI シークは現在位置から
         // 大きく離れたオフセットで来る = 本物の頭出しなので dedup せず再ロードして即反映する。
         final DiscSoundInstance existing = active.get(key);
-        // 範囲変更の再ブロードキャストは現在位置 (offset≈推定位置) で届くため isSeekRequest では
-        // シークと区別できず dedup されてしまう。焼き込み済みの範囲が要求値と違えば減衰半径の
-        // 反映のために再ロードする (音量は毎 tick 反映なので範囲だけを見る)。
+        // 範囲・音量は client 側 BE から tick で live 反映されるため再ロード判定に含めない (再ブロード
+        // キャストも飛ばさない)。同じ曲・非シークの再送 (chunk 再入等) はそのまま dedup する。
         if (existing != null && !existing.isStopped() && track.url().equals(playingUrl.get(key))
-                && !isSeekRequest(key, startOffsetMs)
-                && existing.getRangeBlocks() == rangeBlocks) {
+                && !isSeekRequest(key, startOffsetMs)) {
             return;
         }
         stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生 or シーク)
