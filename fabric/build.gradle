@@ -15,6 +15,10 @@ dependencies {
     // Sophisticated Backpacks の (非公式) Fabric port。@Pseudo mixin が参照する SC の内部型用に
     // compile 時のみ参照する (出荷 jar には同梱しない = ソフト依存)。loom が intermediary→mojmap に remap する。
     modCompileOnly files("compat-libs/sophisticatedcore-fabric-1.20.1-port.jar")
+    // Valkyrien Skies 2 stub。common の VS2 compat ソースはこの loader でも再コンパイルされるため、compile
+    // classpath に載せる。MC 型は official class 名で参照するので remap 不要 = 素の compileOnly (modCompileOnly
+    // だと loom が forge 由来 jar を intermediary 前提で remap して壊す)。出荷 jar には非同梱 (soft-dep)。
+    compileOnly files(project(':common').file('compat-libs/valkyrienskies-api-2.4.11.jar'))
 }
 
 // ─── LavaPlayer 隔離ロード wiring ────────────────────────────────────────

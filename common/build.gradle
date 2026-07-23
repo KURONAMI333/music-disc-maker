@@ -17,6 +17,11 @@ legacyForge {
 dependencies {
     compileOnly group: 'org.spongepowered', name: 'mixin', version: '0.8.5'
     implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
+    // Valkyrien Skies 2 (互換): 物理船に載った jukebox の音源座標を ship 変換で補正する compileOnly の
+    // soft-dep。runtime に valkyrienskies があれば compat が動く。stub = VS2 2.4.11 forge jar の
+    // org.valkyrienskies.** + JiJ の core api (Ship/ClientShip/ShipTransform) のみ抽出 (mod 本体は非同梱)。
+    // VS2 の API は forge/fabric で同一なので共有 common に置く。Eureka!/Clockwork も VS2 backend でカバー。
+    compileOnly files('compat-libs/valkyrienskies-api-2.4.11.jar')
 }
 
 configurations {

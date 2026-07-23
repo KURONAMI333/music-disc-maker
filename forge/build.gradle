@@ -66,6 +66,9 @@ dependencies {
     // Sophisticated Core (互換): IDiscHandler を登録して custom disc を SB の Jukebox Upgrade で使えるようにする。
     // compileOnly のソフト依存。runtime に sophisticatedcore があれば compat が動く。
     compileOnly files('compat-libs/sophisticatedcore-1.20.1-1.3.42.1945.jar')
+    // Valkyrien Skies 2 stub。common の VS2 compat ソースはこの loader でも再コンパイルされるため、compile
+    // classpath に載せる。出荷 jar には非同梱 (soft-dep)。VS2 API は forge/fabric 同一なので共有 stub。
+    compileOnly files(project(':common').file('compat-libs/valkyrienskies-api-2.4.11.jar'))
 }
 
 // ─── LavaPlayer 一式を mod jar に同梱 (隔離 classloader が runtime ロード) ───
