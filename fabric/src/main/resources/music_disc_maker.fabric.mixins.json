@@ -8,7 +8,9 @@
     "ChunkWatchMixin"
   ],
   "client": [
-    "MixinDiscSoundInstance"
+    "MixinDiscSoundInstance",
+    "MixinSoundManager",
+    "MixinSoundEngineChannels"
   ],
   "server": [],
   "injectors": {

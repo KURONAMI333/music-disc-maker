@@ -195,39 +195,10 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     // ── 設定変更 (GUI から C2S 経由) ──
 
     public void setRangeBlocks(int value) {
-        final int clamped = Mth.clamp(value, RANGE_MIN, RANGE_MAX);
-        final boolean changed = clamped != this.rangeBlocks;
-        this.rangeBlocks = clamped;
-        // 可聴範囲は client の SoundInstance 生成時に減衰半径として焼き込まれるため、再生中の変更は
-        // 現在位置での再ストリーム (seek と同じ機構) でしか反映できない。確定時に一度だけ再ブロードキャストする。
-        if (changed) {
-            rebroadcastForRangeChange();
-        }
+        this.rangeBlocks = Mth.clamp(value, RANGE_MIN, RANGE_MAX);
+        // 可聴範囲は client 側 BE から tick で live 再読され、変化時にチャンネルの減衰半径 (OpenAL の
+        // max distance) をライブ更新する (音量と同じ即反映)。再ストリーム不要 = sync のみ。
         sync();
-    }
-
-    /**
-     * 再生中の custom disc に可聴範囲の変更を即反映する。現在の再生位置で {@link PlayDiscPayload} を
-     * 再送し、client 側で新しい範囲の SoundInstance を生成させる (seek と同じ経路)。
-     * 停止/一時停止中・vanilla disc・自然終了済みでは何もしない。ラジオは瞬間的に再接続する。
-     */
-    private void rebroadcastForRangeChange() {
-        if (!isServer() || paused || startMillis <= 0L) {
-            return;
-        }
-        final CustomTrackData track = currentTrack();
-        if (track == null) {
-            return; // vanilla disc は LavaPlayer ストリームを持たない
-        }
-        long offset = Math.max(0L, System.currentTimeMillis() - startMillis);
-        final long dur = track.durationMs();
-        if (dur > 0L) {
-            if (offset >= dur && !repeat) {
-                return; // 非リピートで自然終了済み
-            }
-            offset = repeat ? offset % dur : Math.min(offset, dur);
-        }
-        startPlayback(offset);
     }
 
     public void setVolumePercent(int value) {
