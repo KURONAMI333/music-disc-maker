@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+- **Create contraption support** — a custom disc playing in a Golden Jukebox now keeps playing and follows the jukebox when it is assembled onto a moving Create contraption (cart, train, piston, bearing), instead of going silent when the block leaves its spot. Requires Create.
+- **Live audible-range changes** — dragging the Golden Jukebox's range slider now updates the audible radius instantly on the currently playing track, with no momentary silence (it now works exactly like the volume slider).
+- Fixed YouTube playback failing with "Must find sig function" after YouTube changed its signature scheme. Updated the YouTube resolver so links load and play again.
+
 ## 2.0.1
 
 - Fixed YouTube bot-check failures being mislabeled as "Offline". When YouTube flags the server's IP as a bot and demands sign-in (common on hosted or rented servers), the maker now shows a distinct "Login wall" status with a hover tooltip explaining it isn't a connection problem, instead of a misleading "Offline".
