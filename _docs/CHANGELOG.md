@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.0
+
+- **Golden Jukebox range now updates live** — changing the audible range while a disc is playing takes effect instantly, just like the volume slider, with no re-buffering or momentary silence.
+- Fixed YouTube tracks failing to load with a "Must find sig function" error after a YouTube signature change — the resolver is updated to a build that handles the new cipher.
+
 ## 2.0.1
 
 - Fixed YouTube bot-check failures being mislabeled as "Offline". When YouTube flags the server's IP as a bot and demands sign-in (common on hosted or rented servers), the maker now shows a distinct "Login wall" status with a hover tooltip explaining it isn't a connection problem, instead of a misleading "Offline".
