@@ -25,3 +25,8 @@ run
 # 第三者API研究用の逆コンパイル class scratch (Sophisticated Backpacks Core 等)。commit しない
 scoff/
 scchk*/
+
+# Fable<->Opus 引き継ぎ (公開 repo に入れない)
+GAP_LOG.md
+_handoff/
+_research/
