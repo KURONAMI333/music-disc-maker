@@ -24,6 +24,11 @@ repositories {
     maven { url = 'https://repo.u-team.info' }          // HyCraftHD fork (lavaplayer 2.2.4-fix-j8)
     maven { url = 'https://maven.arbjerg.dev/releases' } // lavaplayer 本家系 / lavadsp
     maven { url = 'https://maven.topi.wtf/releases' }    // lavasrc (v1.1+ Spotify 用、現状未使用)
+    // youtube-source の sig-fix SNAPSHOT (commit-hash 版)。release チャンネルには未取り込みのため。
+    maven {
+        url = 'https://maven.lavalink.dev/snapshots'
+        mavenContent { snapshotsOnly() }
+    }
     mavenCentral()
     maven { url = 'https://jitpack.io' }
 }
@@ -31,9 +36,11 @@ repositories {
 dependencies {
     // 隔離 classloader 側にロードされる LavaPlayer 一式。
     //  - lavaplayer fork 2.2.4-fix-j8 : repo.u-team.info の最新
-    //  - youtube-source v2 1.18.1     : maven.lavalink.dev の最新
+    //  - youtube-source v2 : release 1.18.1 は YouTube 署名変更で「Must find sig function」全滅。
+    //    main の client version 更新 (43414e3, 2026-07-05) + itag18 fix (e66ec36, 2026-07-16) を含む
+    //    最新 commit-hash SNAPSHOT を pin。commit-hash 版は buildNumber=1 の単一ビルド (再現可能)。
     library 'net.hycrafthd.lavaplayer:lavaplayer:2.2.4-fix-j8'
-    library 'dev.lavalink.youtube:v2:1.18.1'
+    library 'dev.lavalink.youtube:v2:c46ab888ee12bc4bcb37c8ebcaf180e85ae30368-SNAPSHOT'
     library 'org.slf4j:jcl-over-slf4j:2.0.17'  // httpclient の commons-logging を slf4j へ橋渡し
 
     // 橋渡し interface (mod classloader 側に置かれるので packed には含めない)
