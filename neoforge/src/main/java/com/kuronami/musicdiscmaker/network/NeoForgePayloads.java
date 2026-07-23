@@ -41,6 +41,9 @@ public final class NeoForgePayloads {
 
         // Create contraption 互換 (Create 非依存ペイロード、無条件登録)。
         com.kuronami.musicdiscmaker.compat.create.CreateCompat.registerPayload(registrar);
+
+        // Create Aeronautics (Sable) sub-level 互換 (Sable 非依存ペイロード、無条件登録)。
+        com.kuronami.musicdiscmaker.compat.aeronautics.SableCompat.registerPayload(registrar);
     }
 
     private static void handleResolveUrl(ResolveUrlPayload payload, IPayloadContext context) {
