@@ -7,7 +7,9 @@
     "mixins": [
     ],
     "client": [
-        "MixinSoundEngine"
+        "MixinSoundEngine",
+        "MixinSoundManager",
+        "MixinSoundEngineChannels"
     ],
     "server": [
     ],
