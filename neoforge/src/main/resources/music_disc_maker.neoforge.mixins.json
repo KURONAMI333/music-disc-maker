@@ -7,7 +7,7 @@
     "AlbumJukeboxTickMixin"
   ],
   "client": [
-    "MixinSoundEngine"
+    "MixinDiscSoundInstance"
   ],
   "server": [],
   "injectors": {
