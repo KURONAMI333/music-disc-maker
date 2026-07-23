@@ -1,0 +1,95 @@
+package com.kuronami.musicdiscmaker.compat.create;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
+import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+
+/**
+ * client 側: Create contraption に載った MDM 音源ブロックの custom disc を LavaPlayer 再生する。
+ * server の {@link CreateAudioMovementBehaviour#startMoving} が送る {@link ContraptionPlayDiscPayload}
+ * を受けて、entityId から {@code AbstractContraptionEntity} を解決し {@link ContraptionAnchor} で追従再生する。
+ *
+ * <p>この class の Create 参照 ({@link AbstractContraptionEntity}/{@link ContraptionAnchor}) は
+ * {@link #play} が呼ばれた時のみ class-load される。{@link #play} は Create が送った payload 受信時に
+ * しか呼ばれないので、Create 非導入環境では到達しない。{@code SophisticatedCoreCompatClient} と同型。
+ */
+public final class CreateAudioClient {
+
+    private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
+        final Thread thread = new Thread(runnable, "music_disc_maker-create-playback");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /** 再生中インスタンスの重複防止。key = contraption entityId + local pos。 */
+    private static final Map<Long, DiscSoundInstance> ACTIVE = new ConcurrentHashMap<>();
+
+    private CreateAudioClient() {
+    }
+
+    private static long key(int entityId, long localPosLong) {
+        return (((long) entityId) << 32) ^ (localPosLong & 0xFFFFFFFFL);
+    }
+
+    public static void play(ContraptionPlayDiscPayload payload) {
+        final CustomTrackData track = payload.track();
+        if (track == null || track.isEmpty()) {
+            return;
+        }
+        final long actorKey = key(payload.contraptionEntityId(), payload.localPos().asLong());
+        final DiscSoundInstance previous = ACTIVE.get(actorKey);
+        if (previous != null && !previous.isStopped()) {
+            return; // 同じ actor で既に再生中 (payload 再送) はスキップ。
+        }
+        // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
+        POOL.submit(() -> {
+            IAudioSource source;
+            try {
+                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                source = LoaderHolder.get().openStream(track.url(), payload.startOffsetMs());
+            } catch (final UrlBlockedException blocked) {
+                MusicDiscMaker.LOGGER.warn("Create contraption 再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
+                source = null;
+            } catch (final Throwable t) {
+                MusicDiscMaker.LOGGER.warn("Create contraption 用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
+                source = null;
+            }
+            final IAudioSource resolved = source;
+            Minecraft.getInstance().execute(() -> {
+                if (resolved == null || Minecraft.getInstance().level == null) {
+                    return;
+                }
+                final Entity entity = Minecraft.getInstance().level.getEntity(payload.contraptionEntityId());
+                if (!(entity instanceof AbstractContraptionEntity contraption)) {
+                    resolved.close();
+                    return; // contraption が既に消えている等。
+                }
+                final ContraptionAnchor anchor = new ContraptionAnchor(contraption, payload.localPos());
+                final DiscSoundInstance instance = new DiscSoundInstance(
+                        anchor, resolved, payload.rangeBlocks(), payload.volumePercent(), null);
+                ACTIVE.put(actorKey, instance);
+                Minecraft.getInstance().getSoundManager().play(instance);
+                final String desc = (track.author() != null && !track.author().isBlank())
+                        ? track.author() + " - " + track.title()
+                        : track.title();
+                if (desc != null && !desc.isBlank()) {
+                    Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+                }
+            });
+        });
+    }
+}

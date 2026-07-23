@@ -31,6 +31,8 @@ public class MusicDiscMakerNeoForge {
         modEventBus.addListener(this::registerCapabilities);
         // Sophisticated Core 互換: ロードされていれば custom disc を SB の Jukebox Upgrade で使える IDiscHandler を登録。
         modEventBus.addListener(com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat::onCommonSetup);
+        // Create 互換: ロードされていれば強化版ジュークボックスに MovementBehaviour を登録し、捕獲式 contraption 上での再生継続を有効にする。
+        modEventBus.addListener(com.kuronami.musicdiscmaker.compat.create.CreateCompat::onCommonSetup);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, NeoForgeConfigHelper.SPEC);
     }

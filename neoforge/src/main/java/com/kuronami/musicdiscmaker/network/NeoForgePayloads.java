@@ -38,6 +38,9 @@ public final class NeoForgePayloads {
 
         // Sophisticated Backpacks の Jukebox Upgrade 互換 (SC 非依存ペイロード、無条件登録)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload(registrar);
+
+        // Create contraption 互換 (Create 非依存ペイロード、無条件登録)。
+        com.kuronami.musicdiscmaker.compat.create.CreateCompat.registerPayload(registrar);
     }
 
     private static void handleResolveUrl(ResolveUrlPayload payload, IPayloadContext context) {

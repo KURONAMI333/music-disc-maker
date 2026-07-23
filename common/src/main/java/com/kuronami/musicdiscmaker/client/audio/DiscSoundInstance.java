@@ -77,6 +77,25 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         initCommon();
     }
 
+    /**
+     * 任意の {@link DiscAnchor} に張り付く汎用コンストラクタ。移動構造物 (Create contraption 等) の
+     * loader 別アダプタが独自 anchor を渡すのに使う。初期 x/y/z は anchor の現在位置で埋める。
+     */
+    public DiscSoundInstance(DiscAnchor anchor, IAudioSource source, int rangeBlocks, int volumePercent,
+            @Nullable Runnable onStreamEnded) {
+        super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
+        this.source = source;
+        this.anchor = anchor;
+        this.rangeBlocks = rangeBlocks;
+        this.volumePercent = volumePercent;
+        this.onStreamEnded = onStreamEnded;
+        final Vec3 p = anchor.worldPos(1.0F);
+        this.x = p.x;
+        this.y = p.y;
+        this.z = p.z;
+        initCommon();
+    }
+
     private void initCommon() {
         this.volume = computeVolume();
         this.pitch = 1.0F;
