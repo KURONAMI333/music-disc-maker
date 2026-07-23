@@ -6,7 +6,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
-import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModSounds;
 
 import org.jetbrains.annotations.Nullable;
@@ -21,9 +20,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public class DiscSoundInstance extends AbstractTickableSoundInstance {
@@ -31,11 +27,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     private final IAudioSource source;
     /** source を高々一度だけ close するためのガード (requestStop と stream 経由の close の二重解放を防ぐ)。 */
     private final AtomicBoolean sourceClosed = new AtomicBoolean(false);
-    @Nullable
-    private final Entity followEntity;
-    /** block 再生時の jukebox 位置 (entity 再生時は null)。撤去検知に使う。 */
-    @Nullable
-    private final BlockPos blockPos;
+    /** 音源の位置と存在を供給するアンカー (固定 jukebox / entity 追従 / 移動構造物)。 */
+    private final DiscAnchor anchor;
     /**
      * 強化版ジュークボックス由来の可聴範囲 (ブロック)。0 = per-block 設定なし (client config を使う)。
      * 実効範囲は {@link #resolve} で min(rangeBlocks, config) にする。
@@ -61,8 +54,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
             @Nullable Runnable onStreamEnded) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
-        this.followEntity = null;
-        this.blockPos = pos.immutable();
+        this.anchor = new StaticAnchor(pos);
         this.rangeBlocks = rangeBlocks;
         this.volumePercent = volumePercent;
         this.onStreamEnded = onStreamEnded;
@@ -75,8 +67,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     public DiscSoundInstance(Entity entity, IAudioSource source) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
-        this.followEntity = entity;
-        this.blockPos = null;
+        this.anchor = new EntityAnchor(entity);
         this.rangeBlocks = 0;
         this.volumePercent = 100;
         this.onStreamEnded = null;
@@ -136,46 +127,31 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
 
     @Override
     public void tick() {
-        // jukebox が撤去されたら (破壊・爆発・ピストン・コマンド等いずれの経路でも) 鳴りっぱなしを止める。
-        // chunk 未ロード時は air が返るため isLoaded でゲートする (遠距離 = playbackRange 内の減衰を誤って切らない)。
-        // 対象は vanilla jukebox と強化版ジュークボックスの両方 (強化版は独自ブロックなので明示的に許可する)。
-        if (blockPos != null) {
-            final Minecraft mc = Minecraft.getInstance();
-            if (mc.level != null && mc.level.isLoaded(blockPos)) {
-                final BlockState state = mc.level.getBlockState(blockPos);
-                final boolean isEnhanced = state.is(ModBlocks.GOLDEN_JUKEBOX.get());
-                if (!state.is(Blocks.JUKEBOX) && !isEnhanced) {
-                    stop();
-                    return;
-                }
-                // 強化版: client 側 BE から音量・可聴範囲を毎 tick 再読し、スライダー操作を再ロード
-                // なしで即反映する。音量はローカルフィールド書き換えのみ、範囲は減衰半径 (OpenAL の
-                // max distance) なので変化時だけチャンネルへ反映する (毎 tick の execute は無駄)。
-                if (isEnhanced && mc.level.getBlockEntity(blockPos) instanceof GoldenJukeboxBlockEntity be) {
-                    this.volumePercent = be.getVolumePercent();
-                    this.volume = computeVolume();
-                    final int beRange = be.getRangeBlocks();
-                    if (beRange != this.rangeBlocks) {
-                        this.rangeBlocks = beRange;
-                        applyLinearAttenuation();
-                    }
-                }
-            }
+        // 音源が消えたら (jukebox 撤去・entity 除去・移動構造物の解体等いずれの経路でも) 鳴りっぱなしを止める。
+        // 判定は anchor に委譲する (StaticAnchor は chunk 未ロード時は停止しない = 遠距離の誤消音を防ぐ)。
+        if (!anchor.isValid()) {
+            stop();
+            return;
         }
-        if (followEntity != null) {
-            if (followEntity.isRemoved()) {
-                stop();
-                return;
-            }
-            if (followEntity instanceof Player player) {
-                final Vec3 look = player.getLookAngle();
-                this.x = player.getX() + look.x;
-                this.y = player.getEyeY() + look.y;
-                this.z = player.getZ() + look.z;
-            } else {
-                this.x = followEntity.getX();
-                this.y = followEntity.getY();
-                this.z = followEntity.getZ();
+        final Vec3 p = anchor.worldPos(1.0F);
+        this.x = p.x;
+        this.y = p.y;
+        this.z = p.z;
+        // 強化版ジュークボックス固有 (StaticAnchor のみ): client 側 BE から音量・可聴範囲を毎 tick 再読し、
+        // スライダー操作を再ロードなしで即反映する。音量はローカルフィールド書き換えのみ、範囲は減衰半径
+        // (OpenAL の max distance) なので変化時だけチャンネルへ反映する (毎 tick の execute は無駄)。
+        // vanilla jukebox の BE は GoldenJukeboxBlockEntity ではないので instanceof で自然に弾かれる。
+        if (anchor instanceof StaticAnchor sa) {
+            final Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null && mc.level.isLoaded(sa.pos())
+                    && mc.level.getBlockEntity(sa.pos()) instanceof GoldenJukeboxBlockEntity be) {
+                this.volumePercent = be.getVolumePercent();
+                this.volume = computeVolume();
+                final int beRange = be.getRangeBlocks();
+                if (beRange != this.rangeBlocks) {
+                    this.rangeBlocks = beRange;
+                    applyLinearAttenuation();
+                }
             }
         }
     }
