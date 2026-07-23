@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0
+
+- **Custom discs now play correctly on Valkyrien Skies 2 ships.** When a jukebox (vanilla or Golden) rides a VS2 physics ship, its music now follows the ship instead of staying stuck at the ship's origin (the "invisible speaker" problem). Works with Eureka! and Clockwork too, since they run on the VS2 backend. No setup needed — it just works when Valkyrien Skies is installed.
+- **Custom discs now keep playing on moving Create contraptions (Forge).** A Golden Jukebox assembled into a Create contraption keeps its music playing and following the contraption, instead of going silent when the blocks are picked up for assembly. Forge only for now.
+- **Golden Jukebox range changes now apply instantly while playing.** Dragging the range slider updates the audible radius live with no momentary silence, matching the instant response the volume slider already had.
+- Fixed **YouTube playback failing with "Must find sig function".** Updated the YouTube source to a build that tracks YouTube's latest player/signature changes, restoring YouTube streaming.
+
 ## 2.0.1
 
 - Fixed **YouTube bot-check failures showing as "Offline"**. When YouTube flags the server's IP as a bot and demands sign-in (common on hosted or rented servers), the maker now shows a distinct "Login wall" status with a hover tooltip explaining it isn't a connection problem.
