@@ -39,8 +39,10 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     /**
      * 強化版ジュークボックス由来の可聴範囲 (ブロック)。0 = per-block 設定なし (client config を使う)。
      * 実効範囲は {@link #resolve} で min(rangeBlocks, config) にする。
+     * スライダー操作で変わるため mutable。{@link #tick} が client 側 BE から毎 tick 再読し、変化時に
+     * チャンネルの減衰半径をライブ更新する (音量と同じ即反映・再ストリーム不要)。
      */
-    private final int rangeBlocks;
+    private int rangeBlocks;
     /** 強化版ジュークボックス由来の音量 (%)。100 = 通常 (config volumeMultiplier のみ)。 */
     private int volumePercent;
     /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
@@ -109,12 +111,27 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     }
 
     /**
-     * このインスタンスに焼き込まれた可聴範囲 (ブロック)。0 = per-block 設定なし。
-     * 減衰半径は {@link #resolve} で固定されるため、範囲変更の反映には再ストリームが要る。
-     * その要否判定 ({@link ClientPlaybackManager} の dedup) に使う。
+     * このインスタンスの現在の可聴範囲 (ブロック)。0 = per-block 設定なし。
+     * {@link #tick} が client 側 BE から追従させ、変化時に {@link #applyLinearAttenuation} で
+     * チャンネルの減衰半径をライブ更新する。
      */
     public int getRangeBlocks() {
         return rangeBlocks;
+    }
+
+    /**
+     * 現在の実効範囲をチャンネルの線形減衰半径 (OpenAL max distance) へ即反映する。
+     * {@code SoundEngine#play} と同じ式 ({@code max(getVolume(),1) * attenuationDistance}) で算出し、
+     * loader mixin ({@link SoundEngineChannelAccess}) 経由で再生中チャンネルへ書き込む。
+     * チャンネル未割当 (play 直後の 1 tick 窓) の場合は resolve() 焼き込み値が既に反映済みなので何もしない。
+     */
+    private void applyLinearAttenuation() {
+        final SoundManager soundManager = Minecraft.getInstance().getSoundManager();
+        if (soundManager instanceof SoundEngineHolder holder
+                && holder.mdm$soundEngine() instanceof SoundEngineChannelAccess channels) {
+            final float dist = Math.max(this.getVolume(), 1.0F) * effectiveRange();
+            channels.mdm$updateLinearAttenuation(this, dist);
+        }
     }
 
     @Override
@@ -131,10 +148,17 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
                     stop();
                     return;
                 }
-                // 強化版: client 側 BE から音量を毎 tick 再読し、スライダー操作を再ロードなしで即反映する。
+                // 強化版: client 側 BE から音量・可聴範囲を毎 tick 再読し、スライダー操作を再ロード
+                // なしで即反映する。音量はローカルフィールド書き換えのみ、範囲は減衰半径 (OpenAL の
+                // max distance) なので変化時だけチャンネルへ反映する (毎 tick の execute は無駄)。
                 if (isEnhanced && mc.level.getBlockEntity(blockPos) instanceof GoldenJukeboxBlockEntity be) {
                     this.volumePercent = be.getVolumePercent();
                     this.volume = computeVolume();
+                    final int beRange = be.getRangeBlocks();
+                    if (beRange != this.rangeBlocks) {
+                        this.rangeBlocks = beRange;
+                        applyLinearAttenuation();
+                    }
                 }
             }
         }

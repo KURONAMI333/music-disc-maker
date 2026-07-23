@@ -8,7 +8,9 @@
   ],
   "client": [
     "MixinTitleScreen",
-    "MixinSoundEngine"
+    "MixinSoundEngine",
+    "MixinSoundManager",
+    "MixinSoundEngineChannels"
   ],
   "server": [],
   "injectors": {

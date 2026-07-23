@@ -11,7 +11,9 @@
     "UpgradeWrapperBaseAccessor"
   ],
   "client": [
-    "MixinDiscSoundInstance"
+    "MixinDiscSoundInstance",
+    "MixinSoundManager",
+    "MixinSoundEngineChannels"
   ],
   "server": [],
   "injectors": {
