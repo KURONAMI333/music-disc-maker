@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+- Minecraft 26.2 support on both NeoForge and Fabric.
+- Golden Jukebox: changing a jukebox's audible range now takes effect live, without interrupting the track that's playing.
+- Updated the YouTube resolver, fixing tracks that failed to load with an "Offline" error.
+
 ## 2.0.1
 
 - Fixed YouTube bot-check failures being mislabeled as "Offline". When YouTube flags the server's IP as a bot and demands sign-in (common on hosted or rented servers), the maker now shows a distinct "Login wall" status with a hover tooltip explaining it isn't a connection problem, instead of a misleading "Offline".
