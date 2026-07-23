@@ -78,4 +78,9 @@ dependencies {
     // compileOnly のみ = ソフト依存 (mods.toml に依存宣言しない)。compat コードは runtime に
     // additionaladditions がロードされている時だけ動く。dev で実挙動を試すなら runtimeOnly に足す。
     compileOnly files('compat-libs/additionaladditions-neoforge-10.0.5.jar')
+
+    // Create (互換): 捕獲式 contraption に載った強化版ジュークボックスの再生継続 (MovementBehaviour)。
+    // compileOnly のみ = ソフト依存。compat/create のコードは runtime に create がロードされている時だけ動く。
+    // MovementBehaviour interface の signature が Registrate/Flywheel の型を参照するため compile 分だけ添える。
+    compileOnly files('compat-libs/create-1.21.1-6.0.10.jar')
 }
