@@ -46,5 +46,11 @@ public class MusicDiscMakerForge {
         if (com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.isLoaded()) {
             event.enqueueWork(com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat::registerHandler);
         }
+        // Create 互換: ロードされていれば強化版ジュークボックスへ MovementBehaviour を登録し、捕獲式
+        // contraption に載った時の音源追従を有効にする。isLoaded() は Create 非参照で安全、
+        // registerMovementBehaviour() は Create 参照なのでロード時のみ呼ぶ (call site ガード)。
+        if (com.kuronami.musicdiscmaker.compat.create.CreateCompat.isLoaded()) {
+            event.enqueueWork(com.kuronami.musicdiscmaker.compat.create.CreateCompat::registerMovementBehaviour);
+        }
     }
 }

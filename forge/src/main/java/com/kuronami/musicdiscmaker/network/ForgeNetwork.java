@@ -91,5 +91,15 @@ public final class ForgeNetwork {
                     }
                 })
                 .add();
+
+        // server → client: Create contraption に載った音源の再生 (末尾に追加)。ペイロードは Create 非依存
+        // なので無条件登録 (id 列を両側一致させる)。受信ハンドラ内の Create 参照は invoke 時のみ class-load
+        // (Create 未導入なら server が送信しないので到達しない)。
+        CHANNEL.messageBuilder(ContraptionPlayDiscPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(ContraptionPlayDiscPayload::write)
+                .decoder(ContraptionPlayDiscPayload::read)
+                .consumerMainThread((msg, ctx) ->
+                        com.kuronami.musicdiscmaker.compat.create.CreateAudioClient.play(msg))
+                .add();
     }
 }
