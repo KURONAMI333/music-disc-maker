@@ -83,4 +83,14 @@ dependencies {
     // compileOnly のみ = ソフト依存。compat/create のコードは runtime に create がロードされている時だけ動く。
     // MovementBehaviour interface の signature が Registrate/Flywheel の型を参照するため compile 分だけ添える。
     compileOnly files('compat-libs/create-1.21.1-6.0.10.jar')
+
+    // Sable (互換): Create Aeronautics の物理飛空艇 = Sable 変換式 sub-level に載った強化版ジュークボックスの
+    // 位置追従。Aeronautics 本体 (aeronautics/simulated) ではなく、その必須依存の物理エンジン Sable を参照する
+    // (sub-level 座標変換 API = Sable.HELPER.getContainingClient / ClientSubLevel.renderPose().transformPosition,
+    // ServerSubLevelContainer.getPlayersTracking を提供する層)。compileOnly のみ = ソフト依存。compat/aeronautics
+    // のコードは runtime に sable がロードされている時だけ動く。companion=API 型 (Pose3d/SubLevelAccess)、
+    // veil=Sable の上位型解決 (playerSink 等) の compile 分。
+    compileOnly files('compat-libs/sable-neoforge-1.21.1-2.0.3.jar')
+    compileOnly files('compat-libs/sable-companion-common-1.21.1-1.6.0.jar')
+    compileOnly files('compat-libs/veil-neoforge-1.21.1-4.1.4.jar')
 }
