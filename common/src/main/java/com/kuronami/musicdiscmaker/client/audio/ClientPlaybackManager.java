@@ -8,12 +8,14 @@ import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.compat.valkyrienskies.VS2Compat;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
@@ -177,7 +179,16 @@ public final class ClientPlaybackManager {
         final Runnable endCb = track.radio()
                 ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
                 : null;
-        final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
+        // VS2 船に載った jukebox は shipyard 座標のままだと音源がズレる (見えないスピーカー)。船管理下なら
+        // 毎 tick 剛体変換で world 座標へ追従する VSShipAnchor に差し替える。VS2 非導入 or 船外なら null =
+        // 従来の StaticAnchor 再生。VS2 型に触れるのは gate 通過後だけ (soft-dep)。
+        final ClientLevel clientLevel = Minecraft.getInstance().level;
+        final DiscAnchor shipAnchor = (clientLevel != null)
+                ? VS2Compat.resolveShipAnchor(clientLevel, key)
+                : null;
+        final DiscSoundInstance instance = (shipAnchor != null)
+                ? new DiscSoundInstance(shipAnchor, resolved, rangeBlocks, volumePercent, endCb)
+                : new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
         active.put(key, instance);
         playingUrl.put(key, track.url());
         playStartMillis.put(key, System.currentTimeMillis());
