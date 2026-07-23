@@ -2,68 +2,56 @@ package com.kuronami.musicdiscmaker.compat.aeronautics;
 
 import com.kuronami.musicdiscmaker.client.audio.DiscAnchor;
 
+import dev.ryanhcode.sable.Sable;
+import dev.ryanhcode.sable.sublevel.ClientSubLevel;
+
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 【骨格・未実装 TODO】Create Aeronautics (物理エンジン = 旧 Sable) の変換式 sub-level に載った音源の
- * アンカー。変換式は捕獲式 (Create 本家) と違いブロックが実在し tick し続けるため、golden jukebox BE は
- * sub-level 内で通常どおり再生を続ける。問題は座標のみ: 原 world セルが空になり、固定 {@code StaticAnchor}
- * が自己消音する。修正は「原 pos 固定判定を捨て、sub-level 剛体 pose で local→world を毎 tick 変換する
- * 変換式アンカー」= このクラスが埋めるべきスロット。
+ * Create Aeronautics (物理エンジン Sable) の変換式 sub-level に載った音源のアンカー。変換式は捕獲式
+ * (Create 本家) と違いブロックが plot (off-map の実ブロック領域) に実在し tick し続けるため、client の
+ * 音源座標だけを毎 tick 剛体 pose で world へ写す。
  *
- * <h2>なぜ未実装で止めたか (2026-07-23 実測)</h2>
- * <ul>
- *   <li><b>API drift</b>: spike ({@code _research/SPIKE_MDM_CREATE_VS2.md}) が記載した物理 API
- *       ({@code dev.ryanhcode.sable.Sable.HELPER.getContaining(level,pos)} →
- *       {@code SubLevel.logicalPose().transformPosition(local)}) は、実際の配布 (create-aeronautics
- *       1.3.0+mc1.21.1, NeoForge) では物理コアが <b>{@code dev.simulated_team.simulated}</b> へ改名・
- *       再構成されており、この名前の公開 API は存在しない。jarjar 3 モジュール構成
- *       ({@code aeronautics} / {@code offroad} / {@code simulated}=物理コア) で、{@code simulated} の
- *       {@code api/} には {@code getContaining} 相当の sub-level 座標変換の公開エントリが見当たらない
- *       (実測: {@code api/sound/*} 等はあるが SubLevel helper は非公開/別名)。</li>
- *   <li><b>トリガー経路の未確認</b>: 変換式では BE が sub-level (別 Level) 内で tick する。その BE が
- *       {@code PlayDiscPayload} を「どの座標系で」「どの client へ」broadcast するか、client がその
- *       sub-level ブロックの world 座標を解決する経路が spike でも未確認 (推論のみ)。捕獲式 (Create) の
- *       server 主導 payload とは別設計になる。</li>
- *   <li>ライセンスが NOASSERTION (カスタム) = Aeronautics コードを MDM に取り込まない方針。compileOnly
- *       soft-dep で API に当てる必要があるが、上記の通り当てるべき API 名が未確定。</li>
- * </ul>
+ * <p>ブロックは sub-level の plot 内 BlockPos ({@code plotPos}) に実在する。その plot を含む
+ * {@link ClientSubLevel} を {@code Sable.HELPER.getContainingClient(plot 中心)} で解決し、
+ * {@code renderPose(partialTicks).transformPosition(plot 中心)} で描画フレーム補間込みの world 座標を得る。
+ * これは Aeronautics 自身が sub-level 上のブロック音を配置する経路
+ * ({@code BalloonBurnerSoundInstance}: {@code getContainingClient} → {@code logicalPose().transformPosition})
+ * と同じ変換 API。partialTicks 補間は {@code renderPose(partialTicks)} が担う。
  *
- * <h2>実装再開時の手順 (次セッションへの引き継ぎ)</h2>
- * <ol>
- *   <li>{@code dev.simulated_team.simulated} (nested jar: create-aeronautics-bundled →
- *       {@code META-INF/jarjar/dev.simulated_team.simulated.simulated-neoforge-1.21.1-*.jar}) を javap し、
- *       「world pos ↔ sub-level local pos」を変換する公開 API と、ある BlockPos を含む sub-level を
- *       引く helper を特定する (旧 {@code getContaining} / {@code logicalPose().transformPosition} の後継)。</li>
- *   <li>{@link #worldPos} をその API に配線する (毎 tick local→world)。{@link #isValid} は sub-level が
- *       生きている間 true。</li>
- *   <li>トリガー: sub-level 内 BE の再生開始/継続をどう client へ届けるか決める。捕獲式と違い変換式は
- *       BE が実在するので、原 world セルが空になった時点を検出して変換式アンカーへ切り替える payload を
- *       送るのが素直 (compat/create の server 主導 payload を雛形に)。</li>
- * </ol>
- *
- * <p>現状は安全な no-op: {@link #isValid} が false を返すのでこのアンカーは決して再生を保持しない
- * (誤って配線しても無音になるだけでクラッシュしない)。Aeronautics 型は一切 import していないため
- * compileOnly jar 無しでコンパイルできる。
+ * <p>このクラスは Sable 型 ({@link Sable}/{@link ClientSubLevel}) を参照するため、{@link SableAudioClient}
+ * が {@link SubLevelPlayDiscPayload} 受信時にのみ class-load する (= Sable 導入時のみ)。捕獲式の
+ * {@code ContraptionAnchor} と同型の isolation。
  */
 public final class SableSubLevelAnchor implements DiscAnchor {
 
-    private final BlockPos localPos;
+    /** sub-level plot 内でのブロック中心座標 (plot ローカル空間)。 */
+    private final Vec3 plotCenter;
 
-    public SableSubLevelAnchor(BlockPos localPos) {
-        this.localPos = localPos.immutable();
+    public SableSubLevelAnchor(BlockPos plotPos) {
+        this.plotCenter = Vec3.atCenterOf(plotPos);
     }
 
     @Override
     public boolean isValid() {
-        // TODO(aeronautics): sub-level が生きている間 true。未実装のため安全側 (再生を保持しない)。
-        return false;
+        // client level 未生成の過渡状態は「停止しない」= true に倒す (StaticAnchor と同じ遠距離誤消音防止)。
+        if (Minecraft.getInstance().level == null) {
+            return true;
+        }
+        // 解体で plot が消える → 含む sub-level が引けなくなる → false → 自己停止し、world へ戻ったブロックの
+        // 通常再生 (StaticAnchor 経路) に引き継がれる。
+        return Sable.HELPER.getContainingClient(plotCenter) != null;
     }
 
     @Override
     public Vec3 worldPos(float partialTicks) {
-        // TODO(aeronautics): dev.simulated_team.simulated の sub-level 剛体 pose で local→world 変換する。
-        return Vec3.atCenterOf(localPos);
+        final ClientSubLevel sub = Sable.HELPER.getContainingClient(plotCenter);
+        if (sub == null) {
+            return plotCenter; // sub-level 未解決 (過渡): plot 座標のまま (次 tick で isValid=false に落ちる)。
+        }
+        // plot ローカル → world の剛体変換 (平行移動 + 回転 + 描画補間)。
+        return sub.renderPose(partialTicks).transformPosition(plotCenter);
     }
 }
