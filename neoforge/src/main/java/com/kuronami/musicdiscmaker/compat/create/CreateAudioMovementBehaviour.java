@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.compat.create;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
@@ -45,6 +46,11 @@ public final class CreateAudioMovementBehaviour implements MovementBehaviour {
         final ContraptionPlayDiscPayload payload = new ContraptionPlayDiscPayload(
                 context.contraption.entity.getId(), context.localPos, track, offsetMs, range, volume);
         PacketDistributor.sendToPlayersTrackingEntity(context.contraption.entity, payload);
+        // 診断 (debug 既定 off): kura 実機で「追従しない」時、この行が出れば server trigger は発火・
+        // 出るのに CreateAudioClient.play が受信ログを出さなければ tracker 未確立/配送 (組立直後は
+        // contraption entity の tracker set が次 server tick まで空の可能性) を疑う。
+        MusicDiscMaker.LOGGER.debug("Create contraption 再生を送信: entityId={} localPos={} offset={}ms",
+                context.contraption.entity.getId(), context.localPos, offsetMs);
     }
 
     /** 凍結 BE の "inventory" から disc を復元し custom track を取り出す。custom disc でなければ null。 */
