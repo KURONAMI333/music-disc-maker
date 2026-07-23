@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
@@ -259,6 +260,43 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     // ── 再生制御 ──
 
+    /**
+     * chunk ロード / contraption 解体・Sable 飛空艇解体で BE が復元された後の再生復帰。transient な
+     * {@code startMillis} は 0 に戻るが、永続化された {@code playbackStartGameTime} から現在位置を復元して
+     * 途中から再生する (頭出しにしない)。
+     *
+     * <p>この復元が非対称バグの核。捕獲式 (Create) の組立は MovementBehaviour が同じ
+     * {@code playbackStartGameTime} 基準で offset を算出して追従するため位置が継続していたが、解体で
+     * 復元された BE はここが {@code startPlayback(0L)} だったため頭出しになっていた。共通の serverTick に
+     * あるので Create 捕獲式・Sable 変換式・VS2 (mod-048)・通常 chunk 再ロードの全経路を一括で直す。
+     */
+    private void resumePlaybackAfterLoad() {
+        // 保存された再生起点なし (初回配置 or 停止済みで復元) → 頭から。
+        if (playbackStartGameTime < 0L) {
+            startPlayback(0L);
+            return;
+        }
+        // ライブ / ラジオ (無限長) は位置の概念が無い → ライブ先頭へ再接続する (offset 無意味)。
+        if (isLiveStream()) {
+            startPlayback(0L);
+            return;
+        }
+        final long rawElapsed = Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
+        final long dur = trackDurationMs();
+        if (dur > 0L && rawElapsed >= dur) {
+            if (repeat) {
+                startPlayback(rawElapsed % dur); // リピートはループ内の現在位置へ。
+            } else {
+                // 非リピートで復元前に自然終了済み → replay しない (頭出し再生を防ぐ)。
+                stopPlayback();
+            }
+            return;
+        }
+        MusicDiscMaker.LOGGER.debug("金ジューク再生を復元: resume={}ms (playbackStartGameTime={} gameTime={})",
+                rawElapsed, playbackStartGameTime, level.getGameTime());
+        startPlayback(rawElapsed);
+    }
+
     private void startPlayback(long offsetMs) {
         if (!isServer() || !hasDisc()) {
             return;
@@ -352,11 +390,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (!isServer()) {
             return;
         }
-        // chunk load 後の 1 度きり: disc があり非 pause なら再生を復帰させる。
+        // chunk load / contraption 解体で BE が復元された後の 1 度きり: disc があり非 pause なら
+        // 保存済み再生起点から現在位置を復元して再生を復帰させる (頭出しにしない)。
         if (!initialized) {
             initialized = true;
             if (startMillis == 0L && hasDisc() && !paused) {
-                startPlayback(0L);
+                resumePlaybackAfterLoad();
             }
         }
         // vanilla songPlayer: particle / gameEvent / 曲終了で停止。
