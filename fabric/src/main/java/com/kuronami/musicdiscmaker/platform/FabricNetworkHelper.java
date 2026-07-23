@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 
 /** Fabric 実装: payload 送信を Fabric Networking API (1.20.1 旧 API: id + FriendlyByteBuf) に委譲する。 */
@@ -32,6 +33,15 @@ public class FabricNetworkHelper implements INetworkHelper {
     @Override
     public void sendToPlayersTrackingChunk(ServerLevel level, ChunkPos chunk, ModPayload payload) {
         for (final ServerPlayer player : PlayerLookup.tracking(level, chunk)) {
+            final FriendlyByteBuf buf = PacketByteBufs.create();
+            payload.write(buf);
+            ServerPlayNetworking.send(player, payload.id(), buf);
+        }
+    }
+
+    @Override
+    public void sendToPlayersTrackingEntity(Entity entity, ModPayload payload) {
+        for (final ServerPlayer player : PlayerLookup.tracking(entity)) {
             final FriendlyByteBuf buf = PacketByteBufs.create();
             payload.write(buf);
             ServerPlayNetworking.send(player, payload.id(), buf);

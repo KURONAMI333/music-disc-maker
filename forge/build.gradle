@@ -69,6 +69,11 @@ dependencies {
     // Valkyrien Skies 2 stub。common の VS2 compat ソースはこの loader でも再コンパイルされるため、compile
     // classpath に載せる。出荷 jar には非同梱 (soft-dep)。VS2 API は forge/fabric 同一なので共有 stub。
     compileOnly files(project(':common').file('compat-libs/valkyrienskies-api-2.4.11.jar'))
+    // Create stub (forge のみ)。Create 捕獲式 compat は forge 層専用 (AbstractContraptionEntity が
+    // net.minecraftforge の supertype を持ち common の vanilla classpath では解決不可・create-fabric は
+    // intermediary + porting_lib supertype で別物のため)。stub = Create 6.0.8 forge jar の com.simibubi.**
+    // クラスのみ抽出 (Create 本体は非同梱の soft-dep)。
+    compileOnly files('compat-libs/create-api-6.0.8.jar')
 }
 
 // ─── LavaPlayer 一式を mod jar に同梱 (隔離 classloader が runtime ロード) ───

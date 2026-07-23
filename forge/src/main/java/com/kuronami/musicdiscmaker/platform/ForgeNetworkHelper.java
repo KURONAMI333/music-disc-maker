@@ -6,6 +6,7 @@ import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraftforge.network.PacketDistributor;
 
@@ -26,5 +27,10 @@ public class ForgeNetworkHelper implements INetworkHelper {
     public void sendToPlayersTrackingChunk(ServerLevel level, ChunkPos chunk, ModPayload payload) {
         ForgeNetwork.CHANNEL.send(
                 PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunk(chunk.x, chunk.z)), payload);
+    }
+
+    @Override
+    public void sendToPlayersTrackingEntity(Entity entity, ModPayload payload) {
+        ForgeNetwork.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> entity), payload);
     }
 }
