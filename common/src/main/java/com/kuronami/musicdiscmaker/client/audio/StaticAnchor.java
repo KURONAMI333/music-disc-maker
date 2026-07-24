@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
  * <p>VS2 船に載った jukebox もブロックは shipyard 座標に実在し続けるため {@link #isValid()} は通る。
  * 音源座標だけが shipyard 座標のままでズレるので、そこは互換アダプタが別アンカーで補正する。
  */
-public final class StaticAnchor implements DiscAnchor {
+public final class StaticAnchor implements DiscAnchor, LiveConfigAnchor {
 
     private final BlockPos pos;
     private final Vec3 center;
@@ -31,6 +31,12 @@ public final class StaticAnchor implements DiscAnchor {
 
     /** このアンカーの jukebox 位置。強化版の音量/範囲 live 再読で BE を引くのに使う。 */
     public BlockPos pos() {
+        return pos;
+    }
+
+    /** 固定ジュークは pos がそのまま client world 上の BE 位置。 */
+    @Override
+    public BlockPos configPos() {
         return pos;
     }
 

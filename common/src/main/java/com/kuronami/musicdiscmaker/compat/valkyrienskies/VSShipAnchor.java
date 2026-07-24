@@ -6,6 +6,7 @@ import org.valkyrienskies.core.api.ships.ClientShip;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
 import com.kuronami.musicdiscmaker.client.audio.DiscAnchor;
+import com.kuronami.musicdiscmaker.client.audio.LiveConfigAnchor;
 import com.kuronami.musicdiscmaker.client.audio.StaticAnchor;
 
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -26,7 +27,7 @@ import net.minecraft.world.phys.Vec3;
  * {@link VS2Compat#resolveShipAnchor} が {@code isModLoaded} gate を通過した後にのみ class-load される
  * (SophisticatedCoreCompat と同型の soft-dep パターン)。Eureka!/Clockwork も VS2 backend なので追加コード不要。
  */
-public final class VSShipAnchor implements DiscAnchor {
+public final class VSShipAnchor implements DiscAnchor, LiveConfigAnchor {
 
     private final ClientLevel level;
     /** ブロックの実座標 (shipyard 空間)。VS2 は原ブロックをここに実在させ続ける。 */
@@ -55,6 +56,15 @@ public final class VSShipAnchor implements DiscAnchor {
     @Override
     public boolean isValid() {
         return validity.isValid();
+    }
+
+    /**
+     * VS2 は原ブロックを shipyard 座標に実在させ client へ同期し続けるため、この座標で
+     * {@code level.getBlockEntity} すると強化版ジュークの BE が引ける。音量/範囲の live 再読に使う。
+     */
+    @Override
+    public BlockPos configPos() {
+        return shipyardPos;
     }
 
     @Override
