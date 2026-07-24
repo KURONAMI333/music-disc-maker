@@ -1,0 +1,20 @@
+Music Disc Maker
+Copyright (c) 2026 KURONAMI
+
+This product bundles third-party audio libraries (in the dependencies/ folder
+of the distributed jar) to stream and decode audio from URLs:
+
+  - LavaPlayer (HyCraftHD fork: net.hycrafthd.lavaplayer:lavaplayer)
+    Licensed under the Apache License, Version 2.0.
+    https://github.com/lavalink-devs/lavaplayer
+    https://github.com/HyCraftHD/lavaplayer
+
+  - youtube-source (dev.lavalink.youtube)
+    https://github.com/lavalink-devs/youtube-source
+
+Plus their transitive dependencies (Jackson, Apache HttpClient/Codec,
+jsoup, Mozilla Rhino, SLF4J, nanojson, and others). See LICENSE-DEPENDENCIES
+for the per-library license summary.
+
+Apache License 2.0 components: a copy of the Apache 2.0 license is available
+at https://www.apache.org/licenses/LICENSE-2.0
