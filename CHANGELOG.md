@@ -2,7 +2,7 @@
 
 ## 2.1.0
 
-- **Create contraption support** — a custom disc playing in a Golden Jukebox now keeps playing and follows the jukebox when it is assembled onto a moving Create contraption (cart, train, piston, bearing), instead of going silent when the block leaves its spot. Requires Create.
+- **Create & Create Aeronautics support** — a custom disc playing in a Golden Jukebox now keeps playing and follows the jukebox when it is assembled onto a moving Create contraption (cart, train, piston, bearing) or a Create Aeronautics physics airship, instead of going silent when the block leaves its spot. Requires Create (Aeronautics optional).
 - **Live audible-range changes** — dragging the Golden Jukebox's range slider now updates the audible radius instantly on the currently playing track, with no momentary silence (it now works exactly like the volume slider).
 - Fixed YouTube playback failing with "Must find sig function" after YouTube changed its signature scheme. Updated the YouTube resolver so links load and play again.
 
