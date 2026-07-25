@@ -23,6 +23,7 @@ import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.util.WallClock;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -61,6 +62,8 @@ public class BeatGameTests {
     private static final long QUIET_MS = 5_000L;
     /** アサーションの間に置く tick 数。 */
     private static final int SETTLE = 2;
+    /** BE の tick 開始を待つ上限 (tick)。GameTest の timeout (100) の内側に置く。 */
+    private static final int TICK_WAIT_LIMIT = 60;
 
     // ── フィクスチャ ────────────────────────────────────────────────────
 
@@ -184,13 +187,24 @@ public class BeatGameTests {
      * <p><b>専用 batch に隔離してある。</b> {@link WallClock} は プロセス全体で 1 つなので、
      * 時刻を飛ばすと同時に走っている他のテストの再生位置まで動いてしまう
      * ({@code GameTestRunner} は batch を 1 つずつ順に走らせ、batch 内だけを並列に回す)。
+     *
+     * <p><b>固定 tick 数で読まない。</b> テスト本体が走り出す条件
+     * ({@code ServerLevel#isPositionEntityTicking}) と BlockEntity が tick される条件
+     * ({@code LevelChunk#isTicking} = {@code areEntitiesLoaded} を含む) は別物で、後者だけが
+     * 非同期のエンティティチャンク読み込み完了を待つ。GameTestServer は 20tps ではなく全力で
+     * 回る (49 tests が 2.4 秒) ので、固定 2 tick は<b>実時間で数 ms</b> しかなく、起動直後に
+     * この隙間へ当たると BE が一度も tick せず初期値 0 が読まれる。
+     *
+     * <p><b>時刻源は凍結する。</b> {@code System.currentTimeMillis()} に足し込む形だと、待つほど
+     * 再生位置が実時間ぶん進み、今度は解析範囲 ({@link #TRACK_MS}) の外へ出て 0 に落ちる。
+     * 凍結しても gameTime は進むので「gameTime 基準の実装なら 0 になる」という証明力は変わらない。
      */
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = "beat_wallclock")
     public static void beatPositionAdvancesWithWallClock(GameTestHelper helper) {
         BeatMaps.install(URL, fixture(QUIET_MS, TRACK_MS));
-        final long[] offset = {0L};
-        final LongSupplier previousClock = WallClock.swap(() -> System.currentTimeMillis() + offset[0]);
+        final long[] nowMs = {System.currentTimeMillis()};
+        final LongSupplier previousClock = WallClock.swap(() -> nowMs[0]);
         final BlockPos rel = new BlockPos(1, 1, 1);
         final GoldenJukeboxBlockEntity be = playing(helper, rel, customDisc(URL, TRACK_MS, false));
         if (be == null) {
@@ -198,15 +212,22 @@ public class BeatGameTests {
             return;
         }
         // gameTime は据え置いたまま実時間だけを進める。
-        offset[0] = QUIET_MS + 2_000L;
+        nowMs[0] += QUIET_MS + 2_000L;
+        // 上限。凍結した時計を漏らすとプロセス全体で時間が止まり、後続のビートテストが道連れに
+        // なるので、成功経路と上限の両方で必ず戻す (swap は冪等)。
+        helper.runAtTickTime(TICK_WAIT_LIMIT, () -> {
+            final int actual = be.getComparatorOutput();
+            final boolean entitiesLoaded =
+                    helper.getLevel().areEntitiesLoaded(new ChunkPos(helper.absolutePos(rel)).toLong());
+            WallClock.swap(previousClock);
+            helper.fail("実時間を 7 秒進めた後: コンパレータ出力が 15 でなく " + actual
+                    + " (areEntitiesLoaded=" + entitiesLoaded + ")");
+        });
         helper.startSequence()
-                .thenIdle(SETTLE)
-                .thenExecute(() -> {
-                    // 読んでから必ず時刻源を戻す (assert で失敗しても後続テストに漏らさない)。
-                    final int actual = be.getComparatorOutput();
-                    WallClock.swap(previousClock);
-                    assertSignal(helper, actual, 15, "実時間を 7 秒進めた後");
-                })
+                // thenWaitUntil は失敗を握りつぶして次 tick で再試行する (thenExecute と違う)。
+                // BE が tick を始めた最初の tick で通る = tick 数の仮定そのものを外す。
+                .thenWaitUntil(() -> assertSignal(helper, be, 15, "実時間を 7 秒進めた後"))
+                .thenExecute(() -> WallClock.swap(previousClock))
                 .thenSucceed();
     }
 
