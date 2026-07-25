@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.gametest;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
@@ -13,6 +14,9 @@ import com.kuronami.musicdiscmaker.beat.BeatOutput;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.SilentSongs;
+import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.platform.Services;
+import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -22,6 +26,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.EitherHolder;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.JukeboxPlayable;
@@ -399,6 +404,64 @@ public class BeatGameTests {
                 "往復後の capacity が ready と一致しない");
         helper.assertTrue(Double.isNaN(restored.peakDb(BeatBand.LOW, TRACK_MS + 1_000L, TRACK_MS + 1_050L)),
                 "解析範囲の外が NaN でない");
+        helper.succeed();
+    }
+
+    /**
+     * <b>再送にも現在のセッション ID が載る</b>。chunk 再ロードの再送を受けた client は音を鳴らし直さない
+     * （同じ曲・同じ位置なので dedup する）が、server は新しいセッションを起こして校正を待っている。
+     * ここが 0 だと client は報告しようがなく、一度離れて戻るたびに校正が失われて、以後その曲は
+     * バッファ遅延ぶんずれたまま戻らない。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void beatResendCarriesCurrentSession(GameTestHelper helper) {
+        final ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            BeatMaps.install(URL, fixture(QUIET_MS, TRACK_MS));
+            final BlockPos rel = new BlockPos(1, 1, 1);
+            final GoldenJukeboxBlockEntity be = playing(helper, rel, customDisc(URL, TRACK_MS, false));
+            if (be == null) {
+                return;
+            }
+            net.clear();
+            be.resendTo(player);
+            final List<CapturingNetwork.Sent> sent = net.of(PlayDiscPayload.class);
+            helper.assertTrue(sent.size() == 1, "再送 packet が 1 通でない: " + sent.size());
+            final PlayDiscPayload payload = (PlayDiscPayload) sent.get(0).payload();
+            helper.assertTrue(payload.playbackId() == be.beatPlaybackId(),
+                    "再送のセッション ID が現在のものでない: " + payload.playbackId()
+                            + " / " + be.beatPlaybackId());
+            helper.assertTrue(payload.playbackId() != 0L, "再送のセッション ID が 0 (校正できない)");
+        } finally {
+            Services.swapNetwork(previous);
+        }
+        helper.succeed();
+    }
+
+    /** ラジオ / ライブはビート対象外なので、client に校正を求めない (セッション ID = 0)。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void beatRadioCarriesNoSession(GameTestHelper helper) {
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            final BlockPos rel = new BlockPos(1, 1, 1);
+            final GoldenJukeboxBlockEntity be = playing(helper, rel, customDisc(RADIO_URL, TRACK_MS, true));
+            if (be == null) {
+                return;
+            }
+            final List<CapturingNetwork.Sent> sent = net.of(PlayDiscPayload.class);
+            helper.assertTrue(!sent.isEmpty(), "ラジオの再生 packet が出ていない");
+            for (final CapturingNetwork.Sent s : sent) {
+                helper.assertTrue(((PlayDiscPayload) s.payload()).playbackId() == 0L,
+                        "ラジオなのにセッション ID が載っている");
+            }
+        } finally {
+            Services.swapNetwork(previous);
+        }
         helper.succeed();
     }
 
