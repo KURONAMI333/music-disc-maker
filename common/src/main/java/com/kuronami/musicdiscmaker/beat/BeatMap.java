@@ -82,7 +82,9 @@ public final class BeatMap {
         return (long) ready * hopMs;
     }
 
-    // ── 書き込み (解析スレッド専用) ──────────────────────────────────────
+    // ── 書き込み (書き手は 1 スレッドだけ) ──────────────────────────────
+    // 通常は BeatAnalyzer が埋めるが、別経路で解析結果を作って BeatMaps.install() に渡す
+    // 使い方も想定して公開してある (P5 の音源キャッシュが 1 パスの副作用で埋める形)。
 
     /**
      * 1 frame ぶんを追記する。容量を超えたら黙って捨てる (尺の申告より長い曲)。
@@ -90,7 +92,7 @@ public final class BeatMap {
      * @param bandDb 帯域ごとの dBFS (長さ = {@link BeatBand} の数)
      * @param fluxDb スペクトラルフラックスの dB 相当値
      */
-    void append(double[] bandDb, double fluxDb) {
+    public void append(double[] bandDb, double fluxDb) {
         final int i = ready;
         if (i >= capacity) {
             return;
@@ -103,7 +105,7 @@ public final class BeatMap {
     }
 
     /** 現在の解析済み範囲から帯域ごとの 95 パーセンタイルを引き直す。 */
-    void refreshReference() {
+    public void refreshReference() {
         final int n = ready;
         final int[] next = new int[levels.length + 1];
         for (int b = 0; b < levels.length; b++) {
@@ -113,7 +115,8 @@ public final class BeatMap {
         reference = next;
     }
 
-    void markComplete() {
+    /** 解析完了を宣言する (基準を最終値へ引き直す)。 */
+    public void markComplete() {
         refreshReference();
         complete = true;
     }
