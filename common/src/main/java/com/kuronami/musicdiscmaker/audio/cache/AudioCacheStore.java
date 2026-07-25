@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.audio.cache;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -11,6 +12,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -42,9 +44,21 @@ public final class AudioCacheStore {
     /** 書き込み途中のファイル。完走を確認できた時だけ {@link #EXTENSION} へ rename する。 */
     public static final String PART_EXTENSION = ".audio.part";
 
+    /** 1 つの曲を写し取るのに許す回数 (1 セッション内)。 */
+    private static final int MAX_ATTEMPTS = 3;
+
     private final Path dir;
     /** いま書き込み中の key。同じ曲を 2 箇所で同時再生しても書き手は 1 つに絞る。 */
     private final Set<String> writing = ConcurrentHashMap.newKeySet();
+    /**
+     * key ごとの「完走しなかった書き込み」の回数。上限に達したら以後このセッションでは書かない。
+     *
+     * <p>これが無いと静かなコスト源になる: ディスクの申告尺が実体より長い場合
+     * (再アップロード後の古いディスク・細工された component) や、リピート再生で曲尾より先に
+     * ストリームが切られる場合、<b>再生のたびに 1 曲ぶんを圧縮して書いては捨てる</b>ことになる。
+     * {@code BeatMaps} が同じ理由で同じ形の歯止めを持っている。
+     */
+    private final Map<String, Integer> failedAttempts = new ConcurrentHashMap<>();
     private volatile boolean sweptStaleParts;
 
     public AudioCacheStore(Path dir) {
@@ -104,10 +118,13 @@ public final class AudioCacheStore {
 
     /**
      * この key の書き込み権を取る。既にキャッシュがある / 他の再生が書いている時は {@code false}。
-     * 取れたら必ず {@link #commit} か {@link #discard} で返すこと。
+     * 取れたら必ず {@link #commit} / {@link #release} / {@link #abandon} のどれかで返すこと。
      */
     public boolean claim(String key) {
         if (Files.isRegularFile(fileFor(key))) {
+            return false;
+        }
+        if (failedAttempts.getOrDefault(key, 0) >= MAX_ATTEMPTS) {
             return false;
         }
         if (!writing.add(key)) {
@@ -123,15 +140,27 @@ public final class AudioCacheStore {
         return true;
     }
 
-    /** 書き込み途中のファイルを捨てて権を返す。 */
-    public void discard(String key) {
+    /** 書き込み途中のファイルを捨てて権を返す (失敗として数えない)。 */
+    public void release(String key) {
         deleteQuietly(partFor(key));
         writing.remove(key);
     }
 
     /**
-     * 書き込み途中のファイルを確定させて権を返す。rename は atomic なので、
-     * 「途中まで書けたファイルがキャッシュとして読まれる」窓は無い。
+     * 完走しなかった書き込みを捨てて権を返し、失敗として数える。
+     * {@link #MAX_ATTEMPTS} 回で以後このセッションはこの曲を書かない。
+     */
+    public void abandon(String key) {
+        failedAttempts.merge(key, 1, Integer::sum);
+        release(key);
+    }
+
+    /**
+     * 書き込み途中のファイルを確定させて権を返す。
+     *
+     * <p>まず {@code ATOMIC_MOVE} を試す — 「途中まで書けたファイルがキャッシュとして読まれる」窓を
+     * 作らないため。対応していないファイルシステムでは通常の置換に落ちる (その場合の窓は、
+     * 直前に flush/close 済みのファイルを名前だけ差し替える一瞬なので実務上は無視できる)。
      *
      * @return 確定できたら {@code true}
      */
@@ -139,15 +168,19 @@ public final class AudioCacheStore {
         final Path part = partFor(key);
         final Path file = fileFor(key);
         try {
-            Files.move(part, file, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(part, file, StandardCopyOption.ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException ex) {
+                Files.move(part, file, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (final IOException ex) {
             MusicDiscMaker.LOGGER.warn("音源キャッシュの確定に失敗 ({}): {}", file, ex.toString());
-            deleteQuietly(part);
-            writing.remove(key);
+            abandon(key);
             return false;
         }
+        failedAttempts.remove(key);
         writing.remove(key);
-        prune(maxBytes);
+        prune(maxBytes, key);
         return true;
     }
 
@@ -158,9 +191,20 @@ public final class AudioCacheStore {
      * @param maxBytes 0 以下なら無制限 (何もしない)
      */
     public void prune(long maxBytes) {
+        prune(maxBytes, null);
+    }
+
+    /**
+     * @param protectedKey 消さずに残す key。確定直後の呼び出しで自分自身を指す
+     *                     — 上限を 1 曲ぶんより小さくした時に「焼いた端から自分を消す」
+     *                     (= キャッシュが常に空) にならないようにする。
+     *                     上限を 1 曲ぶんだけ超えるが、空よりは望ましい。
+     */
+    private void prune(long maxBytes, @Nullable String protectedKey) {
         if (maxBytes <= 0L) {
             return;
         }
+        final String keep = protectedKey == null ? null : protectedKey + EXTENSION;
         final List<Path> files = new ArrayList<>();
         try (Stream<Path> stream = Files.list(dir)) {
             stream.filter(p -> p.getFileName().toString().endsWith(EXTENSION)).forEach(files::add);
@@ -178,6 +222,9 @@ public final class AudioCacheStore {
         for (final Path p : files) {
             if (total <= maxBytes) {
                 break;
+            }
+            if (keep != null && p.getFileName().toString().equals(keep)) {
+                continue;
             }
             final long size = sizeOf(p);
             if (deleteQuietly(p)) {

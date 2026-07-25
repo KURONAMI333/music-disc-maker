@@ -16,7 +16,8 @@ public final class TeeAudioSource implements IAudioSource {
 
     private final IAudioSource delegate;
     private final AudioCacheWriter writer;
-    private boolean closed;
+    /** close は main thread ({@code requestStop}) と streaming スレッド (engine) の両方から来る。 */
+    private volatile boolean closed;
 
     public TeeAudioSource(IAudioSource delegate, AudioCacheWriter writer) {
         this.delegate = delegate;

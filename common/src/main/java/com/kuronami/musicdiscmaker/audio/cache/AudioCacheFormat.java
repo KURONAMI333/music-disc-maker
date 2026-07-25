@@ -97,7 +97,10 @@ public final class AudioCacheFormat {
         final int sampleRate = getInt(buf, 6);
         final int frameSamples = getShort(buf, 10);
         final long durationMs = getInt(buf, 12) & 0xFFFFFFFFL;
-        if (channels < 1 || channels > 2 || sampleRate < 8000 || sampleRate > 192000
+        // decoder は 48kHz mono 固定で作るので、そこと違う申告は受け付けない。
+        // 通すと CachedAudioSource が嘘の format を MC へ申告し、ピッチ違いやゴミ混入になる
+        // (キャッシュファイルは細工されうる = ゲームディレクトリ下の素のファイル)。
+        if (channels != CHANNELS || sampleRate != SAMPLE_RATE
                 || frameSamples < 1 || frameSamples > 5760) {
             return null;
         }

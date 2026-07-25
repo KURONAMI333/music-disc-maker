@@ -14,12 +14,14 @@ import com.sedmelluq.discord.lavaplayer.natives.opus.OpusDecoder;
 class LavaOpusDecoder implements IOpusDecoder {
 
     private final OpusDecoder decoder;
+    private final int channels;
     private final ByteBuffer input;
     private final ShortBuffer output;
     private boolean closed;
 
     LavaOpusDecoder(int sampleRate, int channels, int maxPacketBytes, int maxFrameSamples) {
         this.decoder = new OpusDecoder(sampleRate, channels);
+        this.channels = channels;
         this.input = ByteBuffer.allocateDirect(maxPacketBytes);
         this.output = ByteBuffer.allocateDirect(maxFrameSamples * channels * 2)
                 .order(ByteOrder.nativeOrder()).asShortBuffer();
@@ -35,12 +37,15 @@ class LavaOpusDecoder implements IOpusDecoder {
             input.put(packet, offset, length);
             input.flip();
             output.clear();
+            // 戻り値は「チャンネルあたりの」サンプル数。buffer には samples * channels 個入っている
+            // (mono 固定の今は同じ値だが、stereo にした瞬間に半分しか読まない静かなバグになる)。
             final int samples = decoder.decode(input, output);
-            if (samples <= 0 || samples > dst.length) {
+            final int interleaved = samples * channels;
+            if (samples <= 0 || interleaved > dst.length) {
                 return -1;
             }
             output.position(0);
-            output.get(dst, 0, samples);
+            output.get(dst, 0, interleaved);
             return samples;
         } catch (final Throwable t) {
             return -1;

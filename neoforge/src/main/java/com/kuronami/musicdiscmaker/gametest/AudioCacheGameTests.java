@@ -9,14 +9,18 @@ import java.nio.file.attribute.FileTime;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.audio.cache.AudioCacheFormat;
+import com.kuronami.musicdiscmaker.audio.cache.AudioCacheGate;
 import com.kuronami.musicdiscmaker.audio.cache.AudioCachePolicy;
 import com.kuronami.musicdiscmaker.audio.cache.AudioCacheStore;
 import com.kuronami.musicdiscmaker.audio.cache.AudioCacheWriter;
 import com.kuronami.musicdiscmaker.audio.cache.CachedAudioSource;
 import com.kuronami.musicdiscmaker.audio.cache.TeeAudioSource;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IOpusDecoder;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IOpusEncoder;
+import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -183,11 +187,11 @@ public class AudioCacheGameTests {
             if (store.claim(key)) {
                 helper.fail("同じ key の claim が二重に取れた (同じ曲を 2 箇所で同時再生した時)");
             }
-            store.discard(key);
+            store.release(key);
             if (!store.claim(key)) {
                 helper.fail("discard の後で claim が取れない (権が返っていない)");
             }
-            store.discard(key);
+            store.release(key);
 
             write(dir, key + AudioCacheStore.EXTENSION, 16);
             if (store.claim(key)) {
@@ -350,7 +354,7 @@ public class AudioCacheGameTests {
         }
         final IOpusEncoder encoder = encoder();
         final AudioCacheWriter writer = AudioCacheWriter.open(
-                store, openKey, URL, TRACK_MS, 0L, encoder);
+                store, openKey, URL, TRACK_MS, 0L, encoder, () -> true);
         if (writer == null) {
             helper.fail("書き手を開けない (Opus encoder が使えない)");
             return;
@@ -369,8 +373,8 @@ public class AudioCacheGameTests {
             helper.fail("捨てた後に書き込み権が返っていない");
             return;
         }
-        store.discard(shortKey);
-        store.discard(openKey);
+        store.release(shortKey);
+        store.release(openKey);
         helper.succeed();
     }
 
@@ -450,12 +454,194 @@ public class AudioCacheGameTests {
         }
     }
 
+    // ── 入口の判断 (ネットワークに出たかどうかまで固定する) ────────────────
+
+    /**
+     * <b>cache-first</b>: 命中したらネットワークに一切触らない。network-first にすると、
+     * 外部が壊れている間は {@code loadTrackSync} の 30 秒タイムアウトを毎回食い、この機能の
+     * 存在意義が消える。偽 loader が呼ばれたかどうかで直接固定する。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, batch = CODEC_BATCH)
+    public static void audioCacheHitNeverTouchesNetwork(GameTestHelper helper) {
+        try {
+            final Path dir = tempDir("gate-hit");
+            final AudioCacheStore store = new AudioCacheStore(dir);
+            final CustomTrackData track = track(URL, TRACK_MS);
+            final String key = AudioCacheStore.keyOf(URL);
+            if (!store.claim(key)) {
+                helper.fail("claim が取れない");
+                return;
+            }
+            drainThroughTee(store, key, TRACK_MS, synthesizePcm(TRACK_MS));
+            if (store.hit(key) == null) {
+                helper.fail("前提のキャッシュができていない");
+                return;
+            }
+
+            final RecordingLoader loader = new RecordingLoader();
+            final IAudioSource source = AudioCacheGate.open(loader, store, track, 0L, 0L, () -> true);
+            if (source == null) {
+                helper.fail("命中しているのに開けない");
+                return;
+            }
+            source.close();
+            if (loader.openStreamCalls != 0) {
+                helper.fail("命中しているのにネットワークへ出た (cache-first が壊れている)");
+            }
+            // シークつきの命中も同じ (途中参加でもネットワークに出ない)
+            final IAudioSource seeked = AudioCacheGate.open(loader, store, track, 1_000L, 0L, () -> true);
+            if (seeked == null) {
+                helper.fail("シークつきで命中しない");
+                return;
+            }
+            seeked.close();
+            if (loader.openStreamCalls != 0) {
+                helper.fail("シークつき命中でネットワークへ出た");
+            }
+            helper.succeed();
+        } catch (final IOException ex) {
+            helper.fail("cache-first テストが IO で失敗: " + ex);
+        }
+    }
+
+    /**
+     * <b>頭からの再生だけ写し取る</b>。シーク・リピート折返し・chunk 再入・途中参加はすべて
+     * 非ゼロ offset で来るので、これを書くと<b>頭が欠けたファイル</b>が恒久化する。
+     * 判定を 1 行のガードに預けたままにせず、ここで固定する。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void audioCacheWritesOnlyFromTheStart(GameTestHelper helper) {
+        final CustomTrackData track = track(URL, 200_000L);
+        if (!AudioCacheGate.writable(track, 0L)) {
+            helper.fail("頭からの再生が書き込み対象になっていない");
+        }
+        if (AudioCacheGate.writable(track, 1L) || AudioCacheGate.writable(track, 60_000L)) {
+            helper.fail("途中からの再生を書き込み対象にしている (頭が欠けたファイルができる)");
+        }
+        // 尺が信用できないものは書かない (98% 判定が無効になる)
+        if (AudioCacheGate.writable(track(URL, 1L), 0L)) {
+            helper.fail("極端に短い申告尺を受け入れている (打ち切られた音声が完走扱いになる)");
+        }
+        if (AudioCacheGate.writable(track(URL, Long.MAX_VALUE), 0L)) {
+            helper.fail("極端に長い申告尺を受け入れている (必要バイト数の計算が桁あふれする)");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 完走しない書き込みが続いたら諦める。申告尺が実体より長いディスクやリピート再生で、
+     * <b>再生のたびに 1 曲ぶん圧縮して書いては捨てる</b>のを止めるため。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void audioCacheStopsRetryingAfterRepeatedFailures(GameTestHelper helper) {
+        try {
+            final Path dir = tempDir("attempts");
+            final AudioCacheStore store = new AudioCacheStore(dir);
+            final String key = AudioCacheStore.keyOf(URL);
+            for (int i = 0; i < 3; i++) {
+                if (!store.claim(key)) {
+                    helper.fail((i + 1) + " 回目の claim が取れない (上限が早すぎる)");
+                    return;
+                }
+                store.abandon(key);
+            }
+            if (store.claim(key)) {
+                helper.fail("失敗が続いても書き込みを繰り返している");
+            }
+            helper.succeed();
+        } catch (final IOException ex) {
+            helper.fail("試行回数テストが IO で失敗: " + ex);
+        }
+    }
+
+    /** 確定と同時に上限を効かせる (commit → prune がつながっていること)。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, batch = CODEC_BATCH)
+    public static void audioCachePrunesOnCommit(GameTestHelper helper) {
+        try {
+            final Path dir = tempDir("commit-prune");
+            final AudioCacheStore store = new AudioCacheStore(dir);
+            Files.createDirectories(dir);
+            final Path old = write(dir, "old" + AudioCacheStore.EXTENSION, 40_960);
+            touch(old, 1_000L);
+
+            final String key = AudioCacheStore.keyOf(URL + "#prune");
+            if (!store.claim(key)) {
+                helper.fail("claim が取れない");
+                return;
+            }
+            // 上限 32KB: 古い 40KB + 新しく焼いたぶんで超えるので、古い方が落ちる
+            drainThroughTee(store, key, TRACK_MS, synthesizePcm(TRACK_MS), 32_768L);
+
+            if (!Files.isRegularFile(store.fileFor(key))) {
+                helper.fail("確定していない");
+                return;
+            }
+            if (Files.exists(old)) {
+                helper.fail("確定時に上限を効かせていない (prune が commit につながっていない)");
+            }
+
+            // 上限を 1 曲ぶんより小さくしても、焼いた端から自分を消してキャッシュが常に空、にはしない
+            final String tiny = AudioCacheStore.keyOf(URL + "#tiny");
+            if (!store.claim(tiny)) {
+                helper.fail("claim が取れない");
+                return;
+            }
+            drainThroughTee(store, tiny, TRACK_MS, synthesizePcm(TRACK_MS), 1024L);
+            if (!Files.isRegularFile(store.fileFor(tiny))) {
+                helper.fail("上限が小さいと、確定した当のファイルを消してしまう");
+            }
+            helper.succeed();
+        } catch (final IOException ex) {
+            helper.fail("commit→prune テストが IO で失敗: " + ex);
+        }
+    }
+
+    private static CustomTrackData track(String url, long durationMs) {
+        return new CustomTrackData(url, "fixture", "fixture", durationMs, "", false);
+    }
+
+    /** {@code openStream} が呼ばれた回数を数えるだけの偽 loader。 */
+    private static final class RecordingLoader implements IMusicLoader {
+
+        int openStreamCalls;
+
+        @Override
+        public TrackInfo resolve(String url) {
+            return null;
+        }
+
+        @Override
+        public IAudioSource openStream(String url, long startMs) {
+            openStreamCalls++;
+            return null;
+        }
+
+        @Override
+        public IOpusDecoder openOpusDecoder(int sampleRate, int channels) {
+            return decoder();
+        }
+
+        @Override
+        public IOpusEncoder openOpusEncoder(int sampleRate, int channels, int frameSamples) {
+            return encoder();
+        }
+    }
+
     // ── 補助 ────────────────────────────────────────────────────────────
 
     /** ネットワーク経路を模した合成ソースを tee 越しに最後まで引き、書き手が畳まれるまで待つ。 */
     private static void drainThroughTee(AudioCacheStore store, String key, long durationMs, byte[] pcm) {
+        drainThroughTee(store, key, durationMs, pcm, 0L);
+    }
+
+    private static void drainThroughTee(AudioCacheStore store, String key, long durationMs, byte[] pcm,
+            long maxBytes) {
         final AudioCacheWriter writer = AudioCacheWriter.open(
-                store, key, URL, durationMs, 0L, encoder());
+                store, key, URL, durationMs, maxBytes, encoder(), () -> true);
         if (writer == null) {
             throw new IllegalStateException("Opus encoder が使えない");
         }
@@ -475,7 +661,7 @@ public class AudioCacheGameTests {
                 return; // 確定した (rename は atomic なので、見えた時点で完成品)
             }
             if (!Files.exists(store.partFor(key)) && store.claim(key)) {
-                store.discard(key); // 破棄されて権も返った
+                store.release(key); // 破棄されて権も返った
                 return;
             }
             try {
