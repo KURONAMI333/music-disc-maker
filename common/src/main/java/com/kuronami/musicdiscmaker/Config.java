@@ -109,4 +109,14 @@ public final class Config {
     public static int beatMaxConcurrentAnalyses() {
         return Services.CONFIG.beatMaxConcurrentAnalyses();
     }
+
+    // ── 音源ローカルキャッシュ (client 側) ────────────────────────────────
+
+    public static boolean audioCacheEnabled() {
+        return Services.CONFIG.audioCacheEnabled();
+    }
+
+    public static int audioCacheMaxMB() {
+        return Services.CONFIG.audioCacheMaxMB();
+    }
 }

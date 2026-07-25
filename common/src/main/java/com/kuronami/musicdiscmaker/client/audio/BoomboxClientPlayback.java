@@ -6,7 +6,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
@@ -65,7 +64,7 @@ public final class BoomboxClientPlayback {
             IAudioSource source;
             try {
                 UrlGuard.enforce(track.url()); // SSRF 遮断 (他プレイヤーの client を踏み台にさせない)
-                source = LoaderHolder.get().openStream(track.url(), startOffsetMs);
+                source = ClientAudioStreams.open(track, startOffsetMs);
             } catch (final UrlBlockedException blocked) {
                 MusicDiscMaker.LOGGER.warn("ブームボックスの再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
                 source = null;

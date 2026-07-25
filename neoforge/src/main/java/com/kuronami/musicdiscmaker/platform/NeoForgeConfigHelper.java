@@ -31,6 +31,28 @@ public class NeoForgeConfigHelper implements IConfigHelper {
                     + "Effective range = min(block setting, this). Separate from playbackRange.")
             .defineInRange("maxPlaybackRange", 256, 16, 256);
 
+    // ── 音源ローカルキャッシュ (CLIENT config) ───────────────────────────
+    // 再生は client ごとに個別のストリームなので、キャッシュも client 側。
+
+    public static final ModConfigSpec.BooleanValue AUDIO_CACHE_ENABLED = BUILDER
+            .comment("Keep a local copy of tracks you have listened to all the way through, "
+                    + "and play from that copy next time.",
+                    "Why turn this on: online sources break. When YouTube changed its signatures in 2026, "
+                    + "every disc stopped playing for weeks. With this on, any track you have already "
+                    + "played to the end keeps working on this PC even when the source is unreachable.",
+                    "Cost: disk space (about 1.5 MB per 4-minute track) and a local copy of the audio "
+                    + "on your machine. Off by default so that this is your choice.",
+                    "SoundCloud is never cached (their terms forbid it). Radio and live streams are "
+                    + "never cached (they have no end). Files live in music_disc_maker/cache/*.audio "
+                    + "and can be deleted by hand at any time.")
+            .define("audioCacheEnabled", false);
+
+    public static final ModConfigSpec.IntValue AUDIO_CACHE_MAX_MB = BUILDER
+            .comment("Disk budget for cached audio, in MB. 0 = unlimited. "
+                    + "The oldest tracks are removed first once the budget is exceeded.",
+                    "This budget is separate from beatCacheMaxMB even though both live in the same folder.")
+            .defineInRange("audioCacheMaxMB", 1024, 0, 65536);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     // ── SERVER config ────────────────────────────────────────────────────
@@ -235,5 +257,15 @@ public class NeoForgeConfigHelper implements IConfigHelper {
     @Override
     public int beatMaxConcurrentAnalyses() {
         return BEAT_MAX_CONCURRENT_ANALYSES.get();
+    }
+
+    @Override
+    public boolean audioCacheEnabled() {
+        return AUDIO_CACHE_ENABLED.get();
+    }
+
+    @Override
+    public int audioCacheMaxMB() {
+        return AUDIO_CACHE_MAX_MB.get();
     }
 }
