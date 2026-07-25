@@ -118,12 +118,15 @@ public class SpeakerBlock extends Block implements EntityBlock {
     @Nullable
     private static String rejectionReason(ServerLevel level, BlockPos speakerPos, BlockPos sourcePos) {
         // dimension 跨ぎは component 側 (GlobalPos) で既に落としてあるので、ここは同一 level 前提。
-        if (!level.isLoaded(sourcePos) || !level.getBlockState(sourcePos).is(ModBlocks.GOLDEN_JUKEBOX.get())) {
-            return "music_disc_maker.speaker.link_failed.no_source";
-        }
         final int linkRange = Config.speakerLinkRange();
         if (!sourcePos.closerThan(speakerPos, linkRange)) {
             return "music_disc_maker.speaker.link_failed.too_far";
+        }
+        // 音源の chunk が未ロードなら「判定不能」として受理する。上限距離 (既定 128) は view distance に
+        // よってはロード範囲の外に出るので、ここで拒否するとリンクが恒久的に壊れる (アイテムの component は
+        // 設置で消費済み)。実体が金ジュークでなければ配送側 (SpeakerNetwork) が黙って何もしないだけ。
+        if (level.isLoaded(sourcePos) && !level.getBlockState(sourcePos).is(ModBlocks.GOLDEN_JUKEBOX.get())) {
+            return "music_disc_maker.speaker.link_failed.no_source";
         }
         if (SpeakerNetwork.countFor(level, sourcePos) >= Config.maxSpeakersPerSource()) {
             return "music_disc_maker.speaker.link_failed.too_many";

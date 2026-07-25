@@ -368,23 +368,55 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         stopPlayback();
     }
 
-    /** late-join した player へ、再生中なら現在位置で PlayDiscPayload を再送する。 */
-    public void resendTo(ServerPlayer player) {
+    /**
+     * 現在の再生位置を載せた {@link PlayDiscPayload}。停止中・一時停止中・repeat off の自然終了済みは
+     * {@code null}。late-join 再送と、後から生えたスピーカーへの再送で共有する。
+     */
+    @Nullable
+    private PlayDiscPayload currentPlayPayload() {
         if (!isServer() || paused) {
-            return;
+            return null;
         }
         final CustomTrackData track = currentTrack();
         if (track == null || startMillis == 0L) {
-            return;
+            return null;
         }
         final long elapsed = Math.max(0L, System.currentTimeMillis() - startMillis);
         final long dur = track.durationMs();
         if (dur > 0L && elapsed >= dur && !repeat) {
-            return; // repeat off の自然終了済み
+            return null; // repeat off の自然終了済み
         }
         final long offset = (dur > 0L && repeat) ? elapsed % dur : elapsed;
-        Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent));
+        return new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent);
+    }
+
+    /** late-join した player へ、再生中なら現在位置で PlayDiscPayload を再送する。 */
+    public void resendTo(ServerPlayer player) {
+        final PlayDiscPayload payload = currentPlayPayload();
+        if (payload == null) {
+            return;
+        }
+        Services.NETWORK.sendToPlayer(player, payload);
         sendSpeakerSetTo(player);
+    }
+
+    /**
+     * 後からぶら下がったスピーカーの chunk にいる player へ、現在の再生を届ける。
+     *
+     * <p>スピーカーを新設した player はその chunk を既に追跡済みなので chunk-watch 起点の late-join では
+     * 救えず、かつ {@code SpeakerSetPayload} は集合を運ぶだけで再生を始めない。これが無いと
+     * 「鳴っている金ジュークから離れた場所にスピーカーを置く」＝本機能の主フローで、次の
+     * {@code startPlayback}（シーク・リピート折返し・ディスク差し替え）まで無音になる。
+     */
+    public void resendPlaybackToChunk(ChunkPos chunk) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        final PlayDiscPayload payload = currentPlayPayload();
+        if (payload != null) {
+            // 既に鳴っている client には同一 URL の再送になるが、client 側 dedup が握りつぶす。
+            Services.NETWORK.sendToPlayersTrackingChunk(serverLevel, chunk, payload);
+        }
     }
 
     // ── tick (server) ──

@@ -13,9 +13,12 @@ import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
 import com.kuronami.musicdiscmaker.network.SpeakerEntry;
 
+import org.jetbrains.annotations.Nullable;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 
 /**
@@ -100,12 +103,30 @@ public final class SpeakerNetwork {
 
     /** スピーカー集合が変わったので、音源に client 側の集合を更新させる。音源が未ロードなら何もしない。 */
     public static void notifySource(ServerLevel level, BlockPos sourcePos) {
-        if (!level.isLoaded(sourcePos)) {
-            return; // 強制ロードしない (鯖負荷とプレイヤーの期待の両方に反する)
-        }
-        if (level.getBlockEntity(sourcePos) instanceof GoldenJukeboxBlockEntity jukebox) {
+        final GoldenJukeboxBlockEntity jukebox = sourceAt(level, sourcePos);
+        if (jukebox != null) {
             jukebox.broadcastSpeakerSet();
         }
+    }
+
+    /**
+     * 新しくぶら下がったスピーカーの chunk へ、音源で今鳴っている曲を届ける。
+     * 集合 ({@code SpeakerSetPayload}) だけでは client の再生は始まらないので、登録時にだけ呼ぶ
+     * (ミュート切り替え等の集合更新では呼ばない = 再生 packet を撒かない)。
+     */
+    public static void sendCurrentPlaybackTo(ServerLevel level, BlockPos sourcePos, BlockPos speakerPos) {
+        final GoldenJukeboxBlockEntity jukebox = sourceAt(level, sourcePos);
+        if (jukebox != null) {
+            jukebox.resendPlaybackToChunk(new ChunkPos(speakerPos));
+        }
+    }
+
+    @Nullable
+    private static GoldenJukeboxBlockEntity sourceAt(ServerLevel level, BlockPos sourcePos) {
+        if (!level.isLoaded(sourcePos)) {
+            return null; // 強制ロードしない (鯖負荷とプレイヤーの期待の両方に反する)
+        }
+        return level.getBlockEntity(sourcePos) instanceof GoldenJukeboxBlockEntity jukebox ? jukebox : null;
     }
 
     /** server 停止で index を破棄する (シングルプレイのワールド退出含む)。 */
