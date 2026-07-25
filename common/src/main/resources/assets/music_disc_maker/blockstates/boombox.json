@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "has_record=false,facing=north": {
+      "model": "music_disc_maker:block/boombox"
+    },
+    "has_record=false,facing=east": {
+      "model": "music_disc_maker:block/boombox",
+      "y": 90
+    },
+    "has_record=false,facing=south": {
+      "model": "music_disc_maker:block/boombox",
+      "y": 180
+    },
+    "has_record=false,facing=west": {
+      "model": "music_disc_maker:block/boombox",
+      "y": 270
+    },
+    "has_record=true,facing=north": {
+      "model": "music_disc_maker:block/boombox"
+    },
+    "has_record=true,facing=east": {
+      "model": "music_disc_maker:block/boombox",
+      "y": 90
+    },
+    "has_record=true,facing=south": {
+      "model": "music_disc_maker:block/boombox",
+      "y": 180
+    },
+    "has_record=true,facing=west": {
+      "model": "music_disc_maker:block/boombox",
+      "y": 270
+    }
+  }
+}

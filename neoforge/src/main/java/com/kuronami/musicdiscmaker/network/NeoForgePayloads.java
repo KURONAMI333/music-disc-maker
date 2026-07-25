@@ -42,6 +42,11 @@ public final class NeoForgePayloads {
         // server → client: 音源にぶら下がる有効スピーカー集合 (再生 packet から分離)。
         registrar.playToClient(SpeakerSetPayload.TYPE, SpeakerSetPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> ModNetwork.handleSpeakerSet(payload)));
+        // server → client: 手持ちブームボックスの再生 (keep-alive 兼 late-join) と停止。
+        registrar.playToClient(BoomboxPlayPayload.TYPE, BoomboxPlayPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> ModNetwork.handleBoomboxPlay(payload)));
+        registrar.playToClient(BoomboxStopPayload.TYPE, BoomboxStopPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> ModNetwork.handleBoomboxStop(payload)));
 
         // Sophisticated Backpacks の Jukebox Upgrade 互換 (SC 非依存ペイロード、無条件登録)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload(registrar);

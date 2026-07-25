@@ -137,6 +137,7 @@ public final class JukeboxHandler {
     public static void onServerStopping(ServerStoppingEvent event) {
         ActiveDiscRegistry.clear();
         SpeakerNetwork.clear();
+        BoomboxPlayback.clear();
     }
 
     private static void broadcast(Level level, BlockPos pos,

@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "Longe demais da jukebox",
   "music_disc_maker.speaker.link_failed.too_many": "Esta jukebox já tem o número máximo de alto-falantes",
   "tooltip.music_disc_maker.speaker.linked_to": "Fonte: %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "Shift + clique direito em uma jukebox dourada para vincular"
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + clique direito em uma jukebox dourada para vincular",
+  "block.music_disc_maker.boombox": "Rádio portátil",
+  "music_disc_maker.boombox.playing": "Reproduzindo",
+  "music_disc_maker.boombox.stopped": "Parado",
+  "music_disc_maker.boombox.no_disc": "Nenhum disco inserido",
+  "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
+  "tooltip.music_disc_maker.boombox.empty": "Vazio",
+  "tooltip.music_disc_maker.boombox.hint": "Shift + clique direito para tocar/parar"
 }

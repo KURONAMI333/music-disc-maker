@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "Задалеко від програвача",
   "music_disc_maker.speaker.link_failed.too_many": "У цього програвача вже максимум динаміків",
   "tooltip.music_disc_maker.speaker.linked_to": "Джерело: %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "Shift + ПКМ по золотому програвачу для прив'язки"
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + ПКМ по золотому програвачу для прив'язки",
+  "block.music_disc_maker.boombox": "Бумбокс",
+  "music_disc_maker.boombox.playing": "Відтворення",
+  "music_disc_maker.boombox.stopped": "Зупинено",
+  "music_disc_maker.boombox.no_disc": "Платівку не вставлено",
+  "tooltip.music_disc_maker.boombox.loaded": "Платівка: %s",
+  "tooltip.music_disc_maker.boombox.empty": "Порожньо",
+  "tooltip.music_disc_maker.boombox.hint": "Shift + ПКМ — відтворити/зупинити"
 }

@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "Zu weit von der Jukebox entfernt",
   "music_disc_maker.speaker.link_failed.too_many": "Diese Jukebox hat bereits die maximale Anzahl an Lautsprechern",
   "tooltip.music_disc_maker.speaker.linked_to": "Quelle: %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "Umschalt + Rechtsklick auf eine Goldene Jukebox zum Verbinden"
+  "tooltip.music_disc_maker.speaker.link_hint": "Umschalt + Rechtsklick auf eine Goldene Jukebox zum Verbinden",
+  "block.music_disc_maker.boombox": "Ghettoblaster",
+  "music_disc_maker.boombox.playing": "Wiedergabe",
+  "music_disc_maker.boombox.stopped": "Gestoppt",
+  "music_disc_maker.boombox.no_disc": "Keine Disc eingelegt",
+  "tooltip.music_disc_maker.boombox.loaded": "Eingelegt: %s",
+  "tooltip.music_disc_maker.boombox.empty": "Leer",
+  "tooltip.music_disc_maker.boombox.hint": "Umschalt + Rechtsklick zum Abspielen/Stoppen"
 }

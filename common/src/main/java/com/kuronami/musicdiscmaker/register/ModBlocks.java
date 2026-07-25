@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.block.BoomboxBlock;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlock;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlock;
 import com.kuronami.musicdiscmaker.block.SpeakerBlock;
@@ -31,6 +32,11 @@ public final class ModBlocks {
     public static final RegistryHolder<SpeakerBlock> SPEAKER =
             BLOCKS.register("speaker",
                     () -> new SpeakerBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.NOTE_BLOCK)));
+
+    // ブームボックス。硬さ・素材・音は強化版ジュークボックスと同じ (バニラ jukebox 準拠)。
+    public static final RegistryHolder<BoomboxBlock> BOOMBOX =
+            BLOCKS.register("boombox",
+                    () -> new BoomboxBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX)));
 
     private ModBlocks() {
     }

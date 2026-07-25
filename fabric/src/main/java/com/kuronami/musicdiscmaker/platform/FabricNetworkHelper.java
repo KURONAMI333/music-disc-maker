@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 
 /** Fabric 実装: payload 送信を Fabric Networking API に委譲する。 */
@@ -27,6 +28,18 @@ public class FabricNetworkHelper implements INetworkHelper {
     public void sendToPlayersTrackingChunk(ServerLevel level, ChunkPos chunk, CustomPacketPayload payload) {
         for (final ServerPlayer player : PlayerLookup.tracking(level, chunk)) {
             ServerPlayNetworking.send(player, payload);
+        }
+    }
+
+    @Override
+    public void sendToPlayersTrackingEntityAndSelf(Entity entity, CustomPacketPayload payload) {
+        // PlayerLookup.tracking は entity が player のとき本人を含まない (Fabric API の明記された仕様)。
+        // 本人を足さないと、手持ちブームボックスが持ち主にだけ聞こえなくなる。
+        for (final ServerPlayer player : PlayerLookup.tracking(entity)) {
+            ServerPlayNetworking.send(player, payload);
+        }
+        if (entity instanceof ServerPlayer self) {
+            ServerPlayNetworking.send(self, payload);
         }
     }
 }

@@ -69,7 +69,7 @@ public class GoldenJukeboxBlock extends Block implements EntityBlock {
 
     @SuppressWarnings("unchecked")
     @Nullable
-    private static <E extends BlockEntity, A extends BlockEntity> BlockEntityTicker<A> createTickerHelper(
+    protected static <E extends BlockEntity, A extends BlockEntity> BlockEntityTicker<A> createTickerHelper(
             BlockEntityType<A> actual, BlockEntityType<E> expected, BlockEntityTicker<? super E> ticker) {
         return expected == actual ? (BlockEntityTicker<A>) ticker : null;
     }
@@ -106,10 +106,20 @@ public class GoldenJukeboxBlock extends Block implements EntityBlock {
         if (!state.is(newState.getBlock())) {
             if (level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be) {
                 be.onBlockRemoved();
-                Containers.dropContents(level, pos, be);
+                if (dropsDiscOnRemove()) {
+                    Containers.dropContents(level, pos, be);
+                }
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
+    }
+
+    /**
+     * 破壊時にディスクを単体アイテムとして落とすか。ブームボックスはディスクをブロックアイテムの
+     * component で持ち出すので {@code false} にする (両方やるとディスクが 2 枚になる)。
+     */
+    protected boolean dropsDiscOnRemove() {
+        return true;
     }
 
     @Override

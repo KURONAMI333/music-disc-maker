@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
-import com.kuronami.musicdiscmaker.register.ModBlocks;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlock;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -48,7 +48,9 @@ public final class StaticAnchor implements DiscAnchor, LiveConfigAnchor {
             return true;
         }
         final BlockState state = level.getBlockState(pos);
-        return state.is(Blocks.JUKEBOX) || state.is(ModBlocks.GOLDEN_JUKEBOX.get());
+        // 強化版ジュークボックスとその派生 (ブームボックス) を 1 つの判定で拾う。ここを block ごとの
+        // 列挙にすると、派生を足すたびに「設置したら即無音」を踏む。
+        return state.is(Blocks.JUKEBOX) || state.getBlock() instanceof GoldenJukeboxBlock;
     }
 
     @Override

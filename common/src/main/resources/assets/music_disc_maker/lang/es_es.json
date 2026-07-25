@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "Demasiado lejos del tocadiscos",
   "music_disc_maker.speaker.link_failed.too_many": "Este tocadiscos ya tiene el máximo de altavoces",
   "tooltip.music_disc_maker.speaker.linked_to": "Fuente: %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "Mayús + clic derecho en un tocadiscos dorado para vincular"
+  "tooltip.music_disc_maker.speaker.link_hint": "Mayús + clic derecho en un tocadiscos dorado para vincular",
+  "block.music_disc_maker.boombox": "Radiocasete",
+  "music_disc_maker.boombox.playing": "Reproduciendo",
+  "music_disc_maker.boombox.stopped": "Detenido",
+  "music_disc_maker.boombox.no_disc": "No hay disco",
+  "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
+  "tooltip.music_disc_maker.boombox.empty": "Vacío",
+  "tooltip.music_disc_maker.boombox.hint": "Mayús + clic derecho para reproducir/parar"
 }
