@@ -9,8 +9,9 @@ import net.minecraft.world.phys.Vec3;
  * loader 別アダプタ) を同じ再生経路で扱える。
  *
  * <p>責務は「位置」と「まだ鳴らすか」だけに限定する。強化版ジュークボックスの音量/範囲 live 再読の
- * ような音源固有の挙動は anchor には持たせず、{@link DiscSoundInstance} 側で anchor の実型を見て
- * 分岐する。
+ * ような音源固有の挙動はこの本体には持たせず、任意能力 {@link LiveConfigAnchor} を実装したアンカーに対して
+ * {@link DiscSoundInstance} 側が能力インターフェース越しに分岐する (原ブロックが client world に実在する
+ * アンカーだけが実装する)。
  */
 public interface DiscAnchor {
 

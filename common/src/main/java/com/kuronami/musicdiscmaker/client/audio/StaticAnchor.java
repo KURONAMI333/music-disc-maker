@@ -15,8 +15,11 @@ import net.minecraft.world.phys.Vec3;
  * <p>{@link #isValid()} は chunk 未ロード時は停止しない (air 誤読による遠距離の誤消音を防ぐ)。ロード済み
  * で jukebox でも強化版でもない時 (撤去・破壊・爆発・ピストン・コマンド) にだけ {@code false} を返す。
  * これは anchor 抽象化前の {@code DiscSoundInstance.tick()} の存在チェックと同一の判定。
+ *
+ * <p>原ブロックが client world に実在するため {@link LiveConfigAnchor} を実装し、強化版ジュークボックス
+ * の音量/範囲を毎 tick ライブ再読させる。
  */
-public final class StaticAnchor implements DiscAnchor {
+public final class StaticAnchor implements DiscAnchor, LiveConfigAnchor {
 
     private final BlockPos pos;
     private final Vec3 center;
@@ -28,6 +31,12 @@ public final class StaticAnchor implements DiscAnchor {
 
     /** このアンカーの jukebox 位置。強化版の音量/範囲 live 再読で BE を引くのに使う。 */
     public BlockPos pos() {
+        return pos;
+    }
+
+    /** 固定ジュークは pos がそのまま client world 上の BE 位置。 */
+    @Override
+    public BlockPos configPos() {
         return pos;
     }
 
