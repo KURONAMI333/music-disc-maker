@@ -26,10 +26,15 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -235,6 +240,63 @@ public class BoomboxGameTests {
             helper.assertFalse(BoomboxPlayback.isPlaying(loaded), "手から離しても再生フラグが残っている");
             helper.assertTrue(net.of(BoomboxStopPayload.class).size() == 1,
                     "手から離した時に停止 packet が出ていない");
+        } finally {
+            Services.swapNetwork(previous);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * <b>相互作用ブロックの面にシフト右クリックで設置できる</b>。以前はシフト右クリックが常に
+     * 再生トグルへ食われていて、チェスト・かまど等の面にブームボックスを置けなかった。
+     *
+     * <p>シフト + アイテム所持の右クリックは vanilla がブロック相互作用をスキップして
+     * {@code stack.useOn} に落とす = ここが唯一の設置経路なので、トグルに使うと設置手段が消える。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void boomboxPlacesOnInteractiveBlockFace(GameTestHelper helper) {
+        final ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        final INetworkHelper previous = Services.swapNetwork(new CapturingNetwork());
+        try {
+            final BlockPos chestRel = new BlockPos(2, 1, 2);
+            helper.setBlock(chestRel, Blocks.CHEST);
+            final BlockPos chestAbs = helper.absolutePos(chestRel);
+
+            // 中身なしのブームボックスを持ってシフト中 (= 再生トグルが成立しうる状態)。
+            final ItemStack stack = new ItemStack(ModItems.BOOMBOX.get());
+            player.setShiftKeyDown(true);
+            player.setItemInHand(InteractionHand.MAIN_HAND, stack);
+
+            final BlockHitResult hit = new BlockHitResult(
+                    Vec3.atCenterOf(chestAbs).add(0.0, 0.5, 0.0), Direction.UP, chestAbs, false);
+            stack.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+
+            helper.assertBlockPresent(ModBlocks.BOOMBOX.get(), chestRel.above());
+            helper.assertFalse(BoomboxPlayback.isPlaying(stack),
+                    "設置のはずが再生トグルに食われている");
+        } finally {
+            Services.swapNetwork(previous);
+        }
+        helper.succeed();
+    }
+
+    /** 空中 (ブロック非対象) のシフト右クリックは従来どおり再生トグル。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void boomboxTogglesOnAirClick(GameTestHelper helper) {
+        final ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        final INetworkHelper previous = Services.swapNetwork(new CapturingNetwork());
+        try {
+            final ItemStack loaded = loadedBoombox(64, 100, false);
+            player.setShiftKeyDown(true);
+            player.setItemInHand(InteractionHand.MAIN_HAND, loaded);
+
+            loaded.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+            helper.assertTrue(BoomboxPlayback.isPlaying(loaded), "空中クリックで再生が始まらない");
+
+            loaded.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+            helper.assertFalse(BoomboxPlayback.isPlaying(loaded), "空中クリックで停止できない");
         } finally {
             Services.swapNetwork(previous);
         }

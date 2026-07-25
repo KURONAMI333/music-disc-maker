@@ -64,5 +64,5 @@
   "music_disc_maker.boombox.no_disc": "No disc loaded",
   "tooltip.music_disc_maker.boombox.loaded": "Loaded: %s",
   "tooltip.music_disc_maker.boombox.empty": "Empty",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + right-click to play/stop. Right-click a disc onto it to load."
+  "tooltip.music_disc_maker.boombox.hint": "Shift + right-click in the air to play/stop. Right-click a disc onto it to load."
 }

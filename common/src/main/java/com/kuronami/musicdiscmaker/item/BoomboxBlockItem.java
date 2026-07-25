@@ -12,7 +12,6 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.SlotAccess;
@@ -23,15 +22,17 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
 /**
  * ブームボックスのブロックアイテム。手持ちのまま鳴らせる。
  *
- * <p>操作は 1 ルールだけ: <b>シフト + 右クリックで再生/停止</b>。ブロックに向けていても設置しないので、
- * 歩きながら足元を向いたまま操作しても事故らない。通常の右クリックはバニラのブロックアイテムどおり設置。
+ * <p>操作: <b>何も見ていない状態 (空中) でシフト + 右クリックすると再生/停止</b>。
+ * ブロックに向けている時は常に設置になる — シフト右クリックを無条件にトグルへ食わせると、
+ * チェスト・かまど等の相互作用ブロックの面にブームボックスを置けなくなる
+ * (シフト + アイテム所持の右クリックはバニラがブロック相互作用をスキップして
+ * {@code stack.useOn} に落とすので、それが唯一の設置経路になるため)。
  *
  * <p>ディスクの出し入れはインベントリ内で完結する (バンドルと同じ操作): ディスクを持って
  * ブームボックスを右クリックで装填、空手で右クリックで取り出し。設置して GUI を開いても同じことが
@@ -46,25 +47,19 @@ public class BoomboxBlockItem extends BlockItem {
         super(block, properties);
     }
 
-    // ── 再生トグル (シフト + 右クリック) ────────────────────────────────
+    // ── 再生トグル (空中でシフト + 右クリック) ──────────────────────────
 
-    @Override
-    public InteractionResult useOn(UseOnContext context) {
-        final Player player = context.getPlayer();
-        if (player != null && player.isSecondaryUseActive()) {
-            // 設置に落とさない。シフト + アイテム所持の右クリックは vanilla がブロック相互作用を
-            // スキップして stack.useOn まで落とすので、ここが唯一の受け口になる。
-            toggle(context.getLevel(), player, context.getItemInHand());
-            return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
-        }
-        return super.useOn(context);
-    }
+    // useOn は override しない = ブロックに向けた右クリックは常にバニラの設置に任せる。
+    // 設置できない時は BlockItem#place が FAIL を返し、Minecraft#startUseItem がそこで
+    // 打ち切る (1.21.1 逆コンパイルで確認) ので、「ブロックを見ている時にトグルへ落ちる」
+    // 経路は無い。トグルは空中クリック = この use だけ。
 
+    /** 空中でのシフト + 右クリックで再生/停止。ブロックを見ている時はここに来ない。 */
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         final ItemStack stack = player.getItemInHand(hand);
         if (!player.isSecondaryUseActive()) {
-            return InteractionResultHolder.pass(stack); // 通常の右クリックは設置に譲る
+            return InteractionResultHolder.pass(stack);
         }
         toggle(level, player, stack);
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
