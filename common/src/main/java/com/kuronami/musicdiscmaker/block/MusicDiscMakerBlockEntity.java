@@ -187,7 +187,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         DiscFabrication.process(this);
     }
 
-    // ── persistence (26.1.2: ValueInput/ValueOutput) ──
+    // ── persistence (ValueInput/ValueOutput) ──
 
     @Override
     protected void loadAdditional(ValueInput input) {

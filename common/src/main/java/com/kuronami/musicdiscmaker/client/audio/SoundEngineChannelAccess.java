@@ -8,8 +8,8 @@ import net.minecraft.client.resources.sounds.SoundInstance;
  * ライブ更新する。common は SoundEngine の private フィールドに触れないため、実体は loader 層に置く。
  *
  * <p>vanilla の {@code SoundEngine#play}/{@code tickNonPaused} の bytecode には一切介入しない (mixin が
- * 追加する新メソッド + {@code @Shadow} フィールド読みのみ)。よって @Redirect が 26.2 で streaming を
- * 壊した型の破損は原理的に起きない。
+ * 追加する新メソッド + {@code @Shadow} フィールド読みのみ)。よって @Redirect で play をラップした時に
+ * streaming が壊れる型の破損は原理的に起きない。
  */
 public interface SoundEngineChannelAccess {
 

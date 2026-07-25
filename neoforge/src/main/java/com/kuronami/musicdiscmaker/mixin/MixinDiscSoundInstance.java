@@ -15,7 +15,7 @@ import net.minecraft.client.sounds.SoundBufferLibrary;
  *
  * <p>NeoForge patch の {@code SoundInstance#getStream(SoundBufferLibrary, Sound, boolean)} (interface
  * default) を DiscSoundInstance だけで override する。SoundEngine の {@code play} を @Redirect する
- * 旧方式は、26.2 (play の戻り値が {@code SoundEngine.PlayResult} 化) で redirect ラッパを通すと
+ * 旧方式は、play の戻り値が {@code SoundEngine.PlayResult} なので redirect ラッパを通すと
  * streaming チャンネルへの stream 供給が壊れ、custom/vanilla を問わず streaming 音 (records) が全て
  * 無音になった。DiscSoundInstance 自身の getStream override なら vanilla の再生経路には一切触れず、
  * Fabric 側の {@link MixinDiscSoundInstance 相当}({@code FabricSoundInstance#getAudioStream} override)

@@ -16,7 +16,7 @@ import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
  * jukebox の中身変化を1点で捕捉し、custom disc のストリーミング再生を起動/停止する。
  *
  * <p>{@code setTheItem} は ContainerSingleItem の setItem (右クリック挿入)・ホッパー・コマンドの
- * すべてが通る一本道 (26.1.2 vanilla jar で確認済み)。ワールド読込は item 直代入で setTheItem を
+ * すべてが通る一本道 (1.21.11 vanilla jar で確認済み)。ワールド読込は item 直代入で setTheItem を
  * 通らないため、読込での誤発火は起きない。
  */
 @Mixin(JukeboxBlockEntity.class)

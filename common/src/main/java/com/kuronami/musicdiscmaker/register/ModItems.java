@@ -37,7 +37,7 @@ public final class ModItems {
                     () -> new BlockItem(ModBlocks.GOLDEN_JUKEBOX.get(),
                             props("golden_jukebox").useBlockDescriptionPrefix()));
 
-    // 26.x: Item は生成時に登録 id を Properties へ set する必要がある (NeoForge の
+    // Item は生成時に登録 id を Properties へ set する必要がある (NeoForge の
     // DeferredRegister.Items が内部でやっていることを loader 非依存に共通化する)。
     private static Item.Properties props(String name) {
         return new Item.Properties()

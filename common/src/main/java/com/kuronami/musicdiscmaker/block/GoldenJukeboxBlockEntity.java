@@ -434,7 +434,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
     }
 
-    // ── persistence (26.1.2: ValueInput/ValueOutput) ──
+    // ── persistence (ValueInput/ValueOutput) ──
 
     @Override
     protected void loadAdditional(ValueInput input) {

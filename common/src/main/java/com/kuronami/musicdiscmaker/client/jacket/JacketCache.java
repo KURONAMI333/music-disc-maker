@@ -177,7 +177,7 @@ public final class JacketCache {
             final int h = image.getHeight();
             final Identifier rl = Identifier.fromNamespaceAndPath(
                     MusicDiscMaker.MODID, "jacket/" + hash);
-            // 26.1.2 の DynamicTexture は Supplier<String> ラベルを要求する (1.21.1 の NativeImage 単独形とは別)。
+            // DynamicTexture は Supplier<String> ラベルを要求する。
             Minecraft.getInstance().getTextureManager()
                     .register(rl, new DynamicTexture(() -> "mdm_jacket/" + hash, image));
             READY.put(hash, new Jacket(rl, w, h));

@@ -16,7 +16,7 @@ import net.minecraft.resources.Identifier;
  * 自分で SoundEngine を redirect すると fabric-sound-api-v1 の SoundSystemMixin と @Redirect 衝突して
  * クラッシュするため、Fabric 公式の {@link FabricSoundInstance#getAudioStream} を override する
  * (この interface は全 SoundInstance に interface injection で暗黙実装されている)。
- * 26.2: getAudioStream の第2引数は {@code ResourceLocation}→{@code Identifier} に rename 済み。
+ * getAudioStream の第2引数は {@code Identifier}。
  */
 @Mixin(DiscSoundInstance.class)
 public abstract class MixinDiscSoundInstance implements FabricSoundInstance {

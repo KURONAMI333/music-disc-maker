@@ -18,7 +18,7 @@ import net.neoforged.neoforge.client.event.RenderTooltipEvent;
  * NeoForge が要素列の index 1 (アイテム名の直後) へ挿入するため、既定では曲名とアーティストの間に出る。
  * テキスト全行 (曲名・アーティスト・長さ) の下に置くため、gather 段で画像要素を末尾へ移す。
  *
- * <p>26.1.2: {@link RenderTooltipEvent.GatherComponents#getTooltipElements()} が返す
+ * <p>{@link RenderTooltipEvent.GatherComponents#getTooltipElements()} が返す
  * {@code List<Either<FormattedText, TooltipComponent>>} は可変。ジャケット ({@link JacketTooltip} =
  * {@code TooltipComponent}) を含まないツールチップには影響しない。
  */

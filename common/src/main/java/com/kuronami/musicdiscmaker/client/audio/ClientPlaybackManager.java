@@ -243,7 +243,7 @@ public final class ClientPlaybackManager {
 
     /** アクションバーに一行表示する (main thread から呼ぶこと)。 */
     private static void notifyActionBar(Component message) {
-        // 26.1.2 で Player.displayClientMessage(Component, boolean) は廃止。
+        // Player.displayClientMessage(Component, boolean) は無い。
         // アクションバーは Gui.setOverlayMessage に移行 (setNowPlaying と同じ経路)。
         Minecraft.getInstance().gui.setOverlayMessage(message, false);
     }

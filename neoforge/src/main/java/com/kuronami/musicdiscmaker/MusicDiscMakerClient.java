@@ -43,7 +43,7 @@ public class MusicDiscMakerClient {
 
     /**
      * custom disc の texture variant (12 色) を曲名+アーティストから決定的に選ぶ range_dispatch プロパティを登録する。
-     * 26.1: 旧 {@code ItemProperties} は廃止され、items モデル JSON の range_dispatch +
+     * 旧 {@code ItemProperties} は無く、items モデル JSON の range_dispatch +
      * カスタムプロパティ ({@link VariantItemModelProperty}) で表現する。
      */
     @SubscribeEvent

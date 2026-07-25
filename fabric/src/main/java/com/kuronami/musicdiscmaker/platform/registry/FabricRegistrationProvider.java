@@ -63,7 +63,7 @@ public final class FabricRegistrationProvider<T> implements RegistrationProvider
         @Override
         public <T> RegistrationProvider<T> create(ResourceKey<? extends Registry<T>> registryKey, String modid) {
             @SuppressWarnings("unchecked")
-            // 26.2: 根レジストリの値取得は Registry.getValue(Identifier) (旧 get(...) は Optional を返すよう変更)。
+            // 根レジストリの値取得は Registry.getValue(Identifier) (get(...) は Optional を返す)。
             // ResourceKey.location() も identifier() に rename 済み。
             final Registry<T> registry = (Registry<T>) BuiltInRegistries.REGISTRY.getValue(registryKey.identifier());
             if (registry == null) {

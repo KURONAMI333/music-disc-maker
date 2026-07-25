@@ -28,7 +28,7 @@ public final class ModBlocks {
             BLOCKS.register("golden_jukebox",
                     () -> new GoldenJukeboxBlock(props("golden_jukebox")));
 
-    // 26.x: Block も生成時に登録 id を Properties へ set する必要がある。
+    // Block も生成時に登録 id を Properties へ set する必要がある。
     private static BlockBehaviour.Properties props(String name) {
         return BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX)
                 .setId(ResourceKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, name)));

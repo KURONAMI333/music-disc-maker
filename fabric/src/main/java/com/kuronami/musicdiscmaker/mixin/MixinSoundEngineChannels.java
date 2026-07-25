@@ -17,8 +17,7 @@ import net.minecraft.client.sounds.SoundEngine;
  * 音量と同様に再ストリームなしで即反映するために使う。
  *
  * <p>{@code @Shadow} フィールド読み + duck メソッド追加のみ = {@code play}/{@code tickNonPaused} の
- * bytecode には触れない。旧 {@code MixinSoundEngine} の {@code @Redirect} が 26.2 で streaming を
- * 壊した型とは別系統。
+ * bytecode には触れない。{@code @Redirect} で play をラップして streaming を壊す型とは別系統。
  */
 @Mixin(SoundEngine.class)
 public abstract class MixinSoundEngineChannels implements SoundEngineChannelAccess {
