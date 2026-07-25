@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.platform;
 
+import java.util.Collection;
+
 import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -25,6 +27,15 @@ public class NeoForgeNetworkHelper implements INetworkHelper {
     @Override
     public void sendToPlayersTrackingChunk(ServerLevel level, ChunkPos chunk, CustomPacketPayload payload) {
         PacketDistributor.sendToPlayersTrackingChunk(level, chunk, payload);
+    }
+
+    /**
+     * {@code PacketDistributor} は宛先解決だけを取り出す口を持たないので、vanilla の {@code ChunkMap}
+     * から直接引く ({@code sendToPlayersTrackingChunk} の内部と同じ集合)。
+     */
+    @Override
+    public Collection<ServerPlayer> playersTrackingChunk(ServerLevel level, ChunkPos chunk) {
+        return level.getChunkSource().chunkMap.getPlayers(chunk, false);
     }
 
     @Override

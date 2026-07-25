@@ -507,8 +507,10 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
         final PlayDiscPayload payload = currentPlayPayload();
         if (payload != null) {
-            // 既に鳴っている client には同一 URL の再送になるが、client 側 dedup が握りつぶす。
-            Services.NETWORK.sendToPlayersTrackingChunk(serverLevel, chunk, payload);
+            // 既に鳴っている client には同一 URL の再送になるが、client 側 dedup が握りつぶす
+            // (ロード窓に当たった場合は再生要求の世代トークンが古い方を捨てる)。
+            // 配送は broadcast と同じ player 単位の口を通す。
+            Services.NETWORK.sendToPlayersTrackingChunks(serverLevel, java.util.Set.of(chunk), payload);
         }
     }
 
@@ -707,21 +709,29 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
      *
      * <p>{@code sendToPlayersTrackingChunk} は音源チャンクを追跡中の player にしか届かないため、
      * 200 ブロック離れたスピーカーの傍にいる player には初回 packet が構造的に届かない。スピーカー側の
-     * 逆引き ({@link SpeakerNetwork}) を使ってチャンクを足すことで解消する。同じ player に複数チャンク
-     * から届いても client 側 dedup が吸収する。
+     * 逆引き ({@link SpeakerNetwork}) を使ってチャンクを足すことで解消する。
+     *
+     * <p><b>宛先はチャンクではなく player の粒度で畳む。</b> チャンクごとに送ると、音源とスピーカーが
+     * 両方視距離内にある player (＝通常の配置) が同じ payload を複数通受け取り、client は「停止を
+     * 挟まない 2 連続の再生要求」を見る。畳み込みは
+     * {@link com.kuronami.musicdiscmaker.platform.services.INetworkHelper#sendToPlayersTrackingChunks}
+     * が担う。
      */
     private void broadcast(CustomPacketPayload payload) {
         if (!(level instanceof ServerLevel serverLevel)) {
             return;
         }
+        Services.NETWORK.sendToPlayersTrackingChunks(serverLevel, targetChunks(serverLevel), payload);
+    }
+
+    /** 再生制御 packet の宛先チャンク = 音源チャンク ∪ ぶら下がる全スピーカーのチャンク。 */
+    private Set<ChunkPos> targetChunks(ServerLevel serverLevel) {
         final Set<ChunkPos> targets = new LinkedHashSet<>();
         targets.add(new ChunkPos(getBlockPos()));
         for (final BlockPos speaker : SpeakerNetwork.speakersOf(serverLevel, getBlockPos())) {
             targets.add(new ChunkPos(speaker));
         }
-        for (final ChunkPos chunk : targets) {
-            Services.NETWORK.sendToPlayersTrackingChunk(serverLevel, chunk, payload);
-        }
+        return targets;
     }
 
     /**

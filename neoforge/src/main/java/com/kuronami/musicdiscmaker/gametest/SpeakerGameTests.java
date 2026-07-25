@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.gametest;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.kuronami.musicdiscmaker.Config;
@@ -23,6 +24,7 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -264,8 +266,14 @@ public class SpeakerGameTests {
     // Services.NETWORK を捕獲実装に差し替えて宛先だけを固定する。
 
     /**
-     * 集合の配送先が「音源チャンク ∪ 全スピーカーチャンク」であること。
-     * 音源チャンクだけに撃つと、遠方スピーカーの傍にいる player に構造的に届かない。
+     * 配送先が「音源チャンク ∪ 全スピーカーチャンク」を覆い、かつ<b>同じ player には 1 通だけ</b>
+     * であること。
+     *
+     * <p>音源チャンクだけに撃つと遠方スピーカーの傍にいる player に構造的に届かない。逆に
+     * チャンクごとに撃つと、音源とスピーカーの両方を追跡している player (＝通常の配置) が同じ
+     * payload を複数通受け取り、client は「停止を挟まない 2 連続の再生要求」を見る = 再生
+     * インスタンスが二重に立つ。<b>観測量を最終受信者である player の粒度に置く</b>のがこの
+     * テストの要点で、チャンク集合で数えている限りこの重複は構造的に見えない。
      */
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
@@ -289,6 +297,13 @@ public class SpeakerGameTests {
         far.setSourcePos(jukeboxAbs);
 
         final CapturingNetwork net = new CapturingNetwork();
+        // 「音源とスピーカーの両方を追跡している player」を作る。both は 2 チャンクを追跡している
+        // ので、チャンク単位で撃つ実装だと 2 通受け取る。onlyFar は遠方スピーカーのチャンクだけ。
+        final ServerPlayer both = helper.makeMockServerPlayerInLevel();
+        final ServerPlayer onlyFar = helper.makeMockServerPlayerInLevel();
+        net.watch(new ChunkPos(jukeboxAbs), both);
+        net.watch(new ChunkPos(farAbs), both, onlyFar);
+
         final INetworkHelper previous = Services.swapNetwork(net);
         try {
             jukebox.broadcastSpeakerSet();
@@ -298,6 +313,13 @@ public class SpeakerGameTests {
             helper.assertTrue(targets.contains(new ChunkPos(farAbs)),
                     "遠方スピーカーのチャンクが宛先に入っていない: " + targets);
             helper.assertTrue(targets.size() == 2, "宛先チャンクが 2 個でない: " + targets);
+
+            final Map<ServerPlayer, Integer> counts = net.countPerPlayer(SpeakerSetPayload.class);
+            helper.assertTrue(counts.size() == 2, "宛先 player が 2 人でない: " + counts.size());
+            helper.assertTrue(counts.getOrDefault(both, 0) == 1,
+                    "両方のチャンクを追跡している player への通数が 1 でない: " + counts.get(both));
+            helper.assertTrue(counts.getOrDefault(onlyFar, 0) == 1,
+                    "スピーカーチャンクだけの player への通数が 1 でない: " + counts.get(onlyFar));
         } finally {
             Services.swapNetwork(previous);
             helper.getLevel().setBlockAndUpdate(farAbs, Blocks.AIR.defaultBlockState());

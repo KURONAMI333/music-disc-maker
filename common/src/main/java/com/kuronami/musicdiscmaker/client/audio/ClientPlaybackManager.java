@@ -2,7 +2,6 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,7 +46,12 @@ public final class ClientPlaybackManager {
     }
 
     private final Map<BlockPos, DiscSoundInstance> active = new ConcurrentHashMap<>();
-    private final Set<BlockPos> wanted = ConcurrentHashMap.newKeySet();
+    /**
+     * 再生要求の世代管理。「今この位置で再生が望まれているか」に加えて「どの要求のロードか」を
+     * 持つ。トークンを持たない集合だと、停止を挟まない 2 連続要求で孤児インスタンスが生まれる
+     * ({@link PlaybackSessions} の javadoc)。
+     */
+    private final PlaybackSessions sessions = new PlaybackSessions();
     // pos ごとの聴取アンカー。SpeakerSetPayload はここへ集合を差し替える (再生は止めない)。
     private final Map<BlockPos, MultiSpeakerAnchor> anchors = new ConcurrentHashMap<>();
     // pos ごとの有効スピーカー集合。再生セッションではなく音源の属性なので、シーク/リピートの
@@ -108,11 +112,11 @@ public final class ClientPlaybackManager {
             return;
         }
         stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生 or シーク)
-        wanted.add(key);
+        final long token = sessions.begin(key);
         requests.put(key, new PlaybackRequest(track, rangeBlocks, volumePercent));
         // ビート校正はこの再生セッションだけのもの。ラジオ再接続 (submitLoad の再入) では
         // 報告しない = requests には載せず、この 1 回のロードにだけ持たせる。
-        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, playbackId);
+        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, playbackId, token);
     }
 
     /**
@@ -157,7 +161,7 @@ public final class ClientPlaybackManager {
      * startPlayback (遅延0) とラジオ再接続 (遅延あり) の共通経路。
      */
     private void submitLoad(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, long delayMs, long playbackId) {
+            int volumePercent, long delayMs, long playbackId, long token) {
         pool.submit(() -> {
             if (delayMs > 0L) {
                 try {
@@ -167,8 +171,8 @@ public final class ClientPlaybackManager {
                     return;
                 }
             }
-            if (!wanted.contains(key)) {
-                return; // 遅延中に停止/撤去された
+            if (!sessions.isCurrent(key, token)) {
+                return; // 遅延中に停止/撤去された、または後続の要求に追い越された
             }
             IAudioSource source;
             try {
@@ -183,26 +187,33 @@ public final class ClientPlaybackManager {
                 source = null;
             }
             final IAudioSource resolved = source;
-            Minecraft.getInstance().execute(
-                    () -> onLoaded(key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, playbackId));
+            Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, rangeBlocks,
+                    volumePercent, resolved, playbackId, token));
         });
     }
 
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
     private void onLoaded(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, IAudioSource resolved, long playbackId) {
+            int volumePercent, IAudioSource resolved, long playbackId, long token) {
+        // 追い越された古いロードは、失敗していても成功していても何も触らずに消える。失敗を
+        // 数えたり通知したりすると、勝った側の再生を巻き込んで止めてしまう。
+        final boolean current = sessions.isCurrent(key, token);
         if (resolved == null) {
-            if (track.radio() && wanted.contains(key)) {
+            if (!current) {
+                return;
+            }
+            if (track.radio()) {
                 onRadioStreamEnded(key); // ロード失敗も 1 回の再接続試行として数える
             } else {
-                wanted.remove(key);
+                sessions.cancel(key);
                 requests.remove(key);
                 notifyPlaybackFailed(); // 無音で終わらせず、再生できなかったことをプレイヤーに伝える
             }
             return;
         }
-        if (!wanted.contains(key)) {
-            resolved.close(); // ロード中に停止要求済み
+        if (sessions.onLoadComplete(key, token) == PlaybackSessions.LoadOutcome.DISCARD) {
+            // ロード中に停止された、または後続の要求 (2 通目の payload・シーク) に追い越された。
+            resolved.close();
             return;
         }
         // 自然終了したインスタンスを掃除 (MAX_CONCURRENT を不当に消費させない)
@@ -218,7 +229,7 @@ public final class ClientPlaybackManager {
         if (active.size() >= com.kuronami.musicdiscmaker.Config.maxConcurrent()) {
             MusicDiscMaker.LOGGER.info("同時再生上限に達したため再生をスキップ: {}", key);
             resolved.close();
-            wanted.remove(key);
+            sessions.cancel(key);
             requests.remove(key);
             return;
         }
@@ -242,7 +253,15 @@ public final class ClientPlaybackManager {
                 Services.NETWORK.sendToServer(new PlaybackStartedPayload(key, playbackId, startOffsetMs));
             }
         }));
-        active.put(key, instance);
+        // 世代トークンでここに古いロードは来ないが、未知の経路で生きたインスタンスが居た場合に
+        // 黙って上書きすると、押し出された方がどの map からも参照されない孤児になって止められなく
+        // なる。置き換える前に必ず畳む (最後の歯止め)。
+        final DiscSoundInstance displaced = active.put(key, instance);
+        if (displaced != null && displaced != instance) {
+            MusicDiscMaker.LOGGER.warn("再生インスタンスの置き換えで生きた前任を停止: {}", key);
+            displaced.requestStop();
+            Minecraft.getInstance().getSoundManager().stop(displaced);
+        }
         playingUrl.put(key, track.url());
         playStartMillis.put(key, System.currentTimeMillis());
         loadOffsetMs.put(key, startOffsetMs); // シーク判定の基準位置
@@ -261,7 +280,7 @@ public final class ClientPlaybackManager {
      * いれば、間隔を置いて再接続を試みる。安定再生後の瞬断なら試行回数をリセットし、上限超過なら停止する。
      */
     private void onRadioStreamEnded(BlockPos key) {
-        if (!wanted.contains(key)) {
+        if (!sessions.isWanted(key)) {
             return; // ディスク撤去/停止済み → 再接続しない
         }
         final PlaybackRequest req = requests.get(key);
@@ -288,14 +307,17 @@ public final class ClientPlaybackManager {
         if (attempt > MAX_RECONNECT) {
             // 恒久失敗 → クリーン停止して通知。
             reconnectAttempts.remove(key);
-            wanted.remove(key);
+            sessions.cancel(key);
             requests.remove(key);
             notifyActionBar(Component.translatable("music_disc_maker.radio.stopped"));
             return;
         }
         reconnectAttempts.put(key, attempt);
         notifyActionBar(Component.translatable("music_disc_maker.radio.reconnecting", attempt, MAX_RECONNECT));
-        submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(), RECONNECT_DELAY_MS, 0L);
+        // 再接続は「同じ要求の続き」なので新しい世代は起こさない (server 由来の新しい再生要求が
+        // 割り込んだら、その世代が最新になってこの再接続ロードは自滅する)。
+        submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(), RECONNECT_DELAY_MS, 0L,
+                sessions.currentToken(key));
     }
 
     /** 再生失敗をアクションバーに表示する (main thread から呼ぶこと)。 */
@@ -348,7 +370,7 @@ public final class ClientPlaybackManager {
 
     public void stopPlayback(BlockPos pos) {
         final BlockPos key = pos.immutable();
-        wanted.remove(key);
+        sessions.cancel(key);
         playingUrl.remove(key);
         requests.remove(key);
         reconnectAttempts.remove(key);
@@ -368,7 +390,7 @@ public final class ClientPlaybackManager {
         // 手持ちブームボックス (key が entityId で別 map) もここでまとめて掃除する。
         // 再入時にゾンビの音が残らないよう、切断の入口を 1 本にしておく。
         BoomboxClientPlayback.stopAll();
-        wanted.clear();
+        sessions.cancelAll();
         playingUrl.clear();
         requests.clear();
         reconnectAttempts.clear();
