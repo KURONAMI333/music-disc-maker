@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IOpusDecoder;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IOpusEncoder;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 import com.sedmelluq.discord.lavaplayer.format.Pcm16AudioDataFormat;
@@ -55,6 +57,11 @@ public class MusicLoaderImpl implements IMusicLoader {
     // それを MC が mono 48kHz として再生すると倍の尺 = 半速 + オクターブ低 (slow+低音) になる。
     // stereo で確実に受け、LavaAudioSource が全ソース一律に mono へ downmix する。
     private static final int LAVA_OUTPUT_CHANNELS = 2;
+
+    /** Opus パケット 1 個の上限 (実測の最大は 20ms/mono で 180 byte・仕様上の上限は 1275)。 */
+    private static final int MAX_OPUS_PACKET_BYTES = 4096;
+    /** decode 先バッファの上限サンプル数 (48kHz の 120ms ぶん = Opus の最長フレーム)。 */
+    private static final int MAX_OPUS_FRAME_SAMPLES = 5760;
 
     // YouTube リンクの host 判定と 11 桁 video ID 抽出。host が YouTube 系の時だけ正規化する
     // (他サービスの URL に v= が含まれても触らない)。
@@ -148,6 +155,31 @@ public class MusicLoaderImpl implements IMusicLoader {
         final AudioPlayer player = apm.createPlayer();
         player.playTrack(track);
         return new LavaAudioSource(player);
+    }
+
+    /**
+     * Opus encoder を作る。native がロードできない環境 (未対応 CPU/OS) では {@code null} を返し、
+     * 呼び出し側 (音源ローカルキャッシュ) はキャッシュを黙って諦めて通常再生に落ちる。
+     */
+    @Override
+    public IOpusEncoder openOpusEncoder(int sampleRate, int channels, int frameSamples) {
+        try {
+            return new LavaOpusEncoder(sampleRate, channels, frameSamples, MAX_OPUS_PACKET_BYTES);
+        } catch (final Throwable t) {
+            LOGGER.warn("Opus encoder を作れない (キャッシュ無効): {}", t.toString());
+            return null;
+        }
+    }
+
+    /** Opus decoder を作る。native がロードできなければ {@code null} (キャッシュ読み出しを諦める)。 */
+    @Override
+    public IOpusDecoder openOpusDecoder(int sampleRate, int channels) {
+        try {
+            return new LavaOpusDecoder(sampleRate, channels, MAX_OPUS_PACKET_BYTES, MAX_OPUS_FRAME_SAMPLES);
+        } catch (final Throwable t) {
+            LOGGER.warn("Opus decoder を作れない (キャッシュ無効): {}", t.toString());
+            return null;
+        }
     }
 
     /**
