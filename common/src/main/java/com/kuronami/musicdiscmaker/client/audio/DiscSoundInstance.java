@@ -156,14 +156,18 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         this.x = p.x;
         this.y = p.y;
         this.z = p.z;
-        // 強化版ジュークボックス固有 (StaticAnchor のみ): client 側 BE から音量・可聴範囲を毎 tick 再読し、
-        // スライダー操作を再ロードなしで即反映する。音量はローカルフィールド書き換えのみ、範囲は減衰半径
-        // (OpenAL の max distance) なので変化時だけチャンネルへ反映する (毎 tick の execute は無駄)。
-        // vanilla jukebox の BE は GoldenJukeboxBlockEntity ではないので instanceof で自然に弾かれる。
-        if (anchor instanceof StaticAnchor sa) {
+        // 強化版ジュークボックス固有: client 側 BE から音量・可聴範囲を毎 tick 再読し、スライダー操作を
+        // 再ロードなしで即反映する。音量はローカルフィールド書き換えのみ、範囲は減衰半径 (OpenAL の
+        // max distance) なので変化時だけチャンネルへ反映する (毎 tick の execute は無駄)。
+        // 対象は LiveConfigAnchor を実装するアンカー = 原ブロックが client world に実在するもの
+        // (固定ジューク StaticAnchor)。Create 捕獲式は AIR 化で、Aeronautics 変換式は off-map sub-level に
+        // 実在するため再読元が client world に無く、いずれも実装せず自然に弾かれる。vanilla jukebox の
+        // BE も GoldenJukeboxBlockEntity ではないので弾かれる。
+        if (anchor instanceof LiveConfigAnchor lc) {
+            final BlockPos configPos = lc.configPos();
             final Minecraft mc = Minecraft.getInstance();
-            if (mc.level != null && mc.level.isLoaded(sa.pos())
-                    && mc.level.getBlockEntity(sa.pos()) instanceof GoldenJukeboxBlockEntity be) {
+            if (mc.level != null && mc.level.isLoaded(configPos)
+                    && mc.level.getBlockEntity(configPos) instanceof GoldenJukeboxBlockEntity be) {
                 this.volumePercent = be.getVolumePercent();
                 this.volume = computeVolume();
                 final int beRange = be.getRangeBlocks();
