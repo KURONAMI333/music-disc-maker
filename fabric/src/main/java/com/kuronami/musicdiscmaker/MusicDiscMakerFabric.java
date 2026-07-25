@@ -2,11 +2,14 @@ package com.kuronami.musicdiscmaker;
 
 import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
 import com.kuronami.musicdiscmaker.event.FabricJukeboxEvents;
+import com.kuronami.musicdiscmaker.event.SpeakerNetwork;
 import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
 import com.kuronami.musicdiscmaker.network.SeekJukeboxPayload;
+import com.kuronami.musicdiscmaker.network.SpeakerConfigPayload;
+import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.register.ModRegistries;
 
@@ -31,8 +34,10 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(ResolveUrlPayload.TYPE, ResolveUrlPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ConfigureJukeboxPayload.TYPE, ConfigureJukeboxPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(SeekJukeboxPayload.TYPE, SeekJukeboxPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(SpeakerConfigPayload.TYPE, SpeakerConfigPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(StopDiscPayload.TYPE, StopDiscPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(SpeakerSetPayload.TYPE, SpeakerSetPayload.STREAM_CODEC);
         // SB Fabric port の backpack jukebox 用 (port 非依存。port が無ければ送信されないだけ)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload();
 
@@ -45,12 +50,18 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // server 受信: 強化版ジュークボックスのシークバー頭出し。
         ServerPlayNetworking.registerGlobalReceiver(SeekJukeboxPayload.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleSeekJukebox(payload, ctx.player())));
+        // server 受信: スピーカーの音量・可聴範囲の適用。
+        ServerPlayNetworking.registerGlobalReceiver(SpeakerConfigPayload.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleConfigureSpeaker(payload, ctx.player())));
 
         // jukebox 出し入れ / 破壊イベント。
         FabricJukeboxEvents.register();
 
         // server 停止で再生中状態を破棄 (シングルプレイのワールド退出含む)。
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> ActiveDiscRegistry.clear());
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            ActiveDiscRegistry.clear();
+            SpeakerNetwork.clear();
+        });
 
         MusicDiscMaker.LOGGER.info("Music Disc Maker (Fabric) initialized");
     }

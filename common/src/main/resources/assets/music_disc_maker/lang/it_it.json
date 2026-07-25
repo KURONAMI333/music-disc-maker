@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "Riproduci",
   "gui.music_disc_maker.golden_jukebox.pause": "Pausa",
   "gui.music_disc_maker.golden_jukebox.stop": "Ferma",
-  "gui.music_disc_maker.golden_jukebox.no_track": "Nessun disco"
+  "gui.music_disc_maker.golden_jukebox.no_track": "Nessun disco",
+  "block.music_disc_maker.speaker": "Altoparlante",
+  "gui.music_disc_maker.speaker.title": "Altoparlante",
+  "gui.music_disc_maker.speaker.volume": "Volume: %s%%",
+  "gui.music_disc_maker.speaker.range": "Portata: %s",
+  "gui.music_disc_maker.speaker.linked": "Sorgente: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "Nessuna sorgente collegata",
+  "gui.music_disc_maker.speaker.muted": "Silenziato dalla redstone",
+  "music_disc_maker.speaker.source_stored": "Sorgente memorizzata: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "Collegato al jukebox",
+  "music_disc_maker.speaker.link_failed.no_source": "Nessun jukebox dorato nella posizione memorizzata",
+  "music_disc_maker.speaker.link_failed.too_far": "Troppo lontano dal jukebox",
+  "music_disc_maker.speaker.link_failed.too_many": "Questo jukebox ha già il numero massimo di altoparlanti",
+  "tooltip.music_disc_maker.speaker.linked_to": "Sorgente: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "Maiusc + clic destro su un jukebox dorato per collegare"
 }

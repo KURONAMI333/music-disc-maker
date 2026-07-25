@@ -37,6 +37,8 @@ public class MusicDiscMakerNeoForge {
         modEventBus.addListener(com.kuronami.musicdiscmaker.compat.aeronautics.SableCompat::onCommonSetup);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, NeoForgeConfigHelper.SPEC);
+        // スピーカーのリンク制約は server 側で読む (dedicated server に CLIENT config は載らない)。
+        modContainer.registerConfig(ModConfig.Type.SERVER, NeoForgeConfigHelper.SERVER_SPEC);
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {

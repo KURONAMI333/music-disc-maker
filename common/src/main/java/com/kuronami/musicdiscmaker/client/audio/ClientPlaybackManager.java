@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,6 +11,7 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.network.SpeakerEntry;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
@@ -45,6 +47,11 @@ public final class ClientPlaybackManager {
 
     private final Map<BlockPos, DiscSoundInstance> active = new ConcurrentHashMap<>();
     private final Set<BlockPos> wanted = ConcurrentHashMap.newKeySet();
+    // pos ごとの聴取アンカー。SpeakerSetPayload はここへ集合を差し替える (再生は止めない)。
+    private final Map<BlockPos, MultiSpeakerAnchor> anchors = new ConcurrentHashMap<>();
+    // pos ごとの有効スピーカー集合。再生セッションではなく音源の属性なので、シーク/リピートの
+    // 停止→再生では捨てない。停止 packet (StopDiscPayload) と切断でだけ忘れる。
+    private final Map<BlockPos, List<SpeakerEntry>> speakerSets = new ConcurrentHashMap<>();
     // pos ごとの現在再生中 URL。chunk 再入での無駄な再ロードを避ける判定に使う。
     private final Map<BlockPos, String> playingUrl = new ConcurrentHashMap<>();
     // pos ごとの再生要求 (ラジオ再接続で同じ track/range/volume を再利用する)。
@@ -179,7 +186,12 @@ public final class ClientPlaybackManager {
         final Runnable endCb = track.radio()
                 ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
                 : null;
-        final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
+        // 聴取モデルは常にマルチアンカー。スピーカー集合が空なら StaticAnchor と同じ挙動へ縮退する。
+        final MultiSpeakerAnchor anchor = new MultiSpeakerAnchor(key);
+        anchor.setSpeakers(speakerSets.getOrDefault(key, List.of()));
+        anchors.put(key, anchor);
+        final DiscSoundInstance instance =
+                new DiscSoundInstance(anchor, resolved, rangeBlocks, volumePercent, endCb);
         active.put(key, instance);
         playingUrl.put(key, track.url());
         playStartMillis.put(key, System.currentTimeMillis());
@@ -248,6 +260,29 @@ public final class ClientPlaybackManager {
         }
     }
 
+    /**
+     * 音源(pos) の有効スピーカー集合を差し替える ({@code SpeakerSetPayload} 受信)。再生中なら
+     * 聴取アンカーへ即反映し、まだインスタンスが立っていなければ保持しておいて生成時に適用する
+     * (packet 順に依存しない)。
+     */
+    public void updateSpeakers(BlockPos pos, List<SpeakerEntry> speakers) {
+        final BlockPos key = pos.immutable();
+        if (speakers == null || speakers.isEmpty()) {
+            speakerSets.remove(key);
+        } else {
+            speakerSets.put(key, List.copyOf(speakers));
+        }
+        final MultiSpeakerAnchor anchor = anchors.get(key);
+        if (anchor != null) {
+            anchor.setSpeakers(speakers);
+        }
+    }
+
+    /** 音源(pos) のスピーカー集合を忘れる (停止 packet 受信時)。 */
+    public void forgetSpeakers(BlockPos pos) {
+        speakerSets.remove(pos.immutable());
+    }
+
     public void stopPlayback(BlockPos pos) {
         final BlockPos key = pos.immutable();
         wanted.remove(key);
@@ -256,6 +291,8 @@ public final class ClientPlaybackManager {
         reconnectAttempts.remove(key);
         playStartMillis.remove(key);
         loadOffsetMs.remove(key);
+        // speakerSets はここで消さない。startPlayback は seek/repeat のたびにこの経路を通るため。
+        anchors.remove(key);
         final DiscSoundInstance instance = active.remove(key);
         if (instance != null) {
             instance.requestStop();
@@ -270,6 +307,8 @@ public final class ClientPlaybackManager {
         reconnectAttempts.clear();
         playStartMillis.clear();
         loadOffsetMs.clear();
+        anchors.clear();
+        speakerSets.clear();
         active.values().forEach(instance -> {
             instance.requestStop();
             Minecraft.getInstance().getSoundManager().stop(instance);

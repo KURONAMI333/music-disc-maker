@@ -163,7 +163,20 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         // (固定ジューク StaticAnchor)。Create 捕獲式は AIR 化で、Aeronautics 変換式は off-map sub-level に
         // 実在するため再読元が client world に無く、いずれも実装せず自然に弾かれる。vanilla jukebox の
         // BE も GoldenJukeboxBlockEntity ではないので弾かれる。
-        if (anchor instanceof LiveConfigAnchor lc) {
+        if (anchor instanceof LiveAudioConfigAnchor la) {
+            // 再読元が 1 箇所に定まらないアンカー (最近傍のスピーカー or 音源) は、値の解決を
+            // アンカー側に任せる。負値 = 「今は分からない」なので現在値を保持する。
+            final int liveVolume = la.liveVolumePercent();
+            if (liveVolume >= 0) {
+                this.volumePercent = liveVolume;
+                this.volume = computeVolume();
+            }
+            final int liveRange = la.liveRangeBlocks();
+            if (liveRange >= 0 && liveRange != this.rangeBlocks) {
+                this.rangeBlocks = liveRange;
+                applyLinearAttenuation();
+            }
+        } else if (anchor instanceof LiveConfigAnchor lc) {
             final BlockPos configPos = lc.configPos();
             final Minecraft mc = Minecraft.getInstance();
             if (mc.level != null && mc.level.isLoaded(configPos)
@@ -199,6 +212,17 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
 
     public CompletableFuture<AudioStream> getCustomStream() {
         return CompletableFuture.completedFuture(new LavaPlayerAudioStream(source, onStreamEnded));
+    }
+
+    /**
+     * 計算音量が 0 でも再生を開始させる。{@code SoundEngine#play} は
+     * {@code volume==0 && !canStartSilent()} で早期 return し、以後 tick されない
+     * ({@code queuedTickableSounds} に入らない) ため、音量 0% のスピーカー・自前減衰モードで
+     * 「二度と鳴らない」状態に落ちるのを防ぐ。
+     */
+    @Override
+    public boolean canStartSilent() {
+        return true;
     }
 
     public void requestStop() {

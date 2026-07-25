@@ -104,6 +104,8 @@ public final class JukeboxHandler {
 
         // 強化版ジュークボックス (BE 権威・ActiveDiscRegistry 非使用) の late-join 再送。
         GoldenJukeboxLateJoin.resend(level, chunkPos, player);
+        // スピーカー起点の late-join 再送 (音源チャンクを追跡していない player への配送)。
+        SpeakerLateJoin.resend(level, chunkPos, player);
 
         for (final ActiveDiscRegistry.Playing p : playing) {
             // 撤去済み jukebox の stale エントリを late-joiner に送らない (爆発/ピストン/コマンド除去の掃除)。
@@ -134,6 +136,7 @@ public final class JukeboxHandler {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         ActiveDiscRegistry.clear();
+        SpeakerNetwork.clear();
     }
 
     private static void broadcast(Level level, BlockPos pos,

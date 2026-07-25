@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.platform.services;
 
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
+import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,4 +26,10 @@ public interface IMenuHelper {
 
     /** server 側: pos を付けて強化版ジュークボックスの設定 menu を開く。 */
     void openGoldenJukeboxMenu(ServerPlayer player, BlockPos pos);
+
+    /** BlockPos を client ctor へ運ぶスピーカーの extended MenuType を生成する。 */
+    MenuType<SpeakerMenu> createSpeakerMenuType();
+
+    /** server 側: pos を付けてスピーカーの設定 menu を開く。 */
+    void openSpeakerMenu(ServerPlayer player, BlockPos pos);
 }

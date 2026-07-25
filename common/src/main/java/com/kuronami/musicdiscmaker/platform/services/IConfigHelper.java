@@ -21,4 +21,16 @@ public interface IConfigHelper {
      * Fabric の固定 64 に頭打ちされず 256 まで届く。通常 jukebox の挙動には影響しない。
      */
     int maxPlaybackRange();
+
+    /**
+     * スピーカーを音源 (強化版ジュークボックス) にリンクできる最大距離 (ブロック)。既定 128。
+     * <b>server 側で読む値</b> (設置時の検証)。NeoForge は SERVER config、Fabric は既定値。
+     */
+    int speakerLinkRange();
+
+    /**
+     * 1 つの音源にぶら下げられるスピーカーの最大台数。既定 16。
+     * <b>server 側で読む値</b> (リンク時の検証と payload の歯止め)。
+     */
+    int maxSpeakersPerSource();
 }

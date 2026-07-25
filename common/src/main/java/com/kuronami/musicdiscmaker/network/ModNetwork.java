@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.network;
 
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
+import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
 
 import net.minecraft.core.BlockPos;
@@ -60,6 +61,21 @@ public final class ModNetwork {
         }
     }
 
+    /** server 受信: スピーカーの音量・可聴範囲の適用。 */
+    public static void handleConfigureSpeaker(SpeakerConfigPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.level().getBlockEntity(pos) instanceof SpeakerBlockEntity speaker) {
+            speaker.setVolumePercent(payload.volumePercent());
+            speaker.setRangeBlocks(payload.rangeBlocks());
+            // スピーカーの chunk をロードしていない listener はスナップショットで鳴っているので、
+            // 集合を送り直して新しい値を届ける (BE ライブ再読が届かない距離の救済)。
+            speaker.notifySourceChanged();
+        }
+    }
+
     /** client 受信: 再生開始 (client 専用経路。dedicated server では never-load)。 */
     public static void handlePlay(PlayDiscPayload payload) {
         ClientPlaybackHandler.play(payload);
@@ -68,5 +84,10 @@ public final class ModNetwork {
     /** client 受信: 再生停止 (client 専用経路)。 */
     public static void handleStop(StopDiscPayload payload) {
         ClientPlaybackHandler.stop(payload);
+    }
+
+    /** client 受信: 有効スピーカー集合の更新 (client 専用経路)。 */
+    public static void handleSpeakerSet(SpeakerSetPayload payload) {
+        ClientPlaybackHandler.speakers(payload);
     }
 }

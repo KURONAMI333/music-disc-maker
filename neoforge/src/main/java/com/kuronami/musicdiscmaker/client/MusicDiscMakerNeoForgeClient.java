@@ -42,6 +42,7 @@ public class MusicDiscMakerNeoForgeClient {
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         event.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
+        event.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
     }
 
     @SubscribeEvent

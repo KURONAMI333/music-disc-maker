@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "Afspelen",
   "gui.music_disc_maker.golden_jukebox.pause": "Pauze",
   "gui.music_disc_maker.golden_jukebox.stop": "Stop",
-  "gui.music_disc_maker.golden_jukebox.no_track": "Geen disc"
+  "gui.music_disc_maker.golden_jukebox.no_track": "Geen disc",
+  "block.music_disc_maker.speaker": "Luidspreker",
+  "gui.music_disc_maker.speaker.title": "Luidspreker",
+  "gui.music_disc_maker.speaker.volume": "Volume: %s%%",
+  "gui.music_disc_maker.speaker.range": "Bereik: %s",
+  "gui.music_disc_maker.speaker.linked": "Bron: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "Geen bron gekoppeld",
+  "gui.music_disc_maker.speaker.muted": "Gedempt door redstone",
+  "music_disc_maker.speaker.source_stored": "Bron opgeslagen: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "Gekoppeld aan de jukebox",
+  "music_disc_maker.speaker.link_failed.no_source": "Geen gouden jukebox op de opgeslagen positie",
+  "music_disc_maker.speaker.link_failed.too_far": "Te ver van de jukebox",
+  "music_disc_maker.speaker.link_failed.too_many": "Deze jukebox heeft al het maximale aantal luidsprekers",
+  "tooltip.music_disc_maker.speaker.linked_to": "Bron: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + rechtsklik op een gouden jukebox om te koppelen"
 }

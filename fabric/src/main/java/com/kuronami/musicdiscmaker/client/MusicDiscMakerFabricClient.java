@@ -8,6 +8,7 @@ import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.TrackKey;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -31,6 +32,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
+        MenuScreens.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
 
         // ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する。
         TooltipComponentCallback.EVENT.register(
@@ -51,6 +53,9 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handlePlay(payload)));
         ClientPlayNetworking.registerGlobalReceiver(StopDiscPayload.TYPE,
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleStop(payload)));
+        // client 受信: 有効スピーカー集合の更新。
+        ClientPlayNetworking.registerGlobalReceiver(SpeakerSetPayload.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleSpeakerSet(payload)));
         // SB Fabric port の backpack jukebox 再生受信 (port 非依存)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerClientReceiver();
 

@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "播放",
   "gui.music_disc_maker.golden_jukebox.pause": "暫停",
   "gui.music_disc_maker.golden_jukebox.stop": "停止",
-  "gui.music_disc_maker.golden_jukebox.no_track": "無唱片"
+  "gui.music_disc_maker.golden_jukebox.no_track": "無唱片",
+  "block.music_disc_maker.speaker": "音箱",
+  "gui.music_disc_maker.speaker.title": "音箱",
+  "gui.music_disc_maker.speaker.volume": "音量：%s%%",
+  "gui.music_disc_maker.speaker.range": "範圍：%s",
+  "gui.music_disc_maker.speaker.linked": "音源：%s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "未連接音源",
+  "gui.music_disc_maker.speaker.muted": "已被紅石靜音",
+  "music_disc_maker.speaker.source_stored": "已記錄音源：%s, %s, %s",
+  "music_disc_maker.speaker.linked": "已連接到唱片機",
+  "music_disc_maker.speaker.link_failed.no_source": "記錄的位置上沒有黃金唱片機",
+  "music_disc_maker.speaker.link_failed.too_far": "距離唱片機太遠",
+  "music_disc_maker.speaker.link_failed.too_many": "該唱片機的音箱數量已達上限",
+  "tooltip.music_disc_maker.speaker.linked_to": "音源：%s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "潛行 + 右鍵黃金唱片機以連接"
 }

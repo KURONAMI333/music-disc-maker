@@ -44,6 +44,8 @@ public abstract class ChunkWatchMixin {
 
         // 強化版ジュークボックス (BE 権威・ActiveDiscRegistry 非使用) の late-join 再送。
         com.kuronami.musicdiscmaker.event.GoldenJukeboxLateJoin.resend(level, chunkPos, player);
+        // スピーカー起点の late-join 再送 (音源チャンクを追跡していない player への配送)。
+        com.kuronami.musicdiscmaker.event.SpeakerLateJoin.resend(level, chunkPos, player);
 
         final List<ActiveDiscRegistry.Playing> playing =
                 ActiveDiscRegistry.activeInChunk(level.dimension(), chunkPos, now);

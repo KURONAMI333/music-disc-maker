@@ -27,4 +27,14 @@ public class FabricConfigHelper implements IConfigHelper {
         // Fabric は config 画面が無いので既定 256。強化版ジュークボックスはこの上限まで到達できる。
         return 256;
     }
+
+    @Override
+    public int speakerLinkRange() {
+        return 128;
+    }
+
+    @Override
+    public int maxSpeakersPerSource() {
+        return 16;
+    }
 }

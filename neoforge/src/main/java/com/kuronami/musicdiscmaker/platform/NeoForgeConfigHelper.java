@@ -31,6 +31,22 @@ public class NeoForgeConfigHelper implements IConfigHelper {
 
     public static final ModConfigSpec SPEC = BUILDER.build();
 
+    // ── SERVER config ────────────────────────────────────────────────────
+    // スピーカーのリンク制約は server 側 (設置時の検証・payload の歯止め) で読むので、CLIENT spec には
+    // 置かない。CLIENT spec は dedicated server にロードされず、値を引いた時点で落ちる。
+
+    private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
+
+    public static final ModConfigSpec.IntValue SPEAKER_LINK_RANGE = SERVER_BUILDER
+            .comment("Maximum distance (blocks) at which a Speaker can be linked to a Golden Jukebox.")
+            .defineInRange("speakerLinkRange", 128, 16, 512);
+
+    public static final ModConfigSpec.IntValue MAX_SPEAKERS_PER_SOURCE = SERVER_BUILDER
+            .comment("Maximum number of Speakers that can be linked to a single Golden Jukebox.")
+            .defineInRange("maxSpeakersPerSource", 16, 1, 64);
+
+    public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
+
     @Override
     public double volumeMultiplier() {
         return VOLUME_MULTIPLIER.get();
@@ -49,5 +65,15 @@ public class NeoForgeConfigHelper implements IConfigHelper {
     @Override
     public int maxPlaybackRange() {
         return MAX_PLAYBACK_RANGE.get();
+    }
+
+    @Override
+    public int speakerLinkRange() {
+        return SPEAKER_LINK_RANGE.get();
+    }
+
+    @Override
+    public int maxSpeakersPerSource() {
+        return MAX_SPEAKERS_PER_SOURCE.get();
     }
 }
