@@ -32,14 +32,38 @@ import net.minecraft.world.entity.Entity;
  * <p>keep-alive (同じ URL の再送) ではストリームに触らず、音量・指向性だけを
  * {@link BoomboxAnchor} へ書き込む。{@code DiscSoundInstance#tick} がそれを読むので、GUI の変更が
  * <b>鳴らし直さずに</b>反映される。
+ *
+ * <h2>飛行中の keep-alive は捨てる</h2>
+ * 世代トークンは「着地したロードのうちどれを採るか」しか決めない。撃ち直しそのものは止めないので、
+ * server の keep-alive 間隔 ({@code BoomboxPlayback.HEARTBEAT_MS}) より URL 解決が遅い曲では、
+ * まだ何も鳴っていない = 上の dedup が素通りする窓に keep-alive が入り、ロードを畳んで撃ち直す。
+ * それが解決より速く繰り返されると<b>永久に音が立たない</b>。そこで飛行中のロードを覚えておき、
+ * 同じロード (URL と持ち主が同じ) の再送はここで捨てる。
+ *
+ * <p>この窓の間の音量・指向性の変更は着地に載らないが、着地後いちばん最初の keep-alive で
+ * アンカーへ入る (最大 1 keep-alive ぶん遅れる)。
+ *
+ * <p><b>{@code PENDING} の読み書きは main thread からだけ</b> ({@link PlaybackSessions} と同じ約束)。
+ * 受信ハンドラも {@code onLoaded} の再入も main thread に居るので、この対は崩れない。
  */
 public final class BoomboxClientPlayback {
 
     private record Playing(String url, BoomboxAnchor anchor, DiscSoundInstance instance) {
     }
 
+    /** 飛行中のロードの中身。keep-alive が「これと同じロード」かを判別するのに使う。 */
+    private record Pending(String url, int ownerEntityId) {
+    }
+
     private static final Map<UUID, Playing> ACTIVE = new ConcurrentHashMap<>();
     private static final PlaybackSessions<UUID> SESSIONS = new PlaybackSessions<>();
+    /**
+     * 個体ごとの飛行中のロード。server は client の着地を知らないまま
+     * {@code BoomboxPlayback.HEARTBEAT_MS} 間隔で撃ち続けるので、これが無いと URL 解決が
+     * その間隔より遅い曲で keep-alive が毎回ロードを畳んで撃ち直し、永久に音が立たない。
+     * 世代トークンと役割が違う (あちらは着地の採否・こちらは撃ち直しの抑止)。
+     */
+    private static final Map<UUID, Pending> PENDING = new ConcurrentHashMap<>();
 
     private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-boombox-playback");
@@ -65,8 +89,15 @@ public final class BoomboxClientPlayback {
             current.anchor().refresh(volumePercent, directional);
             return;
         }
+        // 同じロードが飛行中の keep-alive は捨てる。ここで撃ち直すと、URL 解決が heartbeat より
+        // 遅い曲では毎回そのロードを畳んで最初からやり直し = 永久に音が立たない。
+        // 停止は PENDING を落とすので、停止 → 同一 URL 再開はこの分岐に落ちない (再開は通る)。
+        if (new Pending(track.url(), ownerEntityId).equals(PENDING.get(boomboxId))) {
+            return;
+        }
         stop(boomboxId);
         final long token = SESSIONS.begin(boomboxId);
+        PENDING.put(boomboxId, new Pending(track.url(), ownerEntityId));
         POOL.submit(() -> {
             IAudioSource source;
             try {
@@ -87,6 +118,11 @@ public final class BoomboxClientPlayback {
 
     private static void onLoaded(UUID boomboxId, int ownerEntityId, CustomTrackData track, int volumePercent,
             boolean directional, IAudioSource resolved, long token) {
+        // この世代の飛行は終わった (成否・着地の可否は問わない)。追い越された古いロードでは
+        // 触らない — PENDING に載っているのは後続の要求のものなので、消すと撃ち直しが復活する。
+        if (SESSIONS.isCurrent(boomboxId, token)) {
+            PENDING.remove(boomboxId);
+        }
         if (resolved == null) {
             return;
         }
@@ -134,6 +170,7 @@ public final class BoomboxClientPlayback {
 
     public static void stop(UUID boomboxId) {
         SESSIONS.cancel(boomboxId);
+        PENDING.remove(boomboxId);
         final Playing playing = ACTIVE.remove(boomboxId);
         if (playing != null) {
             playing.instance().requestStop();
@@ -144,6 +181,7 @@ public final class BoomboxClientPlayback {
     /** 切断時の一括停止 ({@link ClientPlaybackManager#stopAll()} から呼ばれる)。 */
     public static void stopAll() {
         SESSIONS.cancelAll();
+        PENDING.clear();
         ACTIVE.values().forEach(playing -> {
             playing.instance().requestStop();
             Minecraft.getInstance().getSoundManager().stop(playing.instance());
