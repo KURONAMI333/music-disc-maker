@@ -38,6 +38,10 @@ public final class NeoForgePayloads {
         registrar.playToServer(PlaybackStartedPayload.TYPE, PlaybackStartedPayload.STREAM_CODEC,
                 NeoForgePayloads::handlePlaybackStarted);
 
+        // client → server: ブームボックス GUI の音量・指向性
+        registrar.playToServer(BoomboxConfigPayload.TYPE, BoomboxConfigPayload.STREAM_CODEC,
+                NeoForgePayloads::handleBoomboxConfig);
+
         // server → client (再生制御)。
         registrar.playToClient(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> ModNetwork.handlePlay(payload)));
@@ -95,5 +99,12 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handlePlaybackStarted(payload, player));
+    }
+
+    private static void handleBoomboxConfig(BoomboxConfigPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleBoomboxConfig(payload, player));
     }
 }

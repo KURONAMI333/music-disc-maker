@@ -37,6 +37,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
         MenuScreens.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
+        MenuScreens.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
 
         // スピーカーのリンク先を輪郭で示す (スピーカーのブロックアイテムを持っている間だけ)。
         // AFTER_ENTITIES を使う: WorldRenderContext#consumers() は BEFORE_ENTITIES より前と

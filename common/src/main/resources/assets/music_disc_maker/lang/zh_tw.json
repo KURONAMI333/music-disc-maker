@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "該唱片機的音箱數量已達上限",
   "tooltip.music_disc_maker.speaker.linked_to": "音源：%s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "潛行 + 右鍵黃金唱片機以連接",
-  "block.music_disc_maker.boombox": "手提音響",
+  "item.music_disc_maker.boombox": "手提音響",
   "music_disc_maker.boombox.playing": "播放中",
   "music_disc_maker.boombox.stopped": "已停止",
   "music_disc_maker.boombox.no_disc": "沒有放入唱片",
   "tooltip.music_disc_maker.boombox.loaded": "已裝入：%s",
   "tooltip.music_disc_maker.boombox.empty": "空",
-  "tooltip.music_disc_maker.boombox.hint": "對空 Shift + 右鍵播放/停止。在背包中右鍵唱片裝入。"
+  "tooltip.music_disc_maker.boombox.hint": "右鍵播放/停止。在背包中右鍵唱片裝入。",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Shift + 右鍵開啟設定。",
+  "gui.music_disc_maker.boombox.title": "手提音響",
+  "gui.music_disc_maker.boombox.volume": "音量：%s%%",
+  "gui.music_disc_maker.boombox.empty": "沒有放入唱片",
+  "gui.music_disc_maker.boombox.directional": "聲音方向性",
+  "gui.music_disc_maker.boombox.directional.on": "方向性：開啟（立體定位）",
+  "gui.music_disc_maker.boombox.directional.off": "方向性：關閉（範圍內均勻）"
 }

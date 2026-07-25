@@ -1,5 +1,8 @@
 package com.kuronami.musicdiscmaker.platform.services;
 
+import java.util.UUID;
+
+import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
@@ -32,4 +35,13 @@ public interface IMenuHelper {
 
     /** server 側: pos を付けてスピーカーの設定 menu を開く。 */
     void openSpeakerMenu(ServerPlayer player, BlockPos pos);
+
+    /**
+     * アイテム個体の UUID を client ctor へ運ぶブームボックスの extended MenuType を生成する。
+     * ブロックに紐づかない唯一の menu なので、運ぶのは BlockPos でなく UUID。
+     */
+    MenuType<BoomboxMenu> createBoomboxMenuType();
+
+    /** server 側: アイテム個体の UUID を付けてブームボックスの設定 menu を開く。 */
+    void openBoomboxMenu(ServerPlayer player, UUID boomboxId);
 }

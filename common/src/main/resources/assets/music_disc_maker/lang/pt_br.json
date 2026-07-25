@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "Esta jukebox já tem o número máximo de alto-falantes",
   "tooltip.music_disc_maker.speaker.linked_to": "Fonte: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "Shift + clique direito em uma jukebox dourada para vincular",
-  "block.music_disc_maker.boombox": "Rádio portátil",
+  "item.music_disc_maker.boombox": "Rádio portátil",
   "music_disc_maker.boombox.playing": "Reproduzindo",
   "music_disc_maker.boombox.stopped": "Parado",
   "music_disc_maker.boombox.no_disc": "Nenhum disco inserido",
   "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
   "tooltip.music_disc_maker.boombox.empty": "Vazio",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + clique direito no ar para tocar/parar. Clique direito com um disco para inserir."
+  "tooltip.music_disc_maker.boombox.hint": "Clique direito para tocar/parar. Clique direito com um disco para inserir.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Shift + clique direito abre os ajustes.",
+  "gui.music_disc_maker.boombox.title": "Rádio portátil",
+  "gui.music_disc_maker.boombox.volume": "Volume: %s%%",
+  "gui.music_disc_maker.boombox.empty": "Nenhum disco inserido",
+  "gui.music_disc_maker.boombox.directional": "Áudio direcional",
+  "gui.music_disc_maker.boombox.directional.on": "Áudio direcional: ligado (posicional)",
+  "gui.music_disc_maker.boombox.directional.off": "Áudio direcional: desligado (uniforme no alcance)"
 }

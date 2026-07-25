@@ -2,7 +2,7 @@ package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
-import com.kuronami.musicdiscmaker.item.BoomboxBlockItem;
+import com.kuronami.musicdiscmaker.item.BoomboxItem;
 import com.kuronami.musicdiscmaker.item.SpeakerBlockItem;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
@@ -44,12 +44,15 @@ public final class ModItems {
                     () -> new SpeakerBlockItem(ModBlocks.SPEAKER.get(), new Item.Properties()));
 
     /**
-     * ブームボックスのブロックアイテム。シフト右クリックで手持ち再生をトグルし、インベントリ内で
-     * ディスクを右クリックして装填/取り出しできる。
+     * ブームボックス。<b>設置しない純アイテムの携帯プレイヤー</b>。右クリックで再生/停止、
+     * シフト右クリックで専用 GUI、インベントリ内でディスクを右クリックして装填/取り出し。
+     *
+     * <p>{@code stacksTo(1)} は必須: 再生セッションのキーがアイテム個体の UUID component なので、
+     * スタックできると 1 個のキーで複数個体を指す状態が作れてしまう。
      */
-    public static final RegistryHolder<BoomboxBlockItem> BOOMBOX =
+    public static final RegistryHolder<BoomboxItem> BOOMBOX =
             ITEMS.register("boombox",
-                    () -> new BoomboxBlockItem(ModBlocks.BOOMBOX.get(), new Item.Properties().stacksTo(1)));
+                    () -> new BoomboxItem(new Item.Properties().stacksTo(1)));
 
     private ModItems() {
     }

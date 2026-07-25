@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "このジュークボックスのスピーカーが上限に達しています",
   "tooltip.music_disc_maker.speaker.linked_to": "音源: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "金のジュークボックスをシフト+右クリックでリンク",
-  "block.music_disc_maker.boombox": "ブームボックス",
+  "item.music_disc_maker.boombox": "ブームボックス",
   "music_disc_maker.boombox.playing": "再生中",
   "music_disc_maker.boombox.stopped": "停止",
   "music_disc_maker.boombox.no_disc": "ディスクが入っていない",
   "tooltip.music_disc_maker.boombox.loaded": "入っているディスク: %s",
   "tooltip.music_disc_maker.boombox.empty": "ディスクなし",
-  "tooltip.music_disc_maker.boombox.hint": "空中でシフト + 右クリックで再生/停止。インベントリでディスクを右クリックして装填。"
+  "tooltip.music_disc_maker.boombox.hint": "右クリックで再生/停止。インベントリでディスクを右クリックして装填。",
+  "tooltip.music_disc_maker.boombox.gui_hint": "シフト + 右クリックで設定を開く。",
+  "gui.music_disc_maker.boombox.title": "ブームボックス",
+  "gui.music_disc_maker.boombox.volume": "音量: %s%%",
+  "gui.music_disc_maker.boombox.empty": "ディスクが入っていない",
+  "gui.music_disc_maker.boombox.directional": "音の指向性",
+  "gui.music_disc_maker.boombox.directional.on": "指向性: オン (立体音響)",
+  "gui.music_disc_maker.boombox.directional.off": "指向性: オフ (範囲内はフラット)"
 }

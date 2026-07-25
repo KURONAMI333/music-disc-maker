@@ -1,3 +1,6 @@
 {
-  "parent": "music_disc_maker:block/boombox"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "music_disc_maker:item/boombox"
+  }
 }

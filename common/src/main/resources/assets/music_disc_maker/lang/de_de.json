@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "Diese Jukebox hat bereits die maximale Anzahl an Lautsprechern",
   "tooltip.music_disc_maker.speaker.linked_to": "Quelle: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "Umschalt + Rechtsklick auf eine Goldene Jukebox zum Verbinden",
-  "block.music_disc_maker.boombox": "Ghettoblaster",
+  "item.music_disc_maker.boombox": "Ghettoblaster",
   "music_disc_maker.boombox.playing": "Wiedergabe",
   "music_disc_maker.boombox.stopped": "Gestoppt",
   "music_disc_maker.boombox.no_disc": "Keine Disc eingelegt",
   "tooltip.music_disc_maker.boombox.loaded": "Eingelegt: %s",
   "tooltip.music_disc_maker.boombox.empty": "Leer",
-  "tooltip.music_disc_maker.boombox.hint": "Umschalt + Rechtsklick in die Luft zum Abspielen/Stoppen. Disc per Rechtsklick einlegen."
+  "tooltip.music_disc_maker.boombox.hint": "Rechtsklick zum Abspielen/Stoppen. Disc per Rechtsklick einlegen.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Umschalt + Rechtsklick öffnet die Einstellungen.",
+  "gui.music_disc_maker.boombox.title": "Ghettoblaster",
+  "gui.music_disc_maker.boombox.volume": "Lautstärke: %s%%",
+  "gui.music_disc_maker.boombox.empty": "Keine Disc eingelegt",
+  "gui.music_disc_maker.boombox.directional": "Richtungsklang",
+  "gui.music_disc_maker.boombox.directional.on": "Richtungsklang: an (räumlich)",
+  "gui.music_disc_maker.boombox.directional.off": "Richtungsklang: aus (flach in Reichweite)"
 }

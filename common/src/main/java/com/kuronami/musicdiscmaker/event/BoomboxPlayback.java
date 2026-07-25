@@ -1,7 +1,12 @@
 package com.kuronami.musicdiscmaker.event;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.jetbrains.annotations.Nullable;
@@ -13,63 +18,99 @@ import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 手持ちブームボックスの再生を統括する server 側の揮発 state。
+ * ブームボックス (純アイテムの携帯プレイヤー) の再生を統括する server 側の揮発 state。
  *
- * <p>tick 源は {@code BoomboxBlockItem#inventoryTick} = そのアイテムがプレイヤーのインベントリに
- * ある間だけ毎 tick 呼ばれるバニラの hook。専用の server tick フックを増やさずに済むうえ、
- * 「地面に落ちた / チェストに入った」は tick が来なくなることで自然に検出できる (client 側の
- * keep-alive タイムアウトが拾う)。
+ * <h2>キーはアイテム個体</h2>
+ * セッションは {@code BOOMBOX_ID} component の UUID で引く。持ち主でも座標でもスロットでもない。
+ * これにより「持ち替えても鳴り続ける」「同じ URL の 2 台が独立に鳴り独立に止まる」が両立する。
  *
- * <p>1 プレイヤーにつき同時 1 台 (client の再生 key が entityId のため)。トグル ON のときに他の
- * ブームボックスの再生フラグを落として担保する。
+ * <h2>tick 源は server tick の定期走査</h2>
+ * バニラの {@code inventoryTick} には乗せていない。あれは「バニラがそのスロットを tick するか」に
+ * 継続条件を委ねることになり、カーソルに掴んだスタックのような境界例を原理的に扱えない
+ * ({@link BoomboxCarry} の javadoc)。代わりに {@link #SCAN_INTERVAL_TICKS} ごとにオンラインの
+ * player を走査し、{@link BoomboxCarry#carried} が返す集合だけを「鳴ってよい場所」とする。
+ *
+ * <p>走査の costs: player あたり 37 スロットの参照比較を 0.5 秒に 1 回。空スロットは即 return する。
+ *
+ * <h2>停止の検出</h2>
+ * 走査で見つからなかったセッションが停止対象 = 落とした / チェストへ入れた / 死亡ドロップ /
+ * ログアウト。最大 {@link #SCAN_INTERVAL_TICKS} tick (0.5 秒) の遅れで停止 packet が飛ぶ。
+ * client 側の keep-alive タイムアウト (3 秒) はその二重の歯止め。
  */
 public final class BoomboxPlayback {
 
-    /**
-     * keep-alive を撃つ間隔 (ms)。client のタイムアウト ({@code BoomboxAnchor}) はこれより十分長くする。
-     *
-     * <p>gameTime でなく wall-clock で刻む。tick 基準だと TPS が落ちたときに心拍間隔だけが伸びて
-     * client のタイムアウト (wall-clock) を追い越し、重いサーバで音が途切れては再ストリームする。
-     */
+    /** keep-alive を撃つ間隔 (ms)。client のタイムアウト ({@code BoomboxAnchor}) はこれより十分長い。 */
     public static final long HEARTBEAT_MS = 1_000L;
 
-    /** 手持ち再生セッション。曲が変わったかの判定と、現在位置の算出に使う。 */
+    /**
+     * 走査の間隔 (tick)。keep-alive 間隔より短くしておかないと、送信判定の粒度が走査に律速されて
+     * 実効間隔が倍近くまで伸びる。
+     */
+    public static final int SCAN_INTERVAL_TICKS = 10;
+
+    /** 再生セッション。曲が変わったかの判定と、現在位置の算出に使う。 */
     private static final class Session {
+        private final UUID owner;
         private final String url;
         private final long startMillis;
         private long lastSentMillis;
 
-        Session(String url, long startMillis) {
+        Session(UUID owner, String url, long startMillis) {
+            this.owner = owner;
             this.url = url;
             this.startMillis = startMillis;
-        }
-
-        String url() {
-            return url;
-        }
-
-        long startMillis() {
-            return startMillis;
+            this.lastSentMillis = startMillis;
         }
     }
 
+    /** アイテム個体 UUID → セッション。 */
     private static final Map<UUID, Session> SESSIONS = new HashMap<>();
+
+    private static int tickCounter;
 
     private BoomboxPlayback() {
     }
 
-    /** 再生フラグの読み出し。 */
+    // ── 問い合わせ ──────────────────────────────────────────────────────
+
+    /**
+     * このスタックが実際に鳴っているか。<b>判定の正本はセッションであって component ではない。</b>
+     * component の {@code BOOMBOX_PLAYING} は表示用のキャッシュで、落としたアイテムに残りうる。
+     */
     public static boolean isPlaying(ItemStack stack) {
-        return Boolean.TRUE.equals(stack.get(ModDataComponents.BOOMBOX_PLAYING.get()));
+        final UUID id = stack.get(ModDataComponents.BOOMBOX_ID.get());
+        return id != null && SESSIONS.containsKey(id);
     }
 
-    /** 手 (メイン/オフ) に持っているスタックか。インベントリの奥で鳴らないための判定。 */
-    public static boolean isHeld(ServerPlayer player, ItemStack stack) {
-        return player.getMainHandItem() == stack || player.getOffhandItem() == stack;
+    /**
+     * このスタックの個体識別子を返す (未採番なら採番する)。
+     *
+     * <p>クリエイティブの複製・{@code /give}・NBT 直書きで同じ UUID のスタックが 2 個できうる。
+     * 同一インベントリ内に重複を見つけたら振り直す — 放置すると 2 台が 1 つのセッションを奪い合い、
+     * 片方を止めるともう片方も黙る。
+     */
+    public static UUID identify(ServerPlayer player, ItemStack stack) {
+        final UUID existing = stack.get(ModDataComponents.BOOMBOX_ID.get());
+        if (existing != null && !isDuplicated(player, stack, existing)) {
+            return existing;
+        }
+        final UUID minted = UUID.randomUUID();
+        stack.set(ModDataComponents.BOOMBOX_ID.get(), minted);
+        return minted;
+    }
+
+    private static boolean isDuplicated(ServerPlayer player, ItemStack stack, UUID id) {
+        for (final ItemStack other : BoomboxCarry.carried(player)) {
+            if (other != stack && id.equals(other.get(ModDataComponents.BOOMBOX_ID.get()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Nullable
@@ -82,102 +123,174 @@ public final class BoomboxPlayback {
         return track != null && !track.isEmpty() ? track : null;
     }
 
+    private static BoomboxContents contentsOf(ItemStack stack) {
+        return stack.getOrDefault(ModDataComponents.BOOMBOX_CONTENTS.get(), BoomboxContents.EMPTY);
+    }
+
+    // ── 操作 ────────────────────────────────────────────────────────────
+
     /**
-     * 再生/停止のトグル (シフト右クリック)。鳴らせない (ディスク無し / custom disc でない) ときは
+     * 再生 / 停止のトグル (右クリック)。鳴らせない (ディスク無し / custom disc でない) ときは
      * {@code false} を返し、呼び出し側がその旨を出す。
      */
     public static boolean toggle(ServerPlayer player, ItemStack stack) {
-        if (isPlaying(stack)) {
-            stop(player, stack);
+        final UUID id = identify(player, stack);
+        if (SESSIONS.containsKey(id)) {
+            stop(player, stack, id);
             return true;
-        }
-        if (trackOf(stack) == null) {
-            return false;
-        }
-        // 1 プレイヤー 1 台。別のブームボックスが鳴っていたら降ろす。
-        for (final ItemStack other : player.getInventory().items) {
-            if (other != stack && isPlaying(other)) {
-                other.remove(ModDataComponents.BOOMBOX_PLAYING.get());
-            }
-        }
-        for (final ItemStack other : player.getInventory().offhand) {
-            if (other != stack && isPlaying(other)) {
-                other.remove(ModDataComponents.BOOMBOX_PLAYING.get());
-            }
-        }
-        SESSIONS.remove(player.getUUID());
-        stack.set(ModDataComponents.BOOMBOX_PLAYING.get(), Boolean.TRUE);
-        // 開始 packet は次の inventoryTick が出す (セッション未登録 = 開始扱い)。
-        return true;
-    }
-
-    /** 再生フラグを落として即時停止 packet を撃つ。 */
-    public static void stop(ServerPlayer player, ItemStack stack) {
-        stack.remove(ModDataComponents.BOOMBOX_PLAYING.get());
-        SESSIONS.remove(player.getUUID());
-        Services.NETWORK.sendToPlayersTrackingEntityAndSelf(player, new BoomboxStopPayload(player.getId()));
-    }
-
-    /**
-     * {@code inventoryTick} からの心拍。開始・keep-alive・自然終了・手から離した の全部をここで捌く。
-     *
-     * <p>宛先は {@code sendToPlayersTrackingEntityAndSelf}。素の「追跡中の player」は本人を含まない
-     * ので、持ち主にだけ聞こえない状態になる。
-     */
-    public static void heartbeat(ServerPlayer player, ItemStack stack) {
-        if (!isPlaying(stack)) {
-            return;
-        }
-        if (!isHeld(player, stack)) {
-            stop(player, stack); // しまった = 止める (落とした/チェストへ移した場合は tick 自体が来ない)
-            return;
         }
         final CustomTrackData track = trackOf(stack);
         if (track == null) {
-            stop(player, stack); // ディスクを抜かれた
+            return false;
+        }
+        start(player, stack, id, track);
+        return true;
+    }
+
+    /** GUI からの音量・指向性の適用。鳴っていれば鳴らし直さずに即時反映する。 */
+    public static void applyConfig(ServerPlayer player, UUID boomboxId, int volumePercent,
+            boolean directional) {
+        final ItemStack stack = BoomboxCarry.find(player, boomboxId);
+        if (stack == null) {
             return;
         }
-        final BoomboxContents contents = stack.getOrDefault(
-                ModDataComponents.BOOMBOX_CONTENTS.get(), BoomboxContents.EMPTY);
-        final UUID id = player.getUUID();
-        final Session session = SESSIONS.get(id);
+        final BoomboxContents updated = contentsOf(stack).withConfig(volumePercent, directional);
+        stack.set(ModDataComponents.BOOMBOX_CONTENTS.get(), updated);
+        final Session session = SESSIONS.get(boomboxId);
+        final CustomTrackData track = trackOf(stack);
+        if (session == null || track == null) {
+            return;
+        }
+        // 次の定期 keep-alive (最大 0.5 秒後) を待たずに、いまの位置のまま値だけ届ける。
         final long now = System.currentTimeMillis();
-        if (session == null || !session.url().equals(track.url())) {
-            final Session started = new Session(track.url(), now);
-            started.lastSentMillis = now;
-            SESSIONS.put(id, started);
-            send(player, track, 0L, contents);
+        session.lastSentMillis = now;
+        send(player, boomboxId, track, offsetFor(track, session, now), updated);
+    }
+
+    private static void start(ServerPlayer player, ItemStack stack, UUID id, CustomTrackData track) {
+        final long now = System.currentTimeMillis();
+        SESSIONS.put(id, new Session(player.getUUID(), track.url(), now));
+        stack.set(ModDataComponents.BOOMBOX_PLAYING.get(), Boolean.TRUE);
+        send(player, id, track, 0L, contentsOf(stack));
+    }
+
+    /** 再生を止めて即時停止 packet を撃つ。 */
+    public static void stop(ServerPlayer player, ItemStack stack, UUID id) {
+        SESSIONS.remove(id);
+        stack.remove(ModDataComponents.BOOMBOX_PLAYING.get());
+        Services.NETWORK.sendToPlayersTrackingEntityAndSelf(player, new BoomboxStopPayload(id));
+    }
+
+    // ── 定期走査 ────────────────────────────────────────────────────────
+
+    /** server tick から毎 tick 呼ばれる。実作業は {@link #SCAN_INTERVAL_TICKS} tick に 1 回。 */
+    public static void tick(MinecraftServer server) {
+        if (++tickCounter < SCAN_INTERVAL_TICKS) {
             return;
         }
-        final long elapsed = Math.max(0L, now - session.startMillis());
-        final long duration = track.durationMs();
-        if (duration > 0L && elapsed >= duration) {
-            stop(player, stack); // 自然終了 (手持ちはリピートしない)
+        tickCounter = 0;
+        scan(server.getPlayerList().getPlayers(), System.currentTimeMillis());
+    }
+
+    /**
+     * 走査の本体。player 集合を引数に取るのは、GameTest の mock プレイヤーが
+     * {@code PlayerList} に載らないため (載らない集合を走査すると、テストが何も検証しない)。
+     * 実運用の呼び出しはオンライン全員を渡す。
+     */
+    public static void scan(Collection<ServerPlayer> players, long now) {
+        final Set<UUID> alive = new HashSet<>();
+        // 走査中に stop() が SESSIONS を触るので、player ごとに対象を取り切ってから処理する。
+        for (final ServerPlayer player : new ArrayList<>(players)) {
+            for (final ItemStack stack : BoomboxCarry.carried(player)) {
+                serve(player, stack, alive, now);
+            }
+        }
+        sweep(players, alive);
+    }
+
+    /** 走査で見つけた 1 スタックを処理する。 */
+    private static void serve(ServerPlayer player, ItemStack stack, Set<UUID> alive, long now) {
+        final UUID id = stack.get(ModDataComponents.BOOMBOX_ID.get());
+        final Session session = id == null ? null : SESSIONS.get(id);
+        if (session == null) {
+            // 鳴っていないのにフラグが立っている = 鳴っていたブームボックスを落として拾い直した等。
+            // component は表示用キャッシュなので、ここで実態へ揃える (拾った瞬間に鳴り出さない)。
+            stack.remove(ModDataComponents.BOOMBOX_PLAYING.get());
             return;
         }
-        if (now - session.lastSentMillis >= HEARTBEAT_MS) {
-            session.lastSentMillis = now;
-            // ライブ/ラジオ (無限長) に位置の概念は無い。経過を載せると後から近づいた player の
-            // late-join が「10 分地点から」ストリームを開こうとする。常にライブ先頭へ繋ぐ
-            // (resumePlaybackAfterLoad / onRadioStreamEnded と同じ規則)。
-            send(player, track, isLive(track) ? 0L : elapsed, contents);
+        alive.add(id);
+        final CustomTrackData track = trackOf(stack);
+        if (track == null) {
+            stop(player, stack, id); // ディスクを抜かれた
+            return;
+        }
+        final long elapsed = Math.max(0L, now - session.startMillis);
+        final BoomboxHeartbeat.Action action = BoomboxHeartbeat.decide(true,
+                !session.url.equals(track.url()), elapsed, track.durationMs(),
+                now - session.lastSentMillis, HEARTBEAT_MS);
+        switch (action) {
+            case START -> {
+                SESSIONS.put(id, new Session(player.getUUID(), track.url(), now));
+                send(player, id, track, 0L, contentsOf(stack));
+            }
+            case KEEP_ALIVE -> {
+                session.lastSentMillis = now;
+                send(player, id, track, offsetFor(track, session, now), contentsOf(stack));
+            }
+            case END -> stop(player, stack, id); // 自然終了 (携帯プレイヤーはリピートしない)
+            case IDLE -> {
+                // 何もしない
+            }
         }
     }
 
-    /** 無限長ストリーム (ライブ/ラジオ) か。offset の意味が無い側。 */
-    private static boolean isLive(CustomTrackData track) {
-        return track.radio() || track.durationMs() <= 0L;
+    /** 走査で見つからなかったセッション = インベントリの外へ出た / 持ち主がログアウトした。 */
+    private static void sweep(Collection<ServerPlayer> players, Set<UUID> alive) {
+        final Iterator<Map.Entry<UUID, Session>> it = SESSIONS.entrySet().iterator();
+        while (it.hasNext()) {
+            final Map.Entry<UUID, Session> entry = it.next();
+            if (alive.contains(entry.getKey())) {
+                continue;
+            }
+            it.remove();
+            // ログアウト済みなら宛先が無い。周囲の client は keep-alive 途絶で自己停止する。
+            final ServerPlayer owner = find(players, entry.getValue().owner);
+            if (owner != null) {
+                Services.NETWORK.sendToPlayersTrackingEntityAndSelf(
+                        owner, new BoomboxStopPayload(entry.getKey()));
+            }
+        }
     }
 
-    private static void send(ServerPlayer player, CustomTrackData track, long offsetMs,
+    @Nullable
+    private static ServerPlayer find(Collection<ServerPlayer> players, UUID uuid) {
+        for (final ServerPlayer player : players) {
+            if (player.getUUID().equals(uuid)) {
+                return player;
+            }
+        }
+        return null;
+    }
+
+    private static long offsetFor(CustomTrackData track, Session session, long now) {
+        final boolean live = track.radio() || track.durationMs() <= 0L;
+        return BoomboxHeartbeat.offsetFor(live, now - session.startMillis);
+    }
+
+    private static void send(ServerPlayer player, UUID id, CustomTrackData track, long offsetMs,
             BoomboxContents contents) {
-        Services.NETWORK.sendToPlayersTrackingEntityAndSelf(player,
-                new BoomboxPlayPayload(player.getId(), track, offsetMs,
-                        contents.rangeBlocks(), contents.volumePercent(), contents.directional()));
+        Services.NETWORK.sendToPlayersTrackingEntityAndSelf(player, new BoomboxPlayPayload(
+                id, player.getId(), track, offsetMs, contents.volumePercent(), contents.directional()));
     }
 
     /** server 停止でセッションを破棄する (シングルプレイのワールド退出含む)。 */
     public static void clear() {
         SESSIONS.clear();
+        tickCounter = 0;
+    }
+
+    /** テスト用: 生きているセッション数。 */
+    public static int activeSessionCount() {
+        return SESSIONS.size();
     }
 }

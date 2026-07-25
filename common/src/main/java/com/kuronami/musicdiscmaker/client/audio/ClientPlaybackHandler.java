@@ -32,14 +32,14 @@ public final class ClientPlaybackHandler {
                 payload.sourcePos(), payload.directional(), payload.speakers());
     }
 
-    /** 手持ちブームボックスの再生 / keep-alive。 */
+    /** ブームボックスの再生 / keep-alive (設定のライブ反映を兼ねる)。 */
     public static void boomboxPlay(BoomboxPlayPayload payload) {
-        BoomboxClientPlayback.play(payload.entityId(), payload.track(), payload.startOffsetMs(),
-                payload.rangeBlocks(), payload.volumePercent(), payload.directional());
+        BoomboxClientPlayback.play(payload.boomboxId(), payload.ownerEntityId(), payload.track(),
+                payload.startOffsetMs(), payload.volumePercent(), payload.directional());
     }
 
-    /** 手持ちブームボックスの停止。 */
+    /** ブームボックスの停止。 */
     public static void boomboxStop(BoomboxStopPayload payload) {
-        BoomboxClientPlayback.stop(payload.entityId());
+        BoomboxClientPlayback.stop(payload.boomboxId());
     }
 }
