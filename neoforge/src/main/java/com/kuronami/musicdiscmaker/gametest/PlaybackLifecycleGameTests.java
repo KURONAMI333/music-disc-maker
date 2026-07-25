@@ -35,7 +35,7 @@ public class PlaybackLifecycleGameTests {
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     public static void backToBackRequestsInstallOnlyOne(GameTestHelper helper) {
-        final PlaybackSessions sessions = new PlaybackSessions();
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>();
         final long first = sessions.begin(KEY);
         final long second = sessions.begin(KEY);
 
@@ -54,7 +54,7 @@ public class PlaybackLifecycleGameTests {
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     public static void outOfOrderCompletionKeepsNewest(GameTestHelper helper) {
-        final PlaybackSessions sessions = new PlaybackSessions();
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>();
         final long first = sessions.begin(KEY);
         final long second = sessions.begin(KEY);
 
@@ -72,7 +72,7 @@ public class PlaybackLifecycleGameTests {
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     public static void loadCompletingAfterStopDoesNotStart(GameTestHelper helper) {
-        final PlaybackSessions sessions = new PlaybackSessions();
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>();
         final long token = sessions.begin(KEY);
         sessions.cancel(KEY);
 
@@ -90,7 +90,7 @@ public class PlaybackLifecycleGameTests {
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     public static void cancelIsPerPositionAndCancelAllClearsEverything(GameTestHelper helper) {
-        final PlaybackSessions sessions = new PlaybackSessions();
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>();
         final long here = sessions.begin(KEY);
         final long there = sessions.begin(OTHER);
 
@@ -114,7 +114,7 @@ public class PlaybackLifecycleGameTests {
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     public static void radioReconnectReusesTokenAndLosesToNewerRequest(GameTestHelper helper) {
-        final PlaybackSessions sessions = new PlaybackSessions();
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>();
         final long token = sessions.begin(KEY);
 
         // 再接続はトークンを取り直さない。

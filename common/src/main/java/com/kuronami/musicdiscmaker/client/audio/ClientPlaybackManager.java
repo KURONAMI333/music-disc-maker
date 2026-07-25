@@ -51,7 +51,7 @@ public final class ClientPlaybackManager {
      * 持つ。トークンを持たない集合だと、停止を挟まない 2 連続要求で孤児インスタンスが生まれる
      * ({@link PlaybackSessions} の javadoc)。
      */
-    private final PlaybackSessions sessions = new PlaybackSessions();
+    private final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>();
     // pos ごとの聴取アンカー。SpeakerSetPayload はここへ集合を差し替える (再生は止めない)。
     private final Map<BlockPos, MultiSpeakerAnchor> anchors = new ConcurrentHashMap<>();
     // pos ごとの有効スピーカー集合。再生セッションではなく音源の属性なので、シーク/リピートの

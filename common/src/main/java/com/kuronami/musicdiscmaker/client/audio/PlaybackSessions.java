@@ -23,6 +23,13 @@ import net.minecraft.core.BlockPos;
  * 採否を決める。<b>最新の要求が勝つ</b>: 古いロードは破棄する。逆にすると、シーク要求
  * （別のオフセットで来る）が先行ロードに握り潰されて無視される。
  *
+ * <h2>キー型</h2>
+ * キーは音源の同一性を表すものなら何でもよい。ブロック起点の再生は音源の {@link BlockPos}、
+ * ブームボックスはアイテム個体の {@code UUID} を使う。<b>キーは不変であること</b> —
+ * {@link BlockPos} のような可変サブクラス（{@code MutableBlockPos}）を渡す経路では、呼び出し側が
+ * {@code immutable()} 済みの値を渡す責任を持つ。ここで正規化しないのは、キー型を問わない
+ * ようにするため。
+ *
  * <h2>スレッドの約束</h2>
  * <b>{@link #begin} / {@link #cancel} / {@link #cancelAll} は main thread からだけ呼ぶこと。</b>
  * {@code startPlayback} の「停止してから始める」は {@code cancel} → {@code begin} の 2 手で、
@@ -31,9 +38,11 @@ import net.minecraft.core.BlockPos;
  * 書き込みが main thread に閉じている限り、ロードスレッドから見えるのは「ある時点の最新トークン」
  * であり、それで採否を決めれば十分（勝者が 2 人になることは無い）。
  *
- * <p>{@link BlockPos} は dedicated server にも在るクラスなので headless で読める。
+ * <p>{@link BlockPos} も {@code UUID} も dedicated server に在るクラスなので headless で読める。
+ *
+ * @param <K> 音源を識別するキー（不変であること）
  */
-public final class PlaybackSessions {
+public final class PlaybackSessions<K> {
 
     /** ロード完了時の採否。 */
     public enum LoadOutcome {
@@ -43,23 +52,23 @@ public final class PlaybackSessions {
         DISCARD
     }
 
-    /** 音源ごとの「最新の要求」のトークン。要求が生きていない位置はキーごと存在しない。 */
-    private final Map<BlockPos, Long> current = new ConcurrentHashMap<>();
+    /** 音源ごとの「最新の要求」のトークン。要求が生きていないキーは存在しない。 */
+    private final Map<K, Long> current = new ConcurrentHashMap<>();
     private final AtomicLong counter = new AtomicLong();
 
     /**
-     * 新しい再生要求を登録し、その世代トークンを返す。以後、この位置の古いロードは全部 stale。
+     * 新しい再生要求を登録し、その世代トークンを返す。以後、このキーの古いロードは全部 stale。
      *
      * @return 0 にはならない（0 は「トークン無し」の番兵として使える）
      */
-    public long begin(BlockPos key) {
+    public long begin(K key) {
         final long token = counter.incrementAndGet();
-        current.put(key.immutable(), token);
+        current.put(key, token);
         return token;
     }
 
     /** 再生要求を取り消す（停止・撤去）。飛行中のロードは全部 stale になる。 */
-    public void cancel(BlockPos key) {
+    public void cancel(K key) {
         current.remove(key);
     }
 
@@ -68,21 +77,21 @@ public final class PlaybackSessions {
         current.clear();
     }
 
-    /** この位置に生きた再生要求があるか（トークンは問わない）。ラジオ再接続の継続判定に使う。 */
-    public boolean isWanted(BlockPos key) {
+    /** このキーに生きた再生要求があるか（トークンは問わない）。ラジオ再接続の継続判定に使う。 */
+    public boolean isWanted(K key) {
         return current.containsKey(key);
     }
 
     /**
-     * この位置の現在のトークン。要求が生きていなければ 0。
+     * このキーの現在のトークン。要求が生きていなければ 0。
      * ラジオ再接続のように「同じ要求の続き」としてロードし直す経路が読む。
      */
-    public long currentToken(BlockPos key) {
+    public long currentToken(K key) {
         return current.getOrDefault(key, 0L);
     }
 
     /** そのトークンが今も最新か。 */
-    public boolean isCurrent(BlockPos key, long token) {
+    public boolean isCurrent(K key, long token) {
         return token != 0L && current.getOrDefault(key, 0L) == token;
     }
 
@@ -92,7 +101,7 @@ public final class PlaybackSessions {
      * <p>判定をこのメソッドに閉じてあるので、呼び出し側の分岐は
      * {@code if (outcome == DISCARD) { resolved.close(); return; }} の 1 本になる。
      */
-    public LoadOutcome onLoadComplete(BlockPos key, long token) {
+    public LoadOutcome onLoadComplete(K key, long token) {
         return isCurrent(key, token) ? LoadOutcome.INSTALL : LoadOutcome.DISCARD;
     }
 }
