@@ -1,11 +1,14 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
@@ -16,22 +19,27 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 
 /**
- * client 側: 手持ちブームボックスの再生統括。key は音源 entity の id。
+ * client 側: ブームボックスの再生統括。<b>key はアイテム個体の UUID</b>。
  *
  * <p>{@link ClientPlaybackManager} と分けてあるのは key 空間が違うため (向こうは全ての map が
  * 音源 BlockPos)。停止だけは {@code stopAll()} 経由でまとめて掃除する。
  *
- * <p>dedup は <b>URL だけ</b>で行う。server の keep-alive は毎回進んだ offset を載せてくるので、
- * offset を判定に入れると 1 秒ごとに再ストリームが走る。曲を変えたら URL が変わるので拾える。
+ * <h2>dedup は世代トークンで行う</h2>
+ * 「同じ URL が鳴っているか」で dedup すると、停止 → 同一 URL で即再開したときに飛行中の古い
+ * ロードが勝って新しい要求を握り潰す。{@link PlaybackSessions} の世代トークンに乗せることで
+ * 「最新の要求が勝つ」を原理的に保証する — ブロック起点の再生と同じ機構。
+ *
+ * <p>keep-alive (同じ URL の再送) ではストリームに触らず、音量・指向性だけを
+ * {@link BoomboxAnchor} へ書き込む。{@code DiscSoundInstance#tick} がそれを読むので、GUI の変更が
+ * <b>鳴らし直さずに</b>反映される。
  */
 public final class BoomboxClientPlayback {
 
     private record Playing(String url, BoomboxAnchor anchor, DiscSoundInstance instance) {
     }
 
-    private static final Map<Integer, Playing> ACTIVE = new ConcurrentHashMap<>();
-    /** ロード中の要求 (entityId → url)。遅延ロード完了時に「まだ望まれているか」を見る。 */
-    private static final Map<Integer, String> WANTED = new ConcurrentHashMap<>();
+    private static final Map<UUID, Playing> ACTIVE = new ConcurrentHashMap<>();
+    private static final PlaybackSessions<UUID> SESSIONS = new PlaybackSessions<>();
 
     private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-boombox-playback");
@@ -43,23 +51,22 @@ public final class BoomboxClientPlayback {
     }
 
     /**
-     * 再生 / keep-alive の受信。同じ曲なら生存時刻を更新するだけで、ストリームには触らない。
+     * 再生 / keep-alive の受信。同じ曲なら生存時刻と設定を更新するだけで、ストリームには触らない。
+     *
+     * @param ownerEntityId 音の出どころ (持ち主) の entity id。持ち替えでは変わらない
      */
-    public static void play(int entityId, CustomTrackData track, long startOffsetMs, int rangeBlocks,
+    public static void play(UUID boomboxId, int ownerEntityId, CustomTrackData track, long startOffsetMs,
             int volumePercent, boolean directional) {
-        if (track == null || track.isEmpty()) {
+        if (boomboxId == null || track == null || track.isEmpty()) {
             return;
         }
-        final Playing current = ACTIVE.get(entityId);
+        final Playing current = ACTIVE.get(boomboxId);
         if (current != null && !current.instance().isStopped() && current.url().equals(track.url())) {
-            current.anchor().refresh();
+            current.anchor().refresh(volumePercent, directional);
             return;
         }
-        if (track.url().equals(WANTED.get(entityId))) {
-            return; // 同じ曲を今ロード中 (keep-alive が重ならないように)
-        }
-        stop(entityId);
-        WANTED.put(entityId, track.url());
+        stop(boomboxId);
+        final long token = SESSIONS.begin(boomboxId);
         POOL.submit(() -> {
             IAudioSource source;
             try {
@@ -73,22 +80,25 @@ public final class BoomboxClientPlayback {
                 source = null;
             }
             final IAudioSource resolved = source;
-            Minecraft.getInstance().execute(() -> onLoaded(entityId, track, rangeBlocks, volumePercent,
-                    directional, resolved));
+            Minecraft.getInstance().execute(() -> onLoaded(boomboxId, ownerEntityId, track, volumePercent,
+                    directional, resolved, token));
         });
     }
 
-    private static void onLoaded(int entityId, CustomTrackData track, int rangeBlocks, int volumePercent,
-            boolean directional, IAudioSource resolved) {
-        // 2 引数版。ロードが並んだ時、先に終わった古い方が新しい要求のエントリを消さないようにする。
-        final boolean stillWanted = WANTED.remove(entityId, track.url());
+    private static void onLoaded(UUID boomboxId, int ownerEntityId, CustomTrackData track, int volumePercent,
+            boolean directional, IAudioSource resolved, long token) {
         if (resolved == null) {
             return;
         }
+        // 世代が追い越されている = 停止済み、または後続の要求が来た。孤児を作らずここで捨てる。
+        if (SESSIONS.onLoadComplete(boomboxId, token) == PlaybackSessions.LoadOutcome.DISCARD) {
+            resolved.close();
+            return;
+        }
         final Minecraft mc = Minecraft.getInstance();
-        final Entity entity = mc.level != null ? mc.level.getEntity(entityId) : null;
-        if (!stillWanted || entity == null) {
-            resolved.close(); // ロード中に停止要求 / 持ち主が視界から消えた
+        final Entity entity = mc.level != null ? mc.level.getEntity(ownerEntityId) : null;
+        if (entity == null) {
+            resolved.close(); // 持ち主が視界から消えた
             return;
         }
         // 自然終了したインスタンスを掃除してから、同時再生上限をブロック起点の再生と共有する。
@@ -96,16 +106,23 @@ public final class BoomboxClientPlayback {
         // ログも出ずに無言で鳴らないので、上限は必ずどこかで効かせる。
         ACTIVE.entrySet().removeIf(e -> e.getValue().instance().isStopped());
         final int total = ClientPlaybackManager.get().activeCount() + ACTIVE.size();
-        if (total >= com.kuronami.musicdiscmaker.Config.maxConcurrent()) {
-            MusicDiscMaker.LOGGER.info("同時再生上限に達したためブームボックスの再生をスキップ: entity {}", entityId);
+        if (total >= Config.maxConcurrent()) {
+            MusicDiscMaker.LOGGER.info("同時再生上限に達したためブームボックスの再生をスキップ: {}", boomboxId);
+            SESSIONS.cancel(boomboxId);
             resolved.close();
             return;
         }
-        final BoomboxAnchor anchor = new BoomboxAnchor(entity);
-        final DiscSoundInstance instance =
-                new DiscSoundInstance(anchor, resolved, rangeBlocks, volumePercent, null);
+        final BoomboxAnchor anchor = new BoomboxAnchor(entity, volumePercent,
+                BoomboxContents.RANGE_BLOCKS, directional);
+        final DiscSoundInstance instance = new DiscSoundInstance(anchor, resolved,
+                BoomboxContents.RANGE_BLOCKS, volumePercent, null);
         instance.setDirectional(directional);
-        ACTIVE.put(entityId, new Playing(track.url(), anchor, instance));
+        // 生きたインスタンスを黙って上書きしない (世代トークンがあれば到達しないが、未知の経路への歯止め)。
+        final Playing previous = ACTIVE.put(boomboxId, new Playing(track.url(), anchor, instance));
+        if (previous != null) {
+            previous.instance().requestStop();
+            mc.getSoundManager().stop(previous.instance());
+        }
         mc.getSoundManager().play(instance);
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
@@ -115,9 +132,9 @@ public final class BoomboxClientPlayback {
         }
     }
 
-    public static void stop(int entityId) {
-        WANTED.remove(entityId);
-        final Playing playing = ACTIVE.remove(entityId);
+    public static void stop(UUID boomboxId) {
+        SESSIONS.cancel(boomboxId);
+        final Playing playing = ACTIVE.remove(boomboxId);
         if (playing != null) {
             playing.instance().requestStop();
             Minecraft.getInstance().getSoundManager().stop(playing.instance());
@@ -126,7 +143,7 @@ public final class BoomboxClientPlayback {
 
     /** 切断時の一括停止 ({@link ClientPlaybackManager#stopAll()} から呼ばれる)。 */
     public static void stopAll() {
-        WANTED.clear();
+        SESSIONS.cancelAll();
         ACTIVE.values().forEach(playing -> {
             playing.instance().requestStop();
             Minecraft.getInstance().getSoundManager().stop(playing.instance());

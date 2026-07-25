@@ -1,7 +1,6 @@
 package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.block.BoomboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
@@ -32,11 +31,6 @@ public final class ModBlockEntities {
             BLOCK_ENTITIES.register("speaker",
                     () -> Services.PLATFORM.createBlockEntityType(
                             SpeakerBlockEntity::new, ModBlocks.SPEAKER.get()));
-
-    public static final RegistryHolder<BlockEntityType<BoomboxBlockEntity>> BOOMBOX =
-            BLOCK_ENTITIES.register("boombox",
-                    () -> Services.PLATFORM.createBlockEntityType(
-                            BoomboxBlockEntity::new, ModBlocks.BOOMBOX.get()));
 
     private ModBlockEntities() {
     }

@@ -4,6 +4,7 @@ import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
+import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -96,6 +97,14 @@ public final class ModNetwork {
             // 集合を送り直して新しい値を届ける (BE ライブ再読が届かない距離の救済)。値が変わった時だけ。
             speaker.notifySourceChanged();
         }
+    }
+
+    /** server 受信: ブームボックス専用 GUI の音量・指向性。 */
+    public static void handleBoomboxConfig(BoomboxConfigPayload payload, ServerPlayer player) {
+        // 到達距離では絞れない (手元のアイテムが対象)。宛先はアイテム個体の UUID で、
+        // BoomboxPlayback 側が「その player が実際に持っているか」で弾く。
+        BoomboxPlayback.applyConfig(player, payload.boomboxId(),
+                payload.volumePercent(), payload.directional());
     }
 
     /** client 受信: 再生開始 (client 専用経路。dedicated server では never-load)。 */

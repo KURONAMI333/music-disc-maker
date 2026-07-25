@@ -3,6 +3,9 @@ package com.kuronami.musicdiscmaker.platform;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
+import java.util.UUID;
+
+import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
@@ -11,6 +14,7 @@ import com.kuronami.musicdiscmaker.platform.services.IMenuHelper;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -109,6 +113,34 @@ public class FabricMenuHelper implements IMenuHelper {
             public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
                 final BlockEntity be = p.level().getBlockEntity(pos);
                 return be instanceof SpeakerBlockEntity speaker ? new SpeakerMenu(id, speaker) : null;
+            }
+        });
+    }
+
+    @Override
+    public MenuType<BoomboxMenu> createBoomboxMenuType() {
+        return new ExtendedScreenHandlerType<>(
+                (id, inv, boomboxId) -> new BoomboxMenu(id, inv, boomboxId), UUIDUtil.STREAM_CODEC);
+    }
+
+    @Override
+    public void openBoomboxMenu(ServerPlayer player, UUID boomboxId) {
+        player.openMenu(new ExtendedScreenHandlerFactory<UUID>() {
+
+            @Override
+            public UUID getScreenOpeningData(ServerPlayer p) {
+                return boomboxId;
+            }
+
+            @Override
+            public Component getDisplayName() {
+                return Component.translatable("gui.music_disc_maker.boombox.title");
+            }
+
+            @Override
+            public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
+                // ブロックに紐づかないので BlockEntity は引かない。menu 側が UUID から解決する。
+                return new BoomboxMenu(id, inv, boomboxId);
             }
         });
     }

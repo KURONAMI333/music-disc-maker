@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "У цього програвача вже максимум динаміків",
   "tooltip.music_disc_maker.speaker.linked_to": "Джерело: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "Shift + ПКМ по золотому програвачу для прив'язки",
-  "block.music_disc_maker.boombox": "Бумбокс",
+  "item.music_disc_maker.boombox": "Бумбокс",
   "music_disc_maker.boombox.playing": "Відтворення",
   "music_disc_maker.boombox.stopped": "Зупинено",
   "music_disc_maker.boombox.no_disc": "Платівку не вставлено",
   "tooltip.music_disc_maker.boombox.loaded": "Платівка: %s",
   "tooltip.music_disc_maker.boombox.empty": "Порожньо",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + ПКМ у повітря — відтворити/зупинити. ПКМ платівкою — вставити."
+  "tooltip.music_disc_maker.boombox.hint": "ПКМ — відтворити/зупинити. ПКМ платівкою — вставити.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Shift + ПКМ — відкрити налаштування.",
+  "gui.music_disc_maker.boombox.title": "Бумбокс",
+  "gui.music_disc_maker.boombox.volume": "Гучність: %s%%",
+  "gui.music_disc_maker.boombox.empty": "Платівку не вставлено",
+  "gui.music_disc_maker.boombox.directional": "Спрямований звук",
+  "gui.music_disc_maker.boombox.directional.on": "Спрямований звук: увімк. (позиційний)",
+  "gui.music_disc_maker.boombox.directional.off": "Спрямований звук: вимк. (рівний у радіусі)"
 }

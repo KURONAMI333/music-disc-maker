@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "Deze jukebox heeft al het maximale aantal luidsprekers",
   "tooltip.music_disc_maker.speaker.linked_to": "Bron: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "Shift + rechtsklik op een gouden jukebox om te koppelen",
-  "block.music_disc_maker.boombox": "Gettoblaster",
+  "item.music_disc_maker.boombox": "Gettoblaster",
   "music_disc_maker.boombox.playing": "Speelt af",
   "music_disc_maker.boombox.stopped": "Gestopt",
   "music_disc_maker.boombox.no_disc": "Geen disc geplaatst",
   "tooltip.music_disc_maker.boombox.loaded": "Disc: %s",
   "tooltip.music_disc_maker.boombox.empty": "Leeg",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + rechtermuisknop in de lucht om af te spelen/stoppen. Rechtsklik met een disc om te laden."
+  "tooltip.music_disc_maker.boombox.hint": "Rechtermuisknop om af te spelen/stoppen. Rechtsklik met een disc om te laden.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Shift + rechtermuisknop opent de instellingen.",
+  "gui.music_disc_maker.boombox.title": "Gettoblaster",
+  "gui.music_disc_maker.boombox.volume": "Volume: %s%%",
+  "gui.music_disc_maker.boombox.empty": "Geen disc geplaatst",
+  "gui.music_disc_maker.boombox.directional": "Richtingsgeluid",
+  "gui.music_disc_maker.boombox.directional.on": "Richtingsgeluid: aan (positioneel)",
+  "gui.music_disc_maker.boombox.directional.off": "Richtingsgeluid: uit (vlak binnen bereik)"
 }

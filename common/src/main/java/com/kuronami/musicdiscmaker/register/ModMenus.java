@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
@@ -26,6 +27,9 @@ public final class ModMenus {
 
     public static final RegistryHolder<MenuType<SpeakerMenu>> SPEAKER =
             MENUS.register("speaker", () -> Services.MENU.createSpeakerMenuType());
+
+    public static final RegistryHolder<MenuType<BoomboxMenu>> BOOMBOX =
+            MENUS.register("boombox", () -> Services.MENU.createBoomboxMenuType());
 
     private ModMenus() {
     }

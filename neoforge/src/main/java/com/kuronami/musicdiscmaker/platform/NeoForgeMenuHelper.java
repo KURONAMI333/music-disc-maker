@@ -3,6 +3,9 @@ package com.kuronami.musicdiscmaker.platform;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
+import java.util.UUID;
+
+import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
@@ -66,5 +69,19 @@ public class NeoForgeMenuHelper implements IMenuHelper {
             final BlockEntity be = player.level().getBlockEntity(pos);
             return be instanceof SpeakerBlockEntity speaker ? new SpeakerMenu(id, speaker) : null;
         }, Component.translatable("gui.music_disc_maker.speaker.title")), buf -> buf.writeBlockPos(pos));
+    }
+
+    @Override
+    public MenuType<BoomboxMenu> createBoomboxMenuType() {
+        return IMenuTypeExtension.create(
+                (id, inv, buf) -> new BoomboxMenu(id, inv, buf.readUUID()));
+    }
+
+    @Override
+    public void openBoomboxMenu(ServerPlayer player, UUID boomboxId) {
+        // ブロックに紐づかないので BlockEntity は引かない。menu 側が UUID からスタックを解決する。
+        player.openMenu(new SimpleMenuProvider((id, inv, p) -> new BoomboxMenu(id, inv, boomboxId),
+                Component.translatable("gui.music_disc_maker.boombox.title")),
+                buf -> buf.writeUUID(boomboxId));
     }
 }

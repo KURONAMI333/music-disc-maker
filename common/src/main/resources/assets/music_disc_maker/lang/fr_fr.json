@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "Ce jukebox a déjà le nombre maximal de haut-parleurs",
   "tooltip.music_disc_maker.speaker.linked_to": "Source : %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "Maj + clic droit sur un jukebox doré pour lier",
-  "block.music_disc_maker.boombox": "Radiocassette",
+  "item.music_disc_maker.boombox": "Radiocassette",
   "music_disc_maker.boombox.playing": "Lecture",
   "music_disc_maker.boombox.stopped": "Arrêté",
   "music_disc_maker.boombox.no_disc": "Aucun disque inséré",
   "tooltip.music_disc_maker.boombox.loaded": "Disque : %s",
   "tooltip.music_disc_maker.boombox.empty": "Vide",
-  "tooltip.music_disc_maker.boombox.hint": "Maj + clic droit dans le vide pour lire/arrêter. Clic droit avec un disque pour l'insérer."
+  "tooltip.music_disc_maker.boombox.hint": "Clic droit pour lire/arrêter. Clic droit avec un disque pour l'insérer.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Maj + clic droit pour ouvrir les réglages.",
+  "gui.music_disc_maker.boombox.title": "Radiocassette",
+  "gui.music_disc_maker.boombox.volume": "Volume : %s%%",
+  "gui.music_disc_maker.boombox.empty": "Aucun disque inséré",
+  "gui.music_disc_maker.boombox.directional": "Audio directionnel",
+  "gui.music_disc_maker.boombox.directional.on": "Audio directionnel : activé (positionnel)",
+  "gui.music_disc_maker.boombox.directional.off": "Audio directionnel : désactivé (uniforme dans la portée)"
 }

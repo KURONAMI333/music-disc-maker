@@ -2,7 +2,6 @@
   "replace": false,
   "values": [
     "music_disc_maker:music_disc_maker",
-    "music_disc_maker:speaker",
-    "music_disc_maker:boombox"
+    "music_disc_maker:speaker"
   ]
 }

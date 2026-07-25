@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "이 주크박스의 스피커 수가 최대입니다",
   "tooltip.music_disc_maker.speaker.linked_to": "음원: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "황금 주크박스를 Shift + 우클릭하여 연결",
-  "block.music_disc_maker.boombox": "붐박스",
+  "item.music_disc_maker.boombox": "붐박스",
   "music_disc_maker.boombox.playing": "재생 중",
   "music_disc_maker.boombox.stopped": "정지",
   "music_disc_maker.boombox.no_disc": "디스크가 없음",
   "tooltip.music_disc_maker.boombox.loaded": "넣은 디스크: %s",
   "tooltip.music_disc_maker.boombox.empty": "비어 있음",
-  "tooltip.music_disc_maker.boombox.hint": "허공을 보며 Shift + 우클릭으로 재생/정지. 인벤토리에서 디스크를 우클릭해 넣기."
+  "tooltip.music_disc_maker.boombox.hint": "우클릭으로 재생/정지. 인벤토리에서 디스크를 우클릭해 넣기.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Shift + 우클릭으로 설정 열기.",
+  "gui.music_disc_maker.boombox.title": "붐박스",
+  "gui.music_disc_maker.boombox.volume": "음량: %s%%",
+  "gui.music_disc_maker.boombox.empty": "디스크가 없음",
+  "gui.music_disc_maker.boombox.directional": "음향 방향성",
+  "gui.music_disc_maker.boombox.directional.on": "방향성: 켜짐 (입체 음향)",
+  "gui.music_disc_maker.boombox.directional.off": "방향성: 꺼짐 (범위 안에서 균일)"
 }

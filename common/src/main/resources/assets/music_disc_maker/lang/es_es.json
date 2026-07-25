@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "Este tocadiscos ya tiene el máximo de altavoces",
   "tooltip.music_disc_maker.speaker.linked_to": "Fuente: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "Mayús + clic derecho en un tocadiscos dorado para vincular",
-  "block.music_disc_maker.boombox": "Radiocasete",
+  "item.music_disc_maker.boombox": "Radiocasete",
   "music_disc_maker.boombox.playing": "Reproduciendo",
   "music_disc_maker.boombox.stopped": "Detenido",
   "music_disc_maker.boombox.no_disc": "No hay disco",
   "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
   "tooltip.music_disc_maker.boombox.empty": "Vacío",
-  "tooltip.music_disc_maker.boombox.hint": "Mayús + clic derecho al aire para reproducir/parar. Clic derecho con un disco para cargarlo."
+  "tooltip.music_disc_maker.boombox.hint": "Clic derecho para reproducir/parar. Clic derecho con un disco para cargarlo.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Mayús + clic derecho para abrir los ajustes.",
+  "gui.music_disc_maker.boombox.title": "Radiocasete",
+  "gui.music_disc_maker.boombox.volume": "Volumen: %s%%",
+  "gui.music_disc_maker.boombox.empty": "No hay disco",
+  "gui.music_disc_maker.boombox.directional": "Audio direccional",
+  "gui.music_disc_maker.boombox.directional.on": "Audio direccional: activado (posicional)",
+  "gui.music_disc_maker.boombox.directional.off": "Audio direccional: desactivado (plano dentro del alcance)"
 }

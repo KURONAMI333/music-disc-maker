@@ -7,7 +7,10 @@ import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 import com.mojang.serialization.Codec;
 
+import java.util.UUID;
+
 import net.minecraft.core.GlobalPos;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -40,9 +43,8 @@ public final class ModDataComponents {
                             .build());
 
     /**
-     * ブームボックスのブロックアイテムが持ち歩く中身 (ディスク + 可聴範囲/音量/指向性)。
-     * BE ⇔ item の往復は {@code BoomboxBlockEntity} の implicit component と loot table の
-     * {@code copy_components} が担う。
+     * ブームボックス (純アイテム) が持ち歩く中身 (ディスク + 音量/指向性)。
+     * 装填はインベントリ内の右クリックと専用 GUI のスロットの両方から書き換わる。
      */
     public static final RegistryHolder<DataComponentType<BoomboxContents>> BOOMBOX_CONTENTS =
             COMPONENTS.register("boombox_contents",
@@ -52,8 +54,31 @@ public final class ModDataComponents {
                             .build());
 
     /**
-     * 手持ちブームボックスが再生中か。シフト右クリックのトグルで書き換わり、アイテムに残るので
-     * ログアウトを跨いでも状態が保たれる。server の {@code BoomboxPlayback} はこれを毎 tick 読む。
+     * ブームボックスの<b>個体識別子</b>。再生セッションのキーであり、専用 GUI が「どのスタックを
+     * 開いているか」を指すハンドルでもある。
+     *
+     * <p>これが要る理由: 携帯プレイヤーは持ち替えても・インベントリの中を動いても鳴り続けるので、
+     * スロット番号や entity id では音源を指せない。同じ URL のブームボックスが 2 台あっても
+     * 独立に鳴って独立に止まる、という要件も「キーが URL でなくアイテム個体」でしか満たせない。
+     *
+     * <p>採番は最初に必要になった時 (再生トグル / GUI を開く) に server が行う。クリエイティブの
+     * 複製や {@code /give} で同じ UUID の 2 個目ができうるので、再生開始時に自分のインベントリ内で
+     * 重複を見つけたら振り直す ({@code BoomboxPlayback#identify})。
+     */
+    public static final RegistryHolder<DataComponentType<UUID>> BOOMBOX_ID =
+            COMPONENTS.register("boombox_id",
+                    () -> DataComponentType.<UUID>builder()
+                            .persistent(UUIDUtil.CODEC)
+                            .networkSynchronized(UUIDUtil.STREAM_CODEC)
+                            .build());
+
+    /**
+     * ブームボックスが再生中か。<b>正本ではなくキャッシュ</b>: 実際に鳴っているかどうかは server の
+     * {@code BoomboxPlayback} のセッションが持ち、この component はツールチップ表示と
+     * 「ログアウト前に鳴っていた」の手掛かりのために載せている。
+     *
+     * <p>キャッシュに落としてあるのは、落としたブームボックスを拾った人の手元で操作なしに鳴り出す
+     * のを防ぐため。走査のたびに「フラグは true だがセッションが無い」を見つけたら落とす。
      */
     public static final RegistryHolder<DataComponentType<Boolean>> BOOMBOX_PLAYING =
             COMPONENTS.register("boombox_playing",

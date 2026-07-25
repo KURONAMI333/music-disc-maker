@@ -57,11 +57,18 @@
   "music_disc_maker.speaker.link_failed.too_many": "Ten gramofon ma już maksymalną liczbę głośników",
   "tooltip.music_disc_maker.speaker.linked_to": "Źródło: %s, %s, %s",
   "tooltip.music_disc_maker.speaker.link_hint": "Shift + prawy przycisk na złotym gramofonie, aby połączyć",
-  "block.music_disc_maker.boombox": "Boombox",
+  "item.music_disc_maker.boombox": "Boombox",
   "music_disc_maker.boombox.playing": "Odtwarzanie",
   "music_disc_maker.boombox.stopped": "Zatrzymano",
   "music_disc_maker.boombox.no_disc": "Brak płyty",
   "tooltip.music_disc_maker.boombox.loaded": "Płyta: %s",
   "tooltip.music_disc_maker.boombox.empty": "Pusty",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + PPM w powietrze, aby odtworzyć/zatrzymać. PPM płytą, aby ją włożyć."
+  "tooltip.music_disc_maker.boombox.hint": "PPM, aby odtworzyć/zatrzymać. PPM płytą, aby ją włożyć.",
+  "tooltip.music_disc_maker.boombox.gui_hint": "Shift + PPM otwiera ustawienia.",
+  "gui.music_disc_maker.boombox.title": "Boombox",
+  "gui.music_disc_maker.boombox.volume": "Głośność: %s%%",
+  "gui.music_disc_maker.boombox.empty": "Brak płyty",
+  "gui.music_disc_maker.boombox.directional": "Dźwięk kierunkowy",
+  "gui.music_disc_maker.boombox.directional.on": "Dźwięk kierunkowy: wł. (przestrzenny)",
+  "gui.music_disc_maker.boombox.directional.off": "Dźwięk kierunkowy: wył. (równy w zasięgu)"
 }

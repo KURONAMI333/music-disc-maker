@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""ブームボックスの仮ブロックテクスチャ生成器 (機能確認用)。
+"""ブームボックスの仮アイテムテクスチャ生成器 (機能確認用)。
 
-見た目は確認帯なので、ここでは「設置して区別がつく」以上のことをしない。
+見た目は確認帯なので、ここでは「インベントリで区別がつく」以上のことをしない。
 候補比較の本制作は MineTexture 側で別途行う。
 
-正面 = ツインコーン + 中央のカセット窓 / 側面 = 素の筐体 + 取っ手の帯 / 上面 = 操作パネル。
+ブームボックスは純アイテム (設置しない) なので、生成するのは item スプライト 1 枚だけ。
+正面向きのラジカセ = 取っ手 + ツインコーン + 中央のカセット窓。
 """
 
 import os
@@ -21,7 +22,7 @@ OUT = os.path.join(
     "assets",
     "music_disc_maker",
     "textures",
-    "block",
+    "item",
 )
 
 BODY = (48, 46, 52, 255)
@@ -34,17 +35,10 @@ FRAME = (22, 21, 26, 255)
 WINDOW = (52, 60, 66, 255)
 ACCENT = (206, 168, 68, 255)
 
-
-def base(px: "Image.Image") -> None:
-    for y in range(16):
-        for x in range(16):
-            px[x, y] = BODY
-    for x in range(16):
-        px[x, 0] = BODY_HI
-        px[x, 15] = BODY_SH
-    for y in range(16):
-        px[0, y] = BODY_HI
-        px[15, y] = BODY_SH
+BODY_LEFT = 1
+BODY_RIGHT = 14
+BODY_TOP = 5
+BODY_BOTTOM = 13
 
 
 def _cone(px, cx: float, cy: float, r: float) -> None:
@@ -55,68 +49,54 @@ def _cone(px, cx: float, cy: float, r: float) -> None:
                 px[x, y] = CONE_SH if (y + 0.5) > cy else CONE
 
 
-def front() -> Image.Image:
-    """正面: 左右のコーン + 中央のカセット窓。"""
-    im = Image.new("RGBA", (16, 16))
+def boombox() -> Image.Image:
+    """正面向きのラジカセ。背景は透過 (item/generated)。"""
+    im = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     px = im.load()
-    base(px)
-    for y in range(4, 13):
-        for x in range(1, 15):
-            px[x, y] = GRILLE
-    for x in range(1, 15):
-        px[x, 3] = FRAME
-        px[x, 13] = FRAME
-    _cone(px, 3.5, 8.5, 2.6)
-    _cone(px, 12.5, 8.5, 2.6)
-    # 中央のカセット窓 (ここで「ラジカセ」と読ませる)
-    for y in range(6, 11):
-        for x in range(6, 10):
-            px[x, y] = WINDOW
-    for x in range(6, 10):
-        px[x, 6] = FRAME
-        px[x, 10] = FRAME
-    return im
 
-
-def side() -> Image.Image:
-    """側面: 素の筐体 + 取っ手の帯。"""
-    im = Image.new("RGBA", (16, 16))
-    px = im.load()
-    base(px)
-    for x in range(3, 13):
-        px[x, 2] = BODY_SH
+    # 取っ手 (上辺の帯 + 両肩の立ち上がり)
+    for x in range(5, 11):
         px[x, 3] = ACCENT
-    for y in range(6, 13):
-        for x in range(3, 13):
-            px[x, y] = BODY_SH if (x + y) % 4 == 0 else BODY
-    return im
+    px[4, 4] = BODY_HI
+    px[11, 4] = BODY_HI
 
+    # 筐体
+    for y in range(BODY_TOP, BODY_BOTTOM + 1):
+        for x in range(BODY_LEFT, BODY_RIGHT + 1):
+            px[x, y] = BODY
+    for x in range(BODY_LEFT, BODY_RIGHT + 1):
+        px[x, BODY_TOP] = BODY_HI
+        px[x, BODY_BOTTOM] = BODY_SH
+    for y in range(BODY_TOP, BODY_BOTTOM + 1):
+        px[BODY_LEFT, y] = BODY_HI
+        px[BODY_RIGHT, y] = BODY_SH
 
-def top() -> Image.Image:
-    """上面: 操作パネル (ボタン列)。"""
-    im = Image.new("RGBA", (16, 16))
-    px = im.load()
-    base(px)
-    for y in range(5, 11):
-        for x in range(2, 14):
-            px[x, y] = BODY_SH
-    for i in range(4):
-        bx = 3 + i * 3
-        for y in range(7, 9):
-            for x in range(bx, bx + 2):
-                px[x, y] = ACCENT if i == 0 else BODY_HI
+    # グリル面
+    for y in range(BODY_TOP + 2, BODY_BOTTOM):
+        for x in range(BODY_LEFT + 1, BODY_RIGHT):
+            px[x, y] = GRILLE
+    for x in range(BODY_LEFT + 1, BODY_RIGHT):
+        px[x, BODY_TOP + 1] = FRAME
+
+    # ツインコーン
+    _cone(px, 4.0, 9.5, 2.2)
+    _cone(px, 12.0, 9.5, 2.2)
+
+    # 中央のカセット窓 (ここで「ラジカセ」と読ませる)
+    for y in range(8, 11):
+        for x in range(7, 9):
+            px[x, y] = WINDOW
+    for x in range(7, 9):
+        px[x, 8] = FRAME
+
     return im
 
 
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
-    front().save(os.path.join(OUT, "boombox_front.png"))
-    side().save(os.path.join(OUT, "boombox_side.png"))
-    top().save(os.path.join(OUT, "boombox_top.png"))
-    print(
-        "wrote boombox_front.png / boombox_side.png / boombox_top.png ->",
-        os.path.normpath(OUT),
-    )
+    path = os.path.join(OUT, "boombox.png")
+    boombox().save(path)
+    print("wrote boombox.png ->", os.path.normpath(path))
 
 
 if __name__ == "__main__":
