@@ -37,7 +37,7 @@ public final class NeoForgePayloads {
                 (payload, context) -> context.enqueueWork(() -> ModNetwork.handleStop(payload)));
 
         // Sophisticated Backpacks の Jukebox Upgrade 互換 (SC 非依存ペイロード、無条件登録)。
-        // SPIKE: SC compat removed (A7 scope)
+        com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload(registrar);
     }
 
     private static void handleResolveUrl(ResolveUrlPayload payload, IPayloadContext context) {

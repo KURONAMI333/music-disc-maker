@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.compat.additionaladditions.AdditionalAdditionsCompat;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -48,7 +49,7 @@ public class AlbumJukeboxTickMixin {
             return;
         }
         try {
-            /* SPIKE: AA compat removed (A7 scope) */
+            AdditionalAdditionsCompat.onServerTick(level, pos, jukebox);
         } catch (final Throwable t) {
             // AA の API 不一致等 → 永久サスペンドで毎 tick のログ汚染を防ぐ。
             musicdiscmaker$disabled = true;
