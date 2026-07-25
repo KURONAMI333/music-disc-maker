@@ -187,7 +187,11 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
      * 現在の実効範囲をチャンネルの線形減衰半径 (OpenAL max distance) へ即反映する。
      * {@code SoundEngine#play} と同じ式 ({@code max(getVolume(),1) * attenuationDistance}) で算出し、
      * loader mixin ({@link SoundEngineChannelAccess}) 経由で再生中チャンネルへ書き込む。
-     * チャンネル未割当 (play 直後の 1 tick 窓) の場合は resolve() 焼き込み値が既に反映済みなので何もしない。
+     *
+     * <p>{@code SoundEngine#play} はチャンネルのハンドルを {@code join()} で同期に受け取ってから
+     * {@code instanceToChannel} へ入れるので、「再生中なのにチャンネル未割当」の状態はハンドル取得に
+     * 失敗した時 (streaming プール 2〜8 本の枯渇) だけで、その場合その音はそもそも鳴っていない。
+     * mixin 側は該当なしを黙って無視する。
      */
     private void applyLinearAttenuation() {
         final SoundManager soundManager = Minecraft.getInstance().getSoundManager();

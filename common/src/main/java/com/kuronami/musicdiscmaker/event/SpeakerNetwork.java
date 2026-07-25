@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.kuronami.musicdiscmaker.Config;
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
 import com.kuronami.musicdiscmaker.network.SpeakerEntry;
@@ -34,6 +35,8 @@ import net.minecraft.world.level.Level;
 public final class SpeakerNetwork {
 
     private static final Map<ResourceKey<Level>, Map<BlockPos, Set<BlockPos>>> INDEX = new HashMap<>();
+    /** 台数上限の切り捨てを警告済みの音源 (ログを毎 broadcast 出さないため)。 */
+    private static final Set<BlockPos> WARNED_OVER_CAP = new java.util.HashSet<>();
 
     private SpeakerNetwork() {
     }
@@ -87,6 +90,7 @@ public final class SpeakerNetwork {
         final List<SpeakerEntry> entries = new ArrayList<>(Math.min(speakers.size(), cap));
         for (final BlockPos pos : speakers) {
             if (entries.size() >= cap) {
+                warnTruncated(sourcePos, speakers.size(), cap);
                 break;
             }
             // isLoaded を先に見る: Level#getBlockEntity は getChunkAt 経由で chunk を強制ロードする。
@@ -99,6 +103,23 @@ public final class SpeakerNetwork {
             entries.add(new SpeakerEntry(pos, speaker.getVolumePercent(), speaker.getRangeBlocks()));
         }
         return entries;
+    }
+
+    /**
+     * 台数上限で切り捨てたことを 1 音源につき 1 回だけログに出す。
+     *
+     * <p>{@link #countFor} が数えるのは<b>ロード中の</b>スピーカーだけで、リンクの永続正本は各
+     * {@code SpeakerBlockEntity} の NBT にある。設置時の上限判定は index を見るので、遠方で 16 台
+     * リンク → その chunk を unload → 音源の傍でもう 16 台リンク、という順序だと上限を超えられる。
+     * 超過分は無言で落ちると「一部のスピーカーだけ鳴らない謎バグ」になるので、少なくともログには残す。
+     * 永続の総数を数えるには全 chunk 走査が要るので、上限判定そのものは index のままにしてある。
+     */
+    private static void warnTruncated(BlockPos sourcePos, int linked, int cap) {
+        if (WARNED_OVER_CAP.add(sourcePos.immutable())) {
+            MusicDiscMaker.LOGGER.warn(
+                    "音源 {} に上限 {} 台を超える {} 台のスピーカーがリンクされている。超過分は鳴らない。",
+                    sourcePos, cap, linked);
+        }
     }
 
     /** スピーカー集合が変わったので、音源に client 側の集合を更新させる。音源が未ロードなら何もしない。 */
@@ -132,5 +153,6 @@ public final class SpeakerNetwork {
     /** server 停止で index を破棄する (シングルプレイのワールド退出含む)。 */
     public static void clear() {
         INDEX.clear();
+        WARNED_OVER_CAP.clear();
     }
 }

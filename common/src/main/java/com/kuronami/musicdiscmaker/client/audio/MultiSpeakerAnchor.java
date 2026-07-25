@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.jetbrains.annotations.Nullable;
@@ -28,13 +29,6 @@ import net.minecraft.world.phys.Vec3;
  * しない規律をそのまま保つ)。
  */
 public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnchor {
-
-    /**
-     * 最近傍の切り替えに要する距離差 (ブロック)。等距離付近で毎 tick 選択が反転すると、範囲が違う
-     * 候補間で {@code applyLinearAttenuation} が毎 tick 走る (無駄なチャンネル操作) ため、現在の選択を
-     * この分だけ優遇する。
-     */
-    private static final double SWITCH_MARGIN = 0.5;
 
     private final StaticAnchor source;
     private final BlockPos sourcePos;
@@ -127,52 +121,24 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
             return;
         }
 
-        // 音源は常に候補 (全スピーカーが範囲外/ミュートなら音源単体の現行挙動へ縮退する)。
-        BlockPos bestPos = null;
-        double bestDistance = ear.distanceTo(sourceCenter);
-        int bestVolume = srcConfig[0];
-        int bestRange = srcConfig[1];
-
-        // 前回の選択がまだ候補として生きているか (ヒステリシスの判定材料)。
-        boolean currentAlive = chosen == null;
-        double currentDistance = bestDistance;
-        int currentVolume = srcConfig[0];
-        int currentRange = srcConfig[1];
-
+        // client 側 BE で候補を解決してから、選択則そのものは純関数へ渡す (境界条件を headless で
+        // 固定できるようにするため。どの点が選ばれるかは聴こえる/聴こえないを直接決める)。
+        final List<SpeakerSelection.Candidate> candidates = new ArrayList<>(speakers.size());
         for (final SpeakerEntry entry : speakers) {
             final int[] config = speakerConfig(mc, entry);
             if (config == null) {
-                continue; // client 側 BE がミュート済み (server の再送を待たずに外す)
+                continue; // client 側 BE がミュート済み / 撤去済み (server の再送を待たずに外す)
             }
             final BlockPos pos = entry.pos();
-            final Vec3 center = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-            final double distance = ear.distanceTo(center);
-            if (distance > config[1]) {
-                continue; // このスピーカーの可聴範囲の外
-            }
-            if (pos.equals(chosen)) {
-                currentAlive = true;
-                currentDistance = distance;
-                currentVolume = config[0];
-                currentRange = config[1];
-            }
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestPos = pos;
-                bestVolume = config[0];
-                bestRange = config[1];
-            }
+            candidates.add(new SpeakerSelection.Candidate(pos,
+                    new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), config[0], config[1]));
         }
-
-        // 等距離付近で毎 tick 反転しないよう、前回の選択に切り替え余裕を与える。
-        if (currentAlive && currentDistance <= bestDistance + SWITCH_MARGIN) {
-            this.chosenVolumePercent = currentVolume;
-            this.chosenRangeBlocks = currentRange;
-            return;
-        }
-        this.chosen = bestPos;
-        this.chosenVolumePercent = bestVolume;
-        this.chosenRangeBlocks = bestRange;
+        final SpeakerSelection.Choice choice = SpeakerSelection.pick(ear,
+                new SpeakerSelection.Candidate(null, sourceCenter, srcConfig[0], srcConfig[1]),
+                candidates, chosen);
+        this.chosen = choice.pos();
+        this.chosenVolumePercent = choice.volumePercent();
+        this.chosenRangeBlocks = choice.rangeBlocks();
     }
 
     /**
