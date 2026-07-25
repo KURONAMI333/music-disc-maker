@@ -125,4 +125,19 @@ public class FabricConfigHelper implements IConfigHelper {
     public int beatMaxConcurrentAnalyses() {
         return 2;
     }
+
+    // ── 音源ローカルキャッシュ ────────────────────────────────────────────
+    // NeoForge 版の既定値と一致させること。既定 false = オプトインという kura 裁定どおりだが、
+    // Fabric には config 機構が無いので<b>実質いつも無効</b>になる。Fabric に config を新設するかは
+    // 既存方針そのものの裁定 (スピーカーの server 設定・ビートの調整値と同じ棚)。
+
+    @Override
+    public boolean audioCacheEnabled() {
+        return false;
+    }
+
+    @Override
+    public int audioCacheMaxMB() {
+        return 1024;
+    }
 }

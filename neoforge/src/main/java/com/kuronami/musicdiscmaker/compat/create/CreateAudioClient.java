@@ -6,7 +6,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.ClientAudioStreams;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
@@ -64,7 +64,7 @@ public final class CreateAudioClient {
             IAudioSource source;
             try {
                 UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
-                source = LoaderHolder.get().openStream(track.url(), payload.startOffsetMs());
+                source = ClientAudioStreams.open(track, payload.startOffsetMs());
             } catch (final UrlBlockedException blocked) {
                 MusicDiscMaker.LOGGER.warn("Create contraption 再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
                 source = null;

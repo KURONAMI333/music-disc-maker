@@ -8,7 +8,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.network.PlaybackStartedPayload;
@@ -175,7 +174,7 @@ public final class ClientPlaybackManager {
             try {
                 // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
                 UrlGuard.enforce(track.url());
-                source = LoaderHolder.get().openStream(track.url(), startOffsetMs);
+                source = ClientAudioStreams.open(track, startOffsetMs);
             } catch (final UrlBlockedException blocked) {
                 MusicDiscMaker.LOGGER.warn("再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
                 source = null;

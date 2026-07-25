@@ -97,4 +97,16 @@ public interface IConfigHelper {
 
     /** 同時に走らせる解析の本数。既定 2。 */
     int beatMaxConcurrentAnalyses();
+
+    // ── 音源ローカルキャッシュ (client 側で読む) ──────────────────────────
+    // 再生は client ごとに個別のストリームなので、キャッシュも client 設定。
+
+    /**
+     * 最後まで再生した曲をローカルに保存し、次からはそこから鳴らすか。既定 <b>false</b> (オプトイン)。
+     * ON にすると、外部プラットフォーム側が壊れても一度通した曲は鳴り続ける。
+     */
+    boolean audioCacheEnabled();
+
+    /** キャッシュのディスク上限 (MB)。0 = 無制限。既定 1024 (mono 48kbps 換算で約 700 曲)。 */
+    int audioCacheMaxMB();
 }
