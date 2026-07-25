@@ -1,12 +1,19 @@
 package com.kuronami.musicdiscmaker.gametest;
 
 import java.util.List;
+import java.util.Set;
 
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.SpeakerBlock;
 import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
+import com.kuronami.musicdiscmaker.client.audio.SpeakerSelection;
 import com.kuronami.musicdiscmaker.event.SpeakerNetwork;
+import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
+import com.kuronami.musicdiscmaker.platform.Services;
+import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -20,7 +27,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -247,6 +256,157 @@ public class SpeakerGameTests {
         helper.setBlock(speakerRel, Blocks.AIR);
         helper.assertTrue(SpeakerNetwork.countFor(helper.getLevel(), jukeboxAbs) == 0,
                 "破壊後も逆引き index に残っている");
+        helper.succeed();
+    }
+
+    // ── 配送先 (payload の宛先集合) ───────────────────────────────────────
+    // 「誰に届くか」は build でも通常の GameTest でも一切見えない面で、実際に穴が出た面でもある。
+    // Services.NETWORK を捕獲実装に差し替えて宛先だけを固定する。
+
+    /**
+     * 集合の配送先が「音源チャンク ∪ 全スピーカーチャンク」であること。
+     * 音源チャンクだけに撃つと、遠方スピーカーの傍にいる player に構造的に届かない。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void broadcastReachesSpeakerChunks(GameTestHelper helper) {
+        final BlockPos jukeboxRel = new BlockPos(1, 1, 1);
+        helper.setBlock(jukeboxRel, ModBlocks.GOLDEN_JUKEBOX.get());
+        final BlockPos jukeboxAbs = helper.absolutePos(jukeboxRel);
+        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel);
+        if (jukebox == null) {
+            helper.fail("金ジュークの BlockEntity が生成されていない", jukeboxRel);
+            return;
+        }
+        // 音源とは別チャンクになる位置へリンクさせる (構造物の外に直接置く)。
+        final BlockPos farAbs = jukeboxAbs.offset(48, 0, 48);
+        helper.getLevel().setBlockAndUpdate(farAbs, ModBlocks.SPEAKER.get().defaultBlockState());
+        final SpeakerBlockEntity far = (SpeakerBlockEntity) helper.getLevel().getBlockEntity(farAbs);
+        if (far == null) {
+            helper.fail("遠方スピーカーの BlockEntity が生成されていない");
+            return;
+        }
+        far.setSourcePos(jukeboxAbs);
+
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            jukebox.broadcastSpeakerSet();
+            final Set<ChunkPos> targets = net.chunksOf(SpeakerSetPayload.class);
+            helper.assertTrue(targets.contains(new ChunkPos(jukeboxAbs)),
+                    "音源チャンクが宛先に入っていない: " + targets);
+            helper.assertTrue(targets.contains(new ChunkPos(farAbs)),
+                    "遠方スピーカーのチャンクが宛先に入っていない: " + targets);
+            helper.assertTrue(targets.size() == 2, "宛先チャンクが 2 個でない: " + targets);
+        } finally {
+            Services.swapNetwork(previous);
+            helper.getLevel().setBlockAndUpdate(farAbs, Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * ミュート切り替え (集合の更新) では再生 packet を撒かないこと。
+     * 撒くと、レッドストーンを叩くたびに周囲の client が再生要求を受ける。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void muteToggleDoesNotResendPlayback(GameTestHelper helper) {
+        final BlockPos jukeboxRel = new BlockPos(1, 1, 1);
+        helper.setBlock(jukeboxRel, ModBlocks.GOLDEN_JUKEBOX.get());
+        final BlockPos jukeboxAbs = helper.absolutePos(jukeboxRel);
+
+        final BlockPos speakerRel = new BlockPos(4, 1, 4);
+        final SpeakerBlockEntity be = placeLinkedSpeaker(helper, speakerRel, jukeboxAbs);
+        if (be == null) {
+            return;
+        }
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            helper.setBlock(speakerRel.east(), Blocks.REDSTONE_BLOCK);
+            helper.assertTrue(be.isMuted(), "レッドストーン信号でミュートになっていない");
+            helper.assertTrue(net.of(SpeakerSetPayload.class).size() > 0,
+                    "ミュート切り替えで集合が再配布されていない");
+            helper.assertTrue(net.of(PlayDiscPayload.class).isEmpty(),
+                    "ミュート切り替えで再生 packet が撒かれている");
+        } finally {
+            Services.swapNetwork(previous);
+        }
+        helper.succeed();
+    }
+
+    // ── 聴取点の選択則 (client の純関数) ─────────────────────────────────
+
+    private static SpeakerSelection.Candidate at(double x, double z, int volume, int range) {
+        return new SpeakerSelection.Candidate(BlockPos.containing(x, 0, z), new Vec3(x, 0, z), volume, range);
+    }
+
+    /**
+     * 音源も自分の可聴範囲でゲートすること。
+     *
+     * <p>音源 range 64 / スピーカー range 128 で、音源の方が近いが音源の範囲外・スピーカーの範囲内、
+     * という座標を作る。音源を無条件の候補にすると距離だけで音源が勝ち、その range が減衰半径に
+     * 書かれて完全な無音になる (出荷 GUI のスライダーを 1 本上げるだけで作れる配置)。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void selectionGatesSourceByItsOwnRange(GameTestHelper helper) {
+        final SpeakerSelection.Candidate source =
+                new SpeakerSelection.Candidate(null, new Vec3(0, 0, 0), 100, 64);
+        final SpeakerSelection.Candidate speaker = at(100, 0, 100, 128);
+        final Vec3 ear = new Vec3(0, 0, 70); // 音源まで 70 (範囲外) / スピーカーまで ≈122 (範囲内)
+
+        final SpeakerSelection.Choice choice =
+                SpeakerSelection.pick(ear, source, List.of(speaker), null);
+        helper.assertTrue(choice.pos() != null, "音源の範囲外なのに音源が選ばれている (無音になる)");
+        helper.assertTrue(choice.rangeBlocks() == 128, "選ばれた点の range がスピーカーのものでない");
+
+        // 音源の範囲内に入れば、より近い音源が選ばれる (最近傍の規則は変わらない)。
+        final SpeakerSelection.Choice near =
+                SpeakerSelection.pick(new Vec3(0, 0, 20), source, List.of(speaker), null);
+        helper.assertTrue(near.pos() == null, "音源の範囲内なのに音源が選ばれていない");
+        helper.succeed();
+    }
+
+    /** 範囲内の候補が 1 つも無ければ音源へ縮退する (減衰で無音になるのが正しい)。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void selectionFallsBackToSource(GameTestHelper helper) {
+        final SpeakerSelection.Candidate source =
+                new SpeakerSelection.Candidate(null, new Vec3(0, 0, 0), 100, 64);
+        final SpeakerSelection.Candidate speaker = at(100, 0, 100, 32);
+        final SpeakerSelection.Choice choice =
+                SpeakerSelection.pick(new Vec3(0, 0, 500), source, List.of(speaker), null);
+        helper.assertTrue(choice.pos() == null, "全候補が範囲外なのに音源へ縮退していない");
+        helper.assertTrue(choice.rangeBlocks() == 64, "縮退先の range が音源のものでない");
+
+        // バニラジューク経路 (range=0 の sentinel) も常に音源へ縮退する。
+        final SpeakerSelection.Candidate vanilla =
+                new SpeakerSelection.Candidate(null, new Vec3(0, 0, 0), 100, 0);
+        final SpeakerSelection.Choice v = SpeakerSelection.pick(new Vec3(0, 0, 1), vanilla, List.of(), null);
+        helper.assertTrue(v.pos() == null && v.rangeBlocks() == 0,
+                "range=0 の sentinel が音源へ縮退していない");
+        helper.succeed();
+    }
+
+    /** 等距離付近で毎 tick 反転しないよう、前回の選択に切り替え余裕を与える。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void selectionKeepsCurrentWithinMargin(GameTestHelper helper) {
+        final SpeakerSelection.Candidate source =
+                new SpeakerSelection.Candidate(null, new Vec3(0, 0, 0), 100, 64);
+        final SpeakerSelection.Candidate speaker = at(0, 40, 100, 64);
+        // 音源まで 19.9 / スピーカーまで 20.1 = 差 0.2 < SWITCH_MARGIN(0.5) なので据え置き。
+        final Vec3 ear = new Vec3(0, 0, 19.9);
+        final SpeakerSelection.Choice keep =
+                SpeakerSelection.pick(ear, source, List.of(speaker), speaker.pos());
+        helper.assertTrue(speaker.pos().equals(keep.pos()), "余裕の内側で選択が反転している");
+
+        // 余裕を超えて音源へ寄れば切り替わる (音源まで 5 / スピーカーまで 35)。
+        final SpeakerSelection.Choice flip =
+                SpeakerSelection.pick(new Vec3(0, 0, 5), source, List.of(speaker), speaker.pos());
+        helper.assertTrue(flip.pos() == null, "余裕を超えても選択が切り替わらない");
         helper.succeed();
     }
 }
