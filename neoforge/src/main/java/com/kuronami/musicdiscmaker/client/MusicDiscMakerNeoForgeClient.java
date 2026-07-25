@@ -4,12 +4,15 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackManager;
 import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
 import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
+import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOverlay;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.TrackKey;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -21,6 +24,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
@@ -48,6 +52,21 @@ public class MusicDiscMakerNeoForgeClient {
     @SubscribeEvent
     static void onRegisterTooltipFactories(RegisterClientTooltipComponentFactoriesEvent event) {
         event.register(JacketTooltip.class, JacketClientTooltip::new);
+    }
+
+    /**
+     * スピーカーのリンク先を輪郭で示す (スピーカーのブロックアイテムを持っている間だけ)。
+     * 半透明の後に描き、行 buffer はここで流す (level renderer 側の flush を当てにしない)。
+     */
+    @SubscribeEvent
+    static void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+            return;
+        }
+        final MultiBufferSource.BufferSource buffers =
+                net.minecraft.client.Minecraft.getInstance().renderBuffers().bufferSource();
+        SpeakerLinkOverlay.render(event.getPoseStack(), buffers, event.getCamera().getPosition());
+        buffers.endBatch(RenderType.lines());
     }
 
     @SubscribeEvent

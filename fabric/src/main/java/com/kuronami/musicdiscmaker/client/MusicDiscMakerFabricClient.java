@@ -4,6 +4,7 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackManager;
 import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
 import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
+import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOverlay;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.TrackKey;
 import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
@@ -20,6 +21,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.TooltipComponentCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
@@ -35,6 +37,11 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
         MenuScreens.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
+
+        // スピーカーのリンク先を輪郭で示す (スピーカーのブロックアイテムを持っている間だけ)。
+        // 行 buffer は Fabric の render context が管理するのでここでは流さない。
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> SpeakerLinkOverlay.render(
+                context.matrixStack(), context.consumers(), context.camera().getPosition()));
 
         // ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する。
         TooltipComponentCallback.EVENT.register(
