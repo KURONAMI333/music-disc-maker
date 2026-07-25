@@ -67,6 +67,9 @@ public final class ClientPlaybackManager {
     private final Map<BlockPos, Long> playStartMillis = new ConcurrentHashMap<>();
     // pos ごとの現インスタンスのロード開始オフセット (GUI シークと chunk 再入再送の判別に使う)。
     private final Map<BlockPos, Long> loadOffsetMs = new ConcurrentHashMap<>();
+    // pos ごとの「実際に音が鳴り始めた」時刻。再ロードの再送で現在位置を答えるのに使う
+    // (ストリームを開いた時刻ではない = MC の 4 秒ぶんのバッファ充填を含まない)。
+    private final Map<BlockPos, Long> audioStartMillis = new ConcurrentHashMap<>();
     private final ExecutorService pool = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-playback");
         thread.setDaemon(true);
@@ -99,6 +102,10 @@ public final class ClientPlaybackManager {
         // キャストも飛ばさない)。同じ曲・非シークの再送 (chunk 再入等) はそのまま dedup する。
         if (existing != null && !existing.isStopped() && track.url().equals(playingUrl.get(key))
                 && !isSeekRequest(key, startOffsetMs)) {
+            // 鳴らし直しはしないが、server は新しい再生セッションを起こしていて校正を待っている。
+            // ここで返さないと、chunk 再ロード (= 一度離れて戻る) のたびに校正が失われ、
+            // 以後その曲はバッファ遅延ぶんずれたまま戻らない。
+            reportAudioPosition(key, playbackId);
             return;
         }
         stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生 or シーク)
@@ -115,6 +122,26 @@ public final class ClientPlaybackManager {
      * 一致し、dedup される。後方シークは常に推定位置 (前進中) と乖離するので確実に通る。
      */
     private static final long SEEK_TOLERANCE_MS = 1200L;
+
+    /**
+     * 「いまこの曲の何 ms 地点が鳴っているか」を server へ answer する (ビート連動の校正)。
+     *
+     * <p>再ロードの再送で新しい再生セッションが立った時に使う。基準は<b>実際に音が鳴り始めた時刻</b>
+     * ({@code audioStartMillis}) であって、ストリームを開いた時刻ではない — 後者だと MC の
+     * 4 秒ぶんのバッファ充填を含んでしまい、潰したい遅延をそのまま報告することになる。
+     */
+    private void reportAudioPosition(BlockPos key, long playbackId) {
+        if (playbackId == 0L) {
+            return;
+        }
+        final Long startedAt = audioStartMillis.get(key);
+        final Long loaded = loadOffsetMs.get(key);
+        if (startedAt == null || loaded == null) {
+            return; // まだ鳴り始めていない = 元の onAudioStarted がこの後に報告する
+        }
+        Services.NETWORK.sendToServer(new PlaybackStartedPayload(
+                key, playbackId, loaded + (System.currentTimeMillis() - startedAt)));
+    }
 
     private boolean isSeekRequest(BlockPos key, long requestedOffsetMs) {
         final Long started = playStartMillis.get(key);
@@ -184,6 +211,7 @@ public final class ClientPlaybackManager {
             if (e.getValue().isStopped()) {
                 playingUrl.remove(e.getKey());
                 loadOffsetMs.remove(e.getKey());
+                audioStartMillis.remove(e.getKey());
                 return true;
             }
             return false;
@@ -206,13 +234,15 @@ public final class ClientPlaybackManager {
         anchors.put(key, anchor);
         final DiscSoundInstance instance =
                 new DiscSoundInstance(anchor, resolved, rangeBlocks, volumePercent, endCb);
-        if (playbackId != 0L) {
-            // ビート連動の校正: 音が実際に鳴り始めた瞬間に 1 回だけ server へ報告する。
-            // streaming thread から呼ばれるので main thread へ渡してから送る。
-            instance.setOnAudioStarted(() -> Minecraft.getInstance().execute(
-                    () -> Services.NETWORK.sendToServer(
-                            new PlaybackStartedPayload(key, playbackId, startOffsetMs))));
-        }
+        // ビート連動の校正: 音が実際に鳴り始めた瞬間を記録し、1 回だけ server へ報告する。
+        // 鳴り始めた時刻は、この後の再送 (chunk 再ロード等) で現在位置を答えるのにも要るので、
+        // playbackId の有無に関わらず記録する。streaming thread から呼ばれるので main thread へ渡す。
+        instance.setOnAudioStarted(() -> Minecraft.getInstance().execute(() -> {
+            audioStartMillis.put(key, System.currentTimeMillis());
+            if (playbackId != 0L) {
+                Services.NETWORK.sendToServer(new PlaybackStartedPayload(key, playbackId, startOffsetMs));
+            }
+        }));
         active.put(key, instance);
         playingUrl.put(key, track.url());
         playStartMillis.put(key, System.currentTimeMillis());
@@ -253,6 +283,7 @@ public final class ClientPlaybackManager {
         playingUrl.remove(key);
         playStartMillis.remove(key);
         loadOffsetMs.remove(key);
+        audioStartMillis.remove(key);
 
         final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
         if (attempt > MAX_RECONNECT) {
@@ -324,6 +355,7 @@ public final class ClientPlaybackManager {
         reconnectAttempts.remove(key);
         playStartMillis.remove(key);
         loadOffsetMs.remove(key);
+        audioStartMillis.remove(key);
         // speakerSets はここで消さない。startPlayback は seek/repeat のたびにこの経路を通るため。
         anchors.remove(key);
         final DiscSoundInstance instance = active.remove(key);
@@ -343,6 +375,7 @@ public final class ClientPlaybackManager {
         reconnectAttempts.clear();
         playStartMillis.clear();
         loadOffsetMs.clear();
+        audioStartMillis.clear();
         anchors.clear();
         speakerSets.clear();
         directionals.clear();

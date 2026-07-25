@@ -35,20 +35,24 @@ public class LavaPlayerAudioStream implements AudioStream {
     @Nullable
     private final Runnable onStarted;
     private final AtomicBoolean startedNotified = new AtomicBoolean(false);
-    private int readCalls;
+    /** engine へ実際に渡した PCM のバイト数。 */
+    private long delivered;
+    /** 「鳴り始めた」とみなすまでに渡すバイト数 = {@link #PREBUFFER_SECONDS} 秒ぶん。 */
+    private final long prebufferBytes;
 
     /**
-     * {@code alSourcePlay} の前に MC が積むバッファ本数 ({@code Channel.QUEUED_BUFFER_COUNT})。
+     * {@code alSourcePlay} の前に MC が積むバッファの秒数
+     * （{@code Channel.QUEUED_BUFFER_COUNT}=4 × {@code BUFFER_DURATION_SECONDS}=1）。
      *
      * <p>{@code SoundEngine} は {@code attachBufferStream} → {@code pumpBuffers(4)} → {@code play()}
-     * の順で動くので、<b>4 回目の read が返った時点がほぼ実際の発音開始</b>。1 バッファ = 1 秒ぶんなので、
-     * ここまでにネットワークから 4 秒ぶんの実データを読み終える必要があり、これが「server が再生を
-     * 指示した時刻」と「音が出た時刻」の秒オーダーのずれの正体。
+     * の順で動くので、<b>4 秒ぶんを渡し終えた時点がほぼ実際の発音開始</b>。ここまでにネットワークから
+     * 4 秒ぶんの実データを読み終える必要があり、これが「server が再生を指示した時刻」と
+     * 「音が出た時刻」の秒オーダーのずれの正体。
      *
      * <p>{@code SoundManager.play(instance)} の直後に報告する案は採らない。あれはキューに積むだけで、
      * バッファ充填の<b>前</b>に返るので、本来潰したい遅延ぶんそのまま早くずれる。
      */
-    private static final int PREBUFFER_READS = 4;
+    private static final int PREBUFFER_SECONDS = 4;
 
     public LavaPlayerAudioStream(IAudioSource source) {
         this(source, null, null);
@@ -64,6 +68,8 @@ public class LavaPlayerAudioStream implements AudioStream {
         this.onStarted = onStarted;
         this.format = new AudioFormat(
                 source.sampleRate(), source.bitsPerSample(), source.channels(), true, source.bigEndian());
+        this.prebufferBytes = (long) PREBUFFER_SECONDS * source.sampleRate()
+                * Math.max(1, source.channels()) * Math.max(1, source.bitsPerSample() / 8);
     }
 
     @Override
@@ -91,7 +97,11 @@ public class LavaPlayerAudioStream implements AudioStream {
             buffer.put(scratch, 0, read);
         }
         buffer.flip();
-        if (++readCalls >= PREBUFFER_READS && onStarted != null
+        // 呼ばれた回数ではなく「実際に engine へ渡した音の長さ」で判定する。回線が細いと
+        // 空のまま返る read が続くので、回数で数えると音がまだ 1 サンプルも無いのに
+        // 「鳴り始めた」と報告してしまう — しかもそれは、まさに測りたい遅延が最大の場面。
+        delivered += buffer.remaining();
+        if (delivered >= prebufferBytes && onStarted != null
                 && startedNotified.compareAndSet(false, true)) {
             onStarted.run();
         }

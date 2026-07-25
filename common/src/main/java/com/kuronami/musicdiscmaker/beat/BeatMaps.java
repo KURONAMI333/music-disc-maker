@@ -66,10 +66,18 @@ public final class BeatMaps {
     /** 解析中の key。同じ URL の二重解析を防ぐ。 */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
     /**
-     * 申告尺に届かずキャッシュしなかった key。次の {@link #ensure} が 1 度だけやり直すための印で、
-     * 消費されたら消える。{@link #install} で載せたマップはここに入らないので再解析されない。
+     * key ごとの「うまくいかなかった解析」の回数。{@link #MAX_ATTEMPTS} で打ち切る。
+     *
+     * <p>これが無いと 2 通りの無限ループになる: ① ディスクの申告尺が実体より長い場合
+     * (再アップロード後の古いディスク・細工された component) に、毎回の再生で永久に再解析し続ける
+     * ② リンク切れの URL を、再生中ずっと毎秒叩き続ける。
+     * {@code durationMs} は component 由来で server が再導出していない値なので、信頼しきった判定にはできない。
+     *
+     * <p>{@link #install} で外から載せたマップはここに数字を持たない = 権威として扱われ、再解析されない。
      */
-    private static final Set<String> SHORT_ANALYSES = ConcurrentHashMap.newKeySet();
+    private static final Map<String, Integer> FAILED_ATTEMPTS = new ConcurrentHashMap<>();
+    /** 1 つの URL につき許す解析の回数。 */
+    private static final int MAX_ATTEMPTS = 2;
     /** server が変わったら (ワールド切替・再起動) 進行中の解析を捨てるための世代番号。 */
     private static final AtomicInteger GENERATION = new AtomicInteger();
 
@@ -128,11 +136,16 @@ public final class BeatMaps {
         }
         bindServer(server);
         final String key = keyOf(url);
+        final int attempts = FAILED_ATTEMPTS.getOrDefault(key, 0);
         synchronized (MEMORY) {
-            // 尺に届かなかった解析だけは 1 度やり直す (remove が true = まだ再試行していない)。
-            // 無制限に再試行しないのは、ディスクの申告尺が実体より長い場合 (再アップロード後の
-            // 古いディスク等) に毎回の再生で永久に再解析し続けてしまうため。
-            if (MEMORY.containsKey(key) && !SHORT_ANALYSES.remove(key)) {
+            if (MEMORY.containsKey(key)) {
+                // 自分の解析が尺に届かなかった時だけ、上限つきでやり直す。
+                // 外から {@link #install} で載せたマップと、完走したマップは数字を持たない = 権威。
+                if (attempts == 0 || attempts >= MAX_ATTEMPTS) {
+                    return;
+                }
+            } else if (attempts >= MAX_ATTEMPTS) {
+                // 解析そのものが通らない URL (リンク切れ・拒否・回線断)。毎秒叩き続けない。
                 return;
             }
         }
@@ -145,15 +158,20 @@ public final class BeatMaps {
             IN_FLIGHT.remove(key);
             return;
         }
-        executor.submit(() -> {
-            try {
-                load(key, url, durationMs, generation);
-            } catch (final Throwable t) {
-                MusicDiscMaker.LOGGER.warn("ビート解析に失敗 ({}): {}", url, t.toString());
-            } finally {
-                IN_FLIGHT.remove(key);
-            }
-        });
+        try {
+            executor.submit(() -> {
+                try {
+                    load(key, url, durationMs, generation);
+                } catch (final Throwable t) {
+                    giveUp(key, url, t.toString());
+                } finally {
+                    IN_FLIGHT.remove(key);
+                }
+            });
+        } catch (final RuntimeException ex) {
+            // server 停止と競合して executor が閉じた直後。tick から呼ばれるので投げ返さない。
+            IN_FLIGHT.remove(key);
+        }
     }
 
     /**
@@ -168,6 +186,8 @@ public final class BeatMaps {
         GENERATION.incrementAndGet();
         currentServer = null;
         cacheDir = null;
+        // 打ち切られた解析が「進行中」の印を残したままだと、次の server で二度と解析されない。
+        IN_FLIGHT.clear();
         final ExecutorService executor = pool;
         pool = null;
         if (executor != null) {
@@ -233,43 +253,71 @@ public final class BeatMaps {
         }
         try {
             UrlGuard.enforce(url); // SSRF 遮断。再生経路と同じ構え
+            final BeatMap previous = peekByKey(key);
             final BeatMap map = BeatMap.forDuration(durationMs);
-            publish(key, map, generation);
+            // 初回だけ空のマップを即公開する (解析カーソルが再生位置を追い越したら出始める形)。
+            // やり直しの時に公開してしまうと、前回取れていた良い部分が空で上書きされ、
+            // 出力が 0 に落ちてまた登り直しになる。
+            if (previous == null) {
+                publish(key, map, generation);
+            }
             final long started = System.currentTimeMillis();
             try (IAudioSource source = LoaderHolder.get().openStream(url, 0L)) {
                 if (source == null) {
-                    MusicDiscMaker.LOGGER.warn("ビート解析用のストリームを開けない: {}", url);
-                    forget(key);
+                    giveUp(key, url, "ストリームを開けない");
                     return;
                 }
                 final boolean finished = BeatAnalyzer.analyze(source, map, Config.beatFftSize(),
                         () -> generation == GENERATION.get());
                 if (!finished) {
-                    forget(key); // 打ち切り = 中途半端なマップを残さない
-                    return;
+                    if (previous == null) {
+                        forget(key); // 打ち切り = 中途半端なマップを残さない
+                    }
+                    return; // server 停止による打ち切りは失敗に数えない
                 }
+            }
+            // 前回より取れていれば差し替える (やり直しで良くなった分を反映する)。
+            if (previous == null || map.coveredMs() > previous.coveredMs()) {
+                publish(key, map, generation);
             }
             // PCM ソースの終端 (-1) は「曲が終わった」と「回線が詰まって諦めた」を区別できない
             // (LavaAudioSource は 10 秒枯渇でも -1 を返す)。尺どおり取れたかで判定しないと、
             // 通信が細った 1 回の結果が「完成品」としてキャッシュに焼き付き、以後その曲は
             // 途中から永久に無反応になる。
             if (map.coveredMs() < durationMs * COMPLETE_RATIO) {
+                final int attempts = FAILED_ATTEMPTS.merge(key, 1, Integer::sum);
                 MusicDiscMaker.LOGGER.warn(
-                        "ビート解析が尺に届かなかったのでキャッシュしない: {} ({}ms / {}ms)",
-                        url, map.coveredMs(), durationMs);
-                // メモリには残す (取れたところまでは今の再生で使える) が、ディスクへは焼かない。
-                // 次の再生で 1 度だけやり直す。
-                SHORT_ANALYSES.add(key);
-                return;
+                        "ビート解析が尺に届かなかったのでキャッシュしない: {} ({}ms / {}ms・{}/{} 回目)",
+                        url, map.coveredMs(), durationMs, attempts, MAX_ATTEMPTS);
+                return; // メモリには残る (取れたところまでは今の再生で使える)
             }
+            FAILED_ATTEMPTS.remove(key);
             MusicDiscMaker.LOGGER.info("ビート解析が完了: {} ({} frames / {}ms)",
                     url, map.ready(), System.currentTimeMillis() - started);
             store(file, map);
         } catch (final Throwable t) {
-            MusicDiscMaker.LOGGER.warn("ビート解析に失敗 ({}): {}", url, t.toString());
-            forget(key);
+            giveUp(key, url, t.toString());
         } finally {
             permits.release();
+        }
+    }
+
+    /**
+     * 解析が通らなかった時の後始末。試行回数を進め、上限に達したらそれ以上叩かない。
+     * 上限が無いと、リンク切れ・拒否・回線断の URL を再生中ずっと毎秒叩き続けることになる
+     * ({@code tickBeat} がマップ不在を見て頼み直すため)。
+     */
+    private static void giveUp(String key, String url, String reason) {
+        final int attempts = FAILED_ATTEMPTS.merge(key, 1, Integer::sum);
+        forget(key);
+        MusicDiscMaker.LOGGER.warn("ビート解析に失敗 ({}): {} ({}/{} 回目)",
+                url, reason, attempts, MAX_ATTEMPTS);
+    }
+
+    @Nullable
+    private static BeatMap peekByKey(String key) {
+        synchronized (MEMORY) {
+            return MEMORY.get(key);
         }
     }
 

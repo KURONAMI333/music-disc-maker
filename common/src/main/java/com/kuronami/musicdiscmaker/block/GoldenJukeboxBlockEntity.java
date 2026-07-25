@@ -391,7 +391,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (track != null) {
             ensureBeatMap(track);
             broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent,
-                    emitsBeatSignal() ? playbackId : 0L));
+                    beatSessionId(track)));
             // 再生 packet の直後に必ず集合を送る。停止 packet で client が集合を忘れるので、
             // 再生開始のたびに張り直すことで packet 落ち・順序に依存しない状態にする。
             broadcastSpeakerSet();
@@ -480,7 +480,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         // late-join / スピーカー新設への再送。校正は最初の 1 件だけ採るので、途中参加の client にも
         // 現行 playbackId を渡してよい (anchor 確定後の報告は onPlaybackStarted が無視する)。
         return new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent,
-                emitsBeatSignal() ? playbackId : 0L);
+                beatSessionId(track));
     }
 
     /** late-join した player へ、再生中なら現在位置で PlayDiscPayload を再送する。 */
@@ -563,6 +563,15 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         return true;
     }
 
+    /**
+     * payload に載せる再生セッション識別子。<b>0 = client は校正を報告しない</b>。
+     * ビート出力を持たない BE (ブームボックス) と、ビート対象外のラジオ / ライブでは 0 にする。
+     */
+    private long beatSessionId(CustomTrackData track) {
+        final boolean analysable = !track.radio() && track.durationMs() > 0L;
+        return emitsBeatSignal() && analysable ? playbackId : 0L;
+    }
+
     /** 再生開始時にビートマップを用意させる。無限長 (ラジオ / ライブ) は解析できないので対象外。 */
     private void ensureBeatMap(CustomTrackData track) {
         if (!emitsBeatSignal() || track.radio() || track.durationMs() <= 0L
@@ -643,7 +652,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         beatSignal = value;
         lastBeatPushTick = now;
         beatPushed = true;
-        setChanged();
+        // setChanged() は呼ばない。beatSignal は永続化しない揮発値なので、毎 tick 呼ぶと
+        // 保存対象でもない値のために chunk を dirty にし続けるだけになる。
         level.updateNeighborsAt(getBlockPos(), getBlockState().getBlock());
     }
 
