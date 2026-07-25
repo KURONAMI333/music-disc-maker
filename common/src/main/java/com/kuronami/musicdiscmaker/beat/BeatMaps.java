@@ -93,6 +93,23 @@ public final class BeatMaps {
     }
 
     /**
+     * 別経路で作ったビートマップを載せる。以後 {@link #ensure} はこの URL の解析を起こさない。
+     *
+     * <p>P5 (音源ローカルキャッシュ) が音源を 1 パス流す副作用としてビートマップも作る場合の
+     * 受け口。headless テストが合成マップを差し込むのにも使う。ディスクへは書かない
+     * (書き手が完成を保証できないため)。
+     */
+    public static void install(String url, BeatMap map) {
+        if (url == null || url.isBlank() || map == null) {
+            return;
+        }
+        final String key = keyOf(url);
+        synchronized (MEMORY) {
+            MEMORY.put(key, map);
+        }
+    }
+
+    /**
      * この URL のビートマップを用意する (非同期)。既にメモリにあるか解析中なら何もしない。
      * ディスクに載っていれば読み込み、無ければその場でストリームを開いて解析する。
      *
@@ -129,14 +146,18 @@ public final class BeatMaps {
         });
     }
 
-    /** server 停止時に呼ぶ。進行中の解析を打ち切り、メモリを空にする。 */
+    /**
+     * server 停止時に呼ぶ。進行中の解析を打ち切り、解析スレッドを畳む。
+     *
+     * <p><b>メモリ LRU は消さない。</b> ビートマップは URL から決まる純粋な派生物でワールドにも
+     * server にも依存しないので、ワールドを出入りするたびに捨てるとディスクから読み直すだけ無駄になる
+     * (上限 {@value #MEMORY_ENTRIES} 曲の LRU なので置いておいても増え続けない)。打ち切られた
+     * 途中までのマップは解析スレッド側が {@code forget} するので、中途半端なものは残らない。
+     */
     public static void shutdown() {
         GENERATION.incrementAndGet();
         currentServer = null;
         cacheDir = null;
-        synchronized (MEMORY) {
-            MEMORY.clear();
-        }
         final ExecutorService executor = pool;
         pool = null;
         if (executor != null) {

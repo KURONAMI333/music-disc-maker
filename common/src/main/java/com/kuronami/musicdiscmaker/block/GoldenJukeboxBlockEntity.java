@@ -117,7 +117,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     /** 現在のコンパレータ出力。 */
     private int beatSignal = 0;
     /** 最後にコンパレータ更新を撃った gameTime ({@code beatMinUpdateTicks} の間引き用)。 */
-    private long lastBeatPushTick = Long.MIN_VALUE;
+    private long lastBeatPushTick = 0L;
+    /** 一度でも更新を撃ったか。{@link #lastBeatPushTick} の「未設定」を差分計算で表さないため。 */
+    private boolean beatPushed = false;
 
     public GoldenJukeboxBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.GOLDEN_JUKEBOX.get(), pos, state, true);
@@ -626,13 +628,22 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             return;
         }
         final long now = level.getGameTime();
-        if (!force && now - lastBeatPushTick < Config.beatMinUpdateTicks()) {
+        if (!force && beatPushed && now - lastBeatPushTick < Config.beatMinUpdateTicks()) {
             return;
         }
         beatSignal = value;
         lastBeatPushTick = now;
+        beatPushed = true;
         setChanged();
         level.updateNeighborsAt(getBlockPos(), getBlockState().getBlock());
+    }
+
+    /**
+     * 現在の再生セッション識別子。client の校正報告 ({@link PlaybackStartedPayload}) の照合と、
+     * headless テストが「この再生への報告」を組み立てるために読む。
+     */
+    public long beatPlaybackId() {
+        return playbackId;
     }
 
     /**
