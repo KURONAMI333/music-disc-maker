@@ -91,6 +91,16 @@ public final class BoomboxClientPlayback {
             resolved.close(); // ロード中に停止要求 / 持ち主が視界から消えた
             return;
         }
+        // 自然終了したインスタンスを掃除してから、同時再生上限をブロック起点の再生と共有する。
+        // OpenAL の streaming チャンネルは 2〜8 本しかなくバニラ BGM とも奪い合う。溢れると
+        // ログも出ずに無言で鳴らないので、上限は必ずどこかで効かせる。
+        ACTIVE.entrySet().removeIf(e -> e.getValue().instance().isStopped());
+        final int total = ClientPlaybackManager.get().activeCount() + ACTIVE.size();
+        if (total >= com.kuronami.musicdiscmaker.Config.maxConcurrent()) {
+            MusicDiscMaker.LOGGER.info("同時再生上限に達したためブームボックスの再生をスキップ: entity {}", entityId);
+            resolved.close();
+            return;
+        }
         final BoomboxAnchor anchor = new BoomboxAnchor(entity);
         final DiscSoundInstance instance =
                 new DiscSoundInstance(anchor, resolved, rangeBlocks, volumePercent, null);

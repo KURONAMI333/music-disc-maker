@@ -132,8 +132,16 @@ public final class BoomboxPlayback {
             return;
         }
         if (player.level().getGameTime() % HEARTBEAT_TICKS == 0L) {
-            send(player, track, elapsed, contents);
+            // ライブ/ラジオ (無限長) に位置の概念は無い。経過を載せると後から近づいた player の
+            // late-join が「10 分地点から」ストリームを開こうとする。常にライブ先頭へ繋ぐ
+            // (resumePlaybackAfterLoad / onRadioStreamEnded と同じ規則)。
+            send(player, track, isLive(track) ? 0L : elapsed, contents);
         }
+    }
+
+    /** 無限長ストリーム (ライブ/ラジオ) か。offset の意味が無い側。 */
+    private static boolean isLive(CustomTrackData track) {
+        return track.radio() || track.durationMs() <= 0L;
     }
 
     private static void send(ServerPlayer player, CustomTrackData track, long offsetMs,
