@@ -19,7 +19,7 @@ import net.neoforged.fml.ModList;
  *
  * <p>AA の album 機能自体が {@code JukeboxBlockEntity.tick} (static ticker) への TAIL inject で
  * トラックを送っているので、同じ tick を TAIL で捕まえ、AA の再生状態を毎 tick ポーリングして
- * {@code ActiveDiscRegistry} との差分だけを client へ送る (実装は {@link AdditionalAdditionsCompat})。
+ * {@code ActiveDiscRegistry} との差分だけを client へ送る (実装は {@code AdditionalAdditionsCompat})。
  *
  * <p>本 mixin は vanilla {@code JukeboxBlockEntity} が対象なので通常 mixin でよい。
  * AA 不在耐性は「AA の型に触れる前に isModLoaded ゲートを通す」ことで担保する:

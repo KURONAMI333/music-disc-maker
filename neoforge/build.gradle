@@ -41,6 +41,11 @@ neoForge {
         server {
             server()
         }
+        // headless の起動ゲート (:neoforge:runGameTestServer)。GameTest は未実装なので登録テストは 0 件、
+        // mixin 適用とサーバー起動完了を exit code で判定する用途。
+        gameTestServer {
+            type = 'gameTestServer'
+        }
     }
     mods {
         "${mod_id}" {
