@@ -71,10 +71,23 @@ tasks.matching { it.name in ['runClient', 'runServer', 'runData'] }.configureEac
     dependsOn lavaImplNeo.tasks.named('assemble')
 }
 
+// dev 専用の runtime 依存を宣言する 'localRuntime' 構成。runtimeOnly と違い publish されないので
+// 公開 jar / maven の依存グラフには一切出ない (soft dep のまま dev でだけ実 mod をロードできる)。
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
 // ─── 互換 mod (ソフト依存・compileOnly = 公開 jar には含めない) ───────────────
 // AA=両ローダー対象、SC/SB=NeoForge 専用。実行時にロードされている時だけ動く。
 // compat jar は 1.21.11 実 jar (compileOnly なので実バイトコードは実 mod がロードされた時に解決される)。
 dependencies {
     compileOnly files('compat-libs/sophisticatedcore-1.21.11-1.4.86.2197.jar')
     compileOnly files('compat-libs/additionaladditions-neoforge-10.0.9.jar')
+
+    // dev (runClient/runServer) で実 AA/SC/SB をロードし互換経路を動作確認するための runtime mod。
+    // AA=アルバム再生ミラー / SC+SB=Jukebox Upgrade 再生。SB は SC を required 依存に持つので両方要る。
+    // 1.21.11 NeoForge dev は Mojmap = production と同一マッピングなので production jar がそのまま動く。
+    localRuntime files('compat-libs/additionaladditions-neoforge-10.0.9.jar')
+    localRuntime files('compat-libs/sophisticatedcore-1.21.11-1.4.86.2197.jar')
+    localRuntime files('compat-libs/sophisticatedbackpacks-1.21.11-3.25.78.2025.jar')
 }
