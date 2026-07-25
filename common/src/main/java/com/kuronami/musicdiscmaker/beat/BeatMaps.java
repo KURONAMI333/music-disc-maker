@@ -53,6 +53,8 @@ public final class BeatMaps {
     private static final int MEMORY_ENTRIES = 32;
     private static final String CACHE_DIR = "music_disc_maker/cache";
     private static final String EXTENSION = ".beat";
+    /** 申告尺のこの割合まで解析できて初めて「完成」とみなし、ディスクへ焼く。 */
+    private static final double COMPLETE_RATIO = 0.95;
 
     /** アクセス順 LRU。読みも書きも短い synchronized で守る (tick から触るので待たせない)。 */
     private static final Map<String, BeatMap> MEMORY = new LinkedHashMap<>(16, 0.75f, true) {
@@ -238,6 +240,17 @@ public final class BeatMaps {
                     forget(key); // 打ち切り = 中途半端なマップを残さない
                     return;
                 }
+            }
+            // PCM ソースの終端 (-1) は「曲が終わった」と「回線が詰まって諦めた」を区別できない
+            // (LavaAudioSource は 10 秒枯渇でも -1 を返す)。尺どおり取れたかで判定しないと、
+            // 通信が細った 1 回の結果が「完成品」としてキャッシュに焼き付き、以後その曲は
+            // 途中から永久に無反応になる。
+            if (map.coveredMs() < durationMs * COMPLETE_RATIO) {
+                MusicDiscMaker.LOGGER.warn(
+                        "ビート解析が尺に届かなかったのでキャッシュしない: {} ({}ms / {}ms)",
+                        url, map.coveredMs(), durationMs);
+                forget(key); // 次の再生でやり直す
+                return;
             }
             MusicDiscMaker.LOGGER.info("ビート解析が完了: {} ({} frames / {}ms)",
                     url, map.ready(), System.currentTimeMillis() - started);
