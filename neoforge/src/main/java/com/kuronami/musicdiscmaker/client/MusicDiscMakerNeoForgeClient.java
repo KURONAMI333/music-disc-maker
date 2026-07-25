@@ -56,11 +56,14 @@ public class MusicDiscMakerNeoForgeClient {
 
     /**
      * スピーカーのリンク先を輪郭で示す (スピーカーのブロックアイテムを持っている間だけ)。
-     * 半透明の後に描き、行 buffer はここで流す (level renderer 側の flush を当てにしない)。
+     *
+     * <p>段階は Fabric 側と揃えて {@code AFTER_ENTITIES}（あちらは行 buffer が使える段階が
+     * ここまでで、{@code AFTER_TRANSLUCENT} 以降は「フレームバッファへ直接描く」段階になる）。
+     * 行 buffer はここで流す (level renderer 側の flush を当てにしない)。
      */
     @SubscribeEvent
     static void onRenderLevelStage(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
             return;
         }
         final MultiBufferSource.BufferSource buffers =

@@ -39,8 +39,12 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         MenuScreens.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
 
         // スピーカーのリンク先を輪郭で示す (スピーカーのブロックアイテムを持っている間だけ)。
-        // 行 buffer は Fabric の render context が管理するのでここでは流さない。
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> SpeakerLinkOverlay.render(
+        // AFTER_ENTITIES を使う: WorldRenderContext#consumers() は BEFORE_ENTITIES より前と
+        // BEFORE_DEBUG_RENDER より後で null（javadoc 明記）で、AFTER_TRANSLUCENT / LAST は
+        // 「フレームバッファへ直接描く」段階＝行 buffer が使えない。この段階の javadoc は
+        // 「ブロック由来の quad を context の consumer へ足す」用途をそのまま指している。
+        // 行 buffer は world renderer が後で流すのでここでは流さない。
+        WorldRenderEvents.AFTER_ENTITIES.register(context -> SpeakerLinkOverlay.render(
                 context.matrixStack(), context.consumers(), context.camera().getPosition()));
 
         // ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する。

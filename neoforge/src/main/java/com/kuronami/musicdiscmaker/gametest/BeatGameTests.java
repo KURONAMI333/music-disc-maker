@@ -203,16 +203,17 @@ public class BeatGameTests {
     @GameTest(template = TEMPLATE, batch = "beat_wallclock")
     public static void beatPositionAdvancesWithWallClock(GameTestHelper helper) {
         BeatMaps.install(URL, fixture(QUIET_MS, TRACK_MS));
-        final long[] nowMs = {System.currentTimeMillis()};
-        final LongSupplier previousClock = WallClock.swap(() -> nowMs[0]);
         final BlockPos rel = new BlockPos(1, 1, 1);
+        // 時刻源の差し替えは<b>再生を起こしてから</b>。playing() は BE が無いと helper.fail() で
+        // throw するので、先に差し替えると凍結した時計を戻せないまま process 全体に漏れる。
+        // 起点 (startMillis) は実時計で入り、この直後に凍結するので位置の計算はずれない。
         final GoldenJukeboxBlockEntity be = playing(helper, rel, customDisc(URL, TRACK_MS, false));
         if (be == null) {
-            WallClock.swap(previousClock);
             return;
         }
         // gameTime は据え置いたまま実時間だけを進める。
-        nowMs[0] += QUIET_MS + 2_000L;
+        final long[] nowMs = {System.currentTimeMillis() + QUIET_MS + 2_000L};
+        final LongSupplier previousClock = WallClock.swap(() -> nowMs[0]);
         // 上限。凍結した時計を漏らすとプロセス全体で時間が止まり、後続のビートテストが道連れに
         // なるので、成功経路と上限の両方で必ず戻す (swap は冪等)。
         helper.runAtTickTime(TICK_WAIT_LIMIT, () -> {

@@ -243,11 +243,15 @@ public final class BeatMaps {
         IN_FLIGHT.remove(key);
     }
 
-    /** この URL のディスクキャッシュのパス (テストの後始末用)。未束縛なら null。 */
-    @Nullable
-    public static Path cachePathOf(String url) {
-        final Path dir = cacheDir;
-        return dir == null ? null : dir.resolve(keyOf(url) + EXTENSION);
+    /**
+     * この URL のディスクキャッシュのパス (テストの前始末・後始末用)。
+     *
+     * <p>{@code server} から直に解決する — {@link #bindServer} を待たない。テストは
+     * <b>解析を起こす前に</b>キャッシュを消せないと、前の run が焼いたファイルに命中して
+     * 解析経路を一度も通らないまま緑になる。
+     */
+    public static Path cachePathOf(MinecraftServer server, String url) {
+        return server.getServerDirectory().resolve(CACHE_DIR).resolve(keyOf(url) + EXTENSION);
     }
 
     /**

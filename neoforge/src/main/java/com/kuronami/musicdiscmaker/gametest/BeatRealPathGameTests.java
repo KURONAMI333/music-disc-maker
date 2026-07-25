@@ -10,9 +10,11 @@ import com.kuronami.musicdiscmaker.beat.BeatMap;
 import com.kuronami.musicdiscmaker.beat.BeatMaps;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
+import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -27,6 +29,20 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * <p>ネットワークには出ない。loader を偽物に差し替えて決定的な PCM を流し、URL は
  * TEST-NET-3 (RFC 5737 の文書用 IP リテラル) にして DNS も引かせない — SSRF ガードは
  * 実運用どおり通す。
+ *
+ * <h2>ここで踏んだ落とし穴（同型を書かないこと）</h2>
+ * <ul>
+ *   <li><b>{@code succeedWhen} の criterion の中から {@code runAfterDelay} で assert を登録しても
+ *       絶対に走らない。</b> criterion が正常 return した<b>その tick で成功が確定</b>し、
+ *       {@code GameTestInfo#tick} は以後 {@code runAtTickTimeMap} を処理しない。遅延フェーズが
+ *       要るなら {@code startSequence} の {@code thenExecuteAfter} で繋ぐこと。
+ *       （実害: 2 フェーズ目の assert を {@code == 999} に書き換えても緑のままだった）</li>
+ *   <li><b>{@code .beat} は run をまたいで残る</b>（{@code neoforge/run} は永続）。冒頭で消さないと、
+ *       前の run が焼いたファイルに命中して<b>解析経路を一度も通らないまま緑になる</b>。
+ *       後始末側の削除は保証にならない（解析スレッドの {@code store()} が後から焼き直す）。</li>
+ *   <li><b>loader の差し替えは {@code static} なので、失敗経路で戻し損ねると JVM 全体に残る。</b>
+ *       偽 loader は<b>自分の URL 以外を本物へ委譲する</b>形にして、漏れても他へ効かないようにする。</li>
+ * </ul>
  */
 @GameTestHolder(MusicDiscMaker.MODID)
 public class BeatRealPathGameTests {
@@ -48,41 +64,45 @@ public class BeatRealPathGameTests {
     private static final int SAMPLE_RATE = 48_000;
     /** 解析は実時間の数十倍で進むので、この tick 数で出ないなら経路が壊れている。 */
     private static final int DEADLINE_TICKS = 160;
+    private static final int TIMEOUT_TICKS = DEADLINE_TICKS + 60;
 
     /**
-     * 未解析の URL に {@code ensure} を撃つと、解析が走り、{@code peek} が有限の dBFS を返す
-     * ところまで到達すること。<b>ここが通らない = コンパレータが 0 のままになる</b>。
+     * 未解析の URL に {@code ensure} を撃つと、<b>実際に解析が走り</b>、{@code peek} が有限の
+     * dBFS を返すところまで到達すること。<b>ここが通らない = コンパレータが 0 のままになる</b>。
      */
     @PrefixGameTestTemplate(false)
-    @GameTest(template = TEMPLATE, batch = BATCH_ENSURE, timeoutTicks = DEADLINE_TICKS + 40)
+    @GameTest(template = TEMPLATE, batch = BATCH_ENSURE, timeoutTicks = TIMEOUT_TICKS)
     public static void ensureReachesPeekableBeatMap(GameTestHelper helper) {
+        final MinecraftServer server = helper.getLevel().getServer();
+        deleteCache(server, URL_ENSURE); // 前の run のキャッシュに命中させない (hermetic の担保)
         BeatMaps.reset(URL_ENSURE);
-        final Supplier<IMusicLoader> previous = BeatMaps.swapLoader(() -> new ToneLoader(TRACK_MS));
-        final long startedAt = helper.getLevel().getGameTime();
-        BeatMaps.ensure(helper.getLevel().getServer(), URL_ENSURE, TRACK_MS);
+        final ToneLoader loader = new ToneLoader(URL_ENSURE);
+        final Supplier<IMusicLoader> previous = BeatMaps.swapLoader(() -> loader);
+        BeatMaps.ensure(server, URL_ENSURE, TRACK_MS);
 
-        helper.succeedWhen(() -> {
-            final long waited = helper.getLevel().getGameTime() - startedAt;
+        deadline(helper, previous, URL_ENSURE, () -> {
             final BeatMap map = BeatMaps.peek(URL_ENSURE);
-            if (map == null) {
-                helper.assertTrue(waited < DEADLINE_TICKS,
-                        "ensure から " + waited + " tick 経ってもビートマップが公開されない"
-                                + " (解析が起きていない)");
-                helper.fail("ビートマップがまだ公開されていない");
-                return;
-            }
-            final double db = map.peakDb(BeatBand.LOW, 0L, 50L);
-            if (Double.isNaN(db)) {
-                helper.assertTrue(waited < DEADLINE_TICKS,
-                        "ensure から " + waited + " tick 経っても先頭の dBFS が読めない"
-                                + " (解析カーソルが進んでいない)");
-                helper.fail("解析カーソルがまだ先頭に届いていない");
-                return;
-            }
-            // 合成トーンなので必ず有限値。無音下駄 (EPSILON) の -240dB 付近なら解析が空回りしている。
-            helper.assertTrue(db > -120.0, "先頭の dBFS が無音相当: " + db);
-            cleanUp(URL_ENSURE, previous);
+            return map == null
+                    ? "ビートマップが公開されない (解析が起きていない)"
+                    : "先頭の dBFS が読めない (解析カーソルが進んでいない)";
         });
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    final BeatMap map = BeatMaps.peek(URL_ENSURE);
+                    helper.assertTrue(map != null, "ビートマップがまだ公開されていない");
+                    helper.assertFalse(Double.isNaN(map.peakDb(BeatBand.LOW, 0L, 50L)),
+                            "解析カーソルがまだ先頭に届いていない");
+                })
+                .thenExecute(() -> {
+                    // ディスクキャッシュ命中では通れない形にしておく (テストの存在意義そのもの)。
+                    helper.assertTrue(loader.openStreamCalls >= 1,
+                            "解析経路を通らずに緑になっている (ディスクキャッシュ命中)");
+                    // 合成トーンなので必ず有限値。無音下駄 (-240dB 付近) なら解析が空回りしている。
+                    final double db = BeatMaps.peek(URL_ENSURE).peakDb(BeatBand.LOW, 0L, 50L);
+                    helper.assertTrue(db > -120.0, "先頭の dBFS が無音相当: " + db);
+                })
+                .thenExecute(() -> cleanUp(server, URL_ENSURE, previous))
+                .thenSucceed();
     }
 
     /**
@@ -90,57 +110,64 @@ public class BeatRealPathGameTests {
      * <b>解析せずに</b>そこから読み戻して有限値を返すこと (= 2 回目以降は最初から信号が出る)。
      */
     @PrefixGameTestTemplate(false)
-    @GameTest(template = TEMPLATE, batch = BATCH_CACHE, timeoutTicks = DEADLINE_TICKS + 40)
+    @GameTest(template = TEMPLATE, batch = BATCH_CACHE, timeoutTicks = TIMEOUT_TICKS)
     public static void analysedMapRoundTripsThroughDiskCache(GameTestHelper helper) {
+        final MinecraftServer server = helper.getLevel().getServer();
+        deleteCache(server, URL_CACHE);
         BeatMaps.reset(URL_CACHE);
-        final ToneLoader first = new ToneLoader(TRACK_MS);
+        final ToneLoader first = new ToneLoader(URL_CACHE);
+        final ToneLoader second = new ToneLoader(URL_CACHE);
         final Supplier<IMusicLoader> previous = BeatMaps.swapLoader(() -> first);
-        final long startedAt = helper.getLevel().getGameTime();
-        BeatMaps.ensure(helper.getLevel().getServer(), URL_CACHE, TRACK_MS);
+        BeatMaps.ensure(server, URL_CACHE, TRACK_MS);
 
-        helper.succeedWhen(() -> {
-            final long waited = helper.getLevel().getGameTime() - startedAt;
-            final Path file = BeatMaps.cachePathOf(URL_CACHE);
-            helper.assertTrue(file != null, "キャッシュ先が解決できない (server 未束縛)");
-            if (!Files.isRegularFile(file)) {
-                helper.assertTrue(waited < DEADLINE_TICKS,
-                        "ensure から " + waited + " tick 経っても .beat が焼かれない");
-                helper.fail(".beat がまだ焼かれていない");
-                return;
-            }
-            // メモリから落として、ディスクだけが残った状態にする。
-            BeatMaps.reset(URL_CACHE);
-            final ToneLoader second = new ToneLoader(TRACK_MS);
-            BeatMaps.swapLoader(() -> second);
-            BeatMaps.ensure(helper.getLevel().getServer(), URL_CACHE, TRACK_MS);
-            // 読み戻しは同期 IO なので、次の tick には載っている。
-            helper.runAfterDelay(2L, () -> {
-                try {
+        deadline(helper, previous, URL_CACHE, () -> ".beat が焼かれない");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        Files.isRegularFile(BeatMaps.cachePathOf(server, URL_CACHE)),
+                        ".beat がまだ焼かれていない"))
+                .thenExecute(() -> helper.assertTrue(first.openStreamCalls == 1,
+                        "1 回目が解析経路を通っていない: openStream " + first.openStreamCalls + " 回"))
+                // .beat が見えた直後は IN_FLIGHT の後片付けがまだ残っているので 1 tick 置く。
+                .thenExecuteAfter(1, () -> {
+                    BeatMaps.reset(URL_CACHE); // メモリから落として、ディスクだけが残った状態にする
+                    BeatMaps.swapLoader(() -> second);
+                    BeatMaps.ensure(server, URL_CACHE, TRACK_MS);
+                })
+                // 読み戻しは同期 IO なので、数 tick 置けば載っている。
+                .thenExecuteAfter(3, () -> {
                     final BeatMap cached = BeatMaps.peek(URL_CACHE);
                     helper.assertTrue(cached != null, ".beat から読み戻せていない");
                     helper.assertFalse(Double.isNaN(cached.peakDb(BeatBand.LOW, 0L, 50L)),
                             "読み戻したマップから先頭の dBFS が読めない");
                     helper.assertTrue(second.openStreamCalls == 0,
                             "ディスクキャッシュがあるのに再解析している: " + second.openStreamCalls);
-                } finally {
-                    deleteCache(URL_CACHE);
-                    cleanUp(URL_CACHE, previous);
-                }
-                helper.succeed();
-            });
+                })
+                .thenExecute(() -> cleanUp(server, URL_CACHE, previous))
+                .thenSucceed();
+    }
+
+    /**
+     * 期限を過ぎても終わっていなければ、時刻源ならぬ loader を戻してから理由つきで落とす。
+     * {@code runAtTickTime} の task は<b>成功が確定していない間だけ</b>処理されるので、
+     * 正常に終わったテストでは発火しない。
+     */
+    private static void deadline(GameTestHelper helper, Supplier<IMusicLoader> previous, String url,
+            Supplier<String> why) {
+        helper.runAtTickTime(DEADLINE_TICKS, () -> {
+            final String reason = why.get();
+            cleanUp(helper.getLevel().getServer(), url, previous);
+            helper.fail("ensure から " + DEADLINE_TICKS + " tick 経っても" + reason);
         });
     }
 
-    private static void cleanUp(String url, Supplier<IMusicLoader> previous) {
+    private static void cleanUp(MinecraftServer server, String url, Supplier<IMusicLoader> previous) {
         BeatMaps.swapLoader(previous);
         BeatMaps.reset(url);
+        deleteCache(server, url);
     }
 
-    private static void deleteCache(String url) {
-        final Path file = BeatMaps.cachePathOf(url);
-        if (file == null) {
-            return;
-        }
+    private static void deleteCache(MinecraftServer server, String url) {
+        final Path file = BeatMaps.cachePathOf(server, url);
         try {
             Files.deleteIfExists(file);
         } catch (final java.io.IOException ex) {
@@ -148,29 +175,38 @@ public class BeatRealPathGameTests {
         }
     }
 
-    /** 申告尺ぶんの決定的な矩形波を返すだけの偽 loader。ネットワークに出ない。 */
+    /**
+     * 指定 URL にだけ決定的な矩形波を返し、それ以外は本物の loader へ委譲する偽 loader。
+     *
+     * <p>委譲するのは<b>差し替えが漏れた時の被害を自分の URL に閉じ込める</b>ため。
+     * 全 URL を横取りする作りだと、戻し損ねた瞬間に他のテスト・他の再生が矩形波になる。
+     */
     private static final class ToneLoader implements IMusicLoader {
 
-        private final long durationMs;
+        private final String url;
         volatile int openStreamCalls;
 
-        ToneLoader(long durationMs) {
-            this.durationMs = durationMs;
+        ToneLoader(String url) {
+            this.url = url;
         }
 
         @Override
-        public com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo resolve(String url) {
-            return null; // 解析経路は解決済み URL しか受け取らない
+        public TrackInfo resolve(String requested) {
+            return url.equals(requested) ? null : com.kuronami.musicdiscmaker.audio.LoaderHolder.get()
+                    .resolve(requested);
         }
 
         @Override
-        public IAudioSource openStream(String url, long startMs) {
+        public IAudioSource openStream(String requested, long startMs) {
+            if (!url.equals(requested)) {
+                return com.kuronami.musicdiscmaker.audio.LoaderHolder.get().openStream(requested, startMs);
+            }
             openStreamCalls++;
-            return new ToneSource(durationMs);
+            return new ToneSource(TRACK_MS);
         }
     }
 
-    /** mono S16LE・440Hz 相当の矩形波。申告尺ぶん返したら終端 (-1)。 */
+    /** mono S16LE の矩形波。申告尺ぶん返したら終端 (-1)。 */
     private static final class ToneSource implements IAudioSource {
 
         private final long totalBytes;
