@@ -1,6 +1,6 @@
 {
   "variants": {
     "powered=false": { "model": "music_disc_maker:block/speaker" },
-    "powered=true":  { "model": "music_disc_maker:block/speaker" }
+    "powered=true":  { "model": "music_disc_maker:block/speaker_muted" }
   }
 }

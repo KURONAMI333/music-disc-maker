@@ -462,6 +462,47 @@ public class SpeakerGameTests {
         helper.succeed();
     }
 
+    /**
+     * <b>音源の可聴範囲の外</b>で全スピーカーをミュートしたら無音になること。
+     *
+     * <p>可聴の判定は「音源 ∪ 非ミュートスピーカー、それぞれの範囲の合併」であって、ミュートされた
+     * スピーカーの範囲パッチは合併から除かれる。ミュート済みは server の {@code activeEntries} と
+     * client の BE 直読の両方で候補から落ちるので、ここへは非ミュートだけが渡る = 候補ゼロになり
+     * 音源へ縮退する。縮退先の range が listener を覆っていなければフラットモードの範囲ゲートが
+     * 閉じて無音になる（指向性 ON なら距離減衰で 0）。
+     *
+     * <p>「音源の範囲の内側では、ミュートしても音源本体から同じ曲が聴こえ続ける」のは仕様
+     * （ジュークボックス自体が鳴っている）。ミュートが効かないように見えるのはその範囲内の話。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void mutingAllSpeakersSilencesOutsideSourceRange(GameTestHelper helper) {
+        final SpeakerSelection.Candidate source =
+                new SpeakerSelection.Candidate(null, new Vec3(0, 0, 0), 100, 64);
+        final SpeakerSelection.Candidate speaker = at(0, 200, 100, 64);
+        final Vec3 ear = new Vec3(0, 0, 200); // 音源まで 200 (範囲外) / スピーカー直上 (範囲内)
+
+        // ミュート前: スピーカーが選ばれ、その範囲が listener を覆う = 聴こえる。
+        final SpeakerSelection.Choice live = SpeakerSelection.pick(ear, source, List.of(speaker), null);
+        helper.assertTrue(speaker.pos().equals(live.pos()),
+                "非ミュートのスピーカー圏内なのにスピーカーが選ばれていない");
+        helper.assertTrue(ear.distanceTo(speaker.center()) <= live.rangeBlocks(),
+                "テストの前提が崩れている (ミュート前から範囲外)");
+
+        // ミュート後: 候補ゼロ → 音源へ縮退。縮退先の範囲は listener を覆わない = 無音。
+        final SpeakerSelection.Choice muted =
+                SpeakerSelection.pick(ear, source, List.of(), speaker.pos());
+        helper.assertTrue(muted.pos() == null, "全ミュートで音源へ縮退していない");
+        helper.assertTrue(muted.rangeBlocks() == 64, "縮退先の range が音源のものでない");
+        helper.assertFalse(ear.distanceTo(new Vec3(0, 0, 0)) <= muted.rangeBlocks(),
+                "ミュートされたスピーカーの範囲が可聴の合併に残っている (無音にならない)");
+
+        // 直前の選択がミュートされたスピーカーでも、ヒステリシスで据え置かれないこと。
+        helper.assertFalse(speaker.pos().equals(muted.pos()),
+                "ミュートされたスピーカーが前回の選択として据え置かれている");
+        helper.succeed();
+    }
+
     /** 等距離付近で毎 tick 反転しないよう、前回の選択に切り替え余裕を与える。 */
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
