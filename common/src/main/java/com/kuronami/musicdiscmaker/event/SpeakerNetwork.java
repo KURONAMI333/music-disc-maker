@@ -86,7 +86,11 @@ public final class SpeakerNetwork {
             if (entries.size() >= cap) {
                 break;
             }
-            if (!(level.getBlockEntity(pos) instanceof SpeakerBlockEntity speaker) || speaker.isMuted()) {
+            // isLoaded を先に見る: Level#getBlockEntity は getChunkAt 経由で chunk を強制ロードする。
+            // index に載るのはロード中のスピーカーだけだが、unload の遷移中に踏むと連鎖ロードになる。
+            if (!level.isLoaded(pos)
+                    || !(level.getBlockEntity(pos) instanceof SpeakerBlockEntity speaker)
+                    || speaker.isMuted()) {
                 continue;
             }
             entries.add(new SpeakerEntry(pos, speaker.getVolumePercent(), speaker.getRangeBlocks()));
