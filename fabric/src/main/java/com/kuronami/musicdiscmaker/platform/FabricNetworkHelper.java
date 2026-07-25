@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.platform;
 
+import java.util.Collection;
+
 import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
@@ -29,6 +31,11 @@ public class FabricNetworkHelper implements INetworkHelper {
         for (final ServerPlayer player : PlayerLookup.tracking(level, chunk)) {
             ServerPlayNetworking.send(player, payload);
         }
+    }
+
+    @Override
+    public Collection<ServerPlayer> playersTrackingChunk(ServerLevel level, ChunkPos chunk) {
+        return PlayerLookup.tracking(level, chunk);
     }
 
     @Override
