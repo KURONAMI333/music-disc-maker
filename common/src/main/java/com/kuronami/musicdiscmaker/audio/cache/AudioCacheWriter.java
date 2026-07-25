@@ -10,6 +10,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -52,6 +53,12 @@ public final class AudioCacheWriter {
     private final String url;
     private final long maxBytes;
     private final IOpusEncoder encoder;
+    /**
+     * 確定の直前にもう一度 config を見るための判定。再生中に設定を OFF にされたら焼かない。
+     * config そのものを読まずに関数で受けるのは、この class を MC 非依存に保つため
+     * (client 設定を dedicated server で引くと落ちる = P2 の地雷)。
+     */
+    private final BooleanSupplier stillEnabled;
     private final AudioCacheFormat.Header header;
     /** 完走したとみなすのに必要な PCM バイト数。 */
     private final long requiredPcmBytes;
@@ -65,12 +72,13 @@ public final class AudioCacheWriter {
     private volatile boolean broken;
 
     private AudioCacheWriter(AudioCacheStore store, String key, String url, long durationMs,
-            long maxBytes, IOpusEncoder encoder) {
+            long maxBytes, IOpusEncoder encoder, BooleanSupplier stillEnabled) {
         this.store = store;
         this.key = key;
         this.url = url;
         this.maxBytes = maxBytes;
         this.encoder = encoder;
+        this.stillEnabled = stillEnabled;
         this.header = new AudioCacheFormat.Header(AudioCacheFormat.CHANNELS,
                 AudioCacheFormat.SAMPLE_RATE, encoder.frameSamples(), durationMs);
         final long fullPcmBytes = durationMs * AudioCacheFormat.SAMPLE_RATE / 1000L
@@ -89,11 +97,12 @@ public final class AudioCacheWriter {
      */
     @Nullable
     public static AudioCacheWriter open(AudioCacheStore store, String key, String url, long durationMs,
-            long maxBytes, @Nullable IOpusEncoder encoder) {
+            long maxBytes, @Nullable IOpusEncoder encoder, BooleanSupplier stillEnabled) {
         if (encoder == null || durationMs <= 0L) {
             return null;
         }
-        final AudioCacheWriter writer = new AudioCacheWriter(store, key, url, durationMs, maxBytes, encoder);
+        final AudioCacheWriter writer = new AudioCacheWriter(
+                store, key, url, durationMs, maxBytes, encoder, stillEnabled);
         writer.worker.start();
         return writer;
     }
@@ -208,15 +217,16 @@ public final class AudioCacheWriter {
                 }
             }
             out.flush();
-        } catch (final IOException ex) {
+        } catch (final Throwable t) {
+            // Throwable で受ける。RuntimeException が抜けると finish() に届かず、
+            // 書き込み権が返らないまま .part も残る (以後このセッションでこの曲は書けない)。
             broken = true;
-            MusicDiscMaker.LOGGER.debug("音源キャッシュの書き込みに失敗 ({}): {}", url, ex.toString());
+            MusicDiscMaker.LOGGER.debug("音源キャッシュの書き込みに失敗 ({}): {}", url, t.toString());
         } finally {
             closeQuietly(out);
             encoder.close();
+            finish(pcmBytes);
         }
-
-        finish(pcmBytes);
     }
 
     private boolean writeFrame(OutputStream out, short[] frame, byte[] packet) {
@@ -232,11 +242,17 @@ public final class AudioCacheWriter {
         }
     }
 
-    /** 確定するか捨てるかを決める。ここが唯一の出口 (権は必ず返る)。 */
+    /** 確定するか捨てるかを決める。{@code run()} の finally から呼ぶ = 権は必ず返る。 */
     private void finish(long pcmBytes) {
+        // 再生中に config を OFF にされていたら焼かない (「OFF にしたら書かない」の約束)。
+        // これは失敗ではないので回数には数えない。
+        if (!enabledNow()) {
+            store.release(key);
+            return;
+        }
         final boolean complete = sawEnd && !broken && pcmBytes >= requiredPcmBytes;
         if (!complete) {
-            store.discard(key);
+            store.abandon(key);
             if (!broken) {
                 MusicDiscMaker.LOGGER.debug(
                         "音源キャッシュを確定しない ({}): 終端={} / 受信 {} byte (必要 {} byte)",
@@ -246,6 +262,14 @@ public final class AudioCacheWriter {
         }
         if (store.commit(key, maxBytes)) {
             MusicDiscMaker.LOGGER.info("音源をキャッシュした: {} ({} KB)", url, pcmBytes / 1024L);
+        }
+    }
+
+    private boolean enabledNow() {
+        try {
+            return stillEnabled.getAsBoolean();
+        } catch (final Throwable t) {
+            return false;
         }
     }
 

@@ -1,21 +1,15 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
-import java.nio.file.Path;
-
 import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
-import com.kuronami.musicdiscmaker.audio.cache.AudioCacheFormat;
+import com.kuronami.musicdiscmaker.audio.cache.AudioCacheGate;
 import com.kuronami.musicdiscmaker.audio.cache.AudioCachePolicy;
 import com.kuronami.musicdiscmaker.audio.cache.AudioCacheStore;
-import com.kuronami.musicdiscmaker.audio.cache.AudioCacheWriter;
-import com.kuronami.musicdiscmaker.audio.cache.CachedAudioSource;
-import com.kuronami.musicdiscmaker.audio.cache.TeeAudioSource;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
-import com.kuronami.musicdiscmaker.lavaplayer.api.IOpusEncoder;
 
 import net.minecraft.client.Minecraft;
 
@@ -54,45 +48,14 @@ public final class ClientAudioStreams {
         if (track == null || track.isEmpty()) {
             return null;
         }
-        if (!cacheEnabled()) {
-            return LoaderHolder.get().openStream(track.url(), startMs);
-        }
-        final AudioCacheStore cache = store();
+        final AudioCacheStore cache = cacheEnabled() ? store() : null;
         if (cache == null || !AudioCachePolicy.cacheable(track)) {
             return LoaderHolder.get().openStream(track.url(), startMs);
         }
-        final String key = AudioCacheStore.keyOf(track.url());
-
-        // ① 命中: ネットワークに触らずローカルから鳴らす。
-        final Path hit = cache.hit(key);
-        if (hit != null) {
-            final IAudioSource cached = CachedAudioSource.open(
-                    hit, LoaderHolder.get().openOpusDecoder(
-                            AudioCacheFormat.SAMPLE_RATE, AudioCacheFormat.CHANNELS),
-                    startMs);
-            if (cached != null) {
-                return cached;
-            }
-            // 壊れていた (CachedAudioSource が削除済み) → ネットワークへ落ちる
-        }
-
-        // ② 不命中: ネットワークから鳴らしつつ、頭から通す再生なら写し取る。
-        final IAudioSource network = LoaderHolder.get().openStream(track.url(), startMs);
-        if (network == null || startMs > 0L || !TeeAudioSource.formatMatches(network)) {
-            return network;
-        }
-        if (!cache.claim(key)) {
-            return network; // 既にキャッシュ済み / 他の再生が書いている
-        }
-        final IOpusEncoder encoder = LoaderHolder.get().openOpusEncoder(
-                AudioCacheFormat.SAMPLE_RATE, AudioCacheFormat.CHANNELS, AudioCacheFormat.FRAME_SAMPLES);
-        final AudioCacheWriter writer = AudioCacheWriter.open(
-                cache, key, track.url(), track.durationMs(), maxBytes(), encoder);
-        if (writer == null) {
-            cache.discard(key);
-            return network;
-        }
-        return new TeeAudioSource(network, writer);
+        // 判断そのものは MC 非依存の gate に置いてある (headless テストで固定できるように)。
+        // ここは置き場と config を用意するだけ。
+        return AudioCacheGate.open(LoaderHolder.get(), cache, track, startMs,
+                maxBytes(), ClientAudioStreams::cacheEnabled);
     }
 
     private static boolean cacheEnabled() {
@@ -121,6 +84,9 @@ public final class ClientAudioStreams {
                     try {
                         local = new AudioCacheStore(Minecraft.getInstance().gameDirectory.toPath()
                                 .resolve("music_disc_maker").resolve("cache"));
+                        // 落ちた前回の .part をここで 1 回だけ掃除する。claim からだけ呼ぶと、
+                        // 全曲キャッシュ命中のセッションでは一度も走らず溜まり続ける。
+                        local.sweepStalePartsOnce();
                         store = local;
                     } catch (final Throwable t) {
                         MusicDiscMaker.LOGGER.warn("音源キャッシュの置き場を決められない: {}", t.toString());
