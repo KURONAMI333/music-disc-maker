@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.jetbrains.annotations.Nullable;
@@ -27,6 +28,7 @@ import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
 import net.minecraft.server.MinecraftServer;
@@ -76,6 +78,8 @@ public final class BeatMaps {
      * <p>{@link #install} で外から載せたマップはここに数字を持たない = 権威として扱われ、再解析されない。
      */
     private static final Map<String, Integer> FAILED_ATTEMPTS = new ConcurrentHashMap<>();
+    /** key ごとの「直近に出した見送り理由」。同じ理由を毎秒書かないための状態。 */
+    private static final Map<String, String> LAST_SKIP = new ConcurrentHashMap<>();
     /** 1 つの URL につき許す解析の回数。 */
     private static final int MAX_ATTEMPTS = 2;
     /** server が変わったら (ワールド切替・再起動) 進行中の解析を捨てるための世代番号。 */
@@ -86,6 +90,13 @@ public final class BeatMaps {
     private static volatile Semaphore slots;
     private static volatile int slotPermits;
     private static volatile ExecutorService pool;
+    /**
+     * 解析に使う loader。差し替えられるのは、実解析の経路
+     * ({@code ensure → load → 解析 → publish → .beat 書き出し → 読み戻し}) を headless で
+     * 通せるようにするため。この経路は {@code install} で合成マップを差し込むテストでは
+     * 一度も踏まれない = 実機でしか壊れが出ない面だった。
+     */
+    private static volatile Supplier<IMusicLoader> loaderSource = LoaderHolder::get;
 
     private BeatMaps() {
     }
@@ -131,34 +142,54 @@ public final class BeatMaps {
      * <p>無限長 (ラジオ / ライブ) は呼び出し側で弾くこと。尺が確定しないので完成できない。
      */
     public static void ensure(MinecraftServer server, String url, long durationMs) {
-        if (server == null || url == null || url.isBlank() || durationMs <= 0L || !Config.beatEnabled()) {
+        if (server == null || url == null || url.isBlank()) {
+            return; // 呼び出し側の前提崩れ。key が作れないのでログの単位も作れない
+        }
+        final String key = keyOf(url);
+        if (durationMs <= 0L) {
+            skipped(key, url, "尺が不明 (durationMs=" + durationMs + ")", false);
+            return;
+        }
+        if (!Config.beatEnabled()) {
+            skipped(key, url, "config でビート連動が無効", false);
             return;
         }
         bindServer(server);
-        final String key = keyOf(url);
         final int attempts = FAILED_ATTEMPTS.getOrDefault(key, 0);
         synchronized (MEMORY) {
             if (MEMORY.containsKey(key)) {
                 // 自分の解析が尺に届かなかった時だけ、上限つきでやり直す。
                 // 外から {@link #install} で載せたマップと、完走したマップは数字を持たない = 権威。
-                if (attempts == 0 || attempts >= MAX_ATTEMPTS) {
+                if (attempts == 0) {
+                    return; // 権威マップが載っている = 正常。無言でよい
+                }
+                if (attempts >= MAX_ATTEMPTS) {
+                    skipped(key, url, "尺に届かないまま試行上限に達している ("
+                            + attempts + "/" + MAX_ATTEMPTS + ")・解析済みの範囲までしか出ない", true);
                     return;
                 }
             } else if (attempts >= MAX_ATTEMPTS) {
                 // 解析そのものが通らない URL (リンク切れ・拒否・回線断)。毎秒叩き続けない。
+                skipped(key, url, "解析が通らないまま試行上限に達している ("
+                        + attempts + "/" + MAX_ATTEMPTS + ")・この URL は以後 0 のまま", true);
                 return;
             }
         }
         if (!IN_FLIGHT.add(key)) {
-            return; // 既に解析中
+            return; // 既に解析中。無言でよい (要求のログは submit 時に 1 回出ている)
         }
         final int generation = GENERATION.get();
         final ExecutorService executor = pool;
         if (executor == null) {
             IN_FLIGHT.remove(key);
+            skipped(key, url, "解析スレッドが無い (server 停止と競合)", true);
             return;
         }
         try {
+            // 「そもそも走らなかった」と「走ったが間に合わなかった」を事後に区別するための 1 行。
+            // 完了と失敗しか出ないと、コンパレータが 0 のままだった理由をログから絞れない。
+            LAST_SKIP.remove(key);
+            MusicDiscMaker.LOGGER.info("ビート解析を要求: {} ({}ms)", url, durationMs);
             executor.submit(() -> {
                 try {
                     load(key, url, durationMs, generation);
@@ -171,7 +202,52 @@ public final class BeatMaps {
         } catch (final RuntimeException ex) {
             // server 停止と競合して executor が閉じた直後。tick から呼ばれるので投げ返さない。
             IN_FLIGHT.remove(key);
+            skipped(key, url, "解析を投入できない: " + ex, true);
         }
+    }
+
+    /**
+     * 解析を起こさずに帰った理由を残す。{@code ensure} は再生中ずっと定期的に呼ばれるので、
+     * <b>同じ理由が続く間は 1 回だけ</b>出す (理由が変われば = 状態が動けばまた出る)。
+     *
+     * <p>無言の早期 return が 3 つ在ったせいで、実機でコンパレータが 0 のままだった時に
+     * 「解析が走らなかった」と「走ったが間に合わなかった」をログから区別できなかった。
+     */
+    private static void skipped(String key, String url, String reason, boolean warn) {
+        if (reason.equals(LAST_SKIP.put(key, reason))) {
+            return;
+        }
+        if (warn) {
+            MusicDiscMaker.LOGGER.warn("ビート解析を見送り: {} ({})", url, reason);
+        } else {
+            MusicDiscMaker.LOGGER.info("ビート解析を見送り: {} ({})", url, reason);
+        }
+    }
+
+    /** 解析に使う loader を差し替える (テスト用)。前の値を返すので finally で戻すこと。 */
+    public static Supplier<IMusicLoader> swapLoader(Supplier<IMusicLoader> replacement) {
+        final Supplier<IMusicLoader> previous = loaderSource;
+        loaderSource = replacement == null ? LoaderHolder::get : replacement;
+        return previous;
+    }
+
+    /** この URL について覚えていること (マップ・失敗回数・見送り理由) を全部忘れる (テスト用)。 */
+    public static void reset(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        final String key = keyOf(url);
+        forget(key);
+        FAILED_ATTEMPTS.remove(key);
+        LAST_SKIP.remove(key);
+        IN_FLIGHT.remove(key);
+    }
+
+    /** この URL のディスクキャッシュのパス (テストの後始末用)。未束縛なら null。 */
+    @Nullable
+    public static Path cachePathOf(String url) {
+        final Path dir = cacheDir;
+        return dir == null ? null : dir.resolve(keyOf(url) + EXTENSION);
     }
 
     /**
@@ -188,6 +264,7 @@ public final class BeatMaps {
         cacheDir = null;
         // 打ち切られた解析が「進行中」の印を残したままだと、次の server で二度と解析されない。
         IN_FLIGHT.clear();
+        LAST_SKIP.clear();
         final ExecutorService executor = pool;
         pool = null;
         if (executor != null) {
@@ -236,7 +313,10 @@ public final class BeatMaps {
                 final BeatMap cached = BeatMap.read(in);
                 if (cached != null) {
                     publish(key, cached, generation);
-                    MusicDiscMaker.LOGGER.debug("ビートマップをキャッシュから読み込み: {}", url);
+                    LAST_SKIP.remove(key);
+                    // 「キャッシュ命中で最初から出る」と「その場解析で出るまで待った」は
+                    // 実機の見え方が全く違うので、どちらだったかを残す。
+                    MusicDiscMaker.LOGGER.info("ビートマップをキャッシュから読み込み: {}", url);
                     return;
                 }
             } catch (final IOException | RuntimeException ex) {
@@ -248,7 +328,8 @@ public final class BeatMaps {
         // ② その場解析。追い越すまでは 0 が出るだけなので、待たせずに公開してから埋める。
         final Semaphore permits = slots;
         if (permits == null || !permits.tryAcquire()) {
-            MusicDiscMaker.LOGGER.debug("同時解析の上限に達したのでビート解析を見送る: {}", url);
+            // DEBUG だと実機ログに出ない = 「解析を要求したのに何も起きない」が説明できない。
+            skipped(key, url, "同時解析の上限に達している (beatMaxConcurrentAnalyses)", false);
             return;
         }
         try {
@@ -262,7 +343,7 @@ public final class BeatMaps {
                 publish(key, map, generation);
             }
             final long started = System.currentTimeMillis();
-            try (IAudioSource source = LoaderHolder.get().openStream(url, 0L)) {
+            try (IAudioSource source = loaderSource.get().openStream(url, 0L)) {
                 if (source == null) {
                     giveUp(key, url, "ストリームを開けない");
                     return;
@@ -292,6 +373,7 @@ public final class BeatMaps {
                 return; // メモリには残る (取れたところまでは今の再生で使える)
             }
             FAILED_ATTEMPTS.remove(key);
+            LAST_SKIP.remove(key);
             MusicDiscMaker.LOGGER.info("ビート解析が完了: {} ({} frames / {}ms)",
                     url, map.ready(), System.currentTimeMillis() - started);
             store(file, map);
