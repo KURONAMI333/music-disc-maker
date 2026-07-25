@@ -23,6 +23,14 @@ import net.minecraft.core.BlockPos;
  * 採否を決める。<b>最新の要求が勝つ</b>: 古いロードは破棄する。逆にすると、シーク要求
  * （別のオフセットで来る）が先行ロードに握り潰されて無視される。
  *
+ * <h2>スレッドの約束</h2>
+ * <b>{@link #begin} / {@link #cancel} / {@link #cancelAll} は main thread からだけ呼ぶこと。</b>
+ * {@code startPlayback} の「停止してから始める」は {@code cancel} → {@code begin} の 2 手で、
+ * この対は<b>不可分ではない</b>。読み取り側（{@link #isCurrent} / {@link #onLoadComplete} /
+ * {@link #isWanted}）だけがロードスレッドから呼ばれるので、格納は並行コレクションにしてある。
+ * 書き込みが main thread に閉じている限り、ロードスレッドから見えるのは「ある時点の最新トークン」
+ * であり、それで採否を決めれば十分（勝者が 2 人になることは無い）。
+ *
  * <p>{@link BlockPos} は dedicated server にも在るクラスなので headless で読める。
  */
 public final class PlaybackSessions {
