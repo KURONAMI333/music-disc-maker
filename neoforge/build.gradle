@@ -44,6 +44,11 @@ neoForge {
         server {
             server()
         }
+        // headless の挙動テスト。全 PASS で exit code 0 / 1 本でも失敗で非 0 (成否の一次判定)。
+        // enabledGameTestNamespaces は configureEach で全 run に入っている。
+        gameTestServer {
+            type = 'gameTestServer'
+        }
     }
     mods {
         "${mod_id}" {
