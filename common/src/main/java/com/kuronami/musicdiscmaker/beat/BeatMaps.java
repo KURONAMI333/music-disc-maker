@@ -1,0 +1,331 @@
+package com.kuronami.musicdiscmaker.beat;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
+
+import org.jetbrains.annotations.Nullable;
+
+import com.kuronami.musicdiscmaker.Config;
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
+
+import net.minecraft.server.MinecraftServer;
+
+/**
+ * URL ごとのビートマップの在処。メモリ LRU → ディスクキャッシュ → その場解析 の 3 段。
+ *
+ * <p><b>解析は server 側で行う。</b> dedicated server にも LavaPlayer 一式が載っていて
+ * {@code openStream} が呼べる (既存の URL 解決が server 経路なのと同じ)。これで全 client に同じ
+ * 信号が出て、無人サーバでも動き、録画のたびに同じ絵になる。
+ *
+ * <h2>キャッシュの置き場</h2>
+ * {@code <server or game dir>/music_disc_maker/cache/<sha1(url)>.beat}
+ *
+ * <p>ワールドの下ではなくインスタンス直下に置く: ビートマップは URL から決まる純粋な派生物で
+ * ワールドに依存しないので、シングルプレイでワールドを作り直すたびに再解析するのは無駄。
+ * <b>P5 (音源ローカルキャッシュ) は同じディレクトリの {@code <同じ sha1>.audio} を使えば、
+ * 1 パスの副作用でビートマップも書ける</b> (キーが同一 = 同じ曲が二重に登録されない)。
+ * そのため公開 API はここの {@link #ensure} / {@link #peek} 2 本に絞ってある。
+ */
+public final class BeatMaps {
+
+    /** メモリに載せる最大曲数。1 曲 5 分で約 100KB なので上限は小さくてよい。 */
+    private static final int MEMORY_ENTRIES = 32;
+    private static final String CACHE_DIR = "music_disc_maker/cache";
+    private static final String EXTENSION = ".beat";
+
+    /** アクセス順 LRU。読みも書きも短い synchronized で守る (tick から触るので待たせない)。 */
+    private static final Map<String, BeatMap> MEMORY = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, BeatMap> eldest) {
+            return size() > MEMORY_ENTRIES;
+        }
+    };
+    /** 解析中の key。同じ URL の二重解析を防ぐ。 */
+    private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
+    /** server が変わったら (ワールド切替・再起動) 進行中の解析を捨てるための世代番号。 */
+    private static final AtomicInteger GENERATION = new AtomicInteger();
+
+    private static volatile MinecraftServer currentServer;
+    private static volatile Path cacheDir;
+    private static volatile Semaphore slots;
+    private static volatile int slotPermits;
+    private static volatile ExecutorService pool;
+
+    private BeatMaps() {
+    }
+
+    /**
+     * 解析済みならビートマップを返す。進行中なら「そこまで解析できた」途中のマップを返す
+     * (先頭から順に埋まるので、再生位置が解析カーソルを追い越すまでは 0 が出るだけ)。
+     *
+     * @return 無ければ {@code null}
+     */
+    @Nullable
+    public static BeatMap peek(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        final String key = keyOf(url);
+        synchronized (MEMORY) {
+            return MEMORY.get(key);
+        }
+    }
+
+    /**
+     * この URL のビートマップを用意する (非同期)。既にメモリにあるか解析中なら何もしない。
+     * ディスクに載っていれば読み込み、無ければその場でストリームを開いて解析する。
+     *
+     * <p>無限長 (ラジオ / ライブ) は呼び出し側で弾くこと。尺が確定しないので完成できない。
+     */
+    public static void ensure(MinecraftServer server, String url, long durationMs) {
+        if (server == null || url == null || url.isBlank() || durationMs <= 0L || !Config.beatEnabled()) {
+            return;
+        }
+        bindServer(server);
+        final String key = keyOf(url);
+        synchronized (MEMORY) {
+            if (MEMORY.containsKey(key)) {
+                return;
+            }
+        }
+        if (!IN_FLIGHT.add(key)) {
+            return; // 既に解析中
+        }
+        final int generation = GENERATION.get();
+        final ExecutorService executor = pool;
+        if (executor == null) {
+            IN_FLIGHT.remove(key);
+            return;
+        }
+        executor.submit(() -> {
+            try {
+                load(key, url, durationMs, generation);
+            } catch (final Throwable t) {
+                MusicDiscMaker.LOGGER.warn("ビート解析に失敗 ({}): {}", url, t.toString());
+            } finally {
+                IN_FLIGHT.remove(key);
+            }
+        });
+    }
+
+    /** server 停止時に呼ぶ。進行中の解析を打ち切り、メモリを空にする。 */
+    public static void shutdown() {
+        GENERATION.incrementAndGet();
+        currentServer = null;
+        cacheDir = null;
+        synchronized (MEMORY) {
+            MEMORY.clear();
+        }
+        final ExecutorService executor = pool;
+        pool = null;
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+    }
+
+    // ── 内部 ────────────────────────────────────────────────────────────
+
+    private static synchronized void bindServer(MinecraftServer server) {
+        if (currentServer == server && pool != null) {
+            ensureSlots();
+            return;
+        }
+        shutdown();
+        currentServer = server;
+        cacheDir = server.getServerDirectory().resolve(CACHE_DIR);
+        pool = Executors.newCachedThreadPool(runnable -> {
+            final Thread thread = new Thread(runnable, "music_disc_maker-beat");
+            thread.setDaemon(true);
+            // 解析は帯域待ちが支配的だが、server tick を邪魔しないよう優先度は下げておく。
+            thread.setPriority(Thread.MIN_PRIORITY);
+            return thread;
+        });
+        ensureSlots();
+    }
+
+    /** 同時解析数の上限。config を変えたら作り直す。 */
+    private static void ensureSlots() {
+        final int permits = Math.max(1, Config.beatMaxConcurrentAnalyses());
+        if (slots == null || slotPermits != permits) {
+            slots = new Semaphore(permits);
+            slotPermits = permits;
+        }
+    }
+
+    private static void load(String key, String url, long durationMs, int generation) {
+        final Path dir = cacheDir;
+        if (dir == null || generation != GENERATION.get()) {
+            return;
+        }
+        // ① ディスクキャッシュ
+        final Path file = dir.resolve(key + EXTENSION);
+        if (Files.isRegularFile(file)) {
+            try (InputStream in = Files.newInputStream(file)) {
+                final BeatMap cached = BeatMap.read(in);
+                if (cached != null) {
+                    publish(key, cached, generation);
+                    MusicDiscMaker.LOGGER.debug("ビートマップをキャッシュから読み込み: {}", url);
+                    return;
+                }
+            } catch (final IOException | RuntimeException ex) {
+                MusicDiscMaker.LOGGER.warn("ビートマップキャッシュの読み込みに失敗 ({}): {}", file, ex.toString());
+            }
+            deleteQuietly(file); // 壊れている / 旧形式 → 作り直す
+        }
+
+        // ② その場解析。追い越すまでは 0 が出るだけなので、待たせずに公開してから埋める。
+        final Semaphore permits = slots;
+        if (permits == null || !permits.tryAcquire()) {
+            MusicDiscMaker.LOGGER.debug("同時解析の上限に達したのでビート解析を見送る: {}", url);
+            return;
+        }
+        try {
+            UrlGuard.enforce(url); // SSRF 遮断。再生経路と同じ構え
+            final BeatMap map = BeatMap.forDuration(durationMs);
+            publish(key, map, generation);
+            final long started = System.currentTimeMillis();
+            try (IAudioSource source = LoaderHolder.get().openStream(url, 0L)) {
+                if (source == null) {
+                    MusicDiscMaker.LOGGER.warn("ビート解析用のストリームを開けない: {}", url);
+                    forget(key);
+                    return;
+                }
+                final boolean finished = BeatAnalyzer.analyze(source, map, Config.beatFftSize(),
+                        () -> generation == GENERATION.get());
+                if (!finished) {
+                    forget(key); // 打ち切り = 中途半端なマップを残さない
+                    return;
+                }
+            }
+            MusicDiscMaker.LOGGER.info("ビート解析が完了: {} ({} frames / {}ms)",
+                    url, map.ready(), System.currentTimeMillis() - started);
+            store(file, map);
+        } catch (final Throwable t) {
+            MusicDiscMaker.LOGGER.warn("ビート解析に失敗 ({}): {}", url, t.toString());
+            forget(key);
+        } finally {
+            permits.release();
+        }
+    }
+
+    private static void publish(String key, BeatMap map, int generation) {
+        if (generation != GENERATION.get()) {
+            return;
+        }
+        synchronized (MEMORY) {
+            MEMORY.put(key, map);
+        }
+    }
+
+    private static void forget(String key) {
+        synchronized (MEMORY) {
+            MEMORY.remove(key);
+        }
+    }
+
+    private static void store(Path file, BeatMap map) {
+        try {
+            Files.createDirectories(file.getParent());
+            final Path temp = file.resolveSibling(file.getFileName() + ".tmp");
+            try (OutputStream out = Files.newOutputStream(temp)) {
+                map.write(out);
+            }
+            Files.move(temp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            prune(file.getParent());
+        } catch (final IOException ex) {
+            MusicDiscMaker.LOGGER.warn("ビートマップの保存に失敗 ({}): {}", file, ex.toString());
+        }
+    }
+
+    /** 上限を超えたら古い順に消す (LRU 相当。更新時刻を使う)。 */
+    private static void prune(Path dir) {
+        final long limit = (long) Math.max(0, Config.beatCacheMaxMB()) * 1024L * 1024L;
+        if (limit <= 0L) {
+            return;
+        }
+        final List<Path> files = new ArrayList<>();
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.filter(p -> p.getFileName().toString().endsWith(EXTENSION)).forEach(files::add);
+        } catch (final IOException ex) {
+            return;
+        }
+        long total = 0L;
+        for (final Path p : files) {
+            total += sizeOf(p);
+        }
+        if (total <= limit) {
+            return;
+        }
+        files.sort(Comparator.comparingLong(BeatMaps::modifiedAt));
+        for (final Path p : files) {
+            if (total <= limit) {
+                break;
+            }
+            total -= sizeOf(p);
+            deleteQuietly(p);
+        }
+    }
+
+    private static long sizeOf(Path p) {
+        try {
+            return Files.size(p);
+        } catch (final IOException ex) {
+            return 0L;
+        }
+    }
+
+    private static long modifiedAt(Path p) {
+        try {
+            return Files.getLastModifiedTime(p).toMillis();
+        } catch (final IOException ex) {
+            return 0L;
+        }
+    }
+
+    private static void deleteQuietly(Path p) {
+        try {
+            Files.deleteIfExists(p);
+        } catch (final IOException ignored) {
+            // 消せなくても実害はない (次回上書きされる)
+        }
+    }
+
+    /**
+     * URL → ファイル名。ディスクが保持する URL は解決済みの正規 URI ({@code TrackInfo.uri}) なので、
+     * 同じ動画は必ず同じ文字列になる (再生リスト等のパラメータは解決の時点で落ちている)。
+     */
+    static String keyOf(String url) {
+        try {
+            final MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            final byte[] hash = digest.digest(url.trim().getBytes(StandardCharsets.UTF_8));
+            final StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (final byte b : hash) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (final NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-1 が使えない", ex);
+        }
+    }
+}

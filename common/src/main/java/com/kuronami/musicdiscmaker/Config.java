@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker;
 
+import com.kuronami.musicdiscmaker.beat.BeatBand;
+import com.kuronami.musicdiscmaker.beat.BeatMode;
 import com.kuronami.musicdiscmaker.platform.Services;
 
 /**
@@ -39,5 +41,72 @@ public final class Config {
     /** 1 音源あたりのスピーカー上限台数。server 側で読む。 */
     public static int maxSpeakersPerSource() {
         return Services.CONFIG.maxSpeakersPerSource();
+    }
+
+    // ── ビート連動レッドストーン (server 側) ────────────────────────────
+
+    public static boolean beatEnabled() {
+        return Services.CONFIG.beatEnabled();
+    }
+
+    /** true = オンセット (打点パルス) / false = エンベロープ。 */
+    public static boolean beatOnsetMode() {
+        return Services.CONFIG.beatMode() == BeatMode.ONSET;
+    }
+
+    public static BeatBand beatBand() {
+        return Services.CONFIG.beatBand();
+    }
+
+    public static double beatSensitivity() {
+        return Services.CONFIG.beatSensitivity();
+    }
+
+    public static int beatFloorDb() {
+        return Services.CONFIG.beatFloorDb();
+    }
+
+    public static int beatAttackMs() {
+        return Services.CONFIG.beatAttackMs();
+    }
+
+    public static int beatReleaseMs() {
+        return Services.CONFIG.beatReleaseMs();
+    }
+
+    public static int beatOffsetMs() {
+        return Services.CONFIG.beatOffsetMs();
+    }
+
+    public static double beatOnsetThreshold() {
+        return Services.CONFIG.beatOnsetThreshold();
+    }
+
+    public static int beatOnsetPulseTicks() {
+        return Services.CONFIG.beatOnsetPulseTicks();
+    }
+
+    public static int beatHysteresis() {
+        return Services.CONFIG.beatHysteresis();
+    }
+
+    public static int beatMinUpdateTicks() {
+        return Services.CONFIG.beatMinUpdateTicks();
+    }
+
+    public static int beatUncalibratedOffsetMs() {
+        return Services.CONFIG.beatUncalibratedOffsetMs();
+    }
+
+    public static int beatFftSize() {
+        return Services.CONFIG.beatFftSize();
+    }
+
+    public static int beatCacheMaxMB() {
+        return Services.CONFIG.beatCacheMaxMB();
+    }
+
+    public static int beatMaxConcurrentAnalyses() {
+        return Services.CONFIG.beatMaxConcurrentAnalyses();
     }
 }
