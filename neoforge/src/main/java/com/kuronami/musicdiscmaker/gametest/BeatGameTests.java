@@ -1,8 +1,12 @@
 package com.kuronami.musicdiscmaker.gametest;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.function.LongSupplier;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.beat.BeatBand;
 import com.kuronami.musicdiscmaker.beat.BeatMap;
 import com.kuronami.musicdiscmaker.beat.BeatMaps;
 import com.kuronami.musicdiscmaker.beat.BeatOutput;
@@ -46,6 +50,7 @@ public class BeatGameTests {
     private static final String LOUD_URL = "https://example.invalid/beat-loud";
     private static final String EMPTY_URL = "https://example.invalid/beat-unanalysed";
     private static final String RADIO_URL = "https://example.invalid/beat-radio";
+    private static final String PROGRESS_URL = "https://example.invalid/beat-progressive";
     /** 合成マップの尺。前半 {@link #QUIET_MS} が無音、そこから終端までフルスケール。 */
     private static final long TRACK_MS = 10_000L;
     private static final long QUIET_MS = 5_000L;
@@ -63,16 +68,27 @@ public class BeatGameTests {
      */
     private static BeatMap fixture(long quietMs, long totalMs) {
         final BeatMap map = BeatMap.forDuration(totalMs);
-        final int frames = (int) (totalMs / BeatMap.HOP_MS);
-        final int quietFrames = (int) (quietMs / BeatMap.HOP_MS);
+        appendFrames(map, 0, framesFor(totalMs), framesFor(quietMs));
+        map.markComplete();
+        return map;
+    }
+
+    private static int framesFor(long ms) {
+        return (int) (ms / BeatMap.HOP_MS);
+    }
+
+    /** {@link #QUIET_MS} を境に無音 → フルスケールとなる frame を {@code [from, to)} に足す。 */
+    private static void appendFrames(BeatMap map, int from, int to) {
+        appendFrames(map, from, to, framesFor(QUIET_MS));
+    }
+
+    private static void appendFrames(BeatMap map, int from, int to, int quietFrames) {
         final double[] silent = {-60.0, -60.0, -60.0, -60.0};
         final double[] loud = {0.0, 0.0, 0.0, 0.0};
-        for (int i = 0; i < frames; i++) {
+        for (int i = from; i < to; i++) {
             final boolean quiet = i < quietFrames;
             map.append(quiet ? silent : loud, quiet ? -60.0 : 0.0);
         }
-        map.markComplete();
-        return map;
     }
 
     private static ItemStack customDisc(String url, long durationMs, boolean radio) {
@@ -306,6 +322,84 @@ public class BeatGameTests {
                 .thenIdle(SETTLE)
                 .thenExecute(() -> assertSignal(helper, be, 0, "不正な校正を捨てた後 (先頭のまま)"))
                 .thenSucceed();
+    }
+
+    /**
+     * その場解析が進むと、追いついた時点から値が出始める。<b>初回再生 (キャッシュ未命中) の本筋</b>で、
+     * 「追い越すまで 0 / 追い越したら出る」の遷移そのものを固定する。
+     *
+     * <p>解析スレッドを回す代わりに、テストが {@code append} で frame を足して解析の進行を再現する。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void beatCatchesUpAsAnalysisProgresses(GameTestHelper helper) {
+        // 先頭 2 秒ぶんだけ解析済みのマップ。基準は既定 (0dBFS) のまま = fixture と同じ写像になる。
+        final BeatMap map = BeatMap.forDuration(TRACK_MS);
+        appendFrames(map, 0, framesFor(2_000L));
+        BeatMaps.install(PROGRESS_URL, map);
+
+        final BlockPos rel = new BlockPos(1, 1, 1);
+        final GoldenJukeboxBlockEntity be = playing(helper, rel, customDisc(PROGRESS_URL, TRACK_MS, false));
+        if (be == null) {
+            return;
+        }
+        helper.startSequence()
+                .thenExecute(() -> be.seekTo(QUIET_MS + 2_000L)) // 解析済み範囲より先へ
+                .thenIdle(SETTLE)
+                .thenExecute(() -> assertSignal(helper, be, 0, "解析が再生位置に届いていない"))
+                // 解析が 8 秒地点まで進む = 再生位置を追い越す
+                .thenExecute(() -> appendFrames(map, framesFor(2_000L), framesFor(8_000L)))
+                .thenIdle(SETTLE)
+                .thenExecute(() -> assertSignal(helper, be, 15, "解析が追い越した後"))
+                .thenSucceed();
+    }
+
+    /**
+     * ビートマップがディスクを往復しても同じ値を返す。
+     *
+     * <p>キャッシュ命中 (= 2 回目以降の再生) は必ずこの経路を通るので、ここが壊れると
+     * 「初回だけ動いて 2 回目から無反応」になる。他のテストは全部 {@code install} で
+     * 直接載せていて直列化を一度も通らないため、ここだけが唯一の防波堤。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void beatMapSurvivesSerializationRoundTrip(GameTestHelper helper) {
+        final BeatMap original = fixture(QUIET_MS, TRACK_MS);
+        final BeatMap restored;
+        try {
+            final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            original.write(buffer);
+            restored = BeatMap.read(new ByteArrayInputStream(buffer.toByteArray()));
+        } catch (final IOException ex) {
+            helper.fail("ビートマップの直列化で例外: " + ex);
+            return;
+        }
+        if (restored == null) {
+            helper.fail("読み戻したビートマップが null (マジック / 版の不一致)");
+            return;
+        }
+        helper.assertTrue(restored.hopMs() == original.hopMs(), "hopMs が変わった");
+        helper.assertTrue(restored.ready() == original.ready(),
+                "frame 数が変わった: " + original.ready() + " → " + restored.ready());
+        helper.assertTrue(restored.isComplete(), "読み戻したマップが complete でない");
+        helper.assertTrue(restored.referenceDb(BeatBand.LOW) == original.referenceDb(BeatBand.LOW),
+                "基準レベルが変わった");
+        // 値そのものが一致すること (無音区間・境界・大音量区間)。
+        for (final long t : new long[] {0L, 1_000L, QUIET_MS - 100L, QUIET_MS + 100L, 7_000L, 9_900L}) {
+            final double before = original.peakDb(BeatBand.LOW, t, t + 50L);
+            final double after = restored.peakDb(BeatBand.LOW, t, t + 50L);
+            if (Double.compare(before, after) != 0) {
+                helper.fail(t + "ms のレベルが変わった: " + before + " → " + after);
+                return;
+            }
+        }
+        // 往復後は capacity == ready になる (write は ready ぶんしか書かない)。読み出しが
+        // capacity でなく ready を見ていることの確認も兼ねる。
+        helper.assertTrue(restored.capacity() == restored.ready(),
+                "往復後の capacity が ready と一致しない");
+        helper.assertTrue(Double.isNaN(restored.peakDb(BeatBand.LOW, TRACK_MS + 1_000L, TRACK_MS + 1_050L)),
+                "解析範囲の外が NaN でない");
+        helper.succeed();
     }
 
     /** ビートマップが無い (解析が起きていない) 時は 0 を出す。 */
