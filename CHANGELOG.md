@@ -8,6 +8,12 @@
 - Radio and livestream discs do not drive the beat output (their length is open-ended, so there is nothing to analyse ahead of time) — the comparator stays at 0 while they play.
 - The Boombox's play/stop toggle now only fires on a **shift + right-click into open air**. Shift + right-clicking a block face places the Boombox as normal, so it can finally be put down against chests, furnaces and other interactive blocks.
 - A Boombox broken by an explosion or in creative mode is destroyed together with the disc inside it (like a shulker box). Mine it normally to get both back.
+- **Local audio cache (off by default)** — with `audioCacheEnabled` turned on in the client config, a track you have played all the way through is stored on your PC as a compressed local copy, and every later play of that disc comes from that copy instead of the internet. This is a guard against the sources themselves breaking: when YouTube changed its signature scheme in 2026, every disc in every published version stopped playing for weeks. With the cache on, anything you had already listened to keeps playing on that PC regardless. It also means no repeated network traffic for a disc you play on a loop.
+  - It is **off by default** — turning it on means audio files accumulate on your disk, so that is your call to make. NeoForge exposes it in the in-game config screen (Mods → Music Disc Maker → Client).
+  - Only a play that starts at the beginning **and reaches the end** is stored. A track you seek into, stop halfway, or that gets cut off by a bad connection is never written, so a truncated copy can never get baked in.
+  - **SoundCloud is never cached** — their terms explicitly forbid storing content persistently. Radio and livestream discs are never cached either (they have no end).
+  - Budget defaults to 1024 MB (`audioCacheMaxMB`), roughly 700 four-minute tracks at about 1.5 MB each; the least recently played are dropped first. Files live in `music_disc_maker/cache/*.audio` next to the beat maps and can be deleted by hand at any time. Turning the setting back off stops all reading and writing but leaves your files alone.
+  - Fabric has no config mechanism, so the cache is unavailable there for now.
 
 ## 2.1.0
 
