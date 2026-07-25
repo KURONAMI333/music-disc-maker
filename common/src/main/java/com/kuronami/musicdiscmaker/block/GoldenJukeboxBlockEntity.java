@@ -7,13 +7,18 @@ import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.beat.BeatMaps;
+import com.kuronami.musicdiscmaker.beat.BeatOutput;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.event.SpeakerNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.PlaybackStartedPayload;
 import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
+import com.kuronami.musicdiscmaker.util.WallClock;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -96,6 +101,23 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     private long startMillis = 0L;
     /** 初回 server tick で chunk load 後の再生復帰を 1 度だけ行うためのフラグ。 */
     private boolean initialized = false;
+
+    // ── ビート連動 (server 揮発) ────────────────────────────────────────
+    /**
+     * 再生セッションの識別子。{@link #startPlayback} のたびに増える (シーク・リピート折返し・
+     * ディスク交換・chunk 復帰を含む)。client の校正報告がどの再生に対するものかを判別する。
+     */
+    private long playbackId = 0L;
+    /**
+     * client の報告で校正した「音が実際に鳴り始めた」wall-clock (ms)。0 = 未校正。
+     * 校正できていない間は {@code startMillis} + config の一律オフセットで代用する。
+     */
+    private long beatAnchorMillis = 0L;
+    private final BeatOutput beatOutput = new BeatOutput();
+    /** 現在のコンパレータ出力。 */
+    private int beatSignal = 0;
+    /** 最後にコンパレータ更新を撃った gameTime ({@code beatMinUpdateTicks} の間引き用)。 */
+    private long lastBeatPushTick = Long.MIN_VALUE;
 
     public GoldenJukeboxBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.GOLDEN_JUKEBOX.get(), pos, state, true);
@@ -200,13 +222,18 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         return t != null && (t.radio() || t.durationMs() <= 0L);
     }
 
-    /** コンパレータ出力 (vanilla 同等: song の comparatorOutput)。 */
+    /**
+     * コンパレータ出力 = <b>ビート強度 0..15</b> (再生中) / 0 (停止中)。
+     *
+     * <p>v3.0.0 で意味論が変わった。v2.x までは vanilla 同等に song の {@code comparatorOutput}
+     * (バニラディスクの固有値・custom disc は曲長の段階値) を返していたが、強化版ジュークボックスの
+     * コンパレータはビートモード固定になった。曲の識別値が要る用途はバニラの jukebox で読める
+     * (custom disc はそちらで一律 15)。
+     *
+     * <p>値は {@link #tickServer()} が更新する。server だけが持つ (コンパレータの評価は server 側)。
+     */
     public int getComparatorOutput() {
-        if (level == null) {
-            return 0;
-        }
-        return JukeboxSong.fromStack(level.registryAccess(), items.get(SLOT_DISC))
-                .map(Holder::value).map(JukeboxSong::comparatorOutput).orElse(0);
+        return beatSignal;
     }
 
     /** vanilla 再生状態 (redstone 信号源 = 再生中 15 の判定に使う)。 */
@@ -266,10 +293,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
         this.paused = value;
         if (value) {
-            final long elapsed = startMillis > 0L ? System.currentTimeMillis() - startMillis : 0L;
+            final long elapsed = startMillis > 0L ? WallClock.nowMs() - startMillis : 0L;
             final CustomTrackData track = currentTrack();
             final long dur = track != null ? track.durationMs() : 0L;
             this.pausedOffsetMs = dur > 0L ? Math.min(elapsed, dur) : elapsed;
+            endBeatSession(); // 一時停止中の出力は 0 (停止と同じ扱い)
             songPlayer.stop(level, getBlockState());
             startMillis = 0L;
             playbackStartGameTime = -1L;
@@ -347,14 +375,20 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             return;
         }
         final ItemStack disc = items.get(SLOT_DISC);
-        // vanilla 再生状態 (particle / comparator / 曲終了) + vanilla disc の実音。
+        // vanilla 再生状態 (particle / gameEvent / 曲終了) + vanilla disc の実音。
         songFor(disc).ifPresent(song -> songPlayer.play(level, song));
-        startMillis = System.currentTimeMillis() - offsetMs;
+        startMillis = WallClock.nowMs() - offsetMs;
         playbackStartGameTime = level.getGameTime() - offsetMs / 50L;
+        // 新しい再生セッション。前の校正は捨てて撮り直す (シーク・リピート折返しもここを通る)。
+        playbackId++;
+        beatAnchorMillis = 0L;
+        beatOutput.reset();
         // custom disc は LavaPlayer ストリームを per-block 設定つきで broadcast。
         final CustomTrackData track = currentTrack();
         if (track != null) {
-            broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent));
+            ensureBeatMap(track);
+            broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent,
+                    emitsBeatSignal() ? playbackId : 0L));
             // 再生 packet の直後に必ず集合を送る。停止 packet で client が集合を忘れるので、
             // 再生開始のたびに張り直すことで packet 落ち・順序に依存しない状態にする。
             broadcastSpeakerSet();
@@ -367,10 +401,22 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (!isServer()) {
             return;
         }
+        // ビート信号を先に 0 にしてから vanilla 側を止める。songPlayer.stop は onSongChanged
+        // 経由で updateNeighborsAt を撃つので、順序を逆にすると「停止した瞬間だけ古い強度が
+        // 隣に伝わる」1 tick の窓ができる。
+        endBeatSession();
         songPlayer.stop(level, getBlockState());
         startMillis = 0L;
         playbackStartGameTime = -1L;
         broadcast(new StopDiscPayload(getBlockPos()));
+    }
+
+    /** 再生セッションを畳んでビート出力を 0 に落とす (停止・一時停止で共有)。 */
+    private void endBeatSession() {
+        playbackId++;
+        beatAnchorMillis = 0L;
+        beatOutput.reset();
+        pushBeatSignal(0, true);
     }
 
     /** ディスクスロットが変わった時 (挿入/取り出し・ホッパー・コマンド・GUI)。再生を起動/停止する。 */
@@ -422,13 +468,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (track == null || startMillis == 0L) {
             return null;
         }
-        final long elapsed = Math.max(0L, System.currentTimeMillis() - startMillis);
+        final long elapsed = Math.max(0L, WallClock.nowMs() - startMillis);
         final long dur = track.durationMs();
         if (dur > 0L && elapsed >= dur && !repeat) {
             return null; // repeat off の自然終了済み
         }
         final long offset = (dur > 0L && repeat) ? elapsed % dur : elapsed;
-        return new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent);
+        // late-join / スピーカー新設への再送。校正は最初の 1 件だけ採るので、途中参加の client にも
+        // 現行 playbackId を渡してよい (anchor 確定後の報告は onPlaybackStarted が無視する)。
+        return new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent,
+                emitsBeatSignal() ? playbackId : 0L);
     }
 
     /** late-join した player へ、再生中なら現在位置で PlayDiscPayload を再送する。 */
@@ -494,11 +543,125 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (repeat && !paused && startMillis > 0L) {
             final CustomTrackData track = currentTrack();
             if (track != null && track.durationMs() > 0L
-                    && System.currentTimeMillis() - startMillis >= track.durationMs()) {
+                    && WallClock.nowMs() - startMillis >= track.durationMs()) {
                 startPlayback(0L);
             }
         }
+        // ビート連動: 再生位置 → ビートマップ → コンパレータ 0..15。
+        tickBeat();
     }
+
+    // ── ビート連動 ──────────────────────────────────────────────────────
+
+    /**
+     * この BE がビート信号を出すか。ブームボックスは持たない (レッドストーン出力なしの派生)。
+     */
+    protected boolean emitsBeatSignal() {
+        return true;
+    }
+
+    /** 再生開始時にビートマップを用意させる。無限長 (ラジオ / ライブ) は解析できないので対象外。 */
+    private void ensureBeatMap(CustomTrackData track) {
+        if (!emitsBeatSignal() || track.radio() || track.durationMs() <= 0L
+                || !(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        BeatMaps.ensure(serverLevel.getServer(), track.url(), track.durationMs());
+    }
+
+    /**
+     * いま鳴っているはずの再生位置 (ms)。
+     *
+     * <p><b>gameTime ではなく wall-clock から引く。</b> client の音声は TPS と無関係に実時間で
+     * 流れるので、{@code playbackStartGameTime} を基準にすると server が重い間ずっとビートが
+     * 遅れ続けて戻らない。出力の更新は tick でしかできないが、位置の計算式だけは実時間にする。
+     *
+     * @return 再生していない / ビート対象外なら -1
+     */
+    private long beatAudioPositionMs() {
+        if (paused || startMillis == 0L) {
+            return -1L;
+        }
+        final long anchor = beatAnchorMillis > 0L
+                ? beatAnchorMillis
+                : startMillis + Config.beatUncalibratedOffsetMs();
+        return WallClock.nowMs() - anchor;
+    }
+
+    private void tickBeat() {
+        if (!emitsBeatSignal()) {
+            return;
+        }
+        if (!Config.beatEnabled()) {
+            if (beatSignal != 0) {
+                beatOutput.reset();
+                pushBeatSignal(0, true);
+            }
+            return;
+        }
+        final CustomTrackData track = currentTrack();
+        final long position = beatAudioPositionMs();
+        // ラジオ / ライブは尺が無くビートマップを完成させられないので、再生中でも常に 0。
+        final boolean analysable = track != null && !track.radio() && track.durationMs() > 0L;
+        final int value = (position < 0L || !analysable)
+                ? resetBeat()
+                : beatOutput.update(BeatMaps.peek(track.url()), position);
+        pushBeatSignal(value, false);
+    }
+
+    private int resetBeat() {
+        beatOutput.reset();
+        return 0;
+    }
+
+    /**
+     * コンパレータ値を確定して隣接ブロックへ伝える。値が変わった時だけ撃ち、さらに
+     * {@code beatMinUpdateTicks} で間引く (毎 tick の {@code updateNeighborsAt} は大規模回路で
+     * comparator の再評価を連鎖させるため)。
+     *
+     * @param force 間引きを無視する (停止時に 0 を必ず届ける)
+     */
+    private void pushBeatSignal(int value, boolean force) {
+        if (value == beatSignal || level == null) {
+            return;
+        }
+        final long now = level.getGameTime();
+        if (!force && now - lastBeatPushTick < Config.beatMinUpdateTicks()) {
+            return;
+        }
+        beatSignal = value;
+        lastBeatPushTick = now;
+        setChanged();
+        level.updateNeighborsAt(getBlockPos(), getBlockState().getBlock());
+    }
+
+    /**
+     * client からの「音が実際に鳴り始めた」報告 ({@link PlaybackStartedPayload})。
+     *
+     * <p>packet の到着時刻を「いま {@code audioOffsetMs} の位置が鳴っている」と読むので、
+     * client の時計は使わない。<b>first-wins</b>: 最初の 1 件だけを採用する。採用し続けると
+     * 後から来た client の読込遅延ぶんだけ再生中に位相が跳ぶ。
+     *
+     * @return 校正を採用したら true
+     */
+    public boolean onPlaybackStarted(long reportedPlaybackId, long audioOffsetMs) {
+        if (!isServer() || !emitsBeatSignal() || startMillis == 0L || paused) {
+            return false;
+        }
+        if (reportedPlaybackId == 0L || reportedPlaybackId != playbackId || beatAnchorMillis > 0L) {
+            return false; // 別セッションへの報告 / 既に校正済み
+        }
+        final long candidate = WallClock.nowMs() - Math.max(0L, audioOffsetMs);
+        // 細工された報告で位相を飛ばされないよう、server 自身の再生起点から ±10 秒に丸める。
+        if (Math.abs(candidate - startMillis) > BEAT_CALIBRATION_LIMIT_MS) {
+            return false;
+        }
+        beatAnchorMillis = candidate;
+        return true;
+    }
+
+    /** 校正報告として受け入れる server 起点からのずれの上限 (ms)。 */
+    private static final long BEAT_CALIBRATION_LIMIT_MS = 10_000L;
 
     private void onSongChanged() {
         if (level != null) {

@@ -42,6 +42,9 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
     @Nullable
     private final Runnable onStreamEnded;
+    /** 実際に音が鳴り始めた時に一度だけ呼ばれるコールバック (ビート連動の校正報告用)。null=無効。 */
+    @Nullable
+    private Runnable onAudioStarted;
     /**
      * 音の指向性。true = 従来どおり音源の座標を書き込む positional audio。
      * false = 可聴範囲の中にいる限り listener の座標そのものを書き込む = 距離 0 = 左右差なし・減衰なしの
@@ -299,7 +302,16 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     }
 
     public CompletableFuture<AudioStream> getCustomStream() {
-        return CompletableFuture.completedFuture(new LavaPlayerAudioStream(source, onStreamEnded));
+        return CompletableFuture.completedFuture(
+                new LavaPlayerAudioStream(source, onStreamEnded, onAudioStarted));
+    }
+
+    /**
+     * 音が実際に鳴り始めた時に一度だけ呼ばれるコールバックを差す。{@code SoundManager.play} より
+     * 前に設定すること (ストリームはその後に生成される)。ビート連動の校正報告に使う。
+     */
+    public void setOnAudioStarted(@Nullable Runnable callback) {
+        this.onAudioStarted = callback;
     }
 
     /**

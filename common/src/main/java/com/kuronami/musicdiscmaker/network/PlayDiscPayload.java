@@ -20,9 +20,13 @@ import net.minecraft.resources.ResourceLocation;
  * ({@code rangeBlocks=0} = client config の playbackRange をそのまま使う、{@code volumePercent=100})
  * を入れるので、既存挙動は変わらない。強化版では実効可聴範囲 = min(rangeBlocks, maxPlaybackRange) を
  * client 側で適用する (maxPlaybackRange 既定 256 = playbackRange と分離した cap)。
+ *
+ * <p>{@code playbackId} は再生セッションの識別子。client が {@link PlaybackStartedPayload} で
+ * 実鳴動時刻を報告する時にそのまま返し、server が「どの再生への報告か」を判別する。
+ * <b>0 = 校正対象外</b> (バニラ jukebox 経路・移動構造物経路はビート出力を持たない)。
  */
 public record PlayDiscPayload(BlockPos jukeboxPos, CustomTrackData track, long startOffsetMs,
-        int rangeBlocks, int volumePercent) implements CustomPacketPayload {
+        int rangeBlocks, int volumePercent, long playbackId) implements CustomPacketPayload {
 
     public static final Type<PlayDiscPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "play_disc"));
@@ -33,11 +37,12 @@ public record PlayDiscPayload(BlockPos jukeboxPos, CustomTrackData track, long s
             ByteBufCodecs.VAR_LONG, PlayDiscPayload::startOffsetMs,
             ByteBufCodecs.VAR_INT, PlayDiscPayload::rangeBlocks,
             ByteBufCodecs.VAR_INT, PlayDiscPayload::volumePercent,
+            ByteBufCodecs.VAR_LONG, PlayDiscPayload::playbackId,
             PlayDiscPayload::new);
 
     /** バニラ jukebox 経路 (per-block 設定なし)。range は client config を、volume は 100% を使う。 */
     public static PlayDiscPayload vanilla(BlockPos jukeboxPos, CustomTrackData track, long startOffsetMs) {
-        return new PlayDiscPayload(jukeboxPos, track, startOffsetMs, 0, 100);
+        return new PlayDiscPayload(jukeboxPos, track, startOffsetMs, 0, 100, 0L);
     }
 
     @Override

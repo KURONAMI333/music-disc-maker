@@ -3,12 +3,14 @@ package com.kuronami.musicdiscmaker;
 import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
 import com.kuronami.musicdiscmaker.event.FabricJukeboxEvents;
 import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
+import com.kuronami.musicdiscmaker.beat.BeatMaps;
 import com.kuronami.musicdiscmaker.event.SpeakerNetwork;
 import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
 import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
 import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.PlaybackStartedPayload;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
 import com.kuronami.musicdiscmaker.network.SeekJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.SpeakerConfigPayload;
@@ -38,6 +40,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(ConfigureJukeboxPayload.TYPE, ConfigureJukeboxPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(SeekJukeboxPayload.TYPE, SeekJukeboxPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(SpeakerConfigPayload.TYPE, SpeakerConfigPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(PlaybackStartedPayload.TYPE, PlaybackStartedPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(StopDiscPayload.TYPE, StopDiscPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(SpeakerSetPayload.TYPE, SpeakerSetPayload.STREAM_CODEC);
@@ -58,6 +61,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // server 受信: スピーカーの音量・可聴範囲の適用。
         ServerPlayNetworking.registerGlobalReceiver(SpeakerConfigPayload.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleConfigureSpeaker(payload, ctx.player())));
+        // server 受信: 音が実際に鳴り始めた報告 (ビート連動の校正)。
+        ServerPlayNetworking.registerGlobalReceiver(PlaybackStartedPayload.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handlePlaybackStarted(payload, ctx.player())));
 
         // jukebox 出し入れ / 破壊イベント。
         FabricJukeboxEvents.register();
@@ -67,6 +73,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
             ActiveDiscRegistry.clear();
             SpeakerNetwork.clear();
             BoomboxPlayback.clear();
+            BeatMaps.shutdown();
         });
 
         MusicDiscMaker.LOGGER.info("Music Disc Maker (Fabric) initialized");

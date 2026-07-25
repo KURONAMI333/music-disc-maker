@@ -6,6 +6,7 @@ import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
@@ -59,6 +60,27 @@ public final class ModNetwork {
         }
         if (player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity jukebox) {
             jukebox.seekTo(payload.offsetMs());
+        }
+    }
+
+    /**
+     * server 受信: 「音が実際に鳴り始めた」の報告 (ビート連動の校正)。
+     *
+     * <p>他の C2S と違って到達距離では絞れない — スピーカー圏の listener は音源から数百ブロック
+     * 離れていて正当に報告してくる。代わりに (a) chunk をロード中 (b) 送信距離が view-distance の
+     * 内側 (c) 同一次元 で絞り、さらに BE 側が playbackId 一致・first-wins・±10 秒 clamp で守る。
+     */
+    public static void handlePlaybackStarted(PlaybackStartedPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.jukeboxPos();
+        if (!(player.level() instanceof ServerLevel level) || !level.isLoaded(pos)) {
+            return;
+        }
+        final int reach = level.getServer().getPlayerList().getViewDistance() * 16 + 32;
+        if (player.distanceToSqr(Vec3.atCenterOf(pos)) > (double) reach * reach) {
+            return;
+        }
+        if (level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity jukebox) {
+            jukebox.onPlaybackStarted(payload.playbackId(), payload.audioOffsetMs());
         }
     }
 
