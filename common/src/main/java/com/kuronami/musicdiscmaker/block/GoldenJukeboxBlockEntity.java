@@ -507,8 +507,10 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
         final PlayDiscPayload payload = currentPlayPayload();
         if (payload != null) {
-            // 既に鳴っている client には同一 URL の再送になるが、client 側 dedup が握りつぶす
-            // (ロード窓に当たった場合は再生要求の世代トークンが古い方を捨てる)。
+            // 既に鳴っている client には同一 URL の再送になる。孤児は世代トークンが防ぐが、
+            // client 側 dedup が必ず握りつぶすわけではない: 推定再生位置の基準が「ロード完了時刻」
+            // なので、URL 解決に SEEK_TOLERANCE_MS を超える時間が掛かった再生では、この再送が
+            // シーク要求と判定されて丸ごと再ロードになる (無駄なストリーム 1 本)。
             // 配送は broadcast と同じ player 単位の口を通す。
             Services.NETWORK.sendToPlayersTrackingChunks(serverLevel, java.util.Set.of(chunk), payload);
         }
