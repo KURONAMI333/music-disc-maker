@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "距離唱片機太遠",
   "music_disc_maker.speaker.link_failed.too_many": "該唱片機的音箱數量已達上限",
   "tooltip.music_disc_maker.speaker.linked_to": "音源：%s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "潛行 + 右鍵黃金唱片機以連接"
+  "tooltip.music_disc_maker.speaker.link_hint": "潛行 + 右鍵黃金唱片機以連接",
+  "block.music_disc_maker.boombox": "手提音響",
+  "music_disc_maker.boombox.playing": "播放中",
+  "music_disc_maker.boombox.stopped": "已停止",
+  "music_disc_maker.boombox.no_disc": "沒有放入唱片",
+  "tooltip.music_disc_maker.boombox.loaded": "已裝入：%s",
+  "tooltip.music_disc_maker.boombox.empty": "空",
+  "tooltip.music_disc_maker.boombox.hint": "Shift + 右鍵播放/停止"
 }

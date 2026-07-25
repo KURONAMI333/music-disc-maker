@@ -6,6 +6,8 @@ import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
 import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.TrackKey;
+import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
+import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
@@ -56,6 +58,11 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         // client 受信: 有効スピーカー集合の更新。
         ClientPlayNetworking.registerGlobalReceiver(SpeakerSetPayload.TYPE,
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleSpeakerSet(payload)));
+        // client 受信: 手持ちブームボックスの再生 (keep-alive 兼 late-join) と停止。
+        ClientPlayNetworking.registerGlobalReceiver(BoomboxPlayPayload.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleBoomboxPlay(payload)));
+        ClientPlayNetworking.registerGlobalReceiver(BoomboxStopPayload.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleBoomboxStop(payload)));
         // SB Fabric port の backpack jukebox 再生受信 (port 非依存)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerClientReceiver();
 

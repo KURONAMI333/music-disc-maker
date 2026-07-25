@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "주크박스에서 너무 멉니다",
   "music_disc_maker.speaker.link_failed.too_many": "이 주크박스의 스피커 수가 최대입니다",
   "tooltip.music_disc_maker.speaker.linked_to": "음원: %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "황금 주크박스를 Shift + 우클릭하여 연결"
+  "tooltip.music_disc_maker.speaker.link_hint": "황금 주크박스를 Shift + 우클릭하여 연결",
+  "block.music_disc_maker.boombox": "붐박스",
+  "music_disc_maker.boombox.playing": "재생 중",
+  "music_disc_maker.boombox.stopped": "정지",
+  "music_disc_maker.boombox.no_disc": "디스크가 없음",
+  "tooltip.music_disc_maker.boombox.loaded": "넣은 디스크: %s",
+  "tooltip.music_disc_maker.boombox.empty": "비어 있음",
+  "tooltip.music_disc_maker.boombox.hint": "Shift + 우클릭으로 재생/정지"
 }

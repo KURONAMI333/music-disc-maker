@@ -2,7 +2,10 @@ package com.kuronami.musicdiscmaker;
 
 import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
 import com.kuronami.musicdiscmaker.event.FabricJukeboxEvents;
+import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 import com.kuronami.musicdiscmaker.event.SpeakerNetwork;
+import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
+import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
 import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
@@ -38,6 +41,8 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(StopDiscPayload.TYPE, StopDiscPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(SpeakerSetPayload.TYPE, SpeakerSetPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(BoomboxPlayPayload.TYPE, BoomboxPlayPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(BoomboxStopPayload.TYPE, BoomboxStopPayload.STREAM_CODEC);
         // SB Fabric port の backpack jukebox 用 (port 非依存。port が無ければ送信されないだけ)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload();
 
@@ -61,6 +66,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             ActiveDiscRegistry.clear();
             SpeakerNetwork.clear();
+            BoomboxPlayback.clear();
         });
 
         MusicDiscMaker.LOGGER.info("Music Disc Maker (Fabric) initialized");

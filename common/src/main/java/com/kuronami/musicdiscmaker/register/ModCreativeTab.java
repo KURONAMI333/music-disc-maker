@@ -22,6 +22,7 @@ public final class ModCreativeTab {
                         output.accept(ModItems.MUSIC_DISC_MAKER.get());
                         output.accept(ModItems.GOLDEN_JUKEBOX.get());
                         output.accept(ModItems.SPEAKER.get());
+                        output.accept(ModItems.BOOMBOX.get());
                         output.accept(ModItems.BLANK_DISC.get());
                     })
                     .build());

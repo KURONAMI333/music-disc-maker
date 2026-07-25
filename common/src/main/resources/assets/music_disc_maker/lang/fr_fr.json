@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "Trop loin du jukebox",
   "music_disc_maker.speaker.link_failed.too_many": "Ce jukebox a déjà le nombre maximal de haut-parleurs",
   "tooltip.music_disc_maker.speaker.linked_to": "Source : %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "Maj + clic droit sur un jukebox doré pour lier"
+  "tooltip.music_disc_maker.speaker.link_hint": "Maj + clic droit sur un jukebox doré pour lier",
+  "block.music_disc_maker.boombox": "Radiocassette",
+  "music_disc_maker.boombox.playing": "Lecture",
+  "music_disc_maker.boombox.stopped": "Arrêté",
+  "music_disc_maker.boombox.no_disc": "Aucun disque inséré",
+  "tooltip.music_disc_maker.boombox.loaded": "Disque : %s",
+  "tooltip.music_disc_maker.boombox.empty": "Vide",
+  "tooltip.music_disc_maker.boombox.hint": "Maj + clic droit pour lire/arrêter"
 }

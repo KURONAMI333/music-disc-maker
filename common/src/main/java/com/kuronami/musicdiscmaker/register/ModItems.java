@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
+import com.kuronami.musicdiscmaker.item.BoomboxBlockItem;
 import com.kuronami.musicdiscmaker.item.SpeakerBlockItem;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
@@ -41,6 +42,14 @@ public final class ModItems {
     public static final RegistryHolder<SpeakerBlockItem> SPEAKER =
             ITEMS.register("speaker",
                     () -> new SpeakerBlockItem(ModBlocks.SPEAKER.get(), new Item.Properties()));
+
+    /**
+     * ブームボックスのブロックアイテム。シフト右クリックで手持ち再生をトグルし、インベントリ内で
+     * ディスクを右クリックして装填/取り出しできる。
+     */
+    public static final RegistryHolder<BoomboxBlockItem> BOOMBOX =
+            ITEMS.register("boombox",
+                    () -> new BoomboxBlockItem(ModBlocks.BOOMBOX.get(), new Item.Properties().stacksTo(1)));
 
     private ModItems() {
     }

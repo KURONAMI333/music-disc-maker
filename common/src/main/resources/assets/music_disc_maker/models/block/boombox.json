@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "top": "music_disc_maker:block/boombox_top",
+    "front": "music_disc_maker:block/boombox_front",
+    "side": "music_disc_maker:block/boombox_side"
+  }
+}

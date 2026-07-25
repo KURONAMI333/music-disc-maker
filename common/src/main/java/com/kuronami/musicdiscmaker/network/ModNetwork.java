@@ -90,4 +90,14 @@ public final class ModNetwork {
     public static void handleSpeakerSet(SpeakerSetPayload payload) {
         ClientPlaybackHandler.speakers(payload);
     }
+
+    /** client 受信: 手持ちブームボックスの再生 / keep-alive (client 専用経路)。 */
+    public static void handleBoomboxPlay(BoomboxPlayPayload payload) {
+        ClientPlaybackHandler.boomboxPlay(payload);
+    }
+
+    /** client 受信: 手持ちブームボックスの停止 (client 専用経路)。 */
+    public static void handleBoomboxStop(BoomboxStopPayload payload) {
+        ClientPlaybackHandler.boomboxStop(payload);
+    }
 }

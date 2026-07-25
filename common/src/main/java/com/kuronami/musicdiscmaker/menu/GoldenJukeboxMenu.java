@@ -3,7 +3,7 @@ package com.kuronami.musicdiscmaker.menu;
 import org.jetbrains.annotations.NotNull;
 
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
-import com.kuronami.musicdiscmaker.register.ModBlocks;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlock;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
 import net.minecraft.core.BlockPos;
@@ -66,7 +66,8 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(Player player) {
         return blockEntity.getLevel() != null
-                && blockEntity.getLevel().getBlockState(blockEntity.getBlockPos()).is(ModBlocks.GOLDEN_JUKEBOX.get())
+                && blockEntity.getLevel().getBlockState(blockEntity.getBlockPos())
+                        .getBlock() instanceof GoldenJukeboxBlock
                 && player.distanceToSqr(
                         blockEntity.getBlockPos().getX() + 0.5,
                         blockEntity.getBlockPos().getY() + 0.5,

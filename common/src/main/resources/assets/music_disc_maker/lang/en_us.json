@@ -57,5 +57,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "Too far from the jukebox",
   "music_disc_maker.speaker.link_failed.too_many": "This jukebox already has the maximum number of speakers",
   "tooltip.music_disc_maker.speaker.linked_to": "Source: %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "Shift + right-click a Golden Jukebox to link"
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + right-click a Golden Jukebox to link",
+  "block.music_disc_maker.boombox": "Boombox",
+  "music_disc_maker.boombox.playing": "Playing",
+  "music_disc_maker.boombox.stopped": "Stopped",
+  "music_disc_maker.boombox.no_disc": "No disc loaded",
+  "tooltip.music_disc_maker.boombox.loaded": "Loaded: %s",
+  "tooltip.music_disc_maker.boombox.empty": "Empty",
+  "tooltip.music_disc_maker.boombox.hint": "Shift + right-click to play/stop"
 }

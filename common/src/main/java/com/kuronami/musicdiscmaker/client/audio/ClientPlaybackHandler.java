@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
+import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
@@ -28,5 +30,16 @@ public final class ClientPlaybackHandler {
     public static void speakers(SpeakerSetPayload payload) {
         ClientPlaybackManager.get().updateSpeakers(
                 payload.sourcePos(), payload.directional(), payload.speakers());
+    }
+
+    /** 手持ちブームボックスの再生 / keep-alive。 */
+    public static void boomboxPlay(BoomboxPlayPayload payload) {
+        BoomboxClientPlayback.play(payload.entityId(), payload.track(), payload.startOffsetMs(),
+                payload.rangeBlocks(), payload.volumePercent(), payload.directional());
+    }
+
+    /** 手持ちブームボックスの停止。 */
+    public static void boomboxStop(BoomboxStopPayload payload) {
+        BoomboxClientPlayback.stop(payload.entityId());
     }
 }

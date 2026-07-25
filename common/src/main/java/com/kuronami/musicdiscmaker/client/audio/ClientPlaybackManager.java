@@ -309,6 +309,9 @@ public final class ClientPlaybackManager {
     }
 
     public void stopAll() {
+        // 手持ちブームボックス (key が entityId で別 map) もここでまとめて掃除する。
+        // 再入時にゾンビの音が残らないよう、切断の入口を 1 本にしておく。
+        BoomboxClientPlayback.stopAll();
         wanted.clear();
         playingUrl.clear();
         requests.clear();

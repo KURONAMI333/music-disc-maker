@@ -56,5 +56,12 @@
   "music_disc_maker.speaker.link_failed.too_far": "Troppo lontano dal jukebox",
   "music_disc_maker.speaker.link_failed.too_many": "Questo jukebox ha già il numero massimo di altoparlanti",
   "tooltip.music_disc_maker.speaker.linked_to": "Sorgente: %s, %s, %s",
-  "tooltip.music_disc_maker.speaker.link_hint": "Maiusc + clic destro su un jukebox dorato per collegare"
+  "tooltip.music_disc_maker.speaker.link_hint": "Maiusc + clic destro su un jukebox dorato per collegare",
+  "block.music_disc_maker.boombox": "Stereo portatile",
+  "music_disc_maker.boombox.playing": "In riproduzione",
+  "music_disc_maker.boombox.stopped": "Fermato",
+  "music_disc_maker.boombox.no_disc": "Nessun disco inserito",
+  "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
+  "tooltip.music_disc_maker.boombox.empty": "Vuoto",
+  "tooltip.music_disc_maker.boombox.hint": "Maiusc + clic destro per riprodurre/fermare"
 }
