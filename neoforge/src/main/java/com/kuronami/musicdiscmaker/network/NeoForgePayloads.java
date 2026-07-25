@@ -34,6 +34,10 @@ public final class NeoForgePayloads {
         registrar.playToServer(SpeakerConfigPayload.TYPE, SpeakerConfigPayload.STREAM_CODEC,
                 NeoForgePayloads::handleConfigureSpeaker);
 
+        // client → server: 音が実際に鳴り始めた報告 (ビート連動の校正・1 再生 1 回)
+        registrar.playToServer(PlaybackStartedPayload.TYPE, PlaybackStartedPayload.STREAM_CODEC,
+                NeoForgePayloads::handlePlaybackStarted);
+
         // server → client (再生制御)。
         registrar.playToClient(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> ModNetwork.handlePlay(payload)));
@@ -84,5 +88,12 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleConfigureSpeaker(payload, player));
+    }
+
+    private static void handlePlaybackStarted(PlaybackStartedPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handlePlaybackStarted(payload, player));
     }
 }

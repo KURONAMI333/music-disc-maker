@@ -23,6 +23,16 @@ public class BoomboxBlockEntity extends GoldenJukeboxBlockEntity {
         super(ModBlockEntities.BOOMBOX.get(), pos, state, false);
     }
 
+    /**
+     * ブームボックスはレッドストーン出力を持たない ({@code BoomboxBlock} が
+     * {@code hasAnalogOutputSignal} / {@code isSignalSource} を false にしている) ので、
+     * ビート解析も出力更新も走らせない。解析用ストリームを無駄に 1 本開かないためでもある。
+     */
+    @Override
+    protected boolean emitsBeatSignal() {
+        return false;
+    }
+
     /** 現在の中身をブロックアイテム用の component へ写す。 */
     public BoomboxContents toContents() {
         return new BoomboxContents(getDisc().copy(), getRangeBlocks(), getVolumePercent(), isDirectional());

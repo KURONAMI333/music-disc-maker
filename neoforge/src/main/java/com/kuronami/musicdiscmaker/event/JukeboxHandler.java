@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.event;
 
 import java.util.List;
 
+import com.kuronami.musicdiscmaker.beat.BeatMaps;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
@@ -138,6 +139,7 @@ public final class JukeboxHandler {
         ActiveDiscRegistry.clear();
         SpeakerNetwork.clear();
         BoomboxPlayback.clear();
+        BeatMaps.shutdown();
     }
 
     private static void broadcast(Level level, BlockPos pos,
