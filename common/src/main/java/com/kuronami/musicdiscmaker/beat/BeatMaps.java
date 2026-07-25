@@ -65,6 +65,11 @@ public final class BeatMaps {
     };
     /** 解析中の key。同じ URL の二重解析を防ぐ。 */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
+    /**
+     * 申告尺に届かずキャッシュしなかった key。次の {@link #ensure} が 1 度だけやり直すための印で、
+     * 消費されたら消える。{@link #install} で載せたマップはここに入らないので再解析されない。
+     */
+    private static final Set<String> SHORT_ANALYSES = ConcurrentHashMap.newKeySet();
     /** server が変わったら (ワールド切替・再起動) 進行中の解析を捨てるための世代番号。 */
     private static final AtomicInteger GENERATION = new AtomicInteger();
 
@@ -124,7 +129,10 @@ public final class BeatMaps {
         bindServer(server);
         final String key = keyOf(url);
         synchronized (MEMORY) {
-            if (MEMORY.containsKey(key)) {
+            // 尺に届かなかった解析だけは 1 度やり直す (remove が true = まだ再試行していない)。
+            // 無制限に再試行しないのは、ディスクの申告尺が実体より長い場合 (再アップロード後の
+            // 古いディスク等) に毎回の再生で永久に再解析し続けてしまうため。
+            if (MEMORY.containsKey(key) && !SHORT_ANALYSES.remove(key)) {
                 return;
             }
         }
@@ -249,7 +257,9 @@ public final class BeatMaps {
                 MusicDiscMaker.LOGGER.warn(
                         "ビート解析が尺に届かなかったのでキャッシュしない: {} ({}ms / {}ms)",
                         url, map.coveredMs(), durationMs);
-                forget(key); // 次の再生でやり直す
+                // メモリには残す (取れたところまでは今の再生で使える) が、ディスクへは焼かない。
+                // 次の再生で 1 度だけやり直す。
+                SHORT_ANALYSES.add(key);
                 return;
             }
             MusicDiscMaker.LOGGER.info("ビート解析が完了: {} ({} frames / {}ms)",

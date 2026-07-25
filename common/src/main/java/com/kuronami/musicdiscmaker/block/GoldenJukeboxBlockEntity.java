@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.beat.BeatMap;
 import com.kuronami.musicdiscmaker.beat.BeatMaps;
 import com.kuronami.musicdiscmaker.beat.BeatOutput;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
@@ -605,10 +606,18 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         final long position = beatAudioPositionMs();
         // ラジオ / ライブは尺が無くビートマップを完成させられないので、再生中でも常に 0。
         final boolean analysable = track != null && !track.radio() && track.durationMs() > 0L;
-        final int value = (position < 0L || !analysable)
-                ? resetBeat()
-                : beatOutput.update(BeatMaps.peek(track.url()), position);
-        pushBeatSignal(value, false);
+        if (position < 0L || !analysable) {
+            pushBeatSignal(resetBeat(), false);
+            return;
+        }
+        final BeatMap map = BeatMaps.peek(track.url());
+        if (map == null && level.getGameTime() % RETRY_ENSURE_TICKS == 0L) {
+            // 再生中に config で beatEnabled を ON にした / 解析が失敗した後の復帰。解析の起点は
+            // startPlayback だけなので、これが無いと次に再生を張り直すまで 0 のままになる。
+            // kura が実機で config を触りながら詰める運用なので、ここは効く。
+            ensureBeatMap(track);
+        }
+        pushBeatSignal(beatOutput.update(map, position), false);
     }
 
     private int resetBeat() {
@@ -673,6 +682,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     /** 校正報告として受け入れる server 起点からのずれの上限 (ms)。 */
     private static final long BEAT_CALIBRATION_LIMIT_MS = 10_000L;
+    /** 再生中にビートマップが無い時、解析を頼み直す間隔 (tick)。 */
+    private static final long RETRY_ENSURE_TICKS = 20L;
 
     private void onSongChanged() {
         if (level != null) {
