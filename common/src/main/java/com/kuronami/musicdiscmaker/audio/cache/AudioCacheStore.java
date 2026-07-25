@@ -174,8 +174,10 @@ public final class AudioCacheStore {
                 Files.move(part, file, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (final IOException ex) {
+            // 失敗として数えない。ここまで来た録り込みは完走している = 失敗の原因はディスク側
+            // (一時的なロック・ウイルス対策・容量不足) で、回数で打ち切る対象ではない。
             MusicDiscMaker.LOGGER.warn("音源キャッシュの確定に失敗 ({}): {}", file, ex.toString());
-            abandon(key);
+            release(key);
             return false;
         }
         failedAttempts.remove(key);
