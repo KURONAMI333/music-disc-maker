@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "재생",
   "gui.music_disc_maker.golden_jukebox.pause": "일시정지",
   "gui.music_disc_maker.golden_jukebox.stop": "정지",
-  "gui.music_disc_maker.golden_jukebox.no_track": "디스크 없음"
+  "gui.music_disc_maker.golden_jukebox.no_track": "디스크 없음",
+  "block.music_disc_maker.speaker": "스피커",
+  "gui.music_disc_maker.speaker.title": "스피커",
+  "gui.music_disc_maker.speaker.volume": "음량: %s%%",
+  "gui.music_disc_maker.speaker.range": "범위: %s",
+  "gui.music_disc_maker.speaker.linked": "음원: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "연결된 음원 없음",
+  "gui.music_disc_maker.speaker.muted": "레드스톤으로 음소거됨",
+  "music_disc_maker.speaker.source_stored": "음원 저장됨: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "주크박스에 연결됨",
+  "music_disc_maker.speaker.link_failed.no_source": "저장된 위치에 황금 주크박스가 없습니다",
+  "music_disc_maker.speaker.link_failed.too_far": "주크박스에서 너무 멉니다",
+  "music_disc_maker.speaker.link_failed.too_many": "이 주크박스의 스피커 수가 최대입니다",
+  "tooltip.music_disc_maker.speaker.linked_to": "음원: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "황금 주크박스를 Shift + 우클릭하여 연결"
 }

@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.register;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
+import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
 import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
@@ -22,6 +23,9 @@ public final class ModMenus {
 
     public static final RegistryHolder<MenuType<GoldenJukeboxMenu>> GOLDEN_JUKEBOX =
             MENUS.register("golden_jukebox", () -> Services.MENU.createGoldenJukeboxMenuType());
+
+    public static final RegistryHolder<MenuType<SpeakerMenu>> SPEAKER =
+            MENUS.register("speaker", () -> Services.MENU.createSpeakerMenuType());
 
     private ModMenus() {
     }

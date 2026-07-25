@@ -40,5 +40,19 @@
   "gui.music_disc_maker.golden_jukebox.pause": "Pause",
   "gui.music_disc_maker.golden_jukebox.stop": "Stop",
   "gui.music_disc_maker.golden_jukebox.repeat_toggle": "Repeat",
-  "gui.music_disc_maker.golden_jukebox.no_track": "No disc"
+  "gui.music_disc_maker.golden_jukebox.no_track": "No disc",
+  "block.music_disc_maker.speaker": "Speaker",
+  "gui.music_disc_maker.speaker.title": "Speaker",
+  "gui.music_disc_maker.speaker.volume": "Volume: %s%%",
+  "gui.music_disc_maker.speaker.range": "Range: %s",
+  "gui.music_disc_maker.speaker.linked": "Source: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "No source linked",
+  "gui.music_disc_maker.speaker.muted": "Muted by redstone",
+  "music_disc_maker.speaker.source_stored": "Source stored: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "Linked to the jukebox",
+  "music_disc_maker.speaker.link_failed.no_source": "No Golden Jukebox at the stored position",
+  "music_disc_maker.speaker.link_failed.too_far": "Too far from the jukebox",
+  "music_disc_maker.speaker.link_failed.too_many": "This jukebox already has the maximum number of speakers",
+  "tooltip.music_disc_maker.speaker.linked_to": "Source: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + right-click a Golden Jukebox to link"
 }

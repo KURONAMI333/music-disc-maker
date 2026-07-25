@@ -1,13 +1,17 @@
 package com.kuronami.musicdiscmaker.block;
 
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.event.SpeakerNetwork;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
@@ -310,6 +314,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         final CustomTrackData track = currentTrack();
         if (track != null) {
             broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent));
+            // 再生 packet の直後に必ず集合を送る。停止 packet で client が集合を忘れるので、
+            // 再生開始のたびに張り直すことで packet 落ち・順序に依存しない状態にする。
+            broadcastSpeakerSet();
         }
         // playbackStartGameTime を client へ反映する (progress バーの起点)。
         sync();
@@ -377,6 +384,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
         final long offset = (dur > 0L && repeat) ? elapsed % dur : elapsed;
         Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent));
+        sendSpeakerSetTo(player);
     }
 
     // ── tick (server) ──
@@ -426,9 +434,44 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         setChanged();
     }
 
+    /**
+     * 再生制御 packet の配送。宛先は「音源チャンク ∪ ぶら下がる全スピーカーのチャンク」。
+     *
+     * <p>{@code sendToPlayersTrackingChunk} は音源チャンクを追跡中の player にしか届かないため、
+     * 200 ブロック離れたスピーカーの傍にいる player には初回 packet が構造的に届かない。スピーカー側の
+     * 逆引き ({@link SpeakerNetwork}) を使ってチャンクを足すことで解消する。同じ player に複数チャンク
+     * から届いても client 側 dedup が吸収する。
+     */
     private void broadcast(CustomPacketPayload payload) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        final Set<ChunkPos> targets = new LinkedHashSet<>();
+        targets.add(new ChunkPos(getBlockPos()));
+        for (final BlockPos speaker : SpeakerNetwork.speakersOf(serverLevel, getBlockPos())) {
+            targets.add(new ChunkPos(speaker));
+        }
+        for (final ChunkPos chunk : targets) {
+            Services.NETWORK.sendToPlayersTrackingChunk(serverLevel, chunk, payload);
+        }
+    }
+
+    /**
+     * 現在の有効スピーカー集合を配送する。{@link PlayDiscPayload} には相乗りさせない
+     * (client の再生 dedup が同一 URL の再送を握りつぶすため、集合の変化が伝わらない)。
+     */
+    public void broadcastSpeakerSet() {
         if (level instanceof ServerLevel serverLevel) {
-            Services.NETWORK.sendToPlayersTrackingChunk(serverLevel, new ChunkPos(getBlockPos()), payload);
+            broadcast(new SpeakerSetPayload(getBlockPos(),
+                    SpeakerNetwork.activeEntries(serverLevel, getBlockPos())));
+        }
+    }
+
+    /** late-join した player へ現在の有効スピーカー集合を送る。 */
+    public void sendSpeakerSetTo(ServerPlayer player) {
+        if (level instanceof ServerLevel serverLevel) {
+            Services.NETWORK.sendToPlayer(player, new SpeakerSetPayload(getBlockPos(),
+                    SpeakerNetwork.activeEntries(serverLevel, getBlockPos())));
         }
     }
 

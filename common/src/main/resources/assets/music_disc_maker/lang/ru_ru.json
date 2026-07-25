@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "Играть",
   "gui.music_disc_maker.golden_jukebox.pause": "Пауза",
   "gui.music_disc_maker.golden_jukebox.stop": "Стоп",
-  "gui.music_disc_maker.golden_jukebox.no_track": "Нет пластинки"
+  "gui.music_disc_maker.golden_jukebox.no_track": "Нет пластинки",
+  "block.music_disc_maker.speaker": "Динамик",
+  "gui.music_disc_maker.speaker.title": "Динамик",
+  "gui.music_disc_maker.speaker.volume": "Громкость: %s%%",
+  "gui.music_disc_maker.speaker.range": "Радиус: %s",
+  "gui.music_disc_maker.speaker.linked": "Источник: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "Источник не привязан",
+  "gui.music_disc_maker.speaker.muted": "Заглушён редстоуном",
+  "music_disc_maker.speaker.source_stored": "Источник сохранён: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "Привязан к проигрывателю",
+  "music_disc_maker.speaker.link_failed.no_source": "В сохранённой позиции нет золотого проигрывателя",
+  "music_disc_maker.speaker.link_failed.too_far": "Слишком далеко от проигрывателя",
+  "music_disc_maker.speaker.link_failed.too_many": "У этого проигрывателя уже максимум динамиков",
+  "tooltip.music_disc_maker.speaker.linked_to": "Источник: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + ПКМ по золотому проигрывателю для привязки"
 }

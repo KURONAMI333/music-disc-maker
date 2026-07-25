@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "Reproducir",
   "gui.music_disc_maker.golden_jukebox.pause": "Pausar",
   "gui.music_disc_maker.golden_jukebox.stop": "Detener",
-  "gui.music_disc_maker.golden_jukebox.no_track": "Sin disco"
+  "gui.music_disc_maker.golden_jukebox.no_track": "Sin disco",
+  "block.music_disc_maker.speaker": "Altavoz",
+  "gui.music_disc_maker.speaker.title": "Altavoz",
+  "gui.music_disc_maker.speaker.volume": "Volumen: %s%%",
+  "gui.music_disc_maker.speaker.range": "Alcance: %s",
+  "gui.music_disc_maker.speaker.linked": "Fuente: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "Sin fuente vinculada",
+  "gui.music_disc_maker.speaker.muted": "Silenciado por redstone",
+  "music_disc_maker.speaker.source_stored": "Fuente guardada: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "Vinculado al tocadiscos",
+  "music_disc_maker.speaker.link_failed.no_source": "No hay ningún tocadiscos dorado en la posición guardada",
+  "music_disc_maker.speaker.link_failed.too_far": "Demasiado lejos del tocadiscos",
+  "music_disc_maker.speaker.link_failed.too_many": "Este tocadiscos ya tiene el máximo de altavoces",
+  "tooltip.music_disc_maker.speaker.linked_to": "Fuente: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "Mayús + clic derecho en un tocadiscos dorado para vincular"
 }

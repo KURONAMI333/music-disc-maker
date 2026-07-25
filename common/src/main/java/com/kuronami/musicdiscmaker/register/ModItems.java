@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.register;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
+import com.kuronami.musicdiscmaker.item.SpeakerBlockItem;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 
@@ -32,6 +33,14 @@ public final class ModItems {
     public static final RegistryHolder<BlockItem> GOLDEN_JUKEBOX =
             ITEMS.register("golden_jukebox",
                     () -> new BlockItem(ModBlocks.GOLDEN_JUKEBOX.get(), new Item.Properties()));
+
+    /**
+     * スピーカーの BlockItem。強化版ジュークボックスをシフト右クリックして音源を記憶し、そのまま
+     * 設置するとリンクが成立する。
+     */
+    public static final RegistryHolder<SpeakerBlockItem> SPEAKER =
+            ITEMS.register("speaker",
+                    () -> new SpeakerBlockItem(ModBlocks.SPEAKER.get(), new Item.Properties()));
 
     private ModItems() {
     }

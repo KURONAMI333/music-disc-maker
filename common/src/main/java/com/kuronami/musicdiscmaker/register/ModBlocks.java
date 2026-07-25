@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.register;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlock;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlock;
+import com.kuronami.musicdiscmaker.block.SpeakerBlock;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 
@@ -25,6 +26,11 @@ public final class ModBlocks {
     public static final RegistryHolder<GoldenJukeboxBlock> GOLDEN_JUKEBOX =
             BLOCKS.register("golden_jukebox",
                     () -> new GoldenJukeboxBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX)));
+
+    // スピーカー。木材系の note block 準拠 (斧で掘れる・音は木)。
+    public static final RegistryHolder<SpeakerBlock> SPEAKER =
+            BLOCKS.register("speaker",
+                    () -> new SpeakerBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.NOTE_BLOCK)));
 
     private ModBlocks() {
     }

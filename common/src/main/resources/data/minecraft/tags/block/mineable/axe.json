@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "music_disc_maker:music_disc_maker"
+    "music_disc_maker:music_disc_maker",
+    "music_disc_maker:speaker"
   ]
 }

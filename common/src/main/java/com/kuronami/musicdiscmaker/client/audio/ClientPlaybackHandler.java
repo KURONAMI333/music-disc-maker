@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 
 /**
@@ -19,5 +20,12 @@ public final class ClientPlaybackHandler {
 
     public static void stop(StopDiscPayload payload) {
         ClientPlaybackManager.get().stopPlayback(payload.jukeboxPos());
+        // 停止した音源のスピーカー集合は保持しない (再生開始時に必ず再送される)。
+        ClientPlaybackManager.get().forgetSpeakers(payload.jukeboxPos());
+    }
+
+    /** 音源にぶら下がる有効スピーカー集合の更新。 */
+    public static void speakers(SpeakerSetPayload payload) {
+        ClientPlaybackManager.get().updateSpeakers(payload.sourcePos(), payload.speakers());
     }
 }

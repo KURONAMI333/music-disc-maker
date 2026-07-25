@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "Грати",
   "gui.music_disc_maker.golden_jukebox.pause": "Пауза",
   "gui.music_disc_maker.golden_jukebox.stop": "Стоп",
-  "gui.music_disc_maker.golden_jukebox.no_track": "Немає платівки"
+  "gui.music_disc_maker.golden_jukebox.no_track": "Немає платівки",
+  "block.music_disc_maker.speaker": "Динамік",
+  "gui.music_disc_maker.speaker.title": "Динамік",
+  "gui.music_disc_maker.speaker.volume": "Гучність: %s%%",
+  "gui.music_disc_maker.speaker.range": "Радіус: %s",
+  "gui.music_disc_maker.speaker.linked": "Джерело: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "Джерело не прив'язане",
+  "gui.music_disc_maker.speaker.muted": "Заглушено редстоуном",
+  "music_disc_maker.speaker.source_stored": "Джерело збережено: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "Прив'язано до програвача",
+  "music_disc_maker.speaker.link_failed.no_source": "У збереженій позиції немає золотого програвача",
+  "music_disc_maker.speaker.link_failed.too_far": "Задалеко від програвача",
+  "music_disc_maker.speaker.link_failed.too_many": "У цього програвача вже максимум динаміків",
+  "tooltip.music_disc_maker.speaker.linked_to": "Джерело: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + ПКМ по золотому програвачу для прив'язки"
 }

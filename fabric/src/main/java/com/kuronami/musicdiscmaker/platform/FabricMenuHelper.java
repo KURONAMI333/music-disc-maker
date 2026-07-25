@@ -2,8 +2,10 @@ package com.kuronami.musicdiscmaker.platform;
 
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
+import com.kuronami.musicdiscmaker.block.SpeakerBlockEntity;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
+import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
 import com.kuronami.musicdiscmaker.platform.services.IMenuHelper;
 
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
@@ -79,6 +81,34 @@ public class FabricMenuHelper implements IMenuHelper {
                 return be instanceof GoldenJukeboxBlockEntity jukebox
                         ? new GoldenJukeboxMenu(id, inv, jukebox)
                         : null;
+            }
+        });
+    }
+
+    @Override
+    public MenuType<SpeakerMenu> createSpeakerMenuType() {
+        return new ExtendedScreenHandlerType<>(
+                (id, inv, pos) -> new SpeakerMenu(id, inv, pos), BlockPos.STREAM_CODEC);
+    }
+
+    @Override
+    public void openSpeakerMenu(ServerPlayer player, BlockPos pos) {
+        player.openMenu(new ExtendedScreenHandlerFactory<BlockPos>() {
+
+            @Override
+            public BlockPos getScreenOpeningData(ServerPlayer p) {
+                return pos;
+            }
+
+            @Override
+            public Component getDisplayName() {
+                return Component.translatable("gui.music_disc_maker.speaker.title");
+            }
+
+            @Override
+            public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
+                final BlockEntity be = p.level().getBlockEntity(pos);
+                return be instanceof SpeakerBlockEntity speaker ? new SpeakerMenu(id, speaker) : null;
             }
         });
     }

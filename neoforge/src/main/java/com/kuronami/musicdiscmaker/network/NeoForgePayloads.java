@@ -30,11 +30,18 @@ public final class NeoForgePayloads {
         registrar.playToServer(SeekJukeboxPayload.TYPE, SeekJukeboxPayload.STREAM_CODEC,
                 NeoForgePayloads::handleSeekJukebox);
 
+        // client → server: スピーカーの音量・可聴範囲の適用
+        registrar.playToServer(SpeakerConfigPayload.TYPE, SpeakerConfigPayload.STREAM_CODEC,
+                NeoForgePayloads::handleConfigureSpeaker);
+
         // server → client (再生制御)。
         registrar.playToClient(PlayDiscPayload.TYPE, PlayDiscPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> ModNetwork.handlePlay(payload)));
         registrar.playToClient(StopDiscPayload.TYPE, StopDiscPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> ModNetwork.handleStop(payload)));
+        // server → client: 音源にぶら下がる有効スピーカー集合 (再生 packet から分離)。
+        registrar.playToClient(SpeakerSetPayload.TYPE, SpeakerSetPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> ModNetwork.handleSpeakerSet(payload)));
 
         // Sophisticated Backpacks の Jukebox Upgrade 互換 (SC 非依存ペイロード、無条件登録)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload(registrar);
@@ -65,5 +72,12 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleSeekJukebox(payload, player));
+    }
+
+    private static void handleConfigureSpeaker(SpeakerConfigPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleConfigureSpeaker(payload, player));
     }
 }

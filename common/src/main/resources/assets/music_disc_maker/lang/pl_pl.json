@@ -39,5 +39,19 @@
   "gui.music_disc_maker.golden_jukebox.play": "Odtwórz",
   "gui.music_disc_maker.golden_jukebox.pause": "Wstrzymaj",
   "gui.music_disc_maker.golden_jukebox.stop": "Zatrzymaj",
-  "gui.music_disc_maker.golden_jukebox.no_track": "Brak płyty"
+  "gui.music_disc_maker.golden_jukebox.no_track": "Brak płyty",
+  "block.music_disc_maker.speaker": "Głośnik",
+  "gui.music_disc_maker.speaker.title": "Głośnik",
+  "gui.music_disc_maker.speaker.volume": "Głośność: %s%%",
+  "gui.music_disc_maker.speaker.range": "Zasięg: %s",
+  "gui.music_disc_maker.speaker.linked": "Źródło: %s, %s, %s",
+  "gui.music_disc_maker.speaker.unlinked": "Brak połączonego źródła",
+  "gui.music_disc_maker.speaker.muted": "Wyciszony przez czerwony kamień",
+  "music_disc_maker.speaker.source_stored": "Zapisano źródło: %s, %s, %s",
+  "music_disc_maker.speaker.linked": "Połączono z gramofonem",
+  "music_disc_maker.speaker.link_failed.no_source": "Brak złotego gramofonu w zapisanym miejscu",
+  "music_disc_maker.speaker.link_failed.too_far": "Za daleko od gramofonu",
+  "music_disc_maker.speaker.link_failed.too_many": "Ten gramofon ma już maksymalną liczbę głośników",
+  "tooltip.music_disc_maker.speaker.linked_to": "Źródło: %s, %s, %s",
+  "tooltip.music_disc_maker.speaker.link_hint": "Shift + prawy przycisk na złotym gramofonie, aby połączyć"
 }
