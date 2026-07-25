@@ -22,19 +22,32 @@ import net.minecraft.resources.ResourceLocation;
  * これは {@code BackpackPlayDiscPayload} (SC 非依存ペイロード) と同型の設計。
  */
 public record ContraptionPlayDiscPayload(int contraptionEntityId, BlockPos localPos, CustomTrackData track,
-        long startOffsetMs, int rangeBlocks, int volumePercent) implements CustomPacketPayload {
+        long startOffsetMs, int rangeBlocks, int volumePercent, boolean directional)
+        implements CustomPacketPayload {
 
     public static final Type<ContraptionPlayDiscPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "create_contraption_play"));
 
-    public static final StreamCodec<ByteBuf, ContraptionPlayDiscPayload> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.VAR_INT, ContraptionPlayDiscPayload::contraptionEntityId,
-            BlockPos.STREAM_CODEC, ContraptionPlayDiscPayload::localPos,
-            CustomTrackData.STREAM_CODEC, ContraptionPlayDiscPayload::track,
-            ByteBufCodecs.VAR_LONG, ContraptionPlayDiscPayload::startOffsetMs,
-            ByteBufCodecs.VAR_INT, ContraptionPlayDiscPayload::rangeBlocks,
-            ByteBufCodecs.VAR_INT, ContraptionPlayDiscPayload::volumePercent,
-            ContraptionPlayDiscPayload::new);
+    // composite は 6 要素までなので、7 要素目 (directional) を足した時点で手書きにする。
+    // 読み書きの順序は 1 箇所で対応しているので、フィールドを足す時はここだけを見ればよい。
+    public static final StreamCodec<ByteBuf, ContraptionPlayDiscPayload> STREAM_CODEC = StreamCodec.of(
+            (buf, payload) -> {
+                ByteBufCodecs.VAR_INT.encode(buf, payload.contraptionEntityId());
+                BlockPos.STREAM_CODEC.encode(buf, payload.localPos());
+                CustomTrackData.STREAM_CODEC.encode(buf, payload.track());
+                ByteBufCodecs.VAR_LONG.encode(buf, payload.startOffsetMs());
+                ByteBufCodecs.VAR_INT.encode(buf, payload.rangeBlocks());
+                ByteBufCodecs.VAR_INT.encode(buf, payload.volumePercent());
+                ByteBufCodecs.BOOL.encode(buf, payload.directional());
+            },
+            buf -> new ContraptionPlayDiscPayload(
+                    ByteBufCodecs.VAR_INT.decode(buf),
+                    BlockPos.STREAM_CODEC.decode(buf),
+                    CustomTrackData.STREAM_CODEC.decode(buf),
+                    ByteBufCodecs.VAR_LONG.decode(buf),
+                    ByteBufCodecs.VAR_INT.decode(buf),
+                    ByteBufCodecs.VAR_INT.decode(buf),
+                    ByteBufCodecs.BOOL.decode(buf)));
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "ディスクが入っていない",
   "tooltip.music_disc_maker.boombox.loaded": "入っているディスク: %s",
   "tooltip.music_disc_maker.boombox.empty": "ディスクなし",
-  "tooltip.music_disc_maker.boombox.hint": "シフト + 右クリックで再生/停止"
+  "tooltip.music_disc_maker.boombox.hint": "シフト + 右クリックで再生/停止。インベントリでディスクを右クリックして装填。"
 }

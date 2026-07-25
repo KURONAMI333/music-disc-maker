@@ -48,7 +48,10 @@ public class BoomboxBlockEntity extends GoldenJukeboxBlockEntity {
         }
     }
 
-    /** 破壊ドロップ (loot table の {@code copy_components}) と pick-block に中身を載せる。 */
+    /**
+     * 破壊ドロップ (loot table の {@code copy_components}) に中身を載せる。
+     * pick-block でも載るのはクリエイティブで Ctrl を押した時だけ (vanilla の {@code Minecraft#pickBlock})。
+     */
     @Override
     protected void collectImplicitComponents(DataComponentMap.Builder components) {
         super.collectImplicitComponents(components);

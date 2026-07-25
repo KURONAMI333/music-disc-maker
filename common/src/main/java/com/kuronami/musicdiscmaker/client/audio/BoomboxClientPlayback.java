@@ -81,7 +81,8 @@ public final class BoomboxClientPlayback {
 
     private static void onLoaded(int entityId, CustomTrackData track, int rangeBlocks, int volumePercent,
             boolean directional, IAudioSource resolved) {
-        final boolean stillWanted = track.url().equals(WANTED.remove(entityId));
+        // 2 引数版。ロードが並んだ時、先に終わった古い方が新しい要求のエントリを消さないようにする。
+        final boolean stillWanted = WANTED.remove(entityId, track.url());
         if (resolved == null) {
             return;
         }

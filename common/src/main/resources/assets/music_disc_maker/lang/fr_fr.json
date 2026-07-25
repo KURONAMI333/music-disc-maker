@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "Aucun disque inséré",
   "tooltip.music_disc_maker.boombox.loaded": "Disque : %s",
   "tooltip.music_disc_maker.boombox.empty": "Vide",
-  "tooltip.music_disc_maker.boombox.hint": "Maj + clic droit pour lire/arrêter"
+  "tooltip.music_disc_maker.boombox.hint": "Maj + clic droit pour lire/arrêter. Clic droit avec un disque pour l'insérer."
 }

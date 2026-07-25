@@ -336,6 +336,56 @@ public class SpeakerGameTests {
         helper.succeed();
     }
 
+    /**
+     * 指向性の切り替えが「音源チャンク ∪ 全スピーカーチャンク」へ届くこと。
+     * BE 同期だけではスピーカー圏の listener（音源の chunk を持たない）に届かない。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void directionalToggleReachesSpeakerChunks(GameTestHelper helper) {
+        final BlockPos jukeboxRel = new BlockPos(1, 1, 1);
+        helper.setBlock(jukeboxRel, ModBlocks.GOLDEN_JUKEBOX.get());
+        final BlockPos jukeboxAbs = helper.absolutePos(jukeboxRel);
+        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel);
+        if (jukebox == null) {
+            helper.fail("金ジュークの BlockEntity が生成されていない", jukeboxRel);
+            return;
+        }
+        final BlockPos farAbs = jukeboxAbs.offset(48, 0, 48);
+        helper.getLevel().setBlockAndUpdate(farAbs, ModBlocks.SPEAKER.get().defaultBlockState());
+        final SpeakerBlockEntity far = (SpeakerBlockEntity) helper.getLevel().getBlockEntity(farAbs);
+        if (far == null) {
+            helper.fail("遠方スピーカーの BlockEntity が生成されていない");
+            return;
+        }
+        far.setSourcePos(jukeboxAbs);
+
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            helper.assertTrue(jukebox.isDirectional(), "既定が ON でない (テストの前提が崩れている)");
+            jukebox.setDirectional(false);
+            final List<CapturingNetwork.Sent> sent = net.of(SpeakerSetPayload.class);
+            helper.assertTrue(!sent.isEmpty(), "指向性の切り替えで聴取モデルが配送されていない");
+            helper.assertFalse(((SpeakerSetPayload) sent.get(0).payload()).directional(),
+                    "配送された指向性の値が反映されていない");
+            final Set<ChunkPos> targets = net.chunksOf(SpeakerSetPayload.class);
+            helper.assertTrue(targets.contains(new ChunkPos(jukeboxAbs)),
+                    "音源チャンクへ届いていない: " + targets);
+            helper.assertTrue(targets.contains(new ChunkPos(farAbs)),
+                    "遠方スピーカーのチャンクへ届いていない: " + targets);
+            // 同じ値への再設定は撃たない (毎フレームの GUI エコーで撒かないための早期 return)。
+            net.clear();
+            jukebox.setDirectional(false);
+            helper.assertTrue(net.of(SpeakerSetPayload.class).isEmpty(),
+                    "同じ値の再設定で無駄に配送している");
+        } finally {
+            Services.swapNetwork(previous);
+            helper.getLevel().setBlockAndUpdate(farAbs, Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
     // ── 聴取点の選択則 (client の純関数) ─────────────────────────────────
 
     private static SpeakerSelection.Candidate at(double x, double z, int volume, int range) {

@@ -6,6 +6,8 @@ import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -69,6 +71,19 @@ public class BoomboxBlock extends GoldenJukeboxBlock {
         }
         return createTickerHelper(type, ModBlockEntities.BOOMBOX.get(),
                 GoldenJukeboxBlockEntity::serverTick);
+    }
+
+    // FACING を足したブロックは rotate/mirror を自前で回さないと、ストラクチャーブロック・
+    // WorldEdit・Create の回転で正面だけ付いてこない (BlockBehaviour の既定は恒等)。
+
+    @Override
+    protected BlockState rotate(BlockState state, Rotation rotation) {
+        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
+    }
+
+    @Override
+    protected BlockState mirror(BlockState state, Mirror mirror) {
+        return state.rotate(mirror.getRotation(state.getValue(FACING)));
     }
 
     /** ディスクはブロックアイテムの component で持ち出す (単体ドロップと二重になる)。 */
