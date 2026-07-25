@@ -35,4 +35,30 @@ public interface IMusicLoader {
      * @return PCM ソース、失敗時は {@code null}
      */
     IAudioSource openStream(String url, long startMs);
+
+    /**
+     * Opus encoder を作る (音源ローカルキャッシュの書き込み用)。
+     *
+     * <p>native の実体は同梱 LavaPlayer の中にあり隔離 classloader 側にしか無いので、
+     * codec だけをこの橋渡し interface に出す。ビットレートは指定できない
+     * (LavaPlayer の binding が {@code opus_encoder_ctl} を露出していない)。
+     * mono 48kHz / 20ms フレームでの実測は約 51 kbps。
+     *
+     * @param sampleRate  サンプリング周波数 (48000)
+     * @param channels    チャンネル数 (1 = mono)
+     * @param frameSamples 1 フレームのサンプル数 (960 = 20ms @48kHz)
+     * @return encoder。native が使えない環境では {@code null} (キャッシュ機能を黙って諦める)
+     */
+    default IOpusEncoder openOpusEncoder(int sampleRate, int channels, int frameSamples) {
+        return null;
+    }
+
+    /**
+     * Opus decoder を作る (音源ローカルキャッシュの読み出し用)。
+     *
+     * @return decoder。native が使えない環境では {@code null}
+     */
+    default IOpusDecoder openOpusDecoder(int sampleRate, int channels) {
+        return null;
+    }
 }
