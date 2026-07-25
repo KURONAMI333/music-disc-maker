@@ -50,7 +50,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                 Component.translatable("gui.music_disc_maker.url_placeholder"));
         this.urlField.setMaxLength(2048);
         this.urlField.setBordered(false);
-        // 26.1: EditBox の hint 既定色が DARK_GRAY になり濃く見えるので、従来の薄いグレーを明示する。
+        // EditBox の hint 既定色は DARK_GRAY で濃く見えるので、薄いグレーを明示する。
         this.urlField.setHint(Component.translatable("gui.music_disc_maker.url_placeholder")
                 .withStyle(ChatFormatting.GRAY));
         this.urlField.setValue(menu.getBlockEntity().getCurrentUrl());
@@ -136,8 +136,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     /**
      * 失敗ラベル (screen 座標) にホバーしたら補足ツールチップを予約する。今は bot 判定
-     * (接続失敗と紛らわしい) だけ「接続の問題ではない」旨を案内する。26.1.2 の extract
-     * パイプラインでは renderTooltip が hover ツールチップのフック。
+     * (接続失敗と紛らわしい) だけ「接続の問題ではない」旨を案内する。hover ツールチップの
+     * フックは renderTooltip。
      */
     @Override
     protected void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {

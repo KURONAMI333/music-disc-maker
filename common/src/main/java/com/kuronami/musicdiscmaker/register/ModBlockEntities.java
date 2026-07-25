@@ -15,9 +15,8 @@ public final class ModBlockEntities {
     public static final RegistrationProvider<BlockEntityType<?>> BLOCK_ENTITIES =
             RegistrationProvider.get(Registries.BLOCK_ENTITY_TYPE, MusicDiscMaker.MODID);
 
-    // 26.2: BlockEntityType の public ctor は (BlockEntitySupplier, Set<Block>)。26.1.2 の
-    // Block... varargs overload は撤去されたため Set.of(block) で渡す。ctor と BlockEntitySupplier は
-    // どちらも public なので loader 抽象は不要 (common から直接生成できる)。
+    // BlockEntityType$BlockEntitySupplier は vanilla の neoForm classpath では package-private なので
+    // common から直接生成できない。生成は loader 層の SPI (Services.PLATFORM.createBlockEntityType) に委ねる。
     public static final RegistryHolder<BlockEntityType<MusicDiscMakerBlockEntity>> MUSIC_DISC_MAKER =
             BLOCK_ENTITIES.register("music_disc_maker",
                     () -> Services.PLATFORM.createBlockEntityType(MusicDiscMakerBlockEntity::new, ModBlocks.MUSIC_DISC_MAKER.get()));

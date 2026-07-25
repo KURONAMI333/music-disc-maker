@@ -14,8 +14,7 @@ public final class ModCreativeTab {
     public static final RegistrationProvider<CreativeModeTab> TABS =
             RegistrationProvider.get(Registries.CREATIVE_MODE_TAB, MusicDiscMaker.MODID);
 
-    // 26.2 は CreativeModeTab.Output が protected になり、displayItems generator を common
-    // (vanilla classpath) で書けない。tab の identity (title/icon) のみ common で作り、中身は各ローダー
+    // tab の identity (title/icon) のみ common で作り、中身は各ローダー
     // のタブ内容イベント (NeoForge=BuildCreativeModeTabContentsEvent / Fabric=ItemGroupEvents) で
     // {@link #TAB_ITEMS} を流し込む。
     public static final RegistryHolder<CreativeModeTab> MAIN =

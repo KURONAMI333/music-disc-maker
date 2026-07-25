@@ -2,7 +2,7 @@
 
 ## 2.1.0
 
-- Minecraft 26.2 support on both NeoForge and Fabric.
+- Minecraft 1.21.11 support on both NeoForge and Fabric.
 - Golden Jukebox: changing a jukebox's audible range now takes effect live, without interrupting the track that's playing.
 - Updated the YouTube resolver, fixing tracks that failed to load with an "Offline" error.
 

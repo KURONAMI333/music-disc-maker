@@ -160,7 +160,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         disc.set(ModDataComponents.CUSTOM_TRACK.get(), resolvedTrack);
         // バニラの「再生中」状態に乗せる: 曲長に合う無音 jukebox_song を JUKEBOX_PLAYABLE で参照
         // (Amendments の回転・コンパレータ・ホッパー等が機能する。音声は LavaPlayer)。
-        // 26.1.2 の JukeboxPlayable は Holder<JukeboxSong> 単独 (1.21.1 の EitherHolder+boolean とは別形)。
+        // JukeboxPlayable の ctor は EitherHolder 1 引数 (showInTooltip は無い)。
         if (this.level != null) {
             this.level.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG)
                     .get(SilentSongs.pick(resolvedTrack.durationMs(), resolvedTrack.radio()))

@@ -26,19 +26,19 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        // menu screen 登録。26.2 は vanilla MenuScreens.register が private だが fabric-api の
-        // transitive access widener で mod から呼べる (旧 fabric-screen-handler-api の HandledScreens 相当)。
+        // menu screen 登録。vanilla MenuScreens.register は private だが fabric-api の
+        // transitive access widener で mod から呼べる。
         MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
 
         // ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する。
-        // 26.2 fabric-rendering: TooltipComponentCallback は ClientTooltipComponentCallback に rename
-        // (メソッドは getClientComponent(TooltipComponent)→ClientTooltipComponent)。
+        // fabric-rendering の TooltipComponentCallback#getComponent で TooltipComponent を
+        // ClientTooltipComponent に変換する。
         TooltipComponentCallback.EVENT.register(
                 data -> data instanceof JacketTooltip jt ? new JacketClientTooltip(jt) : null);
 
         // custom disc の texture variant (12 色) を曲名+アーティストから決定的に選ぶ range_dispatch プロパティ。
-        // 26.1: 旧 ItemProperties は廃止。items モデル JSON の range_dispatch + カスタムプロパティで表現する。
+        // 旧 ItemProperties は無い。items モデル JSON の range_dispatch + カスタムプロパティで表現する。
         // NeoForge は RegisterRangeSelectItemModelPropertyEvent、Fabric は vanilla の LateBoundIdMapper
         // (RangeSelectItemModelProperties.ID_MAPPER・fabric-api の transitive access widener で可視) へ直接 put する。
         // client init は資源リロード (item model パース) より前に走るので put のタイミングは安全。

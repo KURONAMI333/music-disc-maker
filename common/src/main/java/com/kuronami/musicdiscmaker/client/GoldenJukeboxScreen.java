@@ -34,8 +34,8 @@ import com.kuronami.musicdiscmaker.platform.Services;
  * server の BE へ反映する。進捗表示は BE が同期する playbackStartGameTime から算出する
  * （{@link GoldenJukeboxBlockEntity#currentElapsedMs()}）。
  *
- * <p>26.1.2: 描画は {@link GuiGraphics} の extract モデル（{@code renderBackground} /
- * {@code renderLabels} / widget の {@code renderWidget} / button の {@code renderContents}）。
+ * <p>描画は {@link GuiGraphics} の render モデル（{@code renderBg} / {@code renderLabels} /
+ * widget の {@code renderWidget} / button の {@code renderContents}）。
  * hover tooltip は {@code AbstractContainerScreen} が自動描画するので render override は持たない。
  * widget ドラッグの focus 転送も {@code ContainerEventHandler} 既定が担うため自前転送は不要。
  */

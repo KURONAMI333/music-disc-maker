@@ -10,8 +10,7 @@ import net.minecraft.client.renderer.RenderPipelines;
  * {@link JacketCache} から準備できた texture を取り、アスペクト比を保って固定枠に収める。
  * 準備前・失敗時は 0 サイズ (領域を確保しない = 空箱が残らない fail-soft)。
  *
- * <p>26.1.2: 描画は {@link #renderImage} (旧 {@code renderImage} は廃止) で {@link GuiGraphics}
- * に対して行う。サイズ確定は {@link #getWidth}/{@link #getHeight} (どちらも Font を取る)。
+ * <p>描画は {@link #renderImage} で {@link GuiGraphics} に対して行う。サイズ確定は {@link #getWidth}/{@link #getHeight} (どちらも Font を取る)。
  */
 public class JacketClientTooltip implements ClientTooltipComponent {
 

@@ -19,8 +19,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * Fabric 実装: extended menu (BlockPos を client ctor へ運ぶ)。
- * 26.2 の fabric-api は旧 {@code fabric-screen-handler-api-v1} を廃し、
- * {@code fabric-menu-api-v1} の {@link ExtendedScreenHandlerType} / {@link ExtendedScreenHandlerFactory} に統合した。
+ * fabric-api の {@code fabric-screen-handler-api-v1} が供給する {@link ExtendedScreenHandlerType} /
+ * {@link ExtendedScreenHandlerFactory} を使う。
  * MenuType は {@link ExtendedScreenHandlerType} (data 型 + StreamCodec)、open 時は {@link ExtendedScreenHandlerFactory}
  * が pos を載せる。client 側 factory は pos から BE を解決して server 側と同じ menu を組む。
  */

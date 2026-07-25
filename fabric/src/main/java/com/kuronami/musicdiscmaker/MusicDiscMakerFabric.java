@@ -34,7 +34,6 @@ public class MusicDiscMakerFabric implements ModInitializer {
         ModRegistries.init();
 
         // payload 型を登録する。
-        // 26.2 fabric-networking: playC2S/playS2C は serverboundPlay/clientboundPlay に rename。
         PayloadTypeRegistry.playC2S().register(ResolveUrlPayload.TYPE, ResolveUrlPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ConfigureJukeboxPayload.TYPE, ConfigureJukeboxPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(SeekJukeboxPayload.TYPE, SeekJukeboxPayload.STREAM_CODEC);
@@ -51,8 +50,8 @@ public class MusicDiscMakerFabric implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(SeekJukeboxPayload.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleSeekJukebox(payload, ctx.player())));
 
-        // creative タブ内容: common は tab の identity のみ作る (26.2 の Output が protected)。
-        // 26.2 fabric-api は旧 ItemGroupEvents を廃し CreativeModeTabEvents に統合。表示順で TAB_ITEMS を流す。
+        // creative タブ内容: common は tab の identity のみ作る。fabric-item-group の
+        // ItemGroupEvents.modifyEntriesEvent で表示順に TAB_ITEMS を流す。
         ItemGroupEvents.modifyEntriesEvent(
                         ResourceKey.create(Registries.CREATIVE_MODE_TAB, ModCreativeTab.MAIN.getId()))
                 .register(output -> ModCreativeTab.TAB_ITEMS.forEach(holder -> output.accept(new ItemStack(holder.get()))));
