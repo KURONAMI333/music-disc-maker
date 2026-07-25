@@ -75,8 +75,6 @@ def front() -> Image.Image:
     for x in range(6, 10):
         px[x, 6] = FRAME
         px[x, 10] = FRAME
-    px[7, 8] = ACCENT
-    px[8, 8] = ACCENT
     return im
 
 

@@ -291,6 +291,14 @@ public final class ClientPlaybackManager {
         directionals.remove(key);
     }
 
+    /**
+     * ブロック起点で鳴っているインスタンス数。手持ちブームボックス
+     * ({@link BoomboxClientPlayback}) が同時再生上限を共有するために読む。
+     */
+    public int activeCount() {
+        return active.size();
+    }
+
     public void stopPlayback(BlockPos pos) {
         final BlockPos key = pos.immutable();
         wanted.remove(key);
