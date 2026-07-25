@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "Пластинка не вставлена",
   "tooltip.music_disc_maker.boombox.loaded": "Пластинка: %s",
   "tooltip.music_disc_maker.boombox.empty": "Пусто",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + ПКМ — воспроизвести/остановить. ПКМ пластинкой — вставить."
+  "tooltip.music_disc_maker.boombox.hint": "Shift + ПКМ по воздуху — воспроизвести/остановить. ПКМ пластинкой — вставить."
 }

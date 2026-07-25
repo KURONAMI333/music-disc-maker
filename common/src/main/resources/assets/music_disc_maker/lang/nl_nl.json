@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "Geen disc geplaatst",
   "tooltip.music_disc_maker.boombox.loaded": "Disc: %s",
   "tooltip.music_disc_maker.boombox.empty": "Leeg",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + rechtermuisknop om af te spelen/stoppen. Rechtsklik met een disc om te laden."
+  "tooltip.music_disc_maker.boombox.hint": "Shift + rechtermuisknop in de lucht om af te spelen/stoppen. Rechtsklik met een disc om te laden."
 }

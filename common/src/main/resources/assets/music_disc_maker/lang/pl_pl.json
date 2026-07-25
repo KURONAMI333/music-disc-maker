@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "Brak płyty",
   "tooltip.music_disc_maker.boombox.loaded": "Płyta: %s",
   "tooltip.music_disc_maker.boombox.empty": "Pusty",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + PPM, aby odtworzyć/zatrzymać. PPM płytą, aby ją włożyć."
+  "tooltip.music_disc_maker.boombox.hint": "Shift + PPM w powietrze, aby odtworzyć/zatrzymać. PPM płytą, aby ją włożyć."
 }

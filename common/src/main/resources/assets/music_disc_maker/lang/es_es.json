@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "No hay disco",
   "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
   "tooltip.music_disc_maker.boombox.empty": "Vacío",
-  "tooltip.music_disc_maker.boombox.hint": "Mayús + clic derecho para reproducir/parar. Clic derecho con un disco para cargarlo."
+  "tooltip.music_disc_maker.boombox.hint": "Mayús + clic derecho al aire para reproducir/parar. Clic derecho con un disco para cargarlo."
 }
