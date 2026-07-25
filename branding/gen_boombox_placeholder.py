@@ -25,15 +25,20 @@ OUT = os.path.join(
     "item",
 )
 
-BODY = (48, 46, 52, 255)
-BODY_HI = (66, 64, 72, 255)
-BODY_SH = (33, 32, 37, 255)
-GRILLE = (28, 27, 32, 255)
-CONE = (96, 88, 72, 255)
-CONE_SH = (68, 62, 52, 255)
-FRAME = (22, 21, 26, 255)
-WINDOW = (52, 60, 66, 255)
+# 明度ランプは 4 段。影側は寒色へ hue を回す (単純暗色化を避ける = critique の hue_shift)。
+BODY_HI = (126, 124, 140, 255)
+BODY = (100, 98, 112, 255)
+BODY_SH = (66, 66, 94, 255)
+BODY_DK = (42, 43, 74, 255)
+GRILLE = (60, 58, 76, 255)
+CONE_HI = (168, 152, 116, 255)
+CONE = (140, 126, 96, 255)
+CONE_SH = (92, 86, 80, 255)
+FRAME = (38, 36, 48, 255)
+WINDOW = (84, 100, 114, 255)
 ACCENT = (206, 168, 68, 255)
+# item アイコンの暗い輪郭 (critique の outline_rate が必須ゲートにしている)。
+OUTLINE = (18, 17, 26, 255)
 
 BODY_LEFT = 1
 BODY_RIGHT = 14
@@ -45,8 +50,31 @@ def _cone(px, cx: float, cy: float, r: float) -> None:
     for y in range(16):
         for x in range(16):
             d = ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) ** 0.5
-            if d <= r:
-                px[x, y] = CONE_SH if (y + 0.5) > cy else CONE
+            if d > r:
+                continue
+            if d > r - 0.9:
+                px[x, y] = CONE_SH
+            elif (y + 0.5) > cy:
+                px[x, y] = CONE
+            else:
+                px[x, y] = CONE_HI
+
+
+def _outline(px) -> None:
+    """不透明シルエットの外周 1px を暗い輪郭に置き換える。"""
+    opaque = [[px[x, y][3] > 0 for y in range(16)] for x in range(16)]
+    edge = []
+    for x in range(16):
+        for y in range(16):
+            if not opaque[x][y]:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if not (0 <= nx < 16 and 0 <= ny < 16) or not opaque[nx][ny]:
+                    edge.append((x, y))
+                    break
+    for x, y in edge:
+        px[x, y] = OUTLINE
 
 
 def boombox() -> Image.Image:
@@ -54,8 +82,10 @@ def boombox() -> Image.Image:
     im = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     px = im.load()
 
-    # 取っ手 (上辺の帯 + 両肩の立ち上がり)
-    for x in range(5, 11):
+    # 取っ手。2px 厚にしてあるのは、後段の輪郭処理が 1px の帯を丸ごと輪郭色で
+    # 塗り潰してしまう (= 芯が残らない) のと、1px の突起が lint の nub になるため。
+    for x in range(4, 12):
+        px[x, 2] = BODY_SH
         px[x, 3] = ACCENT
     px[4, 4] = BODY_HI
     px[11, 4] = BODY_HI
@@ -89,6 +119,11 @@ def boombox() -> Image.Image:
     for x in range(7, 9):
         px[x, 8] = FRAME
 
+    # 筐体の内側に濃影を 1 列入れて階調を 4 段にする (のっぺり回避)。
+    for x in range(BODY_LEFT + 1, BODY_RIGHT):
+        px[x, BODY_BOTTOM - 1] = BODY_DK
+
+    _outline(px)
     return im
 
 
