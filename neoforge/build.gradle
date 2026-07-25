@@ -69,8 +69,11 @@ tasks.named('jar').configure {
     }
 }
 
-// dev run も隔離ロード用の packed jar が要るので assemble に依存させる
-tasks.matching { it.name in ['runClient', 'runServer', 'runData'] }.configureEach {
+// dev run も隔離ロード用の packed jar が要るので assemble に依存させる。
+// runGameTestServer も対象に含めること: 橋渡し interface (lavaplayer-api) にメソッドを足した時、
+// impl の jar.packed が古いままだと default 実装 (= 何もしない) に落ち、
+// 例外も警告も出ないまま「その機能だけ存在しない」状態で走る。
+tasks.matching { it.name in ['runClient', 'runServer', 'runData', 'runGameTestServer'] }.configureEach {
     dependsOn lavaImplNeo.tasks.named('assemble')
 }
 
