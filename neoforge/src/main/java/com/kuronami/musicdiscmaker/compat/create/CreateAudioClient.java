@@ -85,6 +85,7 @@ public final class CreateAudioClient {
                 final ContraptionAnchor anchor = new ContraptionAnchor(contraption, payload.localPos());
                 final DiscSoundInstance instance = new DiscSoundInstance(
                         anchor, resolved, payload.rangeBlocks(), payload.volumePercent(), null);
+                instance.setDirectional(payload.directional());
                 ACTIVE.put(actorKey, instance);
                 Minecraft.getInstance().getSoundManager().play(instance);
                 final String desc = (track.author() != null && !track.author().isBlank())

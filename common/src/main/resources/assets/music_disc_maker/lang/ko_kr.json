@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "디스크가 없음",
   "tooltip.music_disc_maker.boombox.loaded": "넣은 디스크: %s",
   "tooltip.music_disc_maker.boombox.empty": "비어 있음",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + 우클릭으로 재생/정지"
+  "tooltip.music_disc_maker.boombox.hint": "Shift + 우클릭으로 재생/정지. 인벤토리에서 디스크를 우클릭해 넣기."
 }

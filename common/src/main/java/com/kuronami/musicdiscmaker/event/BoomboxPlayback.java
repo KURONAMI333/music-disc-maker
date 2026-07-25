@@ -29,11 +29,32 @@ import net.minecraft.world.item.ItemStack;
  */
 public final class BoomboxPlayback {
 
-    /** keep-alive を撃つ間隔 (tick)。client のタイムアウトはこれより十分長くする。 */
-    public static final int HEARTBEAT_TICKS = 20;
+    /**
+     * keep-alive を撃つ間隔 (ms)。client のタイムアウト ({@code BoomboxAnchor}) はこれより十分長くする。
+     *
+     * <p>gameTime でなく wall-clock で刻む。tick 基準だと TPS が落ちたときに心拍間隔だけが伸びて
+     * client のタイムアウト (wall-clock) を追い越し、重いサーバで音が途切れては再ストリームする。
+     */
+    public static final long HEARTBEAT_MS = 1_000L;
 
     /** 手持ち再生セッション。曲が変わったかの判定と、現在位置の算出に使う。 */
-    private record Session(String url, long startMillis) {
+    private static final class Session {
+        private final String url;
+        private final long startMillis;
+        private long lastSentMillis;
+
+        Session(String url, long startMillis) {
+            this.url = url;
+            this.startMillis = startMillis;
+        }
+
+        String url() {
+            return url;
+        }
+
+        long startMillis() {
+            return startMillis;
+        }
     }
 
     private static final Map<UUID, Session> SESSIONS = new HashMap<>();
@@ -120,18 +141,22 @@ public final class BoomboxPlayback {
                 ModDataComponents.BOOMBOX_CONTENTS.get(), BoomboxContents.EMPTY);
         final UUID id = player.getUUID();
         final Session session = SESSIONS.get(id);
+        final long now = System.currentTimeMillis();
         if (session == null || !session.url().equals(track.url())) {
-            SESSIONS.put(id, new Session(track.url(), System.currentTimeMillis()));
+            final Session started = new Session(track.url(), now);
+            started.lastSentMillis = now;
+            SESSIONS.put(id, started);
             send(player, track, 0L, contents);
             return;
         }
-        final long elapsed = Math.max(0L, System.currentTimeMillis() - session.startMillis());
+        final long elapsed = Math.max(0L, now - session.startMillis());
         final long duration = track.durationMs();
         if (duration > 0L && elapsed >= duration) {
             stop(player, stack); // 自然終了 (手持ちはリピートしない)
             return;
         }
-        if (player.level().getGameTime() % HEARTBEAT_TICKS == 0L) {
+        if (now - session.lastSentMillis >= HEARTBEAT_MS) {
+            session.lastSentMillis = now;
             // ライブ/ラジオ (無限長) に位置の概念は無い。経過を載せると後から近づいた player の
             // late-join が「10 分地点から」ストリームを開こうとする。常にライブ先頭へ繋ぐ
             // (resumePlaybackAfterLoad / onRadioStreamEnded と同じ規則)。

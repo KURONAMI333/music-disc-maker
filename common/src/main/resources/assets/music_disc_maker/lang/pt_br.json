@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "Nenhum disco inserido",
   "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
   "tooltip.music_disc_maker.boombox.empty": "Vazio",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + clique direito para tocar/parar"
+  "tooltip.music_disc_maker.boombox.hint": "Shift + clique direito para tocar/parar. Clique direito com um disco para inserir."
 }

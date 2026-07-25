@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "沒有放入唱片",
   "tooltip.music_disc_maker.boombox.loaded": "已裝入：%s",
   "tooltip.music_disc_maker.boombox.empty": "空",
-  "tooltip.music_disc_maker.boombox.hint": "Shift + 右鍵播放/停止"
+  "tooltip.music_disc_maker.boombox.hint": "Shift + 右鍵播放/停止。在背包中右鍵唱片裝入。"
 }

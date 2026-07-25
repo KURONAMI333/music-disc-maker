@@ -26,7 +26,7 @@ public class Services {
      * また「誰に届いたか」は配送先の集合を捕まえないと検証できず、そこは過去に実際に壊れた面でもある。
      * 差し替えは {@link #swapNetwork} 経由でのみ行い、テストが finally で必ず戻す。</p>
      */
-    public static INetworkHelper NETWORK = load(INetworkHelper.class);
+    public static volatile INetworkHelper NETWORK = load(INetworkHelper.class);
 
     /**
      * {@link #NETWORK} を差し替え、差し替え前の実装を返す (テスト専用)。

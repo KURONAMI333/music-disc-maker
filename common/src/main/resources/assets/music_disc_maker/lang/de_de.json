@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "Keine Disc eingelegt",
   "tooltip.music_disc_maker.boombox.loaded": "Eingelegt: %s",
   "tooltip.music_disc_maker.boombox.empty": "Leer",
-  "tooltip.music_disc_maker.boombox.hint": "Umschalt + Rechtsklick zum Abspielen/Stoppen"
+  "tooltip.music_disc_maker.boombox.hint": "Umschalt + Rechtsklick zum Abspielen/Stoppen. Disc per Rechtsklick einlegen."
 }

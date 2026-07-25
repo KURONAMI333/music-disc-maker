@@ -63,5 +63,5 @@
   "music_disc_maker.boombox.no_disc": "Nessun disco inserito",
   "tooltip.music_disc_maker.boombox.loaded": "Disco: %s",
   "tooltip.music_disc_maker.boombox.empty": "Vuoto",
-  "tooltip.music_disc_maker.boombox.hint": "Maiusc + clic destro per riprodurre/fermare"
+  "tooltip.music_disc_maker.boombox.hint": "Maiusc + clic destro per riprodurre/fermare. Clic destro con un disco per inserirlo."
 }

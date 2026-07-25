@@ -26,7 +26,7 @@ import net.minecraft.resources.ResourceLocation;
  * このペイロードが plot 座標へ張り直した変換式再生へ引き継ぐ。
  */
 public record SubLevelPlayDiscPayload(BlockPos plotPos, CustomTrackData track, long startOffsetMs,
-        int rangeBlocks, int volumePercent) implements CustomPacketPayload {
+        int rangeBlocks, int volumePercent, boolean directional) implements CustomPacketPayload {
 
     public static final Type<SubLevelPlayDiscPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "sable_sublevel_play"));
@@ -37,6 +37,7 @@ public record SubLevelPlayDiscPayload(BlockPos plotPos, CustomTrackData track, l
             ByteBufCodecs.VAR_LONG, SubLevelPlayDiscPayload::startOffsetMs,
             ByteBufCodecs.VAR_INT, SubLevelPlayDiscPayload::rangeBlocks,
             ByteBufCodecs.VAR_INT, SubLevelPlayDiscPayload::volumePercent,
+            ByteBufCodecs.BOOL, SubLevelPlayDiscPayload::directional,
             SubLevelPlayDiscPayload::new);
 
     @Override
