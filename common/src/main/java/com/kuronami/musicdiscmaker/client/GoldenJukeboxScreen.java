@@ -53,6 +53,10 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int ACCENT_HI = 0xFFE8C86C; // 金 fill 上辺ハイライト (同色相・高明度)
     private static final int ACCENT_SH = 0xFF9C7A2E; // 金 fill 下辺シャドウ (同色相・低明度)
     private static final int LIVE_FILL = 0xFF9AA0A6; // ラジオ (LIVE) の不定進捗
+    // 枠つきトグルの凹み (バニラのスロットと同じ 3 値。sheet の draw_slot と揃える)
+    private static final int FRAME_FILL = 0xFF8B8B8B;
+    private static final int FRAME_SH = 0xFF373737;
+    private static final int FRAME_HL = 0xFFFFFFFF;
 
     // レイアウト幾何 (leftPos/topPos 相対)。値は branding/gen_golden_jukebox_gui.py
     // (レイアウトの正本) の widget 矩形と一致させる。上から: ヘッダ(disc+2行) →
@@ -73,6 +77,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int RANGE_Y = 102;         // 範囲スライダー
     private static final int RANGE_W = 140;         // 範囲スライダー幅 (右端に指向性トグルを置くぶん短い)
     private static final int DIR_X = 152;           // 指向性トグル (範囲バーの横)
+    private static final int DIR_Y = RANGE_Y - 1;   // 枠つき 16x16。下辺を範囲バーに揃える
     private static final int DIR_W = 16;
     private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
     private static final long SEEK_SYNC_TOL_MS = 800L; // シーク後、BE 同期が追いついたと見なす許容
@@ -142,8 +147,10 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 }));
         // ── 指向性トグル (範囲バーの横)。ON = 定位と距離減衰つき / OFF = 範囲内フラット。
         // client 側は位置の書き方を変えるだけなので、切り替えても曲は途切れない。
-        this.directionalButton = addRenderableWidget(new IconButton(leftPos + DIR_X, topPos + RANGE_Y,
-                DIR_W, SLIDER_H, LOOP_SPRITE,
+        // 枠つき (framed) にしてあるのは、枠が無いとパネル上の飾りに見えて押せると分からず、
+        // 状態も読み取れなかったため。色はリピートと同じグレー⇔金の文法。
+        this.directionalButton = addRenderableWidget(new IconButton(leftPos + DIR_X, topPos + DIR_Y,
+                DIR_W, DIR_W, LOOP_SPRITE, true,
                 Component.translatable("gui.music_disc_maker.golden_jukebox.directional"), () -> {
                     curDirectional = !curDirectional;
                     sendConfig();
@@ -172,7 +179,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             repeatButton.setSprite(curRepeat && !be.isLiveStream() ? ICON_LOOP_ON_U : ICON_LOOP_OFF_U, ICON_V);
         }
         if (directionalButton != null) {
-            // 現在のモードの形を出す (2 モードなので活性/非活性ではない)。何のトグルかは tooltip で言う。
+            // 形でモードを出し、色 (グレー⇔金) でも state を出す。何のトグルかは tooltip で言う。
             directionalButton.setSprite(curDirectional ? ICON_DIR_ON_U : ICON_DIR_OFF_U, ICON_DIR_V);
             directionalButton.setTooltip(Tooltip.create(Component.translatable(curDirectional
                     ? "gui.music_disc_maker.golden_jukebox.directional.on"
@@ -301,15 +308,18 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         private int u;
         private int v;
         private final int spriteSize;
+        private final boolean framed;
         private final Runnable onPress;
 
         IconButton(int x, int y, int size, int spriteSize, Component narration, Runnable onPress) {
-            this(x, y, size, size, spriteSize, narration, onPress);
+            this(x, y, size, size, spriteSize, false, narration, onPress);
         }
 
-        IconButton(int x, int y, int width, int height, int spriteSize, Component narration, Runnable onPress) {
+        IconButton(int x, int y, int width, int height, int spriteSize, boolean framed, Component narration,
+                Runnable onPress) {
             super(x, y, width, height, narration);
             this.spriteSize = spriteSize;
+            this.framed = framed;
             this.onPress = onPress;
         }
 
@@ -325,7 +335,17 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
 
         @Override
         protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            // スプライトのみ描画。focus/hover 背景は出さない (renderWidget を super 無しで全上書き
+            // 枠つきは「押せる四角」であることを見せる (スプライトだけだとパネルに浮いた飾りに
+            // 見え、状態も読み取りにくい)。枠はバニラのスロットと同じ凹みの文法 —
+            // 上/左が暗・下/右が明・内側が中間グレー。
+            if (framed) {
+                g.fill(getX(), getY(), getX() + width, getY() + height, FRAME_FILL);
+                g.fill(getX(), getY(), getX() + width, getY() + 1, FRAME_SH);
+                g.fill(getX(), getY(), getX() + 1, getY() + height, FRAME_SH);
+                g.fill(getX(), getY() + height - 1, getX() + width, getY() + height, FRAME_HL);
+                g.fill(getX() + width - 1, getY(), getX() + width, getY() + height, FRAME_HL);
+            }
+            // スプライト。focus/hover 背景は出さない (renderWidget を super 無しで全上書き
             // しているのでバニラ AbstractWidget の背景も元々描かれない)。
             final int ix = getX() + (width - spriteSize) / 2;
             final int iy = getY() + (height - spriteSize) / 2;

@@ -31,7 +31,7 @@ TIME_Y = 68                        # 経過/総時間
 # 設定スライダー (細身・脇役)
 VOL = (8, 84, 160, 15)            # 音量
 RANGE = (8, 102, 140, 15)         # 可聴範囲 (右端に指向性トグルを置くぶん短い)
-DIRECTIONAL = (152, 102, 16, 15)  # 指向性トグル (範囲バーの横)
+DIRECTIONAL = (152, 101, 16, 16)  # 指向性トグル (範囲バーの横・枠つき 16x16 で下辺を範囲バーに揃える)
 
 # ヘッダ テキスト (ディスクスロット右・2 行)
 TEXT_X = 32
@@ -42,7 +42,8 @@ AUTHOR_Y = 31
 SPR_PLAY_U, SPR_PAUSE_U = 176, 196   # 20x20
 SPR_LOOP_ON_U, SPR_LOOP_OFF_U = 216, 232  # 16x16
 # 指向性トグル (16x16, v=24 の段)。ON = 片側だけに広がる波 (定位あり)、
-# OFF = 左右対称の波 (範囲内フラット)。形そのものがモードを表すので両方アクセント色。
+# OFF = 左右対称の波 (範囲内フラット)。形でモードを表したうえで、リピートと同じ
+# グレー⇔金の文法で色も state を表す (両方アクセント色だと「常時光っている」に見える)。
 SPR_DIR_V = 24
 SPR_DIR_ON_U, SPR_DIR_OFF_U = 176, 192
 
@@ -225,8 +226,17 @@ _ART_DIR_OFF = """
 """
 
 
+# 指向性トグルだけは枠つきボタン (凹み塗り 139) の上に乗るので、OFF のグレーは
+# リピート (パネル 198 の上) より暗くする。同じ 110 だと地との差が 29 しかなく沈む。
+DIR_GLYPH_OFF = (72, 72, 72, 255)
+DIR_GLYPH_OFF_HI = (104, 104, 104, 255)
+
+
 def sprite_directional(on):
-    return _paint_art(_ART_DIR_ON if on else _ART_DIR_OFF, GOLD, GOLD_L)
+    art = _ART_DIR_ON if on else _ART_DIR_OFF
+    color = GOLD if on else DIR_GLYPH_OFF
+    hi = GOLD_L if on else DIR_GLYPH_OFF_HI
+    return _paint_art(art, color, hi)
 
 
 def _loop_variant(kind, color, hi):
