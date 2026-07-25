@@ -29,6 +29,10 @@ GRILLE = (34, 34, 38, 255)
 CONE = (92, 84, 70, 255)
 CONE_SH = (66, 60, 50, 255)
 FRAME = (28, 28, 32, 255)
+# ミュート (レッドストーン信号あり) のコーン。暖色を落として「駆動していない」ことを示す。
+# 形は変えない — 変えるとブロックの識別そのものが揺れる。
+CONE_MUTED = (52, 52, 56, 255)
+CONE_MUTED_SH = (42, 42, 46, 255)
 
 
 def base(px):
@@ -43,8 +47,8 @@ def base(px):
         px[15, y] = BODY_SH
 
 
-def side():
-    """正面/側面: グリル地に丸いコーン 1 つ。"""
+def side(muted=False):
+    """正面/側面: グリル地に丸いコーン 1 つ。muted はコーンの暖色を落とす。"""
     im = Image.new("RGBA", (16, 16))
     px = im.load()
     base(px)
@@ -60,11 +64,12 @@ def side():
         px[13, y] = FRAME
     # コーン (半径 4 の円 + 下側だけ影)
     cx, cy, r = 7.5, 7.5, 4.0
+    lit, shade = (CONE_MUTED, CONE_MUTED_SH) if muted else (CONE, CONE_SH)
     for y in range(16):
         for x in range(16):
             d = ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) ** 0.5
             if d <= r:
-                px[x, y] = CONE_SH if (y + 0.5) > cy else CONE
+                px[x, y] = shade if (y + 0.5) > cy else lit
     return im
 
 
@@ -82,8 +87,12 @@ def top():
 def main():
     os.makedirs(OUT, exist_ok=True)
     side().save(os.path.join(OUT, "speaker_side.png"))
+    side(muted=True).save(os.path.join(OUT, "speaker_side_muted.png"))
     top().save(os.path.join(OUT, "speaker_top.png"))
-    print("wrote speaker_side.png / speaker_top.png ->", os.path.normpath(OUT))
+    print(
+        "wrote speaker_side.png / speaker_side_muted.png / speaker_top.png ->",
+        os.path.normpath(OUT),
+    )
 
 
 if __name__ == "__main__":
