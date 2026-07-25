@@ -10,6 +10,7 @@ import com.kuronami.musicdiscmaker.register.ModSounds;
 
 import org.jetbrains.annotations.Nullable;
 
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.client.resources.sounds.Sound;
@@ -41,6 +42,25 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
     @Nullable
     private final Runnable onStreamEnded;
+    /**
+     * 音の指向性。true = 従来どおり音源の座標を書き込む positional audio。
+     * false = 可聴範囲の中にいる限り listener の座標そのものを書き込む = 距離 0 = 左右差なし・減衰なしの
+     * フラット聴取 (BGM モード)。範囲外では音量 0 にする ({@link #flatAudible})。
+     *
+     * <p>{@code relative} フラグを使わないのが要点。あれは {@code SoundEngine#play} 時に 1 回だけ
+     * 適用され tick では再適用されないので、ライブ切替に使うと「停止 → 現在 offset で再 play」= 再バッファの
+     * 音切れを伴う。位置は {@code SoundEngine#tickNonPaused} が毎 tick {@code setSelfPosition} で
+     * 押し込むので、座標を listener に置くだけで同じ聴こえ方が瞬時に得られる。
+     */
+    private boolean directional = true;
+    /**
+     * フラットモードの範囲ゲートの現在状態。境界上を歩くと毎 tick 0 ↔ 全開で震えるので、
+     * 現在の状態に {@link #GATE_HYSTERESIS} の余裕を与える (最近傍選択のヒステリシスと同趣旨)。
+     */
+    private boolean flatAudible = true;
+
+    /** フラットモードの範囲ゲートの履歴幅 (ブロック)。 */
+    private static final double GATE_HYSTERESIS = 1.0;
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source) {
         this(pos, source, 0, 100, null);
@@ -104,9 +124,43 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         this.attenuation = Attenuation.LINEAR;
     }
 
-    /** 実効音量 = (volumePercent/100) × client の Records 相対倍率。 */
+    /**
+     * 指向性の設定。生成直後 (play 前) と、{@link LiveAudioConfigAnchor} 経由のライブ切替から呼ぶ。
+     * モードが変わった時はゲート状態を「聴こえる」に戻す (次の tick で正しく再判定される)。
+     */
+    public void setDirectional(boolean value) {
+        if (this.directional != value) {
+            this.directional = value;
+            this.flatAudible = true;
+        }
+    }
+
+    /**
+     * 実効音量 = (volumePercent/100) × client の Records 相対倍率。
+     * フラットモードで範囲外にいるときは 0 (= 範囲ゲート)。
+     */
     private float computeVolume() {
+        if (!directional && !flatAudible) {
+            return 0.0F;
+        }
         return (float) (volumePercent / 100.0 * Config.volumeMultiplier());
+    }
+
+    /**
+     * OpenAL の listener 位置 (= {@code SoundEngine} が {@code Listener#setListenerPosition} に渡す
+     * カメラ位置)。カメラ未初期化ならプレイヤーの目線で代替する。level 未生成では {@code null}。
+     *
+     * <p>フラットモードの音源配置・範囲ゲートと、{@link MultiSpeakerAnchor} の最近傍判定が
+     * 同じ 1 点を使うための共有アクセサ。
+     */
+    @Nullable
+    public static Vec3 listenerPos() {
+        final Minecraft mc = Minecraft.getInstance();
+        final Camera camera = mc.gameRenderer != null ? mc.gameRenderer.getMainCamera() : null;
+        if (camera != null && camera.isInitialized()) {
+            return camera.getPosition();
+        }
+        return mc.player != null ? mc.player.getEyePosition() : null;
     }
 
     /**
@@ -152,10 +206,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
             stop();
             return;
         }
+        // 音源 (または最近傍スピーカー) の実座標。フラットモードでもゲート距離の基準として使う。
         final Vec3 p = anchor.worldPos(1.0F);
-        this.x = p.x;
-        this.y = p.y;
-        this.z = p.z;
         // 強化版ジュークボックス固有: client 側 BE から音量・可聴範囲を毎 tick 再読し、スライダー操作を
         // 再ロードなしで即反映する。音量はローカルフィールド書き換えのみ、範囲は減衰半径 (OpenAL の
         // max distance) なので変化時だけチャンネルへ反映する (毎 tick の execute は無駄)。
@@ -169,12 +221,15 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
             final int liveVolume = la.liveVolumePercent();
             if (liveVolume >= 0) {
                 this.volumePercent = liveVolume;
-                this.volume = computeVolume();
             }
             final int liveRange = la.liveRangeBlocks();
             if (liveRange >= 0 && liveRange != this.rangeBlocks) {
                 this.rangeBlocks = liveRange;
                 applyLinearAttenuation();
+            }
+            final int liveDirectional = la.liveDirectional();
+            if (liveDirectional >= 0) {
+                setDirectional(liveDirectional != 0);
             }
         } else if (anchor instanceof LiveConfigAnchor lc) {
             final BlockPos configPos = lc.configPos();
@@ -182,7 +237,6 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
             if (mc.level != null && mc.level.isLoaded(configPos)
                     && mc.level.getBlockEntity(configPos) instanceof GoldenJukeboxBlockEntity be) {
                 this.volumePercent = be.getVolumePercent();
-                this.volume = computeVolume();
                 final int beRange = be.getRangeBlocks();
                 if (beRange != this.rangeBlocks) {
                     this.rangeBlocks = beRange;
@@ -190,6 +244,36 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
                 }
             }
         }
+        applyListeningPosition(p);
+        this.volume = computeVolume();
+    }
+
+    /**
+     * その tick の音源座標を決める。
+     *
+     * <p>指向性 ON = 実座標をそのまま書く (従来どおり OpenAL が定位と距離減衰をかける)。
+     * OFF = 実効可聴範囲の内側なら listener の座標を書く。距離 0 になるので線形減衰のゲインは 1.0、
+     * 方向ベクトルも 0 = 左右差なし。範囲外では実座標へ戻し、{@link #computeVolume()} が 0 を返す。
+     *
+     * <p>ゲートは「停止」でなく「無音」にしてある。ストリームを閉じてしまうと範囲へ戻った時に再生を
+     * 復帰させる手段が client 側に無く、server の再送を待つことになるため。指向性 ON でも範囲の外端では
+     * 減衰で 0 になる (= ストリームは開いたまま) ので、外から見た挙動は連続している。
+     */
+    private void applyListeningPosition(Vec3 sourcePos) {
+        Vec3 write = sourcePos;
+        if (!directional) {
+            final Vec3 ear = listenerPos();
+            if (ear != null) {
+                final double limit = flatAudible ? effectiveRange() + GATE_HYSTERESIS : effectiveRange();
+                flatAudible = ear.distanceTo(sourcePos) <= limit;
+                if (flatAudible) {
+                    write = ear;
+                }
+            }
+        }
+        this.x = write.x;
+        this.y = write.y;
+        this.z = write.z;
     }
 
     @Override

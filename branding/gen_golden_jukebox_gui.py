@@ -22,7 +22,7 @@ INV_X, INV_Y0 = 8, 142            # プレイヤーインベントリ 3 行の�
 HOT_Y = 200                        # ホットバー
 INV_LABEL = (8, 130)              # "Inventory" ラベル (= H-94)
 
-# transport (メインコントロール列)。囲み枠は持たない (kura 高評価の前デザイン = 素の配置)。
+# transport (メインコントロール列)。囲み枠は持たない (素の配置)。
 PLAY = (8, 46, 20, 20)            # 再生/一時停止 (center y=56)
 REPEAT = (148, 46, 20, 20)        # リピート
 SEEK = (32, 48, 112, 16)          # シークバー (center y=56)
@@ -30,7 +30,8 @@ TIME_Y = 68                        # 経過/総時間
 
 # 設定スライダー (細身・脇役)
 VOL = (8, 84, 160, 15)            # 音量
-RANGE = (8, 102, 160, 15)         # 可聴範囲
+RANGE = (8, 102, 140, 15)         # 可聴範囲 (右端に指向性トグルを置くぶん短い)
+DIRECTIONAL = (152, 102, 16, 15)  # 指向性トグル (範囲バーの横)
 
 # ヘッダ テキスト (ディスクスロット右・2 行)
 TEXT_X = 32
@@ -40,6 +41,10 @@ AUTHOR_Y = 31
 # transport スプライト (sheet 内 uv, v=0)
 SPR_PLAY_U, SPR_PAUSE_U = 176, 196   # 20x20
 SPR_LOOP_ON_U, SPR_LOOP_OFF_U = 216, 232  # 16x16
+# 指向性トグル (16x16, v=24 の段)。ON = 片側だけに広がる波 (定位あり)、
+# OFF = 左右対称の波 (範囲内フラット)。形そのものがモードを表すので両方アクセント色。
+SPR_DIR_V = 24
+SPR_DIR_ON_U, SPR_DIR_OFF_U = 176, 192
 
 # 色
 PANEL = (198, 198, 198, 255)
@@ -48,7 +53,7 @@ HL = (255, 255, 255, 255)          # 明ハイライト
 SH = (55, 55, 55, 255)             # 暗影
 SLOT_FILL = (139, 139, 139, 255)
 DARK = (85, 85, 85, 255)           # 中間影
-GOLD = (206, 168, 68, 255)         # アクセント (kura 高評価)
+GOLD = (206, 168, 68, 255)         # アクセント
 GOLD_D = (150, 118, 40, 255)       # 金の影
 GOLD_L = (232, 200, 110, 255)      # 金のハイライト
 GLYPH_OFF = (110, 110, 110, 255)   # 非活性グリフ
@@ -91,8 +96,8 @@ def draw_panel(img):
 
 # ── transport スプライト ────────────────────────────────────────────────
 
-# 再生/一時停止は kura 高評価の前デザイン (金の実心ディスク + 暗い記号くり抜き) を
-# ピクセル完全一致で復元する。放射シェーディングを手描きせず、承認済みの原画を貼る。
+# 再生/一時停止は確定デザイン (金の実心ディスク + 暗い記号くり抜き) をピクセル完全一致で使う。
+# 放射シェーディングを手描きせず、確定済みの原画を貼る。
 _TRANSPORT_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "transport_buttons_src.png")
 
@@ -179,6 +184,51 @@ _ART_V3 = """
 """
 
 
+# 指向性 ON: 右向きのホーン + 右側だけに 2 本の波。音が「どちらから来るか」がある状態。
+_ART_DIR_ON = """
+................
+................
+......#.....#...
+.....##.....#...
+....###..#...#..
+...####..#...#..
+.######...#...#.
+.######...#...#.
+.######...#...#.
+.######...#...#.
+...####..#...#..
+....###..#...#..
+.....##.....#...
+......#.....#...
+................
+................
+"""
+
+# 指向性 OFF: 中心の点から左右対称に広がる波。位置に関係なく同じに聴こえる状態。
+_ART_DIR_OFF = """
+................
+................
+................
+................
+....#......#....
+...#........#...
+..#....##....#..
+..#...####...#..
+..#...####...#..
+..#....##....#..
+...#........#...
+....#......#....
+................
+................
+................
+................
+"""
+
+
+def sprite_directional(on):
+    return _paint_art(_ART_DIR_ON if on else _ART_DIR_OFF, GOLD, GOLD_L)
+
+
 def _loop_variant(kind, color, hi):
     art = {"v1": _ART_V1, "v2": _ART_V2, "v3": _ART_V3}[kind]
     return _paint_art(art, color, hi)
@@ -207,6 +257,9 @@ def build(loop_kind="v1"):
     # リピート = 新規の単一循環矢印。
     img.alpha_composite(sprite_loop(True, loop_kind), (SPR_LOOP_ON_U, 0))
     img.alpha_composite(sprite_loop(False, loop_kind), (SPR_LOOP_OFF_U, 0))
+    # 指向性トグル (2 モード。どちらも有効な状態なので色は変えず形で区別する)。
+    img.alpha_composite(sprite_directional(True), (SPR_DIR_ON_U, SPR_DIR_V))
+    img.alpha_composite(sprite_directional(False), (SPR_DIR_OFF_U, SPR_DIR_V))
     return img
 
 
@@ -236,6 +289,7 @@ def print_table():
     print(f"  seekbar     = {SEEK}   time_y={TIME_Y}")
     print(f"  volume      = {VOL}")
     print(f"  range       = {RANGE}")
+    print(f"  directional = {DIRECTIONAL}   sprites u={SPR_DIR_ON_U}/{SPR_DIR_OFF_U} v={SPR_DIR_V}")
     print(f"  header text = x={TEXT_X} title_y={TITLE_Y} author_y={AUTHOR_Y}")
     print(f"  inv label   = {INV_LABEL}")
 

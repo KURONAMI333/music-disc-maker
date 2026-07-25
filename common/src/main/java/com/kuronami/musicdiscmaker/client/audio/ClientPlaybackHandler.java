@@ -24,8 +24,9 @@ public final class ClientPlaybackHandler {
         ClientPlaybackManager.get().forgetSpeakers(payload.jukeboxPos());
     }
 
-    /** 音源にぶら下がる有効スピーカー集合の更新。 */
+    /** 聴取モデルの更新 (音源にぶら下がる有効スピーカー集合 + 指向性)。 */
     public static void speakers(SpeakerSetPayload payload) {
-        ClientPlaybackManager.get().updateSpeakers(payload.sourcePos(), payload.speakers());
+        ClientPlaybackManager.get().updateSpeakers(
+                payload.sourcePos(), payload.directional(), payload.speakers());
     }
 }

@@ -10,7 +10,6 @@ import com.kuronami.musicdiscmaker.network.SpeakerEntry;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -44,6 +43,12 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
     /** server から届いた有効スピーカー集合 (ミュート済みは含まれない)。差し替えは再生を止めない。 */
     private volatile List<SpeakerEntry> speakers = List.of();
 
+    /**
+     * 指向性。音源 (強化版ジュークボックス) の設定で、スピーカー経由で聴いている listener にも同じ値が
+     * 効く。{@code SpeakerSetPayload} が運ぶ = 音源の chunk を持たない listener にも届く。
+     */
+    private volatile boolean directional = true;
+
     /** 現在選ばれている点。null = 音源本体。 */
     @Nullable
     private BlockPos chosen;
@@ -72,6 +77,11 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
         this.speakers = value == null ? List.of() : List.copyOf(value);
     }
 
+    /** 指向性の反映。{@code DiscSoundInstance} が位置の書き方を変えるだけなので再生は止まらない。 */
+    public void setDirectional(boolean value) {
+        this.directional = value;
+    }
+
     @Override
     public boolean isValid() {
         return source.isValid();
@@ -94,6 +104,11 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
         return chosenRangeBlocks;
     }
 
+    @Override
+    public int liveDirectional() {
+        return directional ? 1 : 0;
+    }
+
     /**
      * listener に最も近い有効点を選び、その音量/範囲を解決する。
      * {@link DiscSoundInstance#tick()} は {@code worldPos} を先に呼ぶので、能力メソッドは
@@ -102,7 +117,9 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
     private void select() {
         final Minecraft mc = Minecraft.getInstance();
         final int[] srcConfig = sourceConfig(mc);
-        final Vec3 ear = listenerPos(mc);
+        // 最近傍の判定と、フラットモードの範囲ゲート・音源配置は同じ 1 点 (OpenAL の listener) を使う。
+        // 1 ブロックずれると境界での切り替えが二重にぶれる。
+        final Vec3 ear = DiscSoundInstance.listenerPos();
         if (ear == null) {
             this.chosen = null;
             this.chosenVolumePercent = srcConfig[0];
@@ -156,15 +173,6 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
         this.chosen = bestPos;
         this.chosenVolumePercent = bestVolume;
         this.chosenRangeBlocks = bestRange;
-    }
-
-    @Nullable
-    private static Vec3 listenerPos(Minecraft mc) {
-        final Entity camera = mc.getCameraEntity();
-        if (camera != null) {
-            return camera.getEyePosition();
-        }
-        return mc.player != null ? mc.player.getEyePosition() : null;
     }
 
     /**
