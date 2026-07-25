@@ -1,0 +1,9 @@
+plugins {
+    // see https://fabricmc.net/develop/ for new versions
+    // MC 1.21.11 は難読化ありの最終バージョン。Loom 1.14.10 が officialMojangMappings 経路と
+    // mixin の静的 remap (refmap 不要) を供給する。plugin id は 'fabric-loom'
+    // (net.fabricmc.fabric-loom は fabric maven の 1.17.x を引いて非難読化前提で落ちる)。
+    id 'fabric-loom' version '1.14.10' apply false
+    // see https://projects.neoforged.net/neoforged/moddevgradle for new versions
+    id 'net.neoforged.moddev' version '2.0.141' apply false
+}

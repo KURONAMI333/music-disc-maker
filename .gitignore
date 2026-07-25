@@ -1,0 +1,32 @@
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
+*.iml
+.idea/*
+!.idea/scopes
+
+# gradle
+build
+.gradle
+
+# other
+eclipse
+run
+runs
+
+# 第三者API研究用の逆コンパイル class scratch。commit しない
+scoff/
+scchk*/
+
+# Fable↔Opus 引き継ぎ (公開 repo に入れない)
+_handoff/
+GAP_LOG.md

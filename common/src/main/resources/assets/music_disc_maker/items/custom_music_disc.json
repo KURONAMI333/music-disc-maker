@@ -1,0 +1,21 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "music_disc_maker:variant",
+    "fallback": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_0" },
+    "entries": [
+      { "threshold": 0.0,     "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_0"  } },
+      { "threshold": 0.08333, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_1"  } },
+      { "threshold": 0.16667, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_2"  } },
+      { "threshold": 0.25,    "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_3"  } },
+      { "threshold": 0.33333, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_4"  } },
+      { "threshold": 0.41667, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_5"  } },
+      { "threshold": 0.5,     "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_6"  } },
+      { "threshold": 0.58333, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_7"  } },
+      { "threshold": 0.66667, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_8"  } },
+      { "threshold": 0.75,    "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_9"  } },
+      { "threshold": 0.83333, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_10" } },
+      { "threshold": 0.91667, "model": { "type": "minecraft:model", "model": "music_disc_maker:item/custom_music_disc_11" } }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "music_disc_maker:item/golden_jukebox"
+  }
+}
