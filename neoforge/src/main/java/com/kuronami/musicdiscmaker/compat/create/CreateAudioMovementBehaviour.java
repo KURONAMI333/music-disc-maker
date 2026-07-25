@@ -68,7 +68,7 @@ public final class CreateAudioMovementBehaviour implements MovementBehaviour {
         final ContraptionPlayDiscPayload payload = new ContraptionPlayDiscPayload(
                 entityId, context.localPos, track, offsetMs, range, volume);
         PacketDistributor.sendToPlayersTrackingEntity(context.contraption.entity, payload);
-        // 診断 (debug 既定 off): kura 実機で「追従しない」時、この行が出て CreateAudioClient.play の
+        // 診断 (debug 既定 off): 実機で「追従しない」時、この行が出て CreateAudioClient.play の
         // 受信ログが出なければ tracker 未確立/配送を疑う (この時点なら entity は tracker を持つはず)。
         MusicDiscMaker.LOGGER.debug("Create contraption 再生を送信: entityId={} localPos={} offset={}ms",
                 entityId, context.localPos, offsetMs);
