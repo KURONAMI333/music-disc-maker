@@ -9,7 +9,6 @@ import com.kuronami.musicdiscmaker.network.SeekJukeboxPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -53,10 +52,6 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int ACCENT_HI = 0xFFE8C86C; // 金 fill 上辺ハイライト (同色相・高明度)
     private static final int ACCENT_SH = 0xFF9C7A2E; // 金 fill 下辺シャドウ (同色相・低明度)
     private static final int LIVE_FILL = 0xFF9AA0A6; // ラジオ (LIVE) の不定進捗
-    // 枠つきトグルの凹み (バニラのスロットと同じ 3 値。sheet の draw_slot と揃える)
-    private static final int FRAME_FILL = 0xFF8B8B8B;
-    private static final int FRAME_SH = 0xFF373737;
-    private static final int FRAME_HL = 0xFFFFFFFF;
 
     // レイアウト幾何 (leftPos/topPos 相対)。値は branding/gen_golden_jukebox_gui.py
     // (レイアウトの正本) の widget 矩形と一致させる。上から: ヘッダ(disc+2行) →
@@ -113,7 +108,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
 
         // ── transport (メインコントロール・最上段)。再生/一時停止 左・シーク 中央・リピート 右。
         // 再生/一時停止トグル。自然終了後は頭出し再生でリスタートする。
-        this.playPauseButton = addRenderableWidget(new IconButton(leftPos + PLAY_X, topPos + TRANSPORT_Y,
+        this.playPauseButton = addRenderableWidget(new IconButton(TEXTURE, leftPos + PLAY_X, topPos + TRANSPORT_Y,
                 20, PLAY_SPRITE, Component.translatable("gui.music_disc_maker.golden_jukebox.play"), () -> {
                     if (isEnded()) {
                         Services.NETWORK.sendToServer(
@@ -124,7 +119,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                     }
                 }));
         addRenderableWidget(new SeekBar(leftPos + SEEK_X, topPos + SEEK_Y, SEEK_W, SEEK_H));
-        this.repeatButton = addRenderableWidget(new IconButton(leftPos + REPEAT_X, topPos + TRANSPORT_Y,
+        this.repeatButton = addRenderableWidget(new IconButton(TEXTURE, leftPos + REPEAT_X, topPos + TRANSPORT_Y,
                 20, LOOP_SPRITE, Component.translatable("gui.music_disc_maker.golden_jukebox.repeat_toggle"), () -> {
                     curRepeat = !curRepeat;
                     sendConfig();
@@ -149,7 +144,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         // client 側は位置の書き方を変えるだけなので、切り替えても曲は途切れない。
         // 枠つき (framed) にしてあるのは、枠が無いとパネル上の飾りに見えて押せると分からず、
         // 状態も読み取れなかったため。色はリピートと同じグレー⇔金の文法。
-        this.directionalButton = addRenderableWidget(new IconButton(leftPos + DIR_X, topPos + DIR_Y,
+        this.directionalButton = addRenderableWidget(new IconButton(TEXTURE, leftPos + DIR_X, topPos + DIR_Y,
                 DIR_W, DIR_W, LOOP_SPRITE, true,
                 Component.translatable("gui.music_disc_maker.golden_jukebox.directional"), () -> {
                     curDirectional = !curDirectional;
@@ -300,62 +295,6 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         setDragging(false);
         final boolean containerHandled = super.mouseReleased(mouseX, mouseY, button);
         return widgetHandled || containerHandled;
-    }
-
-    /** アイコンのみのフラットボタン (音楽プレイヤー風)。sprite は TEXTURE 内 16x16。 */
-    private static final class IconButton extends AbstractButton {
-
-        private int u;
-        private int v;
-        private final int spriteSize;
-        private final boolean framed;
-        private final Runnable onPress;
-
-        IconButton(int x, int y, int size, int spriteSize, Component narration, Runnable onPress) {
-            this(x, y, size, size, spriteSize, false, narration, onPress);
-        }
-
-        IconButton(int x, int y, int width, int height, int spriteSize, boolean framed, Component narration,
-                Runnable onPress) {
-            super(x, y, width, height, narration);
-            this.spriteSize = spriteSize;
-            this.framed = framed;
-            this.onPress = onPress;
-        }
-
-        void setSprite(int u, int v) {
-            this.u = u;
-            this.v = v;
-        }
-
-        @Override
-        public void onPress() {
-            onPress.run();
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            // 枠つきは「押せる四角」であることを見せる (スプライトだけだとパネルに浮いた飾りに
-            // 見え、状態も読み取りにくい)。枠はバニラのスロットと同じ凹みの文法 —
-            // 上/左が暗・下/右が明・内側が中間グレー。
-            if (framed) {
-                g.fill(getX(), getY(), getX() + width, getY() + height, FRAME_FILL);
-                g.fill(getX(), getY(), getX() + width, getY() + 1, FRAME_SH);
-                g.fill(getX(), getY(), getX() + 1, getY() + height, FRAME_SH);
-                g.fill(getX(), getY() + height - 1, getX() + width, getY() + height, FRAME_HL);
-                g.fill(getX() + width - 1, getY(), getX() + width, getY() + height, FRAME_HL);
-            }
-            // スプライト。focus/hover 背景は出さない (renderWidget を super 無しで全上書き
-            // しているのでバニラ AbstractWidget の背景も元々描かれない)。
-            final int ix = getX() + (width - spriteSize) / 2;
-            final int iy = getY() + (height - spriteSize) / 2;
-            g.blit(TEXTURE, ix, iy, (float) u, (float) v, spriteSize, spriteSize, 256, 256);
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput out) {
-            defaultButtonNarrationText(out);
-        }
     }
 
     /**
