@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.0 (unreleased)
+
+- **Beat-reactive redstone** — the Golden Jukebox's comparator now outputs the *beat strength* of whatever is playing, 0-15, instead of a fixed per-song value. The track is analysed once on the server and cached, so every player sees the same signal, it works on an empty server, and it comes out identical every time you replay it — good for builds and recordings. Server config exposes the tuning: band (kick / snare / hats / full mix), envelope or onset mode, sensitivity, floor, attack/release, and an output offset that can be **negative** so the redstone fires *ahead* of the music to cancel out mechanical delay in Create contraptions.
+- **Breaking (redstone):** the Golden Jukebox comparator no longer reports the song's identity value. If you were reading which disc was inserted, read it from a **vanilla** jukebox instead. Direct redstone from the block (full signal while playing) is unchanged, so read the beat through a comparator, not through dust touching the jukebox.
+- **Breaking (redstone):** a custom disc in a **vanilla** jukebox now always gives comparator output **15**, instead of a 1-15 value scaled by track length. Circuits that sorted custom discs by length will need rewiring.
+- Radio and livestream discs do not drive the beat output (their length is open-ended, so there is nothing to analyse ahead of time) — the comparator stays at 0 while they play.
+- The Boombox's play/stop toggle now only fires on a **shift + right-click into open air**. Shift + right-clicking a block face places the Boombox as normal, so it can finally be put down against chests, furnaces and other interactive blocks.
+- A Boombox broken by an explosion or in creative mode is destroyed together with the disc inside it (like a shulker box). Mine it normally to get both back.
+
 ## 2.1.0
 
 - **Create & Create Aeronautics support** — a custom disc playing in a Golden Jukebox now keeps playing and follows the jukebox when it is assembled onto a moving Create contraption (cart, train, piston, bearing) or a Create Aeronautics physics airship, instead of going silent when the block leaves its spot. Requires Create (Aeronautics optional).
