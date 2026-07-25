@@ -52,6 +52,9 @@ public final class ClientPlaybackManager {
     // pos ごとの有効スピーカー集合。再生セッションではなく音源の属性なので、シーク/リピートの
     // 停止→再生では捨てない。停止 packet (StopDiscPayload) と切断でだけ忘れる。
     private final Map<BlockPos, List<SpeakerEntry>> speakerSets = new ConcurrentHashMap<>();
+    // pos ごとの指向性。スピーカー集合と同じ「聴取モデル」なので同じ寿命 (停止 packet と切断で忘れる)。
+    // 未受信 = 従来どおりの positional (バニラ jukebox 経路はこの payload を送らない)。
+    private final Map<BlockPos, Boolean> directionals = new ConcurrentHashMap<>();
     // pos ごとの現在再生中 URL。chunk 再入での無駄な再ロードを避ける判定に使う。
     private final Map<BlockPos, String> playingUrl = new ConcurrentHashMap<>();
     // pos ごとの再生要求 (ラジオ再接続で同じ track/range/volume を再利用する)。
@@ -189,6 +192,7 @@ public final class ClientPlaybackManager {
         // 聴取モデルは常にマルチアンカー。スピーカー集合が空なら StaticAnchor と同じ挙動へ縮退する。
         final MultiSpeakerAnchor anchor = new MultiSpeakerAnchor(key, volumePercent, rangeBlocks);
         anchor.setSpeakers(speakerSets.getOrDefault(key, List.of()));
+        anchor.setDirectional(directionals.getOrDefault(key, Boolean.TRUE));
         anchors.put(key, anchor);
         final DiscSoundInstance instance =
                 new DiscSoundInstance(anchor, resolved, rangeBlocks, volumePercent, endCb);
@@ -265,22 +269,26 @@ public final class ClientPlaybackManager {
      * 聴取アンカーへ即反映し、まだインスタンスが立っていなければ保持しておいて生成時に適用する
      * (packet 順に依存しない)。
      */
-    public void updateSpeakers(BlockPos pos, List<SpeakerEntry> speakers) {
+    public void updateSpeakers(BlockPos pos, boolean directional, List<SpeakerEntry> speakers) {
         final BlockPos key = pos.immutable();
         if (speakers == null || speakers.isEmpty()) {
             speakerSets.remove(key);
         } else {
             speakerSets.put(key, List.copyOf(speakers));
         }
+        directionals.put(key, directional);
         final MultiSpeakerAnchor anchor = anchors.get(key);
         if (anchor != null) {
             anchor.setSpeakers(speakers);
+            anchor.setDirectional(directional);
         }
     }
 
-    /** 音源(pos) のスピーカー集合を忘れる (停止 packet 受信時)。 */
+    /** 音源(pos) の聴取モデル (スピーカー集合・指向性) を忘れる (停止 packet 受信時)。 */
     public void forgetSpeakers(BlockPos pos) {
-        speakerSets.remove(pos.immutable());
+        final BlockPos key = pos.immutable();
+        speakerSets.remove(key);
+        directionals.remove(key);
     }
 
     public void stopPlayback(BlockPos pos) {
@@ -309,6 +317,7 @@ public final class ClientPlaybackManager {
         loadOffsetMs.clear();
         anchors.clear();
         speakerSets.clear();
+        directionals.clear();
         active.values().forEach(instance -> {
             instance.requestStop();
             Minecraft.getInstance().getSoundManager().stop(instance);

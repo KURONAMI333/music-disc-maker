@@ -11,6 +11,7 @@ import com.kuronami.musicdiscmaker.platform.Services;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -43,6 +44,10 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int ICON_V = 0;
     private static final int PLAY_SPRITE = 20;
     private static final int LOOP_SPRITE = 16;
+    // 指向性トグル (16x16, v=24 の段)。ON = 片側だけに広がる波、OFF = 左右対称の波。
+    private static final int ICON_DIR_ON_U = 176;
+    private static final int ICON_DIR_OFF_U = 192;
+    private static final int ICON_DIR_V = 24;
 
     private static final int ACCENT = 0xFFCEA844;   // Golden Jukebox のアクセント (fill/knob base)
     private static final int ACCENT_HI = 0xFFE8C86C; // 金 fill 上辺ハイライト (同色相・高明度)
@@ -66,6 +71,9 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int TIME_Y = 68;           // 経過/総時間
     private static final int VOLUME_Y = 84;         // 音量スライダー
     private static final int RANGE_Y = 102;         // 範囲スライダー
+    private static final int RANGE_W = 140;         // 範囲スライダー幅 (右端に指向性トグルを置くぶん短い)
+    private static final int DIR_X = 152;           // 指向性トグル (範囲バーの横)
+    private static final int DIR_W = 16;
     private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
     private static final long SEEK_SYNC_TOL_MS = 800L; // シーク後、BE 同期が追いついたと見なす許容
 
@@ -74,9 +82,11 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private int curVolume = GoldenJukeboxBlockEntity.VOLUME_DEFAULT;
     private boolean curRepeat;
     private boolean curPaused;
+    private boolean curDirectional = true;
 
     private IconButton repeatButton;
     private IconButton playPauseButton;
+    private IconButton directionalButton;
 
     public GoldenJukeboxScreen(GoldenJukeboxMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -94,6 +104,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         this.curVolume = be.getVolumePercent();
         this.curRepeat = be.isRepeat();
         this.curPaused = be.isPaused();
+        this.curDirectional = be.isDirectional();
 
         // ── transport (メインコントロール・最上段)。再生/一時停止 左・シーク 中央・リピート 右。
         // 再生/一時停止トグル。自然終了後は頭出し再生でリスタートする。
@@ -123,10 +134,18 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 }));
         // ── 範囲スライダー (細身・脇役)。範囲変更は再ストリームを伴うため、ドラッグ中は送らず
         // リリース (確定) 時に一度だけ送る。矢印キーは離散操作なので即確定する。
-        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + RANGE_Y, 160, SLIDER_H,
+        addRenderableWidget(new SettingSlider(leftPos + 8, topPos + RANGE_Y, RANGE_W, SLIDER_H,
                 GoldenJukeboxBlockEntity.RANGE_MIN, GoldenJukeboxBlockEntity.RANGE_MAX, curRange,
                 "gui.music_disc_maker.golden_jukebox.range", true, v -> {
                     curRange = v;
+                    sendConfig();
+                }));
+        // ── 指向性トグル (範囲バーの横)。ON = 定位と距離減衰つき / OFF = 範囲内フラット。
+        // client 側は位置の書き方を変えるだけなので、切り替えても曲は途切れない。
+        this.directionalButton = addRenderableWidget(new IconButton(leftPos + DIR_X, topPos + RANGE_Y,
+                DIR_W, SLIDER_H, LOOP_SPRITE,
+                Component.translatable("gui.music_disc_maker.golden_jukebox.directional"), () -> {
+                    curDirectional = !curDirectional;
                     sendConfig();
                 }));
 
@@ -152,11 +171,18 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             repeatButton.active = !be.isLiveStream();
             repeatButton.setSprite(curRepeat && !be.isLiveStream() ? ICON_LOOP_ON_U : ICON_LOOP_OFF_U, ICON_V);
         }
+        if (directionalButton != null) {
+            // 現在のモードの形を出す (2 モードなので活性/非活性ではない)。何のトグルかは tooltip で言う。
+            directionalButton.setSprite(curDirectional ? ICON_DIR_ON_U : ICON_DIR_OFF_U, ICON_DIR_V);
+            directionalButton.setTooltip(Tooltip.create(Component.translatable(curDirectional
+                    ? "gui.music_disc_maker.golden_jukebox.directional.on"
+                    : "gui.music_disc_maker.golden_jukebox.directional.off")));
+        }
     }
 
     private void sendConfig() {
         Services.NETWORK.sendToServer(new ConfigureJukeboxPayload(
-                menu.getBlockEntity().getBlockPos(), curRange, curVolume, curRepeat, curPaused));
+                menu.getBlockEntity().getBlockPos(), curRange, curVolume, curRepeat, curPaused, curDirectional));
     }
 
     private static String formatMs(long ms) {
@@ -233,6 +259,9 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         if (be.isRepeat() != curRepeat) {
             curRepeat = be.isRepeat();
         }
+        if (be.isDirectional() != curDirectional) {
+            curDirectional = be.isDirectional();
+        }
         refreshTransportSprites();
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
@@ -275,7 +304,11 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         private final Runnable onPress;
 
         IconButton(int x, int y, int size, int spriteSize, Component narration, Runnable onPress) {
-            super(x, y, size, size, narration);
+            this(x, y, size, size, spriteSize, narration, onPress);
+        }
+
+        IconButton(int x, int y, int width, int height, int spriteSize, Component narration, Runnable onPress) {
+            super(x, y, width, height, narration);
             this.spriteSize = spriteSize;
             this.onPress = onPress;
         }

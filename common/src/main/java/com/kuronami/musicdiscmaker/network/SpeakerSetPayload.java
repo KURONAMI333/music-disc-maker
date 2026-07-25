@@ -21,8 +21,13 @@ import net.minecraft.resources.ResourceLocation;
  * 直交させる。
  *
  * <p>曲情報を一切持たないので、プレイリスト (P6) が乗ってもこの payload は変わらない。
+ *
+ * <p>指向性 ({@code directional}) もここに載る。あれは曲ではなく「どう聴こえるか」= 聴取モデルの
+ * 一部で、宛先も同じ (音源チャンク ∪ 全スピーカーチャンク) だから。BE 同期だけでは足りない:
+ * スピーカー圏にいる listener は音源の chunk を持たず client 側 BE を読めない。
  */
-public record SpeakerSetPayload(BlockPos sourcePos, List<SpeakerEntry> speakers) implements CustomPacketPayload {
+public record SpeakerSetPayload(BlockPos sourcePos, boolean directional, List<SpeakerEntry> speakers)
+        implements CustomPacketPayload {
 
     /** 1 packet に載せるスピーカーの上限 (config 上限より十分大きい防御値)。 */
     private static final int MAX_SPEAKERS = 64;
@@ -32,6 +37,7 @@ public record SpeakerSetPayload(BlockPos sourcePos, List<SpeakerEntry> speakers)
 
     public static final StreamCodec<ByteBuf, SpeakerSetPayload> STREAM_CODEC = StreamCodec.composite(
             BlockPos.STREAM_CODEC, SpeakerSetPayload::sourcePos,
+            ByteBufCodecs.BOOL, SpeakerSetPayload::directional,
             SpeakerEntry.STREAM_CODEC.apply(ByteBufCodecs.list(MAX_SPEAKERS)), SpeakerSetPayload::speakers,
             SpeakerSetPayload::new);
 

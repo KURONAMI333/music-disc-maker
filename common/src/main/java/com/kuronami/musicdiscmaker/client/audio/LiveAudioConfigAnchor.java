@@ -18,4 +18,10 @@ public interface LiveAudioConfigAnchor {
 
     /** 現 tick の可聴範囲 (ブロック)。負値 = 不明 (現在値を保持)。 */
     int liveRangeBlocks();
+
+    /**
+     * 現 tick の指向性。{@code 1} = positional (左右定位・距離減衰つき)、{@code 0} = 範囲内フラット。
+     * 負値 = 不明 (現在値を保持)。
+     */
+    int liveDirectional();
 }

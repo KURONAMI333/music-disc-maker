@@ -46,6 +46,7 @@ public final class ModNetwork {
             jukebox.setRangeBlocks(payload.rangeBlocks());
             jukebox.setVolumePercent(payload.volumePercent());
             jukebox.setRepeat(payload.repeat());
+            jukebox.setDirectional(payload.directional());
             jukebox.setPaused(payload.paused());
         }
     }

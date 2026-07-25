@@ -40,6 +40,7 @@ import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.item.JukeboxSongPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -73,6 +74,14 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     private int volumePercent = VOLUME_DEFAULT;
     private boolean repeat = false;
     private boolean paused = false;
+    /**
+     * 音の指向性。true = 従来どおりの positional audio (左右定位・距離減衰つき)。
+     * false = 可聴範囲の中にいる限り位置に関係なくフラットに聴こえる (BGM モード)。範囲外では
+     * 黙る (範囲ゲートは維持する)。client へは {@link SpeakerSetPayload} が運ぶ (= 聴取モデル)。
+     */
+    private boolean directional;
+    /** NBT に {@code directional} が無い (= 新規設置 / 旧セーブ) ときの初期値。ブロックごとに違う。 */
+    private final boolean defaultDirectional;
     /** pause 時に保存した再生位置 (ms)。resume で offset seek に使う。 */
     private long pausedOffsetMs = 0L;
     /**
@@ -89,7 +98,17 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     private boolean initialized = false;
 
     public GoldenJukeboxBlockEntity(BlockPos pos, BlockState state) {
-        super(ModBlockEntities.GOLDEN_JUKEBOX.get(), pos, state);
+        this(ModBlockEntities.GOLDEN_JUKEBOX.get(), pos, state, true);
+    }
+
+    /**
+     * 派生ブロック (ブームボックス) 用。BE 型と指向性の既定値だけを差し替えて再生機構をそのまま使う。
+     */
+    protected GoldenJukeboxBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state,
+            boolean defaultDirectional) {
+        super(type, pos, state);
+        this.defaultDirectional = defaultDirectional;
+        this.directional = defaultDirectional;
     }
 
     // ── GUI / block 用アクセサ ──
@@ -108,6 +127,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     public boolean isPaused() {
         return paused;
+    }
+
+    /** true = positional audio (既定)。false = 範囲内フラット聴取 (BGM モード)。 */
+    public boolean isDirectional() {
+        return directional;
     }
 
     /**
@@ -216,6 +240,23 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     public void setRepeat(boolean value) {
         this.repeat = value;
         sync();
+    }
+
+    /**
+     * 指向性の切り替え。client は再生を止めずにその場でモードを変える (位置の書き換えだけで済み、
+     * {@code relative} を触らないので再ストリーム不要)。
+     *
+     * <p>{@code sync()} だけでは足りない: スピーカー圏にいる listener は音源の chunk を持たないので
+     * client 側 BE を読めない。{@link SpeakerSetPayload} (= 聴取モデルの配送) に載せて、音源チャンク
+     * ∪ 全スピーカーチャンクへ届ける。
+     */
+    public void setDirectional(boolean value) {
+        if (this.directional == value) {
+            return;
+        }
+        this.directional = value;
+        sync();
+        broadcastSpeakerSet();
     }
 
     /** 再生/停止トグル。停止で位置保存、再開で位置から再生。 */
@@ -494,7 +535,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
      */
     public void broadcastSpeakerSet() {
         if (level instanceof ServerLevel serverLevel) {
-            broadcast(new SpeakerSetPayload(getBlockPos(),
+            broadcast(new SpeakerSetPayload(getBlockPos(), directional,
                     SpeakerNetwork.activeEntries(serverLevel, getBlockPos())));
         }
     }
@@ -502,7 +543,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     /** late-join した player へ現在の有効スピーカー集合を送る。 */
     public void sendSpeakerSetTo(ServerPlayer player) {
         if (level instanceof ServerLevel serverLevel) {
-            Services.NETWORK.sendToPlayer(player, new SpeakerSetPayload(getBlockPos(),
+            Services.NETWORK.sendToPlayer(player, new SpeakerSetPayload(getBlockPos(), directional,
                     SpeakerNetwork.activeEntries(serverLevel, getBlockPos())));
         }
     }
@@ -525,6 +566,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         this.volumePercent = tag.contains("volume") ? Mth.clamp(tag.getInt("volume"), VOLUME_MIN, VOLUME_MAX) : VOLUME_DEFAULT;
         this.repeat = tag.getBoolean("repeat");
         this.paused = tag.getBoolean("paused");
+        this.directional = tag.contains("directional") ? tag.getBoolean("directional") : defaultDirectional;
         this.pausedOffsetMs = tag.getLong("pausedOffset");
         this.playbackStartGameTime = tag.contains("playbackStartGameTime")
                 ? tag.getLong("playbackStartGameTime") : -1L;
@@ -540,6 +582,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         tag.putInt("volume", volumePercent);
         tag.putBoolean("repeat", repeat);
         tag.putBoolean("paused", paused);
+        tag.putBoolean("directional", directional);
         tag.putLong("pausedOffset", pausedOffsetMs);
         tag.putLong("playbackStartGameTime", playbackStartGameTime);
     }
