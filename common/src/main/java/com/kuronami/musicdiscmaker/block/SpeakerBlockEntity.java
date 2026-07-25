@@ -90,14 +90,20 @@ public class SpeakerBlockEntity extends BlockEntity {
         registerLink();
     }
 
-    public void setVolumePercent(int value) {
-        this.volumePercent = Mth.clamp(value, VOLUME_MIN, VOLUME_MAX);
+    /**
+     * GUI からの音量・可聴範囲の適用。値が実際に変わった時だけ {@code true} を返す
+     * (呼び出し側は変化時だけスピーカー集合を配り直す = スライダードラッグでの packet 増幅を防ぐ)。
+     */
+    public boolean applyConfig(int volume, int range) {
+        final int newVolume = Mth.clamp(volume, VOLUME_MIN, VOLUME_MAX);
+        final int newRange = Mth.clamp(range, RANGE_MIN, RANGE_MAX);
+        if (newVolume == volumePercent && newRange == rangeBlocks) {
+            return false;
+        }
+        this.volumePercent = newVolume;
+        this.rangeBlocks = newRange;
         sync();
-    }
-
-    public void setRangeBlocks(int value) {
-        this.rangeBlocks = Mth.clamp(value, RANGE_MIN, RANGE_MAX);
-        sync();
+        return true;
     }
 
     private void registerLink() {
@@ -105,6 +111,8 @@ public class SpeakerBlockEntity extends BlockEntity {
             registeredSource = sourcePos;
             SpeakerNetwork.register(serverLevel, getBlockPos(), registeredSource);
             SpeakerNetwork.notifySource(serverLevel, registeredSource);
+            // 集合を配るだけでは client の再生は始まらない。ここにいる player へ現在の曲も届ける。
+            SpeakerNetwork.sendCurrentPlaybackTo(serverLevel, registeredSource, getBlockPos());
         }
     }
 
@@ -112,8 +120,12 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel && registeredSource != null) {
             final BlockPos previous = registeredSource;
             registeredSource = null;
-            SpeakerNetwork.unregister(serverLevel, getBlockPos(), previous);
+            // 解除より先に通知する。宛先は index から算出するので、先に外すとこのスピーカーの chunk が
+            // 宛先から落ちて、傍にいる player に「消えた」ことが伝わらない。内容の方は既に正しい
+            // (破壊経路では LevelChunk#removeBlockEntity が map から外してから setRemoved を呼ぶので、
+            //  activeEntries の getBlockEntity が null を返してこのスピーカーは載らない)。
             SpeakerNetwork.notifySource(serverLevel, previous);
+            SpeakerNetwork.unregister(serverLevel, getBlockPos(), previous);
         } else {
             registeredSource = null;
         }

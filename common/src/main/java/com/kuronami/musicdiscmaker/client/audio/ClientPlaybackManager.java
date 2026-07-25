@@ -187,7 +187,7 @@ public final class ClientPlaybackManager {
                 ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
                 : null;
         // 聴取モデルは常にマルチアンカー。スピーカー集合が空なら StaticAnchor と同じ挙動へ縮退する。
-        final MultiSpeakerAnchor anchor = new MultiSpeakerAnchor(key);
+        final MultiSpeakerAnchor anchor = new MultiSpeakerAnchor(key, volumePercent, rangeBlocks);
         anchor.setSpeakers(speakerSets.getOrDefault(key, List.of()));
         anchors.put(key, anchor);
         final DiscSoundInstance instance =

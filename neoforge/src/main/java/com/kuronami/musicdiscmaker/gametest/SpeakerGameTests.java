@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.gametest;
 
+import java.util.List;
+
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.SpeakerBlock;
@@ -15,6 +17,8 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -22,7 +26,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * スピーカーの server 側ロジックの headless テスト。リンクの確立・拒否・レッドストーン ミュート・
- * 破壊時の解除を機械判定する。実音・聴取挙動は client 側なのでここでは扱わない (kura 実機帯)。
+ * 破壊時の解除を機械判定する。実音・聴取挙動は client 側なのでここでは扱わない (実機確認帯)。
  *
  * <p>設置は {@code BlockItem#place} と同じ順序 (ブロック配置 → component 適用 → setPlacedBy) を
  * 直接再現する。GameTest には実プレイヤーの右クリックが無いため。
@@ -70,6 +74,64 @@ public class SpeakerGameTests {
                 "逆引き index にスピーカーが登録されていない");
         helper.assertTrue(SpeakerNetwork.activeEntries(helper.getLevel(), jukeboxAbs).size() == 1,
                 "配送用のスピーカー集合が 1 台になっていない");
+        helper.succeed();
+    }
+
+    /** 破壊ドロップがリンクを保持する (loot table の copy_components + collectImplicitComponents)。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void speakerDropCarriesLink(GameTestHelper helper) {
+        final BlockPos jukeboxRel = new BlockPos(1, 1, 1);
+        helper.setBlock(jukeboxRel, ModBlocks.GOLDEN_JUKEBOX.get());
+        final BlockPos jukeboxAbs = helper.absolutePos(jukeboxRel);
+
+        final BlockPos speakerRel = new BlockPos(4, 1, 4);
+        final SpeakerBlockEntity be = placeLinkedSpeaker(helper, speakerRel, jukeboxAbs);
+        if (be == null) {
+            return;
+        }
+        final BlockPos speakerAbs = helper.absolutePos(speakerRel);
+        final List<ItemStack> drops = Block.getDrops(
+                helper.getLevel().getBlockState(speakerAbs), helper.getLevel(), speakerAbs, be);
+        helper.assertTrue(drops.size() == 1, "ドロップが 1 個でない: " + drops.size());
+        final GlobalPos link = drops.get(0).get(ModDataComponents.SPEAKER_SOURCE.get());
+        helper.assertTrue(link != null, "ドロップがリンクを保持していない");
+        helper.assertTrue(link != null && jukeboxAbs.equals(link.pos()),
+                "ドロップのリンク先が音源と一致しない");
+        helper.assertTrue(link != null && helper.getLevel().dimension().equals(link.dimension()),
+                "ドロップのリンクの dimension が一致しない");
+        helper.succeed();
+    }
+
+    /** 別 dimension を指すリンクは取り込まない (component は GlobalPos で dimension を持つ)。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void speakerRejectsOtherDimension(GameTestHelper helper) {
+        final BlockPos jukeboxRel = new BlockPos(1, 1, 1);
+        helper.setBlock(jukeboxRel, ModBlocks.GOLDEN_JUKEBOX.get());
+        final BlockPos jukeboxAbs = helper.absolutePos(jukeboxRel);
+        final ServerLevel level = helper.getLevel();
+        helper.assertFalse(level.dimension().equals(Level.NETHER),
+                "テストが NETHER で走っている (前提が崩れている)");
+
+        final BlockPos speakerRel = new BlockPos(4, 1, 4);
+        helper.setBlock(speakerRel, ModBlocks.SPEAKER.get());
+        final SpeakerBlockEntity be = helper.getBlockEntity(speakerRel);
+        if (be == null) {
+            helper.fail("SpeakerBlockEntity が生成されていない", speakerRel);
+            return;
+        }
+        final ItemStack stack = new ItemStack(ModItems.SPEAKER.get());
+        // 座標は同じで dimension だけ別 (座標一致の偶然でリンクしないことの確認)。
+        stack.set(ModDataComponents.SPEAKER_SOURCE.get(), GlobalPos.of(Level.NETHER, jukeboxAbs));
+        be.applyComponentsFromItemStack(stack);
+        final BlockPos speakerAbs = helper.absolutePos(speakerRel);
+        final BlockState state = level.getBlockState(speakerAbs);
+        state.getBlock().setPlacedBy(level, speakerAbs, state, null, stack);
+
+        helper.assertTrue(be.getSourcePos() == null, "別 dimension のリンクを取り込んでいる");
+        helper.assertTrue(SpeakerNetwork.countFor(level, jukeboxAbs) == 0,
+                "別 dimension のリンクが逆引き index に登録された");
         helper.succeed();
     }
 

@@ -49,9 +49,11 @@ public class SpeakerScreen extends AbstractContainerScreen<SpeakerMenu> {
         this.curVolume = be.getVolumePercent();
         this.curRange = be.getRangeBlocks();
 
+        // 音量もリリース確定にする (金ジュークと違い、スピーカーの設定変更は「集合を全スピーカー
+        // チャンクへ配り直す」ファンアウトを伴うので、ドラッグ中に毎ステップ送ると packet が増幅する)。
         addRenderableWidget(new SettingSlider(leftPos + SLIDER_X, topPos + VOLUME_Y, SLIDER_W, SLIDER_H,
                 SpeakerBlockEntity.VOLUME_MIN, SpeakerBlockEntity.VOLUME_MAX, curVolume,
-                "gui.music_disc_maker.speaker.volume", false, v -> {
+                "gui.music_disc_maker.speaker.volume", true, v -> {
                     curVolume = v;
                     sendConfig();
                 }));

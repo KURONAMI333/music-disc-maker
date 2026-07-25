@@ -47,13 +47,24 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
     /** 現在選ばれている点。null = 音源本体。 */
     @Nullable
     private BlockPos chosen;
-    private int chosenVolumePercent = -1;
-    private int chosenRangeBlocks = -1;
+    private int chosenVolumePercent;
+    private int chosenRangeBlocks;
 
-    public MultiSpeakerAnchor(BlockPos sourcePos) {
+    /**
+     * 最後に解決できた音源の音量/範囲。初期値は {@code PlayDiscPayload} で来た値。client に音源の chunk が
+     * 無い間 (この機能では普通の状況) はこの値を返し続ける。
+     */
+    private int lastSourceVolumePercent;
+    private int lastSourceRangeBlocks;
+
+    public MultiSpeakerAnchor(BlockPos sourcePos, int volumePercent, int rangeBlocks) {
         this.source = new StaticAnchor(sourcePos);
         this.sourcePos = sourcePos.immutable();
         this.sourceCenter = new Vec3(sourcePos.getX() + 0.5, sourcePos.getY() + 0.5, sourcePos.getZ() + 0.5);
+        this.lastSourceVolumePercent = volumePercent;
+        this.lastSourceRangeBlocks = rangeBlocks;
+        this.chosenVolumePercent = volumePercent;
+        this.chosenRangeBlocks = rangeBlocks;
     }
 
     /** server の {@code SpeakerSetPayload} を反映する。再生インスタンスは作り直さない。 */
@@ -165,9 +176,12 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
         final Level level = mc.level;
         if (level != null && level.isLoaded(sourcePos)
                 && level.getBlockEntity(sourcePos) instanceof GoldenJukeboxBlockEntity jukebox) {
-            return new int[] { jukebox.getVolumePercent(), jukebox.getRangeBlocks() };
+            lastSourceVolumePercent = jukebox.getVolumePercent();
+            lastSourceRangeBlocks = jukebox.getRangeBlocks();
         }
-        return new int[] { -1, -1 };
+        // 引けない時は最後に解決できた値 (初期値は payload) を返す。負値で「不明」にすると、直前まで
+        // 選ばれていたスピーカーの音量/範囲が音源に持ち越されて、位置と設定が別の点を指してしまう。
+        return new int[] { lastSourceVolumePercent, lastSourceRangeBlocks };
     }
 
     /**
@@ -177,13 +191,16 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfigAnch
     @Nullable
     private static int[] speakerConfig(Minecraft mc, SpeakerEntry entry) {
         final Level level = mc.level;
-        if (level != null && level.isLoaded(entry.pos())
-                && level.getBlockEntity(entry.pos()) instanceof SpeakerBlockEntity speaker) {
-            if (speaker.isMuted()) {
+        if (level != null && level.isLoaded(entry.pos())) {
+            if (!(level.getBlockEntity(entry.pos()) instanceof SpeakerBlockEntity speaker)) {
+                // chunk はロード済みなのに BE が無い = 撤去済み。スナップショットへ落とすと消えた位置から
+                // 鳴り続けるので候補から外す (server の集合更新が届かなくても自己修復する)。
                 return null;
             }
-            return new int[] { speaker.getVolumePercent(), speaker.getRangeBlocks() };
+            return speaker.isMuted() ? null
+                    : new int[] { speaker.getVolumePercent(), speaker.getRangeBlocks() };
         }
+        // chunk 未ロードの時だけ payload のスナップショットを使う (判定できないので落とさない)。
         return new int[] { entry.volumePercent(), entry.rangeBlocks() };
     }
 }

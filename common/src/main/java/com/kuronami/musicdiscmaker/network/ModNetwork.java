@@ -67,11 +67,10 @@ public final class ModNetwork {
         if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
             return;
         }
-        if (player.level().getBlockEntity(pos) instanceof SpeakerBlockEntity speaker) {
-            speaker.setVolumePercent(payload.volumePercent());
-            speaker.setRangeBlocks(payload.rangeBlocks());
+        if (player.level().getBlockEntity(pos) instanceof SpeakerBlockEntity speaker
+                && speaker.applyConfig(payload.volumePercent(), payload.rangeBlocks())) {
             // スピーカーの chunk をロードしていない listener はスナップショットで鳴っているので、
-            // 集合を送り直して新しい値を届ける (BE ライブ再読が届かない距離の救済)。
+            // 集合を送り直して新しい値を届ける (BE ライブ再読が届かない距離の救済)。値が変わった時だけ。
             speaker.notifySourceChanged();
         }
     }
