@@ -95,6 +95,16 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         super.onClose();
     }
 
+    /**
+     * 1.21.11 の {@code AbstractContainerScreen#render} は {@code renderTooltip} を呼ばないので、
+     * サブクラス側で明示的に呼ぶ (呼ばないとスロットのアイテムにホバーしても何も出ない)。
+     */
+    @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.render(g, mouseX, mouseY, partialTick);
+        renderTooltip(g, mouseX, mouseY);
+    }
+
     @Override
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         g.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
