@@ -10,6 +10,7 @@ import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackGenerations;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
@@ -50,6 +51,15 @@ public final class TravelersBackpackCompatClient {
     @Nullable
     private static volatile DiscSoundInstance activeInstance;
 
+    /**
+     * 再生世代。{@link #activeInstance} はロードが終わるまで {@code null} なので、それだけでは
+     * ロード中の要求を止められない (再生 → 即停止 が空振りし、再生の連打で音源が重なる)。
+     */
+    private static final PlaybackGenerations<String> GENERATIONS = new PlaybackGenerations<>();
+
+    /** TB の jukebox upgrade は client にひとつだけ (画面 1 枚ぶん) なので鍵は固定。 */
+    private static final String SLOT = "jukebox_upgrade";
+
     private TravelersBackpackCompatClient() {
     }
 
@@ -72,6 +82,8 @@ public final class TravelersBackpackCompatClient {
             return;
         }
         stopInternal();
+        // 世代は stopInternal の後に進める (停止が自分自身のロードを打ち消さないように)。
+        final int generation = GENERATIONS.begin(SLOT);
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread (SC compat と同じ配線)。
         POOL.submit(() -> {
             IAudioSource source = null;
@@ -96,6 +108,11 @@ public final class TravelersBackpackCompatClient {
                     PlaybackFailureReport.report(track, reported);
                     return;
                 }
+                // ロード中に停止された / 次の再生が来ていたら、この音源は鳴らさずに捨てる。
+                if (!GENERATIONS.isCurrent(SLOT, generation)) {
+                    resolved.close();
+                    return;
+                }
                 final DiscSoundInstance instance = new DiscSoundInstance(entity, resolved);
                 activeInstance = instance;
                 Minecraft.getInstance().getSoundManager().play(instance);
@@ -115,6 +132,8 @@ public final class TravelersBackpackCompatClient {
     }
 
     private static void stopInternal() {
+        // まだロード中の要求もここで無効化する (鳴っている音源が無くても停止は空振りしない)。
+        GENERATIONS.invalidate(SLOT);
         final DiscSoundInstance instance = activeInstance;
         if (instance != null) {
             instance.requestStop();

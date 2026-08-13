@@ -1,8 +1,6 @@
 package com.kuronami.musicdiscmaker.compat.sophisticatedcore;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -10,6 +8,7 @@ import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackGenerations;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
@@ -39,10 +38,12 @@ public final class SophisticatedCoreCompatClient {
         return thread;
     });
 
-    // storageUuid ごとの再生世代。ディスク差し替えで playDisc が再発火すると同じ storageUuid に
-    // 新しい play() が来るので、世代を上げて古いロード(まだ openStream 中)を無効化する。これが無いと
-    // 古い曲のロードが後に完了して後勝ち登録し、差し替え後に古い曲が鳴る。
-    private static final Map<UUID, Integer> GENERATION = new ConcurrentHashMap<>();
+    /**
+     * storageUuid ごとの再生世代。ディスク差し替えで playDisc が再発火すると同じ storageUuid に
+     * 新しい play() が来るので、世代を上げて古いロード (まだ開いている途中) を無効化する。
+     * これが無いと古い曲のロードが後に完了して後勝ち登録し、差し替え後に古い曲が鳴る。
+     */
+    private static final PlaybackGenerations<UUID> GENERATIONS = new PlaybackGenerations<>();
 
     private SophisticatedCoreCompatClient() {
     }
@@ -53,7 +54,7 @@ public final class SophisticatedCoreCompatClient {
             return;
         }
         final UUID storageUuid = payload.storageUuid();
-        final int generation = GENERATION.merge(storageUuid, 1, Integer::sum);
+        final int generation = GENERATIONS.begin(storageUuid);
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
         POOL.submit(() -> {
             IAudioSource source = null;
@@ -79,8 +80,7 @@ public final class SophisticatedCoreCompatClient {
                     return;
                 }
                 // ロード中にディスクが差し替わって新しい play() が来ていたら、この古いロードは破棄する。
-                final Integer current = GENERATION.get(storageUuid);
-                if (current == null || current.intValue() != generation) {
+                if (!GENERATIONS.isCurrent(storageUuid, generation)) {
                     resolved.close();
                     return;
                 }
@@ -102,5 +102,4 @@ public final class SophisticatedCoreCompatClient {
             });
         });
     }
-
 }
