@@ -44,6 +44,11 @@ neoForge {
         server {
             server()
         }
+        // headless の挙動テスト。全 PASS で exit code 0 / 1 本でも失敗で非 0 (成否の一次判定)。
+        // enabledGameTestNamespaces は configureEach で全 run に入っている。
+        gameTestServer {
+            type = 'gameTestServer'
+        }
     }
     mods {
         "${mod_id}" {
@@ -65,7 +70,7 @@ tasks.named('jar').configure {
 }
 
 // dev run も隔離ロード用の packed jar が要るので assemble に依存させる
-tasks.matching { it.name in ['runClient', 'runServer', 'runData'] }.configureEach {
+tasks.matching { it.name in ['runClient', 'runServer', 'runData', 'runGameTestServer'] }.configureEach {
     dependsOn lavaImplNeo.tasks.named('assemble')
 }
 
