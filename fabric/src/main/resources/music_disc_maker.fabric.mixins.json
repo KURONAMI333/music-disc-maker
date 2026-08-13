@@ -13,7 +13,8 @@
   "client": [
     "MixinDiscSoundInstance",
     "MixinSoundManager",
-    "MixinSoundEngineChannels"
+    "MixinSoundEngineChannels",
+    "TravelersBackpackJukeboxMixin"
   ],
   "server": [],
   "injectors": {
