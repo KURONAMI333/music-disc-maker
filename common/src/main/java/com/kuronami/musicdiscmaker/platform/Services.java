@@ -18,8 +18,26 @@ public class Services {
     // mod is loaded.
     public static final IPlatformHelper PLATFORM = load(IPlatformHelper.class);
 
-    /** payload 送信の loader 抽象。 */
-    public static final INetworkHelper NETWORK = load(INetworkHelper.class);
+    /**
+     * payload 送信の loader 抽象。
+     *
+     * <p>final にしていないのは headless テストのため。GameTest の mock プレイヤーは NeoForge の
+     * チャンネル交渉を通っていないので、実 payload を送ると「may not be sent to the client」で落ちる。
+     * また「何を誰にどの offset で送ったか」は送信先を捕まえないと検証できず、そこは実際に壊れた面
+     * (chunk 再送で offset 0 に巻き戻る) でもある。差し替えは {@link #swapNetwork} 経由でのみ行い、
+     * テストが {@code finally} で必ず戻す。</p>
+     */
+    public static volatile INetworkHelper NETWORK = load(INetworkHelper.class);
+
+    /**
+     * {@link #NETWORK} を差し替え、差し替え前の実装を返す (テスト専用)。
+     * 呼び出し側は {@code finally} で必ず元に戻すこと。
+     */
+    public static INetworkHelper swapNetwork(INetworkHelper replacement) {
+        final INetworkHelper previous = NETWORK;
+        NETWORK = replacement;
+        return previous;
+    }
 
     /** extended menu の生成・open の loader 抽象。 */
     public static final IMenuHelper MENU = load(IMenuHelper.class);
