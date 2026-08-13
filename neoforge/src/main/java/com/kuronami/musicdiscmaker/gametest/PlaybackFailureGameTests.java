@@ -6,6 +6,11 @@ import java.util.Set;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure.Kind;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
+import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
 import net.minecraft.gametest.framework.GameTest;
@@ -129,6 +134,119 @@ public class PlaybackFailureGameTests {
         helper.assertTrue(PlaybackFailure.streamUnavailable().kind() == Kind.STREAM_UNAVAILABLE,
                 "理由なしの失敗が STREAM_UNAVAILABLE に落ちていない");
         helper.succeed();
+    }
+
+    /**
+     * ローダーが持っている理由が、境界を越えて<b>分類まで届く</b>こと。
+     *
+     * <p>ここが緩むと、DNS 失敗・年齢制限・地域制限・YouTube の bot 判定がすべて
+     * {@link Kind#STREAM_UNAVAILABLE} に潰れる (理由を持つ経路を作っただけで使っていない状態)。
+     * 検証は <b>ローダー境界の型から</b>始める — {@code ClientAudioStreams} 経由だと、
+     * キャッシュ命中の枝が理由を持たないぶんだけ検証が素通りしてしまう。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void loaderReasonsReachTheClassification(GameTestHelper helper) {
+        final IMusicLoader loader = new FailingLoader(FailureReason.BOT_CHECK);
+        final OpenStreamResult result = loader.openStreamDetailed("https://example.invalid/x", 0L);
+        helper.assertFalse(result.isOk(), "失敗のはずが成功として返っている");
+        final PlaybackFailure failure = PlaybackFailure.ofReason(result.reason(), result.detail());
+        helper.assertTrue(failure.kind() == Kind.BOT_CHECK,
+                "BOT_CHECK が " + failure.kind() + " に潰れている");
+        helper.assertTrue(failure.label().contains("BOT_CHECK"),
+                "ラベルに BOT_CHECK が残っていない: " + failure.label());
+        helper.succeed();
+    }
+
+    /**
+     * {@link FailureReason} の各値が、利用者の取れる行動ごとに分かれること。
+     * 「対応外の URL」「動画が消えた」「地域制限」「年齢制限」「ログイン要求」は、
+     * どれ 1 つとして {@link Kind#STREAM_UNAVAILABLE} に落ちてはならない。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void everyFailureReasonMapsToAnActionableKind(GameTestHelper helper) {
+        helper.assertTrue(kindOf(FailureReason.UNSUPPORTED_URL) == Kind.UNSUPPORTED_URL,
+                "対応外 URL の分類が違う");
+        helper.assertTrue(kindOf(FailureReason.PRIVATE_OR_REMOVED) == Kind.PRIVATE_OR_REMOVED,
+                "非公開/削除済みの分類が違う");
+        helper.assertTrue(kindOf(FailureReason.REGION_LOCKED) == Kind.REGION_LOCKED,
+                "地域制限の分類が違う");
+        helper.assertTrue(kindOf(FailureReason.AGE_RESTRICTED) == Kind.AGE_RESTRICTED,
+                "年齢制限の分類が違う");
+        helper.assertTrue(kindOf(FailureReason.BOT_CHECK) == Kind.BOT_CHECK,
+                "bot 判定の分類が違う");
+        // 利用者の行動が既存の分類と同じものは寄せる (増やすこと自体が目的ではない)。
+        helper.assertTrue(kindOf(FailureReason.CONNECTION_FAILED) == Kind.NETWORK,
+                "接続失敗が NETWORK に寄っていない");
+        helper.assertTrue(kindOf(FailureReason.BLOCKED_URL) == Kind.BLOCKED_URL,
+                "ガード拒否が BLOCKED_URL に寄っていない");
+        helper.assertTrue(kindOf(FailureReason.UNKNOWN) == Kind.STREAM_UNAVAILABLE,
+                "理由不明が従来の粒度に落ちていない");
+        helper.assertTrue(PlaybackFailure.ofReason(null, null).kind() == Kind.STREAM_UNAVAILABLE,
+                "理由が null の経路で分類が壊れている");
+        // 寄せた分類では、ローダー側の言い分をラベルに残す (利用者がそのまま報告に貼れる)。
+        helper.assertTrue(PlaybackFailure.ofReason(FailureReason.CONNECTION_FAILED, null).label()
+                .contains("CONNECTION_FAILED"), "寄せた分類でローダーの理由が消えている");
+        helper.succeed();
+    }
+
+    /**
+     * 橋渡し interface だけ新しく、impl が {@code openStreamDetailed} を持たない組み合わせでも
+     * 壊れないこと。既定実装が {@code openStream} に落ちて、理由は従来どおりの粒度になる。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void oldImplementationsStillFailSoftly(GameTestHelper helper) {
+        final IMusicLoader legacy = new LegacyLoader();
+        final OpenStreamResult result = legacy.openStreamDetailed("https://example.invalid/x", 0L);
+        helper.assertFalse(result.isOk(), "失敗のはずが成功として返っている");
+        helper.assertTrue(result.reason() == FailureReason.UNKNOWN,
+                "既定実装が理由を捏造している: " + result.reason());
+        helper.assertTrue(PlaybackFailure.ofReason(result.reason(), result.detail()).kind()
+                == Kind.STREAM_UNAVAILABLE, "既定実装の失敗が従来の粒度に落ちていない");
+        helper.succeed();
+    }
+
+    private static Kind kindOf(FailureReason reason) {
+        return PlaybackFailure.ofReason(reason, null).kind();
+    }
+
+    /**
+     * 理由つきで失敗するローダー (impl 側の {@code ResolveException} 経路を模す)。
+     *
+     * @param reason 返す失敗理由
+     */
+    private record FailingLoader(FailureReason reason) implements IMusicLoader {
+
+        @Override
+        public TrackInfo resolve(String url) {
+            return null;
+        }
+
+        @Override
+        public IAudioSource openStream(String url, long startMs) {
+            return null;
+        }
+
+        @Override
+        public OpenStreamResult openStreamDetailed(String url, long startMs) {
+            return OpenStreamResult.failed(reason, null);
+        }
+    }
+
+    /** {@code openStreamDetailed} を実装していない古い impl。 */
+    private static final class LegacyLoader implements IMusicLoader {
+
+        @Override
+        public TrackInfo resolve(String url) {
+            return null;
+        }
+
+        @Override
+        public IAudioSource openStream(String url, long startMs) {
+            return null;
+        }
     }
 
     /** 隔離 classloader 側の型を模したテスト用例外 (クラス名だけで判定されることの確認)。 */
