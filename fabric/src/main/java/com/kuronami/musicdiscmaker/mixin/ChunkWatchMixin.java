@@ -45,13 +45,18 @@ public abstract class ChunkWatchMixin {
         // 強化版ジュークボックス (BE 権威・ActiveDiscRegistry 非使用) の late-join 再送。
         com.kuronami.musicdiscmaker.event.GoldenJukeboxLateJoin.resend(level, chunkPos, player);
 
-        final List<ActiveDiscRegistry.Playing> playing =
-                ActiveDiscRegistry.activeInChunk(level.dimension(), chunkPos, now);
-        for (final ActiveDiscRegistry.Playing p : playing) {
+        final List<ActiveDiscRegistry.Playing> known =
+                ActiveDiscRegistry.knownInChunk(level.dimension(), chunkPos);
+        for (final ActiveDiscRegistry.Playing p : known) {
             // 撤去済み jukebox の stale エントリを late-joiner に送らない (爆発/ピストン/コマンド除去の掃除)。
+            // 鳴り終わったエントリもここで捨てる (これが registry の掃除経路)。
             if (!(level.getBlockEntity(p.pos()) instanceof JukeboxBlockEntity jb)
                     || !jb.getTheItem().is(ModItems.CUSTOM_MUSIC_DISC.get())) {
                 ActiveDiscRegistry.stop(level.dimension(), p.pos());
+                continue;
+            }
+            // 鳴り終わったディスクは覚えたまま送らない (送ると頭出しで鳴り直す)。
+            if (p.finishedBy(now)) {
                 continue;
             }
             final long elapsed = Math.max(0L, now - p.startMillis());

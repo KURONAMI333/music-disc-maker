@@ -13,16 +13,33 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 
 /**
- * server 側で「再生中の jukebox」を追跡する。後から jukebox の chunk に入った player へ、
- * 経過 offset 付きで再生 packet を送れるようにするためのもの。
+ * server 側で「その jukebox に何をいつから入れたか」を追跡する。後から jukebox の chunk に入った
+ * player へ経過 offset 付きで再生 packet を送るためのもの。
+ *
+ * <p>曲尺を過ぎたエントリも<b>捨てずに覚えておく</b>。捨てると「一度鳴り終わった」と「まだ一度も
+ * 始まっていない」が区別できなくなり、chunk 再送の走査 (死亡リスポーン・TP・再ログイン・chunk
+ * 再ロード) が刺さったままのディスクを新規挿入と読んで頭から鳴らし直す。エントリを消すのは
+ * ディスクがスロットから消えたとき ({@link #stop}) と server 停止 ({@link #clear}) だけ。
  *
  * <p>in-memory のみ (server 停止で消える＝再起動後は再挿入で復帰、vanilla disc と同等)。
  * 全操作は server thread からのみ呼ばれる前提なので非同期化しない。
  */
 public final class ActiveDiscRegistry {
 
-    /** 再生中エントリ。{@code startMillis} は wall-clock (offset 計算は server 側で行い payload で渡す)。 */
+    /**
+     * 挿入済みエントリ。{@code startMillis} は wall-clock (offset 計算は server 側で行い payload で渡す)。
+     * 曲尺を過ぎた後もこの形のまま残る ({@link #finishedBy} が真になるだけ)。
+     */
     public record Playing(BlockPos pos, CustomTrackData track, long startMillis) {
+
+        /**
+         * {@code nowMillis} の時点で曲尺を過ぎているか。
+         * 尺不明 ({@code durationMs <= 0}) のトラックは終わりが判定できないので常に再生中扱い。
+         */
+        public boolean finishedBy(long nowMillis) {
+            final long dur = track.durationMs();
+            return dur > 0L && nowMillis - startMillis >= dur;
+        }
     }
 
     private static final Map<ResourceKey<Level>, Map<BlockPos, Playing>> BY_DIM = new HashMap<>();
@@ -38,7 +55,10 @@ public final class ActiveDiscRegistry {
         BY_DIM.computeIfAbsent(dim, d -> new HashMap<>()).put(key, new Playing(key, track, nowMillis));
     }
 
-    /** 指定 pos が再生中登録されているか。spurious な stop broadcast を避けるための判定に使う。 */
+    /**
+     * 指定 pos にディスクが入っていると registry が覚えているか (曲尺を過ぎた後も真)。
+     * spurious な stop broadcast を避ける判定と、chunk 再送の「まだ挿さっていない」判定に使う。
+     */
     public static boolean isActive(ResourceKey<Level> dim, BlockPos pos) {
         final Map<BlockPos, Playing> map = BY_DIM.get(dim);
         return map != null && map.containsKey(pos);
@@ -64,27 +84,36 @@ public final class ActiveDiscRegistry {
     }
 
     /**
-     * 指定 chunk 内で「まだ再生中」のエントリを返す。
-     * 既に曲尺を過ぎたエントリ (durationMs を持つもの) はこの呼び出しで prune する。
+     * 指定 chunk 内の既知エントリを全部返す (曲尺を過ぎたものを含む)。純粋な read で prune しない。
+     *
+     * <p>chunk 再送の走査はこちらを使う。撤去済み jukebox の掃除には鳴り終わったエントリも
+     * 見えている必要があり、{@link #activeInChunk} だとその分が漏れる。
      */
-    public static List<Playing> activeInChunk(ResourceKey<Level> dim, ChunkPos chunk, long nowMillis) {
+    public static List<Playing> knownInChunk(ResourceKey<Level> dim, ChunkPos chunk) {
         final Map<BlockPos, Playing> map = BY_DIM.get(dim);
         if (map == null || map.isEmpty()) {
             return List.of();
         }
         final List<Playing> out = new ArrayList<>();
-        map.values().removeIf(p -> {
-            final long dur = p.track().durationMs();
-            if (dur > 0L && nowMillis - p.startMillis() >= dur) {
-                return true; // 自然終了済み → 除去 (chunk 一致でも送らない)
-            }
+        for (final Playing p : map.values()) {
             if (new ChunkPos(p.pos()).equals(chunk)) {
                 out.add(p);
             }
-            return false;
-        });
-        if (map.isEmpty()) {
-            BY_DIM.remove(dim);
+        }
+        return out;
+    }
+
+    /**
+     * 指定 chunk 内で「まだ再生中」のエントリを返す。曲尺を過ぎたものは<b>覚えたまま返さない</b>
+     * (late-joiner へ送るのは今も鳴っているものだけ)。
+     */
+    public static List<Playing> activeInChunk(ResourceKey<Level> dim, ChunkPos chunk, long nowMillis) {
+        final List<Playing> known = knownInChunk(dim, chunk);
+        final List<Playing> out = new ArrayList<>(known.size());
+        for (final Playing p : known) {
+            if (!p.finishedBy(nowMillis)) {
+                out.add(p);
+            }
         }
         return out;
     }
