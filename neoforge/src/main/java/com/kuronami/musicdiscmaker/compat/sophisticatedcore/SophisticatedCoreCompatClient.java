@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.compat.sophisticatedcore;
 
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -7,6 +8,7 @@ import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackGenerations;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
@@ -36,6 +38,13 @@ public final class SophisticatedCoreCompatClient {
         return thread;
     });
 
+    /**
+     * storageUuid ごとの再生世代。ディスク差し替えで playDisc が再発火すると同じ storageUuid に
+     * 新しい play() が来るので、世代を上げて古いロード (まだ開いている途中) を無効化する。
+     * これが無いと古い曲のロードが後に完了して後勝ち登録し、差し替え後に古い曲が鳴る。
+     */
+    private static final PlaybackGenerations<UUID> GENERATIONS = new PlaybackGenerations<>();
+
     private SophisticatedCoreCompatClient() {
     }
 
@@ -44,6 +53,8 @@ public final class SophisticatedCoreCompatClient {
         if (track == null || track.isEmpty()) {
             return;
         }
+        final UUID storageUuid = payload.storageUuid();
+        final int generation = GENERATIONS.begin(storageUuid);
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
         POOL.submit(() -> {
             IAudioSource source = null;
@@ -66,6 +77,11 @@ public final class SophisticatedCoreCompatClient {
                 if (resolved == null) {
                     // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
                     PlaybackFailureReport.report(track, reported);
+                    return;
+                }
+                // ロード中にディスクが差し替わって新しい play() が来ていたら、この古いロードは破棄する。
+                if (!GENERATIONS.isCurrent(storageUuid, generation)) {
+                    resolved.close();
                     return;
                 }
                 // entityId>=0 ならその entity (backpack を背負うプレイヤー等) に追従、なければ固定 pos。
