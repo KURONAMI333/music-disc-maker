@@ -27,6 +27,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ChunkWatchEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
 /**
@@ -139,6 +140,17 @@ public final class JukeboxHandler {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         ActiveDiscRegistry.clear();
+    }
+
+    /**
+     * 次元がアンロードされたらその次元のエントリを捨てる。次元が落ちると chunk はもう誰にも
+     * watch されず、chunk 再入を待つ掃除には二度と届かない (server 停止まで残り続ける)。
+     */
+    @SubscribeEvent
+    public static void onLevelUnload(LevelEvent.Unload event) {
+        if (event.getLevel() instanceof ServerLevel serverLevel) {
+            ActiveDiscRegistry.clear(serverLevel.dimension());
+        }
     }
 
     private static void broadcast(Level level, BlockPos pos,

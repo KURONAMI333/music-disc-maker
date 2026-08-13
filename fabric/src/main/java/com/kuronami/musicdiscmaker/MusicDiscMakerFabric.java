@@ -12,6 +12,7 @@ import com.kuronami.musicdiscmaker.register.ModRegistries;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
@@ -51,6 +52,10 @@ public class MusicDiscMakerFabric implements ModInitializer {
 
         // server 停止で再生中状態を破棄 (シングルプレイのワールド退出含む)。
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> ActiveDiscRegistry.clear());
+
+        // 次元がアンロードされたらその次元のエントリを捨てる。次元が落ちると chunk はもう誰にも
+        // watch されず、chunk 再入を待つ掃除には二度と届かない (server 停止まで残り続ける)。
+        ServerWorldEvents.UNLOAD.register((server, world) -> ActiveDiscRegistry.clear(world.dimension()));
 
         MusicDiscMaker.LOGGER.info("Music Disc Maker (Fabric) initialized");
     }
