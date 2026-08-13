@@ -6,7 +6,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
@@ -125,33 +124,40 @@ public final class ClientPlaybackManager {
                 return; // 遅延中に停止/撤去された
             }
             IAudioSource source;
+            PlaybackFailure failure = null;
             try {
                 // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
                 UrlGuard.enforce(track.url());
                 source = LoaderHolder.get().openStream(track.url(), startOffsetMs);
             } catch (final UrlBlockedException blocked) {
-                MusicDiscMaker.LOGGER.warn("再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
+                failure = PlaybackFailure.blocked(blocked.reason());
                 source = null;
             } catch (final Throwable t) {
-                MusicDiscMaker.LOGGER.warn("再生用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
+                failure = PlaybackFailure.thrown(t);
                 source = null;
             }
             final IAudioSource resolved = source;
+            // 例外を投げずに null が返った = ローダーが理由を持たない失敗。潰さずここで分類する。
+            final PlaybackFailure reported =
+                    resolved == null && failure == null ? PlaybackFailure.streamUnavailable() : failure;
             Minecraft.getInstance().execute(
-                    () -> onLoaded(key, track, startOffsetMs, rangeBlocks, volumePercent, resolved));
+                    () -> onLoaded(key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported));
         });
     }
 
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
     private void onLoaded(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, IAudioSource resolved) {
+            int volumePercent, IAudioSource resolved, PlaybackFailure failure) {
         if (resolved == null) {
             if (track.radio() && wanted.contains(key)) {
                 onRadioStreamEnded(key); // ロード失敗も 1 回の再接続試行として数える
             } else {
                 wanted.remove(key);
                 requests.remove(key);
-                notifyPlaybackFailed(); // 無音で終わらせず、再生できなかったことをプレイヤーに伝える
+                // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す
+                // (ストリームは client ごとに開くので、片方の client だけ失敗しうる)。
+                PlaybackFailureReport.report(track,
+                        failure == null ? PlaybackFailure.streamUnavailable() : failure);
             }
             return;
         }
@@ -168,8 +174,11 @@ public final class ClientPlaybackManager {
             }
             return false;
         });
-        if (active.size() >= com.kuronami.musicdiscmaker.Config.maxConcurrent()) {
-            MusicDiscMaker.LOGGER.info("同時再生上限に達したため再生をスキップ: {}", key);
+        final int limit = com.kuronami.musicdiscmaker.Config.maxConcurrent();
+        if (active.size() >= limit) {
+            // ここは今まで LOGGER.info だけで、利用者から見ると「再生中と出るのに鳴らない」の
+            // もう 1 つの無言経路だった。上限は client ごとに効くので片側だけ無音になりうる。
+            PlaybackFailureReport.report(track, PlaybackFailure.concurrentLimit(limit));
             resolved.close();
             wanted.remove(key);
             requests.remove(key);
@@ -227,7 +236,9 @@ public final class ClientPlaybackManager {
             reconnectAttempts.remove(key);
             wanted.remove(key);
             requests.remove(key);
-            notifyActionBar(Component.translatable("music_disc_maker.radio.stopped"));
+            // 再接続を諦めた = 恒久的にこの音源は鳴らない。数秒で消えるアクションバーではなく
+            // チャットへ残す (「いつ止まったか」を後から読めるようにする)。
+            notifyChat(Component.translatable("music_disc_maker.radio.stopped"));
             return;
         }
         reconnectAttempts.put(key, attempt);
@@ -235,9 +246,12 @@ public final class ClientPlaybackManager {
         submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(), RECONNECT_DELAY_MS);
     }
 
-    /** 再生失敗をアクションバーに表示する (main thread から呼ぶこと)。 */
-    private static void notifyPlaybackFailed() {
-        notifyActionBar(Component.translatable("music_disc_maker.playback_failed"));
+    /** チャットに一行残す (main thread から呼ぶこと)。数秒で消えては困る恒久的な結果に使う。 */
+    private static void notifyChat(Component message) {
+        final var player = Minecraft.getInstance().player;
+        if (player != null) {
+            player.displayClientMessage(message, false);
+        }
     }
 
     /** アクションバーに一行表示する (main thread から呼ぶこと)。 */
