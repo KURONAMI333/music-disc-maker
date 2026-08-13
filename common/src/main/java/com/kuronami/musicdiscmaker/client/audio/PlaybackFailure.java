@@ -2,17 +2,21 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
 /**
  * 再生が始まらなかった理由の<b>分類</b>だけを取り出した純ロジック (MC 非依存)。
  *
  * <h2>これが要る理由</h2>
- * ストリームを開く経路 ({@code ClientAudioStreams#open}) は、失敗の種類を
- * <b>すべて {@code null} に潰して</b>返す。呼び出し側はどれも {@code resolved == null} としか
- * 読めないので、利用者に出せるのは「鳴りませんでした」の 1 文だけになる。実際、
- * 「再生中と出るのに鳴らない」「自分だけ無音」の報告に対して、client 側には理由を答える材料が
- * 何も残っていなかった。
+ * 失敗は 3 つの形で来る — ガードが投げる拒否、ストリームを開く途中の例外、そして
+ * ローダーが返す {@link FailureReason}。どれか 1 つでも取りこぼすと、その経路の失敗は
+ * 「鳴りませんでした」の 1 文に潰れる。「再生中と出るのに鳴らない」「自分だけ無音」の報告に
+ * 対して、client 側に理由を答える材料が残っている状態を保つのがこの型の役目。
+ *
+ * <p>{@link #ofReason} が受ける {@link FailureReason} は<b>境界を越えて運ばれてくる</b>
+ * ({@code IMusicLoader#openStreamDetailed})。ここを {@code null} 判定 1 つに潰すと、
+ * DNS 失敗も年齢制限も YouTube の bot 判定も同じ文面になる。
  *
  * <p>ストリームは client ごとに開くので、同じ音源でも<b>片方の client だけ</b>失敗しうる
  * (DNS・回線・ガード判定・同時再生上限はすべてローカル)。だからこそ理由は
@@ -42,7 +46,17 @@ public record PlaybackFailure(Kind kind, String detail) {
         /** それ以外の例外 (デコード・ローダー内部)。 */
         OPEN_ERROR("error"),
         /** 同時再生上限に達したのでこの再生を起こさなかった。 */
-        CONCURRENT_LIMIT("limit");
+        CONCURRENT_LIMIT("limit"),
+        /** どの service にも一致しない URL 形式 (対応していないサイト)。 */
+        UNSUPPORTED_URL("unsupported"),
+        /** 動画が非公開・削除済み・存在しない。 */
+        PRIVATE_OR_REMOVED("removed"),
+        /** 地域制限。回線でも URL でもなく、その国から再生できない。 */
+        REGION_LOCKED("region"),
+        /** 年齢制限。 */
+        AGE_RESTRICTED("age"),
+        /** YouTube の bot 判定でログインを要求された。 */
+        BOT_CHECK("bot_check");
 
         private final String suffix;
 
@@ -79,6 +93,45 @@ public record PlaybackFailure(Kind kind, String detail) {
     /** 同時再生上限で起こさなかった。 */
     public static PlaybackFailure concurrentLimit(int limit) {
         return new PlaybackFailure(Kind.CONCURRENT_LIMIT, "limit=" + limit);
+    }
+
+    /**
+     * ローダーが返した理由から分類する。
+     *
+     * <p>対応表をここ 1 箇所に閉じるのは {@link Kind#translationKey()} と同じ理由 —
+     * 呼び出し側で {@code FailureReason.valueOf(kind.name())} のような機械変換を書くと、
+     * 片方だけ増えた瞬間に黙って {@code UNKNOWN} へ落ちる。
+     *
+     * @param reason ローダーが返した理由 ({@code null} なら {@link FailureReason#UNKNOWN} 扱い)
+     * @param detail 技術詳細 (空なら理由名で補う)
+     * @return 分類済みの失敗
+     */
+    public static PlaybackFailure ofReason(@Nullable FailureReason reason, @Nullable String detail) {
+        final FailureReason r = reason == null ? FailureReason.UNKNOWN : reason;
+        final Kind kind = kindOf(r);
+        // 分類名と理由名が同じ時に "BOT_CHECK BOT_CHECK" と二度書かない。違う時 (CONNECTION_FAILED
+        // → NETWORK 等) だけ、ローダー側の言い分をラベルに残す。
+        final String text = detail == null || detail.isBlank()
+                ? (kind.name().equals(r.name()) ? "" : r.name())
+                : detail;
+        return new PlaybackFailure(kind, text);
+    }
+
+    /** {@link FailureReason} → {@link Kind} の唯一の対応表。 */
+    private static Kind kindOf(FailureReason reason) {
+        return switch (reason) {
+            // 利用者が取れる行動が違うものは分けて出す。
+            case UNSUPPORTED_URL -> Kind.UNSUPPORTED_URL;
+            case PRIVATE_OR_REMOVED -> Kind.PRIVATE_OR_REMOVED;
+            case REGION_LOCKED -> Kind.REGION_LOCKED;
+            case AGE_RESTRICTED -> Kind.AGE_RESTRICTED;
+            case BOT_CHECK -> Kind.BOT_CHECK;
+            // 行動が既存の分類と同じものは寄せる (ガード拒否・回線)。
+            case BLOCKED_URL -> Kind.BLOCKED_URL;
+            case CONNECTION_FAILED -> Kind.NETWORK;
+            // 理由を持たない失敗は従来どおりの粒度。
+            case UNKNOWN -> Kind.STREAM_UNAVAILABLE;
+        };
     }
 
     /**

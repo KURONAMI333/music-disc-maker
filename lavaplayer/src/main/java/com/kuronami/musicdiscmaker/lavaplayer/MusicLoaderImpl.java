@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 import com.sedmelluq.discord.lavaplayer.format.Pcm16AudioDataFormat;
@@ -132,10 +133,31 @@ public class MusicLoaderImpl implements IMusicLoader {
         try {
             track = loadTrackSync(url);
         } catch (final ResolveException ex) {
-            // 再生側 (client) は理由を使わないので従来どおり null で失敗を表す。
+            // 理由を要る呼び出し側は openStreamDetailed を使う。この signature は従来どおり null。
             LOGGER.warn("再生用ロード失敗 ({}): {}", url, ex.reason());
             return null;
         }
+        return startPlayback(track, startMs);
+    }
+
+    /**
+     * 理由つきで開く。{@link #openStream} が捨てていた {@link ResolveException#reason()} を
+     * そのまま境界の向こうへ渡す (client の画面に出る文面はここから分かれる)。
+     */
+    @Override
+    public OpenStreamResult openStreamDetailed(String url, long startMs) {
+        final AudioTrack track;
+        try {
+            track = loadTrackSync(url);
+        } catch (final ResolveException ex) {
+            LOGGER.warn("再生用ロード失敗 ({}): {}", url, ex.reason());
+            return OpenStreamResult.failed(ex.reason(), null);
+        }
+        return OpenStreamResult.ok(startPlayback(track, startMs));
+    }
+
+    /** 解決済みトラックを希望位置から鳴らし始める ({@code openStream} 系の共通後半)。 */
+    private IAudioSource startPlayback(AudioTrack track, long startMs) {
         // 後から chunk に入った player へ途中から同期再生させるための seek。
         // seek 不可トラック (ライブ配信等) は先頭/ライブ端のまま再生する。
         if (startMs > 0L && track.isSeekable()) {

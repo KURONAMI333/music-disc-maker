@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
@@ -123,23 +124,24 @@ public final class ClientPlaybackManager {
             if (!wanted.contains(key)) {
                 return; // 遅延中に停止/撤去された
             }
-            IAudioSource source;
+            IAudioSource source = null;
             PlaybackFailure failure = null;
             try {
                 // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
                 UrlGuard.enforce(track.url());
-                source = LoaderHolder.get().openStream(track.url(), startOffsetMs);
+                // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
+                final OpenStreamResult result =
+                        LoaderHolder.get().openStreamDetailed(track.url(), startOffsetMs);
+                source = result.source();
+                failure = result.isOk() ? null
+                        : PlaybackFailure.ofReason(result.reason(), result.detail());
             } catch (final UrlBlockedException blocked) {
                 failure = PlaybackFailure.blocked(blocked.reason());
-                source = null;
             } catch (final Throwable t) {
                 failure = PlaybackFailure.thrown(t);
-                source = null;
             }
             final IAudioSource resolved = source;
-            // 例外を投げずに null が返った = ローダーが理由を持たない失敗。潰さずここで分類する。
-            final PlaybackFailure reported =
-                    resolved == null && failure == null ? PlaybackFailure.streamUnavailable() : failure;
+            final PlaybackFailure reported = failure;
             Minecraft.getInstance().execute(
                     () -> onLoaded(key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported));
         });
