@@ -6,9 +6,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
@@ -55,20 +56,25 @@ public final class SophisticatedCoreCompatClient {
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
         POOL.submit(() -> {
             IAudioSource source;
+            PlaybackFailure failure = null;
             try {
                 UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
                 source = LoaderHolder.get().openStream(track.url(), 0L);
             } catch (final UrlBlockedException blocked) {
-                MusicDiscMaker.LOGGER.warn("SB jukebox 再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
+                failure = PlaybackFailure.blocked(blocked.reason());
                 source = null;
             } catch (final Throwable t) {
-                MusicDiscMaker.LOGGER.warn("SB jukebox 用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
+                failure = PlaybackFailure.thrown(t);
                 source = null;
             }
             final IAudioSource resolved = source;
+            // 例外を投げずに null が返った = ローダーが理由を持たない失敗。潰さずここで分類する。
+            final PlaybackFailure reported =
+                    resolved == null && failure == null ? PlaybackFailure.streamUnavailable() : failure;
             Minecraft.getInstance().execute(() -> {
                 if (resolved == null) {
-                    notifyPlaybackFailed(); // 無音で終わらせず、再生できなかったことをプレイヤーに伝える
+                    // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
+                    PlaybackFailureReport.report(track, reported);
                     return;
                 }
                 // ロード中にディスクが差し替わって新しい play() が来ていたら、この古いロードは破棄する。
@@ -96,12 +102,4 @@ public final class SophisticatedCoreCompatClient {
         });
     }
 
-    /** 再生失敗をアクションバーに表示する (main thread から呼ぶこと)。vanilla 経路と同じ通知。 */
-    private static void notifyPlaybackFailed() {
-        final var player = Minecraft.getInstance().player;
-        if (player != null) {
-            player.displayClientMessage(
-                    Component.translatable("music_disc_maker.playback_failed"), true);
-        }
-    }
 }

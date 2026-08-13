@@ -3,9 +3,10 @@ package com.kuronami.musicdiscmaker.compat.sophisticatedcore;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
@@ -45,19 +46,25 @@ public final class SophisticatedCoreCompatClient {
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
         POOL.submit(() -> {
             IAudioSource source;
+            PlaybackFailure failure = null;
             try {
                 UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
                 source = LoaderHolder.get().openStream(track.url(), 0L);
             } catch (final UrlBlockedException blocked) {
-                MusicDiscMaker.LOGGER.warn("SB jukebox 再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
+                failure = PlaybackFailure.blocked(blocked.reason());
                 source = null;
             } catch (final Throwable t) {
-                MusicDiscMaker.LOGGER.warn("SB jukebox 用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
+                failure = PlaybackFailure.thrown(t);
                 source = null;
             }
             final IAudioSource resolved = source;
+            // 例外を投げずに null が返った = ローダーが理由を持たない失敗。潰さずここで分類する。
+            final PlaybackFailure reported =
+                    resolved == null && failure == null ? PlaybackFailure.streamUnavailable() : failure;
             Minecraft.getInstance().execute(() -> {
                 if (resolved == null) {
+                    // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
+                    PlaybackFailureReport.report(track, reported);
                     return;
                 }
                 // entityId>=0 ならその entity (backpack を背負うプレイヤー等) に追従、なければ固定 pos。
