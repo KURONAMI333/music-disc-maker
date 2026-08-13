@@ -104,9 +104,56 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         this.attenuation = Attenuation.LINEAR;
     }
 
-    /** 実効音量 = (volumePercent/100) × client の Records 相対倍率。 */
+    /**
+     * 素材ゲイン。カスタムディスクの PCM はバニラのレコード ogg より小さく鳴る。内訳は
+     * (a) client config {@code volumeMultiplier} の既定 0.5 = -6.0 dB、
+     * (b) {@code LavaAudioSource.downmixStereoToMono} の (L+R)/2 が非相関ステレオで最大 -3.0 dB。
+     * 2.0 × √2 ≒ 2.83 が両方を戻した値。
+     *
+     * <p>候補は 2 つ。聴き比べで切り替えるときはこの 1 行だけを変える。
+     * <ul>
+     *   <li>{@code 2.0} — (a) だけを打ち消す。既定スライダー (100%) で OpenAL gain がバニラと同じ
+     *       1.0 になり、PCM 段は素通し = 歪みの余地がゼロ。素材の小ささは残る。</li>
+     *   <li>{@code 2.83} — (a)+(b)。既定スライダーでバニラより +3.0 dB。素材の小ささを埋める側。</li>
+     * </ul>
+     */
+    private static final double MATERIAL_GAIN = 2.83;
+
+    /** 押し込み先の PCM ストリーム。{@link #getCustomStream()} が streaming 側から生成する。 */
+    @Nullable
+    private volatile LavaPlayerAudioStream stream;
+
+    /**
+     * 素材から耳までの総ゲイン = (volumePercent/100) × client の Records 相対倍率 × {@link #MATERIAL_GAIN}。
+     */
+    private double totalGain() {
+        return volumePercent / 100.0 * Config.volumeMultiplier() * MATERIAL_GAIN;
+    }
+
+    /**
+     * OpenAL へ渡すゲイン。{@code SoundEngine#calculateVolume} が [0,1] にクランプするので 1.0 で
+     * 頭打ちにし、超過分は {@link #computePcmGain()} が PCM サンプル側で担う。
+     * min/max に割り振るので両者の積は常に {@link #totalGain()} に一致する。
+     *
+     * <p>頭打ちにしたことで、{@code volumeMultiplier} を既定の 0.5 から上げていた場合に
+     * 高音量側で付いていた減衰距離のおまけ ({@code Math.max(getVolume(),1.0F) * range}) は無くなる。
+     * 既定 config では総ゲインが 1.0 を超えるのは PCM 段だけなので聴取範囲は変わらない。
+     */
     private float computeVolume() {
-        return (float) (volumePercent / 100.0 * Config.volumeMultiplier());
+        return (float) Math.min(totalGain(), 1.0);
+    }
+
+    /** PCM 段のゲイン。OpenAL が表現できない 1.0 超の領域だけを担当する (1.0 = 素通し)。 */
+    private float computePcmGain() {
+        return (float) Math.max(totalGain(), 1.0);
+    }
+
+    /** 現在の PCM ゲインを再生中のストリームへ反映する。未開栓なら何もしない。 */
+    private void pushPcmGain() {
+        final LavaPlayerAudioStream s = this.stream;
+        if (s != null) {
+            s.setPcmGain(computePcmGain());
+        }
     }
 
     /**
@@ -173,6 +220,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
                 }
             }
         }
+        pushPcmGain();
     }
 
     @Override
@@ -194,7 +242,10 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     }
 
     public CompletableFuture<AudioStream> getCustomStream() {
-        return CompletableFuture.completedFuture(new LavaPlayerAudioStream(source, onStreamEnded));
+        final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded);
+        s.setPcmGain(computePcmGain());
+        this.stream = s;
+        return CompletableFuture.completedFuture(s);
     }
 
     public void requestStop() {
