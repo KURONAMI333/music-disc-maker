@@ -20,6 +20,14 @@ dependencies {
     // loom が named に remap するので AA の型を直接参照できる (modCompileOnly=同梱しない、ソフト依存。
     // fabric.mod.json に依存宣言しない)。dev で実挙動を試すなら modLocalRuntime に変える。
     modCompileOnly files("compat-libs/additionaladditions-fabric-10.0.5.jar")
+
+    // Traveler's Backpack (互換): 26.2 で Sophisticated Backpacks が未対応な帯の受け皿。
+    // Jukebox Upgrade スロットに custom disc を入れて LavaPlayer 再生する。loom が named に remap
+    // するので TB の型を直接参照できる (modCompileOnly=同梱しない、ソフト依存)。mixin は @Pseudo で無害化。
+    // 10.1.38 は Loom 1.15.5/static mixin remap で出荷されており、本 project の Loom 1.8.13 では
+    // 「Mod was built with a newer version of Loom」で modCompileOnly が拒否する (実測)。
+    // 10.1.25 (Loom 1.7.4/mixin remap type) は同じ JukeboxWidget API で解決できるのでこちらを使う。
+    modCompileOnly files("compat-libs/travelersbackpack-fabric-1.21.1-10.1.25.jar")
 }
 
 // ─── LavaPlayer 隔離ロード wiring ────────────────────────────────────────

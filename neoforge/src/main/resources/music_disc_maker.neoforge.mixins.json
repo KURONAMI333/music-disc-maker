@@ -10,7 +10,8 @@
     "MixinTitleScreen",
     "MixinSoundEngine",
     "MixinSoundManager",
-    "MixinSoundEngineChannels"
+    "MixinSoundEngineChannels",
+    "TravelersBackpackJukeboxMixin"
   ],
   "server": [],
   "injectors": {
