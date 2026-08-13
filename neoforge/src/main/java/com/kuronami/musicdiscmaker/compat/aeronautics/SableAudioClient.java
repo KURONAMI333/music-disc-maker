@@ -10,7 +10,6 @@ import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
-import com.kuronami.musicdiscmaker.client.audio.PlaybackGenerations;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
@@ -33,10 +32,18 @@ import net.minecraft.network.chat.Component;
  * 周期送信し、late-tracking を拾う) は {@link #ACTIVE} で dedup する。解体・再組立で plot 座標が変わると
  * 別 key になり張り替わる。
  *
- * <p>{@link #ACTIVE} への登録は URL ロード完了後 (main thread) にしか起きないため、初回ロードが 1 秒を
- * 超えると次の周期再送が {@link #ACTIVE} 未登録のまま {@link #play} に来て、2 本目のロードが並走しうる
- * (Create の捕獲式のような「actor 1 回きりの送信」ではなく、Sable は継続的に送り続ける方式のため)。
- * {@link #GENERATIONS} は plot 座標ごとにこの並走を検出し、後発のロードだけを完了させる。
+ * <h2>周期再送とロード時間の競合</h2>
+ * {@link #ACTIVE} への登録は URL ロード完了後 (main thread) にしか起きないため、初回ロードが 1 秒を
+ * 超えると次の周期再送が {@link #ACTIVE} 未登録のまま {@link #play} に来る。ここで世代トークンを
+ * 使うと「新しい要求が来るたびに前を破棄」する形になり、<b>再送間隔 (1 秒) がロード時間より短い
+ * 音源 (ネットワーク経由はほぼ該当) では一度も {@code SoundManager.play()} に届かない</b>
+ * (常に後発の世代が先に立ち上がり、先発が完了する頃には後発の後発が既に current を奪っている)。
+ * ここで要るのは「後発を勝たせる」世代ではなく「同じロードが進行中なら後発を無視する」
+ * {@link #PENDING} の in-flight ガード ({@code PlaybackRequestGate} の judgement と同じ形)。
+ *
+ * <p>{@link #FAILED_URL} は失敗した URL を plot 座標ごとに記憶し、同じ URL が生きている間は
+ * 再送のたびにロードをやり直さない (1 Hz でチャット/ログが埋まるのを防ぐ)。曲が変わる
+ * (URL が変わる) か、ロードが成功すればクリアされる。
  */
 public final class SableAudioClient {
 
@@ -49,12 +56,11 @@ public final class SableAudioClient {
     /** 再生中インスタンスの重複防止。key = plot 座標 (long)。 */
     private static final Map<Long, DiscSoundInstance> ACTIVE = new ConcurrentHashMap<>();
 
-    /**
-     * plot 座標ごとの再生世代。{@link #ACTIVE} はロード完了までその plot の再生を持たないので、
-     * 周期再送 (1 秒毎) が初回ロード完了前に届くと dedup が効かず、並走したロードの両方が音源を
-     * 登録してしまう。世代を進めて、完了時点で最新でないロードは鳴らさずに閉じる。
-     */
-    private static final PlaybackGenerations<Long> GENERATIONS = new PlaybackGenerations<>();
+    /** ロード中の要求の URL (in-flight ガード)。key = plot 座標。 */
+    private static final Map<Long, String> PENDING = new ConcurrentHashMap<>();
+
+    /** 直近に失敗し報告済みの URL。key = plot 座標。同じ URL の間はロードも報告もやり直さない。 */
+    private static final Map<Long, String> FAILED_URL = new ConcurrentHashMap<>();
 
     private SableAudioClient() {
     }
@@ -69,7 +75,13 @@ public final class SableAudioClient {
         if (previous != null && !previous.isStopped()) {
             return; // 同じ plot 座標で既に再生中 (周期再送 / late-tracking 再送) はスキップ。
         }
-        final int generation = GENERATIONS.begin(actorKey);
+        if (track.url().equals(PENDING.get(actorKey))) {
+            return; // 同じ URL を既にロード中 (周期再送)。ロードを重ねない。
+        }
+        if (track.url().equals(FAILED_URL.get(actorKey))) {
+            return; // 同じ URL が直近に失敗済み。曲が変わる/成功するまで繋ぎ直さない。
+        }
+        PENDING.put(actorKey, track.url());
         // 診断 (debug 既定 off): server の送信ログが出るのにこれが出なければ payload が client へ届いていない
         // (sub-level tracking の解決漏れ / 配送) を疑う。両方出るのに無音なら SableSubLevelAnchor の座標変換側。
         MusicDiscMaker.LOGGER.debug("Sable sub-level 再生を受信: plotPos={}", payload.plotPos());
@@ -92,17 +104,17 @@ public final class SableAudioClient {
             final IAudioSource resolved = source;
             final PlaybackFailure reported = failure;
             Minecraft.getInstance().execute(() -> {
+                // in-flight ガードの解除は成否に関わらず必ず行う (残すと以後の再送が全部黙って無視される)。
+                PENDING.remove(actorKey, track.url());
                 if (resolved == null) {
                     // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
+                    // 同じ URL は FAILED_URL に記憶し、次の周期再送 (1 秒後) では繋ぎ直さない。
+                    FAILED_URL.put(actorKey, track.url());
                     PlaybackFailureReport.report(track, reported);
                     return;
                 }
+                FAILED_URL.remove(actorKey, track.url());
                 if (Minecraft.getInstance().level == null) {
-                    resolved.close();
-                    return;
-                }
-                // ロード中に別の周期再送が先に完了して登録済み / 更に新しい再送が来ていたら、この古いロードは破棄する。
-                if (!GENERATIONS.isCurrent(actorKey, generation)) {
                     resolved.close();
                     return;
                 }
