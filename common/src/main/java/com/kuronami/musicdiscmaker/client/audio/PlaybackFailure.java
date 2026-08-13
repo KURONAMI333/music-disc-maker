@@ -19,7 +19,10 @@ import com.kuronami.musicdiscmaker.network.UrlGuard;
  * <b>その client の画面とログの両方</b>に残す必要がある ({@link PlaybackFailureReport})。
  *
  * <p>分類はここに閉じてある。{@code Minecraft} を掴まないので headless テストに載る
- * ({@link PlaybackSessions} / {@link PlaybackPositions} と同じ seam の切り方)。
+ * ({@code PlaybackSessions} / {@code PlaybackPositions} と同じ seam の切り方)。
+ *
+ * @param kind   利用者に見せる粒度の分類
+ * @param detail ログ・チャットの角括弧に出す技術詳細 (空文字なら detail 無し)
  */
 public record PlaybackFailure(Kind kind, String detail) {
 
