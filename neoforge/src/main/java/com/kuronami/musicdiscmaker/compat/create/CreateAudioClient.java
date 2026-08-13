@@ -8,8 +8,11 @@ import java.util.concurrent.Executors;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
@@ -61,20 +64,30 @@ public final class CreateAudioClient {
         }
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
         POOL.submit(() -> {
-            IAudioSource source;
+            IAudioSource source = null;
+            PlaybackFailure failure = null;
             try {
                 UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
-                source = LoaderHolder.get().openStream(track.url(), payload.startOffsetMs());
+                // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
+                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), payload.startOffsetMs());
+                source = result.source();
+                failure = result.isOk() ? null
+                        : PlaybackFailure.ofReason(result.reason(), result.detail());
             } catch (final UrlBlockedException blocked) {
-                MusicDiscMaker.LOGGER.warn("Create contraption 再生 URL を拒否 ({}): {}", blocked.reason(), track.url());
-                source = null;
+                failure = PlaybackFailure.blocked(blocked.reason());
             } catch (final Throwable t) {
-                MusicDiscMaker.LOGGER.warn("Create contraption 用ストリーム生成に失敗 ({}): {}", track.url(), t.toString());
-                source = null;
+                failure = PlaybackFailure.thrown(t);
             }
             final IAudioSource resolved = source;
+            final PlaybackFailure reported = failure;
             Minecraft.getInstance().execute(() -> {
-                if (resolved == null || Minecraft.getInstance().level == null) {
+                if (resolved == null) {
+                    // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
+                    PlaybackFailureReport.report(track, reported);
+                    return;
+                }
+                if (Minecraft.getInstance().level == null) {
+                    resolved.close();
                     return;
                 }
                 final Entity entity = Minecraft.getInstance().level.getEntity(payload.contraptionEntityId());
