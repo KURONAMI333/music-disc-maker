@@ -122,4 +122,15 @@ public final class ActiveDiscRegistry {
     public static void clear() {
         BY_DIM.clear();
     }
+
+    /**
+     * 次元のアンロード時にその次元だけ消去する。次元が落ちるとその中の chunk はもう誰にも
+     * watch されないので、chunk 再入を待つ掃除 (chunk 再送の走査) には二度と届かない。
+     * 消さないと、その次元のエントリは server が止まるまで残り続ける。
+     *
+     * @param dim アンロードされた次元
+     */
+    public static void clear(ResourceKey<Level> dim) {
+        BY_DIM.remove(dim);
+    }
 }
