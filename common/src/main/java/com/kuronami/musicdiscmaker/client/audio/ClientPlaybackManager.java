@@ -59,6 +59,14 @@ public final class ClientPlaybackManager {
     private final Map<BlockPos, Long> playStartMillis = new ConcurrentHashMap<>();
     // pos ごとの現インスタンスのロード開始オフセット (GUI シークと chunk 再入再送の判別に使う)。
     private final Map<BlockPos, Long> loadOffsetMs = new ConcurrentHashMap<>();
+    // 再生スレッドの中で落ちた失敗の重複抑止。ラジオは同じ理由で最大 MAX_RECONNECT 回まで
+    // 落ち直すので、覚えておかないと同じ行がチャットに積まれる。忘れるのは停止した時だけ
+    // (再接続のたびに忘れると何も抑えていないのと同じになる)。
+    private final PlaybackFailureNotices notices = new PlaybackFailureNotices();
+    // ラジオで拾った失敗の保留。ラジオにとって音が途切れることは再接続が引き受ける想定内の状態
+    // なので、瞬断のたびにチャットへ理由を出すと再接続の表示 (アクションバー) と二重になる。
+    // 再接続を諦めた時に「なぜ諦めたか」として 1 度だけ出す。
+    private final Map<BlockPos, PlaybackFailure> pendingFailure = new ConcurrentHashMap<>();
     private final ExecutorService pool = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-playback");
         thread.setDaemon(true);
@@ -200,6 +208,19 @@ public final class ClientPlaybackManager {
                 ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
                 : null;
         final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
+        // 再生スレッドの中で落ちた失敗の届け先。ここを差さないと、解決には成功して再生だけが
+        // 落ちる失敗 (YouTube の bot 判定が典型) は利用者に何も出ないまま無音になる。
+        // 届くのは streaming スレッドなので main thread へ移してから報告する。
+        instance.setFailureSink(late -> Minecraft.getInstance().execute(() -> {
+            // ラジオはまだ再接続する気がある間は黙って抱えておく (瞬断は想定内)。
+            if (track.radio() && wanted.contains(key)) {
+                pendingFailure.put(key, late);
+                return;
+            }
+            if (notices.shouldReport(key, late)) {
+                PlaybackFailureReport.report(track, late);
+            }
+        }));
         // 鳴り始めの 1 tick を positional で鳴らさないよう、play より前に聴取モデルを入れる。
         instance.setDirectional(directionals.getOrDefault(key, Boolean.TRUE));
         active.put(key, instance);
@@ -252,6 +273,11 @@ public final class ClientPlaybackManager {
             // 再接続を諦めた = 恒久的にこの音源は鳴らない。数秒で消えるアクションバーではなく
             // チャットへ残す (「いつ止まったか」を後から読めるようにする)。
             notifyChat(Component.translatable("music_disc_maker.radio.stopped"));
+            // 途中で拾っていた理由があれば、ここで初めて出す (「なぜ諦めたか」)。
+            final PlaybackFailure why = pendingFailure.remove(key);
+            if (why != null) {
+                PlaybackFailureReport.report(req.track(), why);
+            }
             return;
         }
         reconnectAttempts.put(key, attempt);
@@ -284,6 +310,8 @@ public final class ClientPlaybackManager {
         reconnectAttempts.remove(key);
         playStartMillis.remove(key);
         loadOffsetMs.remove(key);
+        notices.forget(key);
+        pendingFailure.remove(key);
         final DiscSoundInstance instance = active.remove(key);
         if (instance != null) {
             instance.requestStop();
@@ -299,6 +327,8 @@ public final class ClientPlaybackManager {
         reconnectAttempts.clear();
         playStartMillis.clear();
         loadOffsetMs.clear();
+        notices.forgetAll();
+        pendingFailure.clear();
         active.values().forEach(instance -> {
             instance.requestStop();
             Minecraft.getInstance().getSoundManager().stop(instance);

@@ -6,10 +6,13 @@ import java.util.Set;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure.Kind;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureNotices;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
+import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
@@ -208,8 +211,193 @@ public class PlaybackFailureGameTests {
         helper.succeed();
     }
 
+    /**
+     * kura の実機ログに出た <b>そのままの文面</b>が bot 判定に落ちること。
+     *
+     * <p>ここが要点 — この失敗は URL 解決には成功していて、落ちるのは lavaplayer の再生スレッド
+     * ({@code lava-daemon-pool-playback-*}) の中。同期経路しか見ていなかった頃は、この形の
+     * 失敗は利用者に一言も出ないまま完全な無音になっていた (CF 報告 #15 の症状)。
+     *
+     * <p>文面は youtube-source の {@code AllClientsFailedException} が組み立てるもので、
+     * 各 client の失敗理由を自分のメッセージへ連結して持つ。つまり「login 要求」は例外の
+     * メッセージ 1 本の中に現れる = 隔離 classloader の型を触らずに分類できる。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void realBotCheckMessageIsClassifiedAsBotCheck(GameTestHelper helper) {
+        final FailureReason reason = FailureClassifier.classify(new RuntimeException(ALL_CLIENTS_FAILED));
+        helper.assertTrue(reason == FailureReason.BOT_CHECK,
+                "実ログの login 要求が " + reason + " に落ちている");
+        // 後続の client の言い分 (音声形式なし・player 設定エラー) に引きずられないこと。
+        helper.assertTrue(FailureClassifier.classifyMessage("No supported audio streams available, available types: ")
+                        != FailureReason.BOT_CHECK,
+                "bot 判定と無関係な文面まで BOT_CHECK になっている");
+        // 年齢制限は "requires login" と別語句なので衝突しない。
+        helper.assertTrue(FailureClassifier.classifyMessage("This video requires age verification.")
+                        == FailureReason.AGE_RESTRICTED, "年齢制限が bot 判定に吸われている");
+        // 判別できない失敗は従来どおり接続失敗。null でも壊れない。
+        helper.assertTrue(FailureClassifier.classify(null) == FailureReason.CONNECTION_FAILED,
+                "例外が無い経路で分類が壊れている");
+        helper.succeed();
+    }
+
+    /**
+     * 再生スレッドで拾った失敗が、<b>境界を越えて</b>分類まで届くこと。
+     *
+     * <p>lavaplayer / youtube-source の例外型は隔離 classloader の中にしか無いので、mod 側では
+     * {@code instanceof} が効かない。だから境界を越えるのは {@link PlaybackFault}
+     * (理由 + 短い文字列) だけ、というのがこの経路の設計。ここが緩むと、解決に成功して再生だけが
+     * 落ちる失敗は再び無音に戻る。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void asyncFaultCrossesTheBoundary(GameTestHelper helper) {
+        // 口を持たない実装は「壊れていない」と答える (v3 の派生ソースを壊さないための既定)。
+        helper.assertTrue(new SilentSource().playbackFault() == null,
+                "既定実装が失敗を捏造している");
+
+        final IAudioSource source = new FaultySource(new PlaybackFault(
+                FailureClassifier.classify(new RuntimeException(ALL_CLIENTS_FAILED)), ALL_CLIENTS_FAILED));
+        final PlaybackFault fault = source.playbackFault();
+        helper.assertTrue(fault != null, "再生中の失敗が境界の手前で消えている");
+        helper.assertTrue(fault.reason() == FailureReason.BOT_CHECK,
+                "境界を越えた理由が " + fault.reason() + " に化けている");
+        // 詳細はチャット 1 行に載る形へ畳まれること (再生スレッドの例外はスタックトレースを抱える。
+        // 畳まないと、理由を出せるようになった代わりにチャットがトレースで埋まる)。
+        helper.assertFalse(fault.detail().contains("\n"), "詳細が 1 行に畳まれていない");
+        helper.assertFalse(fault.detail().contains("\t"), "詳細にタブが残っている");
+        helper.assertTrue(fault.detail().length() < ALL_CLIENTS_FAILED.length(),
+                "長い詳細が切り詰められていない: " + fault.detail().length() + " 文字");
+        helper.assertTrue(fault.detail().endsWith("…"), "切り詰めた印が付いていない: " + fault.detail());
+        // 短い詳細はそのまま残る (何でも切るわけではない)。
+        helper.assertTrue(new PlaybackFault(FailureReason.BOT_CHECK, "requires login").detail()
+                .equals("requires login"), "短い詳細まで加工されている");
+
+        final PlaybackFailure failure = PlaybackFailure.ofReason(fault.reason(), fault.detail());
+        helper.assertTrue(failure.kind() == Kind.BOT_CHECK,
+                "非同期の bot 判定が " + failure.kind() + " に潰れている");
+        helper.assertTrue(failure.translationKey().endsWith(".bot_check"),
+                "画面に出る文面が bot 判定のものになっていない: " + failure.translationKey());
+        helper.succeed();
+    }
+
+    /**
+     * 同じ音源の同じ失敗を二度報告しないこと。ラジオは終端を瞬断とみなして再接続するので、
+     * 何度試しても同じ理由で落ちる失敗 (bot 判定が典型) は抑えないとチャットを埋める。
+     * 忘れるのは停止した時だけ — 再接続のたびに忘れるなら何も抑えていない。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void sameFailureIsReportedOnlyOnce(GameTestHelper helper) {
+        final PlaybackFailureNotices notices = new PlaybackFailureNotices();
+        final Object key = new Object();
+        final PlaybackFailure botCheck = PlaybackFailure.ofReason(FailureReason.BOT_CHECK, "requires login");
+
+        helper.assertTrue(notices.shouldReport(key, botCheck), "最初の失敗が抑制されている");
+        helper.assertFalse(notices.shouldReport(key, botCheck), "同じ失敗が二度報告されている");
+        helper.assertFalse(notices.shouldReport(key, PlaybackFailure.ofReason(
+                FailureReason.BOT_CHECK, "requires login")), "同値の失敗が別物として扱われている");
+        // 理由が変わったら別の情報なので通す。
+        helper.assertTrue(notices.shouldReport(key, PlaybackFailure.ofReason(
+                FailureReason.CONNECTION_FAILED, null)), "違う失敗まで抑制されている");
+        // 音源が違えば別勘定。
+        helper.assertTrue(notices.shouldReport(new Object(), botCheck), "別の音源まで抑制されている");
+        // 停止したら忘れる (次に同じ失敗が起きたら改めて出す)。
+        notices.forget(key);
+        helper.assertTrue(notices.shouldReport(key, botCheck), "停止後も抑制が残っている");
+        notices.forgetAll();
+        helper.assertTrue(notices.shouldReport(key, botCheck), "全消去が効いていない");
+        helper.succeed();
+    }
+
+    /**
+     * kura の実機 ({@code latest.log}) に出た {@code AllClientsFailedException} のメッセージ。
+     * youtube-source が各 client の失敗を自分のメッセージへ連結した形をそのまま写している。
+     */
+    private static final String ALL_CLIENTS_FAILED =
+            "(yts.version: 1.18.2) All clients failed to load the item.\n"
+            + "\n"
+            + "Client [ANDROID_VR] failed: This video requires login.\n"
+            + "\tat dev.lavalink.youtube.clients.skeleton.Client.getPlayabilityStatus(Client.java:94)\n"
+            + "\n"
+            + "Client [WEB] failed: No supported audio streams available, available types: \n"
+            + "\tat dev.lavalink.youtube.track.format.TrackFormats.getBestFormat(TrackFormats.java:47)\n"
+            + "\n"
+            + "Client [WEB_EMBEDDED_PLAYER] failed: Video player configuration error";
+
     private static Kind kindOf(FailureReason reason) {
         return PlaybackFailure.ofReason(reason, null).kind();
+    }
+
+    /** 再生中に壊れた理由を持つソース (隔離側の {@code LavaAudioSource} を模す)。 */
+    private record FaultySource(PlaybackFault fault) implements IAudioSource {
+
+        @Override
+        public int sampleRate() {
+            return 48000;
+        }
+
+        @Override
+        public int channels() {
+            return 1;
+        }
+
+        @Override
+        public int bitsPerSample() {
+            return 16;
+        }
+
+        @Override
+        public boolean bigEndian() {
+            return false;
+        }
+
+        @Override
+        public int read(byte[] dst, int off, int len) {
+            return -1;
+        }
+
+        @Override
+        public PlaybackFault playbackFault() {
+            return fault;
+        }
+
+        @Override
+        public void close() {
+        }
+    }
+
+    /** {@code playbackFault} を持たない実装 (v3 の派生ソース相当)。 */
+    private static final class SilentSource implements IAudioSource {
+
+        @Override
+        public int sampleRate() {
+            return 48000;
+        }
+
+        @Override
+        public int channels() {
+            return 1;
+        }
+
+        @Override
+        public int bitsPerSample() {
+            return 16;
+        }
+
+        @Override
+        public boolean bigEndian() {
+            return false;
+        }
+
+        @Override
+        public int read(byte[] dst, int off, int len) {
+            return -1;
+        }
+
+        @Override
+        public void close() {
+        }
     }
 
     /**

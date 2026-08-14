@@ -23,6 +23,24 @@ public interface IAudioSource extends AutoCloseable {
      */
     int read(byte[] dst, int off, int len);
 
+    /**
+     * 再生中に壊れた理由。まだ壊れていなければ {@code null}。
+     *
+     * <p>{@link #read} が {@code -1} を返した (= ストリームが終わった) 時、それが
+     * 「最後まで鳴った」のか「途中で落ちた」のかは戻り値では区別できない。区別できないと、
+     * 再生スレッドの中で落ちた失敗は<b>利用者に何も出ないまま完全な無音</b>になる。
+     * 終端を見た側がここを引いて、理由が付いていれば報告する。
+     *
+     * <p>{@code default} で {@code null} を返すのは、この口を持たない実装
+     * (キャッシュ済み PCM を返すもの・複製して配るもの等) を壊さないため。持たない実装にとって
+     * 「非同期に壊れる」という状態自体が存在しない。
+     *
+     * @return 失敗の分類と技術詳細。壊れていなければ {@code null}
+     */
+    default PlaybackFault playbackFault() {
+        return null;
+    }
+
     @Override
     void close();
 }
