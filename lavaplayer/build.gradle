@@ -42,10 +42,26 @@ dependencies {
 
     // slf4j-api は mod 側が提供 (隔離 classloader が org.slf4j を mod へ委譲する) → compileOnly
     compileOnly 'org.slf4j:slf4j-api:2.0.17'
+
+    // 本物の lavaplayer を相手に再生スレッドの失敗経路を回す test (MC も GameTest も要らない層)。
+    // この層でしか確かめられないものがある = 「例外が配られる前にストリームが終わる」という
+    // lavaplayer 側の順序。mod 側の GameTest は隔離 classloader の中を見られない。
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.slf4j:slf4j-api:2.0.17'
+    testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.named('test').configure {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat = 'full'
+    }
 }
 
 // impl jar を .jar.packed として出力 (mod scanner 回避)。
