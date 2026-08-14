@@ -159,9 +159,42 @@ public final class ClientPlaybackManager {
             }
             final IAudioSource resolved = source;
             final PlaybackFailure reported = failure;
+            // 失敗の届け先は「ソースを受け取った直後・main thread へ渡す前」に差す。再生スレッドは
+            // ここから数百 ms で落ちうるので、play が始まってから差していると取り落とす窓ができる
+            // (差した時点で既に壊れていれば relay がその場で流すので、順番はどちらでもよい)。
+            if (resolved != null) {
+                resolved.onPlaybackFault(broken -> Minecraft.getInstance().execute(
+                        () -> lateFailure(key, track,
+                                PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
+            }
             Minecraft.getInstance().execute(
                     () -> onLoaded(key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported));
         });
+    }
+
+    /**
+     * 再生スレッドの中で落ちた失敗を受ける (main thread から呼ぶこと)。push (ソース直結) と
+     * pull (ストリーム終端) の両方がここへ集まる。
+     *
+     * <p>止めた再生の後始末では黙る。ロード中に停止された・同時再生上限で捨てられたソースも
+     * 後から理由を上げてくるので、ここで弾かないと「鳴らしていない再生の失敗」がチャットに出る。
+     *
+     * @param key   音源の位置
+     * @param track 失敗した曲
+     * @param late  分類済みの失敗
+     */
+    private void lateFailure(BlockPos key, CustomTrackData track, PlaybackFailure late) {
+        if (!wanted.contains(key)) {
+            return;
+        }
+        // ラジオはまだ再接続する気がある間は黙って抱えておく (瞬断は想定内)。
+        if (track.radio()) {
+            pendingFailure.put(key, late);
+            return;
+        }
+        if (notices.shouldReport(key, late)) {
+            PlaybackFailureReport.report(track, late);
+        }
     }
 
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
@@ -208,19 +241,12 @@ public final class ClientPlaybackManager {
                 ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
                 : null;
         final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
-        // 再生スレッドの中で落ちた失敗の届け先。ここを差さないと、解決には成功して再生だけが
-        // 落ちる失敗 (YouTube の bot 判定が典型) は利用者に何も出ないまま無音になる。
-        // 届くのは streaming スレッドなので main thread へ移してから報告する。
-        instance.setFailureSink(late -> Minecraft.getInstance().execute(() -> {
-            // ラジオはまだ再接続する気がある間は黙って抱えておく (瞬断は想定内)。
-            if (track.radio() && wanted.contains(key)) {
-                pendingFailure.put(key, late);
-                return;
-            }
-            if (notices.shouldReport(key, late)) {
-                PlaybackFailureReport.report(track, late);
-            }
-        }));
+        // ストリーム終端の pull 経路も同じ届け先へ繋ぐ。push を持つソースでは重複しうるが、
+        // lateFailure の重複抑止が畳むので害はない。逆に<b>差さない方が危険</b> — 差さないと
+        // LavaPlayerAudioStream が「届け先を持たない経路」の既定へ落ち、曲名も重複抑止も
+        // ラジオの沈黙も通らない裸の報告を出す。届くのは streaming スレッドなので main thread へ移す。
+        instance.setFailureSink(
+                late -> Minecraft.getInstance().execute(() -> lateFailure(key, track, late)));
         // 鳴り始めの 1 tick を positional で鳴らさないよう、play より前に聴取モデルを入れる。
         instance.setDirectional(directionals.getOrDefault(key, Boolean.TRUE));
         active.put(key, instance);

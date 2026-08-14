@@ -2,12 +2,13 @@ package com.kuronami.musicdiscmaker.lavaplayer;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
+import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFaultRelay;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEvent;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventListener;
@@ -33,10 +34,12 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
     private int leftoverPos;
     private volatile boolean ended;
     /**
-     * 再生中に壊れた理由。最初の 1 件だけを残す (後続は同じ失敗の余波なので上書きさせない)。
-     * 書き込み = 再生スレッド / 読み出し = MC の streaming スレッド。
+     * 再生中に壊れた理由の受け渡し口。書き込み = 再生スレッド / 読み出し = MC の streaming スレッド。
+     *
+     * <p>理由が確定した瞬間に届け先へ push する ({@link PlaybackFaultRelay})。終端で pull させる形
+     * だけでは、lavaplayer が「ストリームの終わり」を例外イベントより先に公開するせいで毎回取り落とす。
      */
-    private final AtomicReference<PlaybackFault> fault = new AtomicReference<>();
+    private final PlaybackFaultRelay relay = new PlaybackFaultRelay();
 
     LavaAudioSource(AudioPlayer player) {
         this.player = player;
@@ -51,13 +54,16 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
     @Override
     public void onEvent(AudioEvent event) {
         if (event instanceof TrackExceptionEvent ex) {
-            record(FailureClassifier.classify(ex.exception), describe(ex.exception));
+            // 詳細は「分類の根拠になった例外」から採る。lavaplayer は再生スレッドの例外を
+            // FriendlyException で包むので、一番外側の文面はどの失敗でも定型文になる。
+            record(FailureClassifier.classify(ex.exception),
+                    describe(FailureClassifier.blamed(ex.exception)));
         }
     }
 
-    /** 最初の 1 件だけを残す。 */
+    /** 最初の 1 件だけを残し、届け先が居ればその場で流す。 */
     private void record(FailureReason reason, String detail) {
-        fault.compareAndSet(null, new PlaybackFault(reason, detail));
+        relay.record(reason, detail);
     }
 
     /**
@@ -88,7 +94,12 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
 
     @Override
     public PlaybackFault playbackFault() {
-        return fault.get();
+        return relay.fault();
+    }
+
+    @Override
+    public void onPlaybackFault(Consumer<PlaybackFault> sink) {
+        relay.sink(sink);
     }
 
     @Override
@@ -134,7 +145,7 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
 
             // 再生スレッドで落ちていたら、持っている分を吐いて終わらせる。ここで止めないと
             // 「再生中の表示だけ残って永久に無音」= 直そうとしている症状そのものになる。
-            if (fault.get() != null) {
+            if (relay.fault() != null) {
                 ended = true;
                 break;
             }
@@ -151,6 +162,10 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
 
             if (frame == null) {
                 if (player.getPlayingTrack() == null) {
+                    // 再生が例外で落ちた場合、ここが最初に着く。lavaplayer は例外を配る前に
+                    // frame buffer を terminate するので、terminator を見た provide() が
+                    // activeTrack を落とし、理由がまだ無いまま「終わった」だけが見える。
+                    // 理由は後から relay 経由で push されるので、ここで待たずに終わってよい。
                     ended = true;
                     break;
                 }
