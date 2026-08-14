@@ -36,6 +36,7 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
+import dev.lavalink.youtube.clients.AndroidVr;
 
 /**
  * LavaPlayer を使う実装。隔離 classloader 側にロードされ、mod からは {@link IMusicLoader}
@@ -64,7 +65,31 @@ public class MusicLoaderImpl implements IMusicLoader {
     private static final Pattern YT_VIDEO_ID =
             Pattern.compile("(?i)(?:youtu\\.be/|/shorts/|/embed/|[?&]v=)([A-Za-z0-9_-]{11})");
 
+    /** URL 1 本を解決する時の待ち上限。 */
+    private static final long LOAD_TIMEOUT_MS = 30_000L;
+    /**
+     * 再生中に落ちて開き直す時の待ち上限。ここは MC の streaming スレッドを塞ぐので、
+     * 通常の解決 ({@link #LOAD_TIMEOUT_MS}) より短く切る。
+     */
+    private static final long REOPEN_TIMEOUT_MS = 10_000L;
+
+    /**
+     * 解決 (同期側) の再試行上限。失敗が速い bot 判定なら 5 回を数秒で使い切れるが、
+     * 遅い失敗を繰り返して利用者を待たせないよう全体の締切も持つ。
+     */
+    private static final SessionRetry.Policy SYNC_RETRY =
+            new SessionRetry.Policy(5, 20_000L, 300L);
+    /** 再生中に落ちた時の開き直し回数。streaming スレッドを長く塞がないので 1 回だけ。 */
+    private static final int REOPEN_RETRIES = 1;
+
     private final AudioPlayerManager apm;
+    /** 登録できた YouTube source manager (登録に失敗したら {@code null})。 */
+    private final YoutubeAudioSourceManager youtube;
+    /**
+     * visitorId の入れ替え口。<b>manager の参照を持たないとリセットを呼ぶ相手が居ない</b> —
+     * これが「起動時に一度弾かれると再起動まで全リンクが死ぬ」の直接の原因だった。
+     */
+    private final YoutubeSession session;
 
     public MusicLoaderImpl() {
         this.apm = new DefaultAudioPlayerManager();
@@ -72,12 +97,45 @@ public class MusicLoaderImpl implements IMusicLoader {
         // (lavaplayer の mono downmix はソースによって効かないため = SoundCloud slow+低音バグ)。
         this.apm.getConfiguration().setOutputFormat(
                 new Pcm16AudioDataFormat(LAVA_OUTPUT_CHANNELS, SAMPLE_RATE, 960, false));
-        register(YoutubeAudioSourceManager::new);
+        this.youtube = registerYoutube();
+        this.session = youtube == null ? YoutubeSession.NONE
+                : new YoutubeTokenSession(youtube, System::currentTimeMillis);
         register(SoundCloudAudioSourceManager::createDefault);
         register(BandcampAudioSourceManager::new);
         register(VimeoAudioSourceManager::new);
         register(TwitchStreamAudioSourceManager::new);
         register(HttpAudioSourceManager::new);
+    }
+
+    /**
+     * YouTube source manager を作って登録し、<b>その参照を返す</b>。
+     *
+     * <h2>client を {@code AndroidVr} 単独にしている理由</h2>
+     * 既定の {@code Music / AndroidVr / Web / WebEmbedded} のうち、実際に音を出せるのは
+     * {@code AndroidVr} だけだった (2026-08-14 実測。{@code Web} は解決だけ成功して再生時に
+     * 「No supported audio streams available」で落ち、{@code WebEmbedded} は player 設定エラー、
+     * {@code Music} は watch URL に noMatches)。
+     *
+     * <p>鳴らない client を並べる害は「無駄」では済まない — {@code Web} が解決に成功してしまうと、
+     * <b>失敗が同期側 (解決) を素通りして非同期側 (再生スレッド) に回る</b>。戻り値の無い経路に
+     * 落ちた失敗は再試行を書くのが難しく、利用者からは「再生中と出るのに無音」に見える。
+     * {@code AndroidVr} 単独なら失敗はほぼ {@link #loadTrackSync} に出るので、素直に再試行できる。
+     *
+     * <p>検索 ({@code ytsearch:}) も {@code AndroidVr} で通る = Spotify 経路 (og タグの曲名を
+     * YouTube 検索で引く) は維持される。
+     *
+     * @return 登録できた manager、失敗したら {@code null}
+     */
+    private YoutubeAudioSourceManager registerYoutube() {
+        try {
+            final YoutubeAudioSourceManager manager = new YoutubeAudioSourceManager(new AndroidVr());
+            apm.registerSourceManager(manager);
+            LOGGER.debug("source manager 登録: {} (client: ANDROID_VR)", manager.getSourceName());
+            return manager;
+        } catch (final Throwable t) {
+            LOGGER.warn("YouTube source manager 登録失敗: {}", t.toString());
+            return null;
+        }
     }
 
     private void register(Supplier<AudioSourceManager> supplier) {
@@ -137,7 +195,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             LOGGER.warn("再生用ロード失敗 ({}): {}", url, ex.reason());
             return null;
         }
-        return startPlayback(track, startMs);
+        return startPlayback(track, startMs, url);
     }
 
     /**
@@ -153,11 +211,31 @@ public class MusicLoaderImpl implements IMusicLoader {
             LOGGER.warn("再生用ロード失敗 ({}): {}", url, ex.reason());
             return OpenStreamResult.failed(ex.reason(), null);
         }
-        return OpenStreamResult.ok(startPlayback(track, startMs));
+        return OpenStreamResult.ok(startPlayback(track, startMs, url));
     }
 
-    /** 解決済みトラックを希望位置から鳴らし始める ({@code openStream} 系の共通後半)。 */
-    private IAudioSource startPlayback(AudioTrack track, long startMs) {
+    /**
+     * 解決済みトラックを希望位置から鳴らし始める ({@code openStream} 系の共通後半)。
+     *
+     * <p>YouTube だけは {@link RetryingAudioSource} で包む。{@code AndroidVr} 単独にしても
+     * 「解決には成功し、再生スレッドの中で落ちる」経路は残るので、そこでもセッションを
+     * 入れ替えて開き直せるようにしておく。他サービスは包まない (入れ替える visitorId が無く、
+     * 終端で理由を待つぶんだけ遅くなる)。
+     */
+    private IAudioSource startPlayback(AudioTrack track, long startMs, String url) {
+        final LavaAudioSource source = beginPlayback(track, startMs);
+        final String target = normalizeYoutubeUrl(url);
+        if (youtube == null || !isYoutubeTarget(target)) {
+            return source;
+        }
+        return new RetryingAudioSource(source,
+                () -> beginPlayback(loadOnce(target, REOPEN_TIMEOUT_MS), startMs),
+                session, reason -> isRetryable(reason, isSearch(target)),
+                REOPEN_RETRIES, RetryingAudioSource.DEFAULT_GRACE_MS, System::currentTimeMillis);
+    }
+
+    /** player を作ってトラックを流し始める (包む前の素のソース)。 */
+    private LavaAudioSource beginPlayback(AudioTrack track, long startMs) {
         // 後から chunk に入った player へ途中から同期再生させるための seek。
         // seek 不可トラック (ライブ配信等) は先頭/ライブ端のまま再生する。
         if (startMs > 0L && track.isSeekable()) {
@@ -198,13 +276,58 @@ public class MusicLoaderImpl implements IMusicLoader {
         return url;
     }
 
+    /** 検索クエリか (Spotify 経路が使う {@code ytsearch:} 系)。 */
+    private static boolean isSearch(String url) {
+        return url != null && (url.startsWith("ytsearch:") || url.startsWith("ytmsearch:"));
+    }
+
+    /** YouTube を相手にする URL か (セッションの入れ替えが効く相手だけ再試行する)。 */
+    static boolean isYoutubeTarget(String url) {
+        return url != null && (isSearch(url) || YT_HOST.matcher(url).find());
+    }
+
+    /**
+     * その失敗理由は開き直して意味があるか。
+     *
+     * <p>やり直して直るのは「セッションが弾かれた」系だけ。非公開・削除済み・年齢制限・地域制限は
+     * 何度 visitorId を替えても同じ結果なので、待たせるだけ損になる。
+     *
+     * <p>{@link FailureReason#UNSUPPORTED_URL} を検索の時だけ再試行に含めるのは、検索が bot 判定で
+     * 弾かれると<b>結果ゼロ件 = noMatches</b> として返ってくるため (Spotify 経路がここに落ちる)。
+     * 検索でない URL の「対応外」は本当に対応外なので、再試行しない。
+     */
+    static boolean isRetryable(FailureReason reason, boolean search) {
+        return switch (reason) {
+            case BOT_CHECK, CONNECTION_FAILED, UNKNOWN -> true;
+            case UNSUPPORTED_URL -> search;
+            default -> false;
+        };
+    }
+
     /**
      * URL を同期ロードする。失敗時は理由つき {@link ResolveException} を投げる (null を返さない)。
-     * noMatches → UNSUPPORTED_URL / タイムアウト → CONNECTION_FAILED / loadFailed →
-     * 例外メッセージから PRIVATE / REGION / AGE / CONNECTION に分類。
+     *
+     * <p>YouTube 相手の失敗は<b>セッションを入れ替えて数回やり直す</b> ({@link SessionRetry})。
+     * youtube-source は最初に取った visitorId を抱え続け、YouTube がそれを弾き始めると同じ
+     * manager では全 URL が失敗し続けるため。待つだけの再試行は効かない (対照 0/10)。
      */
     private AudioTrack loadTrackSync(String url) {
         final String normalized = normalizeYoutubeUrl(url);
+        if (youtube == null || !isYoutubeTarget(normalized)) {
+            return loadOnce(normalized, LOAD_TIMEOUT_MS);
+        }
+        final boolean search = isSearch(normalized);
+        return SessionRetry.run(() -> loadOnce(normalized, LOAD_TIMEOUT_MS), session, SYNC_RETRY,
+                reason -> isRetryable(reason, search), System::currentTimeMillis);
+    }
+
+    /**
+     * URL を 1 回だけ同期ロードする。
+     * noMatches → UNSUPPORTED_URL / タイムアウト → CONNECTION_FAILED / loadFailed →
+     * 例外メッセージから PRIVATE / REGION / AGE / CONNECTION に分類。
+     */
+    private AudioTrack loadOnce(String normalized, long timeoutMs) {
+        final String url = normalized;
         final CompletableFuture<AudioTrack> future = new CompletableFuture<>();
         apm.loadItem(new AudioReference(normalized, null), new AudioLoadResultHandler() {
             @Override
@@ -234,7 +357,7 @@ public class MusicLoaderImpl implements IMusicLoader {
 
         final AudioTrack track;
         try {
-            track = future.get(30, TimeUnit.SECONDS);
+            track = future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (final TimeoutException ex) {
             LOGGER.warn("URL ロードがタイムアウト ({})", url);
             throw new ResolveException(FailureReason.CONNECTION_FAILED);
