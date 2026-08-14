@@ -1,6 +1,5 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
-import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -12,6 +11,7 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
@@ -168,8 +168,14 @@ public class MusicLoaderImpl implements IMusicLoader {
             }
         }
         final AudioPlayer player = apm.createPlayer();
+        // listener は playTrack より前に付ける。playTrack は再生を別スレッド
+        // (lava-daemon-pool-playback-*) へ投げ、そこで落ちた TrackExceptionEvent は
+        // その瞬間に居る listener へしか配られない (再送は無い)。後から付けると、
+        // 開始直後に落ちる失敗 = まさに今直している失敗が永久に見えないままになる。
+        final LavaAudioSource source = new LavaAudioSource(player);
+        player.addListener(source);
         player.playTrack(track);
-        return new LavaAudioSource(player);
+        return source;
     }
 
     /**
@@ -234,7 +240,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             throw new ResolveException(FailureReason.CONNECTION_FAILED);
         } catch (final ExecutionException ex) {
             LOGGER.warn("URL ロード失敗 ({}): {}", url, String.valueOf(ex.getCause()));
-            throw new ResolveException(classify(ex.getCause()));
+            throw new ResolveException(FailureClassifier.classify(ex.getCause()));
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new ResolveException(FailureReason.CONNECTION_FAILED);
@@ -246,41 +252,4 @@ public class MusicLoaderImpl implements IMusicLoader {
         return track;
     }
 
-    /**
-     * ロード失敗の原因を {@link FailureReason} に分類する。lavaplayer/YouTube のエラーメッセージは
-     * 英語固定なので語句一致で判別する。判別できない失敗は接続失敗として扱う。
-     */
-    private static FailureReason classify(Throwable cause) {
-        if (cause == null) {
-            return FailureReason.CONNECTION_FAILED;
-        }
-        final String raw = cause.getMessage();
-        final String m = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
-        // YouTube の bot 判定は「ログイン要求」として現れる (datacenter IP でよく起きる)。
-        // youtube-source は "This video requires login." を投げ、UI 文言は "sign in to
-        // confirm you're not a bot"。接続失敗ではないので age より前に専用分類する。
-        if (m.contains("requires login") || m.contains("sign in to confirm")
-                || m.contains("not a bot")) {
-            return FailureReason.BOT_CHECK;
-        }
-        // 年齢固有の語句のみ (bare "age" は message/page 等を誤って拾うため使わない)。
-        // youtube-source は "This video requires age verification." を投げる ("requires
-        // login" とは別語句なので BOT_CHECK と衝突しない)。
-        if (m.contains("confirm your age") || m.contains("verify your age")
-                || m.contains("age verification")
-                || m.contains("age-restricted") || m.contains("age restricted")
-                || m.contains("inappropriate for some users")) {
-            return FailureReason.AGE_RESTRICTED;
-        }
-        if (m.contains("region") || m.contains("country") || m.contains("not available in your")
-                || m.contains("blocked it in your")) {
-            return FailureReason.REGION_LOCKED;
-        }
-        if (m.contains("private") || m.contains("removed") || m.contains("deleted")
-                || m.contains("no longer available") || m.contains("does not exist")
-                || m.contains("unavailable") || m.contains("terminated")) {
-            return FailureReason.PRIVATE_OR_REMOVED;
-        }
-        return FailureReason.CONNECTION_FAILED;
-    }
 }

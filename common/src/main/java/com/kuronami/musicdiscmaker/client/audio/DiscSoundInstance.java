@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
@@ -142,6 +143,13 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
     /** 押し込み先の PCM ストリーム。{@link #getCustomStream()} が streaming 側から生成する。 */
     @Nullable
     private volatile LavaPlayerAudioStream stream;
+
+    /**
+     * 再生スレッドの中で落ちた失敗の届け先。書き込み = main thread /
+     * 読み出し = streaming スレッド ({@link #getCustomStream()})。
+     */
+    @Nullable
+    private volatile Consumer<PlaybackFailure> failureSink;
 
     /**
      * 指向性の設定。生成直後 (play 前) と、client 側 BE 追従によるライブ切替から呼ぶ。
@@ -319,8 +327,19 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         return result;
     }
 
+    /**
+     * 再生スレッドの中で落ちた失敗の届け先を差す。{@link #getCustomStream()} が開栓時に
+     * ストリームへ渡すので、{@code SoundManager#play} より前に差しておくこと
+     * (未設定なら曲名なしの既定報告になる)。
+     *
+     * @param sink 失敗の届け先 ({@code null} 可)
+     */
+    public void setFailureSink(@Nullable Consumer<PlaybackFailure> sink) {
+        this.failureSink = sink;
+    }
+
     public CompletableFuture<AudioStream> getCustomStream() {
-        final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded);
+        final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded, failureSink);
         s.setPcmGain(computePcmGain());
         this.stream = s;
         return CompletableFuture.completedFuture(s);

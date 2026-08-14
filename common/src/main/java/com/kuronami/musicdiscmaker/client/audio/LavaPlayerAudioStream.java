@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import javax.sound.sampled.AudioFormat;
 
@@ -9,7 +10,9 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.BufferUtils;
 
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.sounds.AudioStream;
 
 /**
@@ -28,6 +31,14 @@ public class LavaPlayerAudioStream implements AudioStream {
     @Nullable
     private final Runnable onEnded;
     private final AtomicBoolean endedNotified = new AtomicBoolean(false);
+    /**
+     * 再生スレッドの中で落ちた失敗の届け先。{@code null} なら曲名を持たない経路として
+     * このクラスが直接報告する。
+     */
+    @Nullable
+    private final Consumer<PlaybackFailure> onFailure;
+    /** 1 つのストリームから同じ失敗を二度上げないためのガード (read は何度も呼ばれる)。 */
+    private final AtomicBoolean failureReported = new AtomicBoolean(false);
 
     /**
      * PCM 段のゲイン (1.0 = 素通し)。{@code SoundEngine#calculateVolume} が OpenAL へ渡す gain を
@@ -52,12 +63,23 @@ public class LavaPlayerAudioStream implements AudioStream {
     private static final float LIMIT_KNEE = 0.8F;
 
     public LavaPlayerAudioStream(IAudioSource source) {
-        this(source, null);
+        this(source, null, null);
     }
 
     public LavaPlayerAudioStream(IAudioSource source, @Nullable Runnable onEnded) {
+        this(source, onEnded, null);
+    }
+
+    /**
+     * @param source    PCM ソース
+     * @param onEnded   終端で一度だけ呼ばれるコールバック (ラジオ再接続用。null=無効)
+     * @param onFailure 再生中に壊れた時に一度だけ呼ばれる届け先 (null=曲名なしで自分で報告する)
+     */
+    public LavaPlayerAudioStream(IAudioSource source, @Nullable Runnable onEnded,
+            @Nullable Consumer<PlaybackFailure> onFailure) {
         this.source = source;
         this.onEnded = onEnded;
+        this.onFailure = onFailure;
         this.format = new AudioFormat(
                 source.sampleRate(), source.bitsPerSample(), source.channels(), true, source.bigEndian());
         this.gainApplicable = source.bitsPerSample() == 16 && !source.bigEndian();
@@ -131,6 +153,10 @@ public class LavaPlayerAudioStream implements AudioStream {
             final int read = source.read(scratch, 0, want);
             if (read < 0) {
                 // トラック終端 → 空 (もしくは残り) を返すと MC が再生終了とみなす。
+                // ただし「最後まで鳴った」のか「途中で落ちた」のかは read の戻り値では区別が
+                // つかない。落ちていた時だけソースが理由を持っているので、ここで引いて報告する
+                // (ここを見ないと、再生スレッドの中で落ちた失敗は完全な無音のまま終わる)。
+                reportFaultIfAny();
                 // ラジオの瞬断もここに来る (lavaplayer が track を終了させる) ので再接続を促す。
                 if (onEnded != null && endedNotified.compareAndSet(false, true)) {
                     onEnded.run();
@@ -145,6 +171,26 @@ public class LavaPlayerAudioStream implements AudioStream {
         }
         buffer.flip();
         return buffer;
+    }
+
+    /**
+     * ソースが理由を持っていれば一度だけ届ける。streaming スレッドから呼ばれるので、
+     * 届け先を持たない場合の既定の報告は main thread へ移してから行う
+     * ({@link PlaybackFailureReport} はチャットを触る)。
+     */
+    private void reportFaultIfAny() {
+        final PlaybackFault fault = source.playbackFault();
+        if (fault == null || !failureReported.compareAndSet(false, true)) {
+            return;
+        }
+        final PlaybackFailure failure = PlaybackFailure.ofReason(fault.reason(), fault.detail());
+        if (onFailure != null) {
+            onFailure.accept(failure);
+            return;
+        }
+        // 曲名を持たない経路 (compat 側の再生等)。曲名が無くても分類とログは残す。
+        Minecraft.getInstance().execute(
+                () -> PlaybackFailureReport.report((String) null, null, failure));
     }
 
     @Override
