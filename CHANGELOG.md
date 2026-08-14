@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.0
+
+- **Custom discs are much louder.** They were quieter than vanilla records at every setting, and pushing the Golden Jukebox volume slider past 100% didn't help. Playback now has its own gain stage with a soft limiter, so custom discs sit at vanilla level or above out of the box — nothing to configure.
+- **Playback failures now tell you why.** When a disc won't play, the reason stays in chat and in the log instead of flashing past on the action bar: YouTube asking this connection to sign in (bot check), age-restricted or region-locked videos, private or deleted videos, unsupported links, network/DNS trouble, or hitting the concurrent-playback limit. This covers playback from backpacks and from Create contraptions too, which previously failed silently or with no reason given.
+- **Fixed discs restarting from the beginning.** A disc left in a jukebox after its track had finished would start over from the top for anyone entering the chunk — after dying and teleporting back, relogging, or a chunk reload — and could leave the same track playing twice at once.
+- **Traveler's Backpack support.** Custom discs now play from Traveler's Backpack's jukebox upgrade slot, the same as Sophisticated Backpacks.
+- **Fixed the backpack Stop button doing nothing while a track was still loading**, which could leave music playing after you stopped it, or start two tracks at once if you pressed Play twice.
+- Updated the YouTube resolver to youtube-source 1.18.2.
+- Fixed playback bookkeeping not being released when a dimension unloads.
+
 ## 2.1.0
 
 - **Create & Create Aeronautics support** — a custom disc playing in a Golden Jukebox now keeps playing and follows the jukebox when it is assembled onto a moving Create contraption (cart, train, piston, bearing) or a Create Aeronautics physics airship, instead of going silent when the block leaves its spot. Requires Create (Aeronautics optional).
