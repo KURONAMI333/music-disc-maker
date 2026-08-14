@@ -34,16 +34,37 @@ public final class FailureClassifier {
      * @return 分類結果。判別できない失敗は {@link FailureReason#CONNECTION_FAILED}
      */
     public static FailureReason classify(Throwable thrown) {
+        final Throwable blamed = blamed(thrown);
+        return classifyMessage(blamed == null ? null : blamed.getMessage());
+    }
+
+    /**
+     * 分類の根拠になった例外を返す。<b>利用者に見せる技術詳細をここから採る</b>ための口。
+     *
+     * <p>lavaplayer は再生スレッドの例外を {@code FriendlyException} で包んで配るので、
+     * 一番外側のメッセージは常に「Something broke when playing the track.」という定型文になる。
+     * それをそのまま詳細として出すと、分類は {@code BOT_CHECK} なのに添えられる文字列は
+     * どの失敗でも同じ = 利用者が報告に貼っても何も伝わらない。判別に使ったのと同じ例外を
+     * 詳細にも使うことで、分類と文面が食い違わないようにする。
+     *
+     * <p>{@link #classify} と同じ順でたどり、既定値以外に落ちた最初のものを返す。どれも
+     * 判別できなければ連鎖の末端を返す (包み紙より、実際に落ちた場所の文面のほうが役に立つ)。
+     *
+     * @param thrown たどりたい例外 ({@code null} 可)
+     * @return 分類の根拠になった例外 ({@code thrown} が {@code null} なら {@code null})
+     */
+    public static Throwable blamed(Throwable thrown) {
         Throwable current = thrown;
+        Throwable deepest = thrown;
         for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
-            final FailureReason reason = classifyMessage(current.getMessage());
-            if (reason != FailureReason.CONNECTION_FAILED) {
-                return reason;
+            if (classifyMessage(current.getMessage()) != FailureReason.CONNECTION_FAILED) {
+                return current;
             }
+            deepest = current;
             final Throwable next = current.getCause();
             current = next == current ? null : next;
         }
-        return FailureReason.CONNECTION_FAILED;
+        return deepest;
     }
 
     /**
