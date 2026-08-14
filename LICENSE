@@ -1,21 +1,29 @@
-MIT License
+All Rights Reserved
 
-Copyright (c) 2026 KURONAMI
+Copyright (c) 2026 KURONAMI333
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+The source code of this mod is published so that anyone can read it, see exactly
+what the mod does, and report problems. Publishing it does not place it in the
+public domain and does not grant a licence to reuse it.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+You MAY:
+
+  - Use this mod, privately or on any server you run.
+  - Include this mod in a modpack and distribute that modpack, on any platform
+    and through any launcher, including a modpack that is monetised. No
+    permission request and no credit are required.
+  - Read the source, and report bugs or suggest changes.
+
+You MAY NOT, without written permission:
+
+  - Redistribute this mod on its own, outside a modpack.
+  - Distribute a modified version of this mod.
+  - Copy this mod's source code, in whole or in part, into another project.
+  - Republish this mod under a different name.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
