@@ -114,7 +114,7 @@ public final class SableServerAudio {
         }
         final SubLevelPlayDiscPayload payload = new SubLevelPlayDiscPayload(
                 jukebox.getBlockPos(), track, jukebox.currentElapsedMs(),
-                jukebox.getRangeBlocks(), jukebox.getVolumePercent());
+                jukebox.getRangeBlocks(), jukebox.getVolumePercent(), jukebox.isDirectional());
         for (final UUID uuid : trackers) {
             final ServerPlayer player = server.getPlayerList().getPlayer(uuid);
             if (player != null) {

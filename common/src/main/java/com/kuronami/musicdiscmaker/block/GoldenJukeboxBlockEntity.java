@@ -61,6 +61,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     public static final int VOLUME_MIN = 0;
     public static final int VOLUME_MAX = 200;
     public static final int VOLUME_DEFAULT = 100;
+    /**
+     * 指向性の既定値。true = 従来どおりの positional audio。NBT に {@code directional} が無い
+     * (= 新規設置 / この機能より前のセーブ) ときもこの値になるので、既存ワールドの聴こえ方は変わらない。
+     */
+    public static final boolean DIRECTIONAL_DEFAULT = true;
 
     private final NonNullList<ItemStack> items = NonNullList.withSize(SIZE, ItemStack.EMPTY);
 
@@ -69,6 +74,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     private int volumePercent = VOLUME_DEFAULT;
     private boolean repeat = false;
     private boolean paused = false;
+    /**
+     * 音の指向性。true = 従来どおりの positional audio (左右定位・距離減衰つき) = 既定。
+     * false = 可聴範囲の中にいる限り位置に関係なくフラットに聴こえる (BGM モード)。範囲外では
+     * 黙る (範囲ゲートは維持する)。client へは BE 同期と再生 payload の両方で運ぶ。
+     */
+    private boolean directional = DIRECTIONAL_DEFAULT;
     /** pause 時に保存した再生位置 (ms)。resume で offset seek に使う。 */
     private long pausedOffsetMs = 0L;
     /**
@@ -104,6 +115,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     public boolean isPaused() {
         return paused;
+    }
+
+    /** true = positional audio (既定)。false = 範囲内フラット聴取 (BGM モード)。 */
+    public boolean isDirectional() {
+        return directional;
     }
 
     /**
@@ -214,6 +230,15 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         sync();
     }
 
+    /**
+     * 指向性の切り替え。client は再生を止めずにその場でモードを変える (毎 tick の座標の書き方を
+     * 変えるだけで {@code relative} を触らないので再ストリーム不要) = 音量・範囲と同じ sync のみ。
+     */
+    public void setDirectional(boolean value) {
+        this.directional = value;
+        sync();
+    }
+
     /** 再生/停止トグル。停止で位置保存、再開で位置から再生。 */
     public void setPaused(boolean value) {
         if (!isServer() || this.paused == value) {
@@ -309,7 +334,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         // custom disc は LavaPlayer ストリームを per-block 設定つきで broadcast。
         final CustomTrackData track = currentTrack();
         if (track != null) {
-            broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent));
+            broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent, directional));
         }
         // playbackStartGameTime を client へ反映する (progress バーの起点)。
         sync();
@@ -376,7 +401,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             return; // repeat off の自然終了済み
         }
         final long offset = (dur > 0L && repeat) ? elapsed % dur : elapsed;
-        Services.NETWORK.sendToPlayer(player, new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent));
+        Services.NETWORK.sendToPlayer(player,
+                new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent, directional));
     }
 
     // ── tick (server) ──
@@ -449,6 +475,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         this.rangeBlocks = tag.contains("range") ? Mth.clamp(tag.getInt("range"), RANGE_MIN, RANGE_MAX) : RANGE_DEFAULT;
         this.volumePercent = tag.contains("volume") ? Mth.clamp(tag.getInt("volume"), VOLUME_MIN, VOLUME_MAX) : VOLUME_DEFAULT;
         this.repeat = tag.getBoolean("repeat");
+        // 旧セーブ (この機能より前) には無いので、欠けていたら既定 = 従来の positional に倒す。
+        this.directional = tag.contains("directional") ? tag.getBoolean("directional") : DIRECTIONAL_DEFAULT;
         this.paused = tag.getBoolean("paused");
         this.pausedOffsetMs = tag.getLong("pausedOffset");
         this.playbackStartGameTime = tag.contains("playbackStartGameTime")
@@ -464,6 +492,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         tag.putInt("range", rangeBlocks);
         tag.putInt("volume", volumePercent);
         tag.putBoolean("repeat", repeat);
+        tag.putBoolean("directional", directional);
         tag.putBoolean("paused", paused);
         tag.putLong("pausedOffset", pausedOffsetMs);
         tag.putLong("playbackStartGameTime", playbackStartGameTime);

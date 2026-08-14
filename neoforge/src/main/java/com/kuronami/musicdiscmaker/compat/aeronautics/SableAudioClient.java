@@ -126,6 +126,7 @@ public final class SableAudioClient {
                 }
                 final DiscSoundInstance instance = new DiscSoundInstance(
                         anchor, resolved, payload.rangeBlocks(), payload.volumePercent(), null);
+                instance.setDirectional(payload.directional());
                 ACTIVE.put(actorKey, instance);
                 Minecraft.getInstance().getSoundManager().play(instance);
                 final String desc = (track.author() != null && !track.author().isBlank())

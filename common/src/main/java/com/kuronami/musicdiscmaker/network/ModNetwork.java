@@ -41,10 +41,12 @@ public final class ModNetwork {
             return;
         }
         if (player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity jukebox) {
-            // 値の保存を先に (range/volume/repeat) → 最後に paused の再生調停 (最新値で resume させる)。
+            // 値の保存を先に (range/volume/repeat/directional) → 最後に paused の再生調停
+            // (最新値で resume させる = 再生 payload に最新の指向性が載る)。
             jukebox.setRangeBlocks(payload.rangeBlocks());
             jukebox.setVolumePercent(payload.volumePercent());
             jukebox.setRepeat(payload.repeat());
+            jukebox.setDirectional(payload.directional());
             jukebox.setPaused(payload.paused());
         }
     }
