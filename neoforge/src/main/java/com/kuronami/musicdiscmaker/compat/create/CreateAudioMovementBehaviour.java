@@ -63,10 +63,13 @@ public final class CreateAudioMovementBehaviour implements MovementBehaviour {
         final long offsetMs = readOffsetMs(context, beData, track);
         final int range = beData.contains("range") ? beData.getInt("range") : GoldenJukeboxBlockEntity.RANGE_DEFAULT;
         final int volume = beData.contains("volume") ? beData.getInt("volume") : GoldenJukeboxBlockEntity.VOLUME_DEFAULT;
+        // 指向性も凍結 NBT から引き継ぐ。落とすと、フラットに設定した金ジュークが contraption に
+        // 組み込まれた瞬間に positional へ戻る。
+        final boolean directional = !beData.contains("directional") || beData.getBoolean("directional");
 
         final int entityId = context.contraption.entity.getId();
         final ContraptionPlayDiscPayload payload = new ContraptionPlayDiscPayload(
-                entityId, context.localPos, track, offsetMs, range, volume);
+                entityId, context.localPos, track, offsetMs, range, volume, directional);
         PacketDistributor.sendToPlayersTrackingEntity(context.contraption.entity, payload);
         // 診断 (debug 既定 off): kura 実機で「追従しない」時、この行が出て CreateAudioClient.play の
         // 受信ログが出なければ tracker 未確立/配送を疑う (この時点なら entity は tracker を持つはず)。

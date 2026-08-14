@@ -20,9 +20,14 @@ import net.minecraft.resources.ResourceLocation;
  * ({@code rangeBlocks=0} = client config の playbackRange をそのまま使う、{@code volumePercent=100})
  * を入れるので、既存挙動は変わらない。強化版では実効可聴範囲 = min(rangeBlocks, maxPlaybackRange) を
  * client 側で適用する (maxPlaybackRange 既定 256 = playbackRange と分離した cap)。
+ *
+ * <p>{@code directional} は聴取モデル。true = 従来どおりの positional audio。false = 可聴範囲の中なら
+ * 位置に関係なくフラットに聴こえる (BGM モード)。強化版の GUI トグルで切り替わる。BE 同期でも届くが、
+ * 再生開始の 1 tick を positional で鳴らさないためと、client 側 BE を読めない経路のためにここでも運ぶ。
+ * バニラ jukebox 経路は {@code true} (従来の挙動)。
  */
 public record PlayDiscPayload(BlockPos jukeboxPos, CustomTrackData track, long startOffsetMs,
-        int rangeBlocks, int volumePercent) implements CustomPacketPayload {
+        int rangeBlocks, int volumePercent, boolean directional) implements CustomPacketPayload {
 
     public static final Type<PlayDiscPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "play_disc"));
@@ -33,11 +38,15 @@ public record PlayDiscPayload(BlockPos jukeboxPos, CustomTrackData track, long s
             ByteBufCodecs.VAR_LONG, PlayDiscPayload::startOffsetMs,
             ByteBufCodecs.VAR_INT, PlayDiscPayload::rangeBlocks,
             ByteBufCodecs.VAR_INT, PlayDiscPayload::volumePercent,
+            ByteBufCodecs.BOOL, PlayDiscPayload::directional,
             PlayDiscPayload::new);
 
-    /** バニラ jukebox 経路 (per-block 設定なし)。range は client config を、volume は 100% を使う。 */
+    /**
+     * バニラ jukebox 経路 (per-block 設定なし)。range は client config を、volume は 100% を使う。
+     * 指向性トグルは強化版だけの機能なので、常に従来どおりの positional ({@code true}) で送る。
+     */
     public static PlayDiscPayload vanilla(BlockPos jukeboxPos, CustomTrackData track, long startOffsetMs) {
-        return new PlayDiscPayload(jukeboxPos, track, startOffsetMs, 0, 100);
+        return new PlayDiscPayload(jukeboxPos, track, startOffsetMs, 0, 100, true);
     }
 
     @Override

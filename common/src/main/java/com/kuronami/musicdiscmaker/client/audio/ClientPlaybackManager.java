@@ -49,6 +49,10 @@ public final class ClientPlaybackManager {
     private final Map<BlockPos, String> playingUrl = new ConcurrentHashMap<>();
     // pos ごとの再生要求 (ラジオ再接続で同じ track/range/volume を再利用する)。
     private final Map<BlockPos, PlaybackRequest> requests = new ConcurrentHashMap<>();
+    // pos ごとの指向性 (聴取モデル)。再生開始 packet で受け取り、インスタンス生成時に適用する。
+    // ラジオ再接続でも同じ値を使うのでここに置く。未受信 = 従来どおりの positional。
+    // 以後の変更は client 側 BE から DiscSoundInstance が直接 live 再読するので、ここは更新しない。
+    private final Map<BlockPos, Boolean> directionals = new ConcurrentHashMap<>();
     // pos ごとの連続再接続試行回数 (安定再生でリセット)。
     private final Map<BlockPos, Integer> reconnectAttempts = new ConcurrentHashMap<>();
     // pos ごとの現インスタンスの再生開始時刻 (安定判定用)。
@@ -65,10 +69,11 @@ public final class ClientPlaybackManager {
     }
 
     public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs) {
-        startPlayback(pos, track, startOffsetMs, 0, 100);
+        startPlayback(pos, track, startOffsetMs, 0, 100, true);
     }
 
-    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs, int rangeBlocks, int volumePercent) {
+    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs, int rangeBlocks,
+            int volumePercent, boolean directional) {
         if (track == null || track.isEmpty()) {
             return;
         }
@@ -81,9 +86,13 @@ public final class ClientPlaybackManager {
         // キャストも飛ばさない)。同じ曲・非シークの再送 (chunk 再入等) はそのまま dedup する。
         if (existing != null && !existing.isStopped() && track.url().equals(playingUrl.get(key))
                 && !isSeekRequest(key, startOffsetMs)) {
+            // dedup した再送でも聴取モデルだけは取り込む (鳴らし直さずにその場で反映する)。
+            existing.setDirectional(directional);
+            directionals.put(key, directional);
             return;
         }
         stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生 or シーク)
+        directionals.put(key, directional); // stopPlayback が消すので、その後に入れる
         wanted.add(key);
         requests.put(key, new PlaybackRequest(track, rangeBlocks, volumePercent));
         submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L);
@@ -191,6 +200,8 @@ public final class ClientPlaybackManager {
                 ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
                 : null;
         final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
+        // 鳴り始めの 1 tick を positional で鳴らさないよう、play より前に聴取モデルを入れる。
+        instance.setDirectional(directionals.getOrDefault(key, Boolean.TRUE));
         active.put(key, instance);
         playingUrl.put(key, track.url());
         playStartMillis.put(key, System.currentTimeMillis());
@@ -269,6 +280,7 @@ public final class ClientPlaybackManager {
         wanted.remove(key);
         playingUrl.remove(key);
         requests.remove(key);
+        directionals.remove(key);
         reconnectAttempts.remove(key);
         playStartMillis.remove(key);
         loadOffsetMs.remove(key);
@@ -283,6 +295,7 @@ public final class ClientPlaybackManager {
         wanted.clear();
         playingUrl.clear();
         requests.clear();
+        directionals.clear();
         reconnectAttempts.clear();
         playStartMillis.clear();
         loadOffsetMs.clear();
