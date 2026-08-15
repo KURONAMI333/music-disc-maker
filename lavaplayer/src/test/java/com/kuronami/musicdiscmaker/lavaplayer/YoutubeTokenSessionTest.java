@@ -33,6 +33,9 @@ class YoutubeTokenSessionTest {
             final YoutubeTokenSession session =
                     new YoutubeTokenSession(youtube, new RollBudget(8, 7_500L, System::currentTimeMillis));
             final Object before = tokenTracker(youtube);
+            // 入れ替え前が null だと下の assertNotSame は何も確かめていない (null != 新品は自明)。
+            // 「起動時から tracker が刺さっている」こと自体が、差し替えという手当ての前提。
+            assertNotNull(before, "起動直後に tracker が刺さっていない (差し替えるものが無い)");
             assertEquals(0L, session.generation(), "初期世代が 0 でない");
 
             assertTrue(session.rollIfStale(session.generation()), "入れ替えが通らない");
