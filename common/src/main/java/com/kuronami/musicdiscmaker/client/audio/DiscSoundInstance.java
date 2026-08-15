@@ -24,7 +24,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
-public class DiscSoundInstance extends AbstractTickableSoundInstance {
+public class DiscSoundInstance extends AbstractTickableSoundInstance implements PlaybackVoice {
 
     private final IAudioSource source;
     /** source を高々一度だけ close するためのガード (requestStop と stream 経由の close の二重解放を防ぐ)。 */
@@ -65,10 +65,6 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source) {
         this(pos, source, 0, 100, null);
-    }
-
-    public DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent) {
-        this(pos, source, rangeBlocks, volumePercent, null);
     }
 
     public DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent,
@@ -343,6 +339,19 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance {
         s.setPcmGain(computePcmGain());
         this.stream = s;
         return CompletableFuture.completedFuture(s);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>{@link #requestStop()} はこのインスタンスに停止フラグを立てて音源を閉じるだけで、
+     * {@code SoundManager} が抱えているチャンネルはその tick では手放されない。管理側が
+     * 「今すぐ黙らせて席を空ける」意味で呼ぶのはこちら。
+     */
+    @Override
+    public void stopAndRelease() {
+        requestStop();
+        Minecraft.getInstance().getSoundManager().stop(this);
     }
 
     public void requestStop() {

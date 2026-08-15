@@ -1,8 +1,5 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -21,52 +18,31 @@ import net.minecraft.network.chat.Component;
  * client 側の再生統括。jukebox 位置ごとに 1 再生を管理する。
  * URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
  *
+ * <p>「どうするか」の判断と状態は {@link PlaybackSessions} が持ち、ここには MC を触る操作
+ * (スレッド移動・{@code SoundManager}・チャット表示) だけを残してある。判断を分けてあるのは、
+ * ここが {@code Minecraft} を掴んでいて headless テストに載らないから。
+ *
+ * <p><b>ロードは開始時点の世代 (token) を最後まで持ち回る。</b> 途中で世代を落として座標だけで
+ * 判定に戻ると、同じ座標でディスクを差し替えたときに 2 曲同時に鳴る (理由は
+ * {@link PlaybackSessions} の javadoc)。
+ *
  * <p>ラジオ (無限長ストリーム) は瞬断で lavaplayer の track が終了する。終端 (read=-1) を
- * {@link DiscSoundInstance} 経由で検知し、間隔を置いて最大 {@link #MAX_RECONNECT} 回まで
- * 自動再接続する。安定再生 ({@link #STABLE_MS} 以上) できたら試行回数はリセットする。
+ * {@link DiscSoundInstance} 経由で検知し、間隔を置いて最大 {@link PlaybackSessions#MAX_RECONNECT}
+ * 回まで自動再接続する。安定再生できたら試行回数はリセットする。
  */
 public final class ClientPlaybackManager {
 
     private static final ClientPlaybackManager INSTANCE = new ClientPlaybackManager();
 
-    /** ラジオ瞬断時の自動再接続の上限回数。 */
-    private static final int MAX_RECONNECT = 3;
     /** 再接続を試みる前に置く間隔 (ms)。icecast の瞬断復帰を待つ。 */
     private static final long RECONNECT_DELAY_MS = 3_000L;
-    /** これ以上再生できていたら「安定していた」とみなし、次の瞬断で試行回数をリセットする (ms)。 */
-    private static final long STABLE_MS = 15_000L;
 
     public static ClientPlaybackManager get() {
         return INSTANCE;
     }
 
-    private record PlaybackRequest(CustomTrackData track, int rangeBlocks, int volumePercent) {
-    }
+    private final PlaybackSessions sessions = new PlaybackSessions(System::currentTimeMillis);
 
-    private final Map<BlockPos, DiscSoundInstance> active = new ConcurrentHashMap<>();
-    private final Set<BlockPos> wanted = ConcurrentHashMap.newKeySet();
-    // pos ごとの現在再生中 URL。chunk 再入での無駄な再ロードを避ける判定に使う。
-    private final Map<BlockPos, String> playingUrl = new ConcurrentHashMap<>();
-    // pos ごとの再生要求 (ラジオ再接続で同じ track/range/volume を再利用する)。
-    private final Map<BlockPos, PlaybackRequest> requests = new ConcurrentHashMap<>();
-    // pos ごとの指向性 (聴取モデル)。再生開始 packet で受け取り、インスタンス生成時に適用する。
-    // ラジオ再接続でも同じ値を使うのでここに置く。未受信 = 従来どおりの positional。
-    // 以後の変更は client 側 BE から DiscSoundInstance が直接 live 再読するので、ここは更新しない。
-    private final Map<BlockPos, Boolean> directionals = new ConcurrentHashMap<>();
-    // pos ごとの連続再接続試行回数 (安定再生でリセット)。
-    private final Map<BlockPos, Integer> reconnectAttempts = new ConcurrentHashMap<>();
-    // pos ごとの現インスタンスの再生開始時刻 (安定判定用)。
-    private final Map<BlockPos, Long> playStartMillis = new ConcurrentHashMap<>();
-    // pos ごとの現インスタンスのロード開始オフセット (GUI シークと chunk 再入再送の判別に使う)。
-    private final Map<BlockPos, Long> loadOffsetMs = new ConcurrentHashMap<>();
-    // 再生スレッドの中で落ちた失敗の重複抑止。ラジオは同じ理由で最大 MAX_RECONNECT 回まで
-    // 落ち直すので、覚えておかないと同じ行がチャットに積まれる。忘れるのは停止した時だけ
-    // (再接続のたびに忘れると何も抑えていないのと同じになる)。
-    private final PlaybackFailureNotices notices = new PlaybackFailureNotices();
-    // ラジオで拾った失敗の保留。ラジオにとって音が途切れることは再接続が引き受ける想定内の状態
-    // なので、瞬断のたびにチャットへ理由を出すと再接続の表示 (アクションバー) と二重になる。
-    // 再接続を諦めた時に「なぜ諦めたか」として 1 度だけ出す。
-    private final Map<BlockPos, PlaybackFailure> pendingFailure = new ConcurrentHashMap<>();
     private final ExecutorService pool = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-playback");
         thread.setDaemon(true);
@@ -86,49 +62,23 @@ public final class ClientPlaybackManager {
             return;
         }
         final BlockPos key = pos.immutable();
-        // 同じ曲の再生要求が再来した時: それが chunk 再入等の再送 (現在の推定再生位置とほぼ同じ
-        // オフセット) なら再ロードしない (音飛び・無駄な再バッファ防止)。GUI シークは現在位置から
-        // 大きく離れたオフセットで来る = 本物の頭出しなので dedup せず再ロードして即反映する。
-        final DiscSoundInstance existing = active.get(key);
-        // 範囲・音量は client 側 BE から tick で live 反映されるため再ロード判定に含めない (再ブロード
-        // キャストも飛ばさない)。同じ曲・非シークの再送 (chunk 再入等) はそのまま dedup する。
-        if (existing != null && !existing.isStopped() && track.url().equals(playingUrl.get(key))
-                && !isSeekRequest(key, startOffsetMs)) {
-            // dedup した再送でも聴取モデルだけは取り込む (鳴らし直さずにその場で反映する)。
-            existing.setDirectional(directional);
-            directionals.put(key, directional);
-            return;
+        final PlaybackSessions.StartDecision decision =
+                sessions.start(key, track, startOffsetMs, rangeBlocks, volumePercent, directional);
+        if (!decision.load()) {
+            return; // 同じ曲の再送 (chunk 再入等)。聴取モデルだけ取り込み済み。
         }
-        stopPlayback(pos); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生 or シーク)
-        directionals.put(key, directional); // stopPlayback が消すので、その後に入れる
-        wanted.add(key);
-        requests.put(key, new PlaybackRequest(track, rangeBlocks, volumePercent));
-        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L);
-    }
-
-    /**
-     * 同じ曲の再生要求が「現在の推定再生位置」から一定以上離れていれば本物のシーク (頭出し)
-     * とみなす。chunk 再入の再送は server 側で現在の経過 ms を載せて来るため推定位置とほぼ
-     * 一致し、dedup される。後方シークは常に推定位置 (前進中) と乖離するので確実に通る。
-     */
-    private static final long SEEK_TOLERANCE_MS = 1200L;
-
-    private boolean isSeekRequest(BlockPos key, long requestedOffsetMs) {
-        final Long started = playStartMillis.get(key);
-        final Long loaded = loadOffsetMs.get(key);
-        if (started == null || loaded == null) {
-            return false; // 位置不明 → 従来通り dedup (再ロードしない)
-        }
-        final long estimatedNowMs = loaded + (System.currentTimeMillis() - started);
-        return Math.abs(requestedOffsetMs - estimatedNowMs) >= SEEK_TOLERANCE_MS;
+        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token());
     }
 
     /**
      * URL を (任意の遅延後) 別 thread でロードし、成功したら main thread で再生を開始する。
      * startPlayback (遅延0) とラジオ再接続 (遅延あり) の共通経路。
+     *
+     * <p>{@code token} は最後まで持ち回る。ロード中に停止・差し替えが起きると世代が進むので、
+     * 完了時の照合で「もう要らないロード」を捨てられる。
      */
     private void submitLoad(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, long delayMs) {
+            int volumePercent, long delayMs, int token) {
         pool.submit(() -> {
             if (delayMs > 0L) {
                 try {
@@ -138,8 +88,8 @@ public final class ClientPlaybackManager {
                     return;
                 }
             }
-            if (!wanted.contains(key)) {
-                return; // 遅延中に停止/撤去された
+            if (!sessions.isLive(key, token)) {
+                return; // 遅延中に停止/撤去/差し替えされた
             }
             IAudioSource source = null;
             PlaybackFailure failure = null;
@@ -164,48 +114,33 @@ public final class ClientPlaybackManager {
             // (差した時点で既に壊れていれば relay がその場で流すので、順番はどちらでもよい)。
             if (resolved != null) {
                 resolved.onPlaybackFault(broken -> Minecraft.getInstance().execute(
-                        () -> lateFailure(key, track,
+                        () -> lateFailure(key, token, track,
                                 PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
             }
-            Minecraft.getInstance().execute(
-                    () -> onLoaded(key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported));
+            Minecraft.getInstance().execute(() -> onLoaded(
+                    key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported, token));
         });
     }
 
     /**
      * 再生スレッドの中で落ちた失敗を受ける (main thread から呼ぶこと)。push (ソース直結) と
-     * pull (ストリーム終端) の両方がここへ集まる。
-     *
-     * <p>止めた再生の後始末では黙る。ロード中に停止された・同時再生上限で捨てられたソースも
-     * 後から理由を上げてくるので、ここで弾かないと「鳴らしていない再生の失敗」がチャットに出る。
-     *
-     * @param key   音源の位置
-     * @param track 失敗した曲
-     * @param late  分類済みの失敗
+     * pull (ストリーム終端) の両方がここへ集まる。出すかどうかの判断は {@link PlaybackSessions} 側。
      */
-    private void lateFailure(BlockPos key, CustomTrackData track, PlaybackFailure late) {
-        if (!wanted.contains(key)) {
-            return;
-        }
-        // ラジオはまだ再接続する気がある間は黙って抱えておく (瞬断は想定内)。
-        if (track.radio()) {
-            pendingFailure.put(key, late);
-            return;
-        }
-        if (notices.shouldReport(key, late)) {
-            PlaybackFailureReport.report(track, late);
+    private void lateFailure(BlockPos key, int token, CustomTrackData track, PlaybackFailure late) {
+        final PlaybackFailure show = sessions.lateFailure(key, token, track, late);
+        if (show != null) {
+            PlaybackFailureReport.report(track, show);
         }
     }
 
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
     private void onLoaded(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, IAudioSource resolved, PlaybackFailure failure) {
+            int volumePercent, IAudioSource resolved, PlaybackFailure failure, int token) {
         if (resolved == null) {
-            if (track.radio() && wanted.contains(key)) {
-                onRadioStreamEnded(key); // ロード失敗も 1 回の再接続試行として数える
-            } else {
-                wanted.remove(key);
-                requests.remove(key);
+            if (track.radio() && sessions.isLive(key, token)) {
+                onRadioStreamEnded(key, token); // ロード失敗も 1 回の再接続試行として数える
+            } else if (sessions.isLive(key, token)) {
+                sessions.abandon(key, token);
                 // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す
                 // (ストリームは client ごとに開くので、片方の client だけ失敗しうる)。
                 PlaybackFailureReport.report(track,
@@ -213,32 +148,23 @@ public final class ClientPlaybackManager {
             }
             return;
         }
-        if (!wanted.contains(key)) {
-            resolved.close(); // ロード中に停止要求済み
+        if (!sessions.isLive(key, token)) {
+            resolved.close(); // ロード中に停止/差し替え済み
             return;
         }
-        // 自然終了したインスタンスを掃除 (MAX_CONCURRENT を不当に消費させない)
-        active.entrySet().removeIf(e -> {
-            if (e.getValue().isStopped()) {
-                playingUrl.remove(e.getKey());
-                loadOffsetMs.remove(e.getKey());
-                return true;
-            }
-            return false;
-        });
+        // 自然終了したインスタンスを掃除してから上限を見る (MAX_CONCURRENT を不当に消費させない)。
+        final int playing = sessions.sweep();
         final int limit = com.kuronami.musicdiscmaker.Config.maxConcurrent();
-        if (active.size() >= limit) {
-            // ここは今まで LOGGER.info だけで、利用者から見ると「再生中と出るのに鳴らない」の
-            // もう 1 つの無言経路だった。上限は client ごとに効くので片側だけ無音になりうる。
+        if (playing >= limit) {
+            // 上限は client ごとに効くので片側だけ無音になりうる。無言で捨てない。
             PlaybackFailureReport.report(track, PlaybackFailure.concurrentLimit(limit));
             resolved.close();
-            wanted.remove(key);
-            requests.remove(key);
+            sessions.abandon(key, token);
             return;
         }
         // ラジオは終端 (瞬断) で自動再接続を試みる。有限曲は自然終了させる (再起動しない)。
         final Runnable endCb = track.radio()
-                ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key))
+                ? () -> Minecraft.getInstance().execute(() -> onRadioStreamEnded(key, token))
                 : null;
         final DiscSoundInstance instance = new DiscSoundInstance(key, resolved, rangeBlocks, volumePercent, endCb);
         // ストリーム終端の pull 経路も同じ届け先へ繋ぐ。push を持つソースでは重複しうるが、
@@ -246,13 +172,13 @@ public final class ClientPlaybackManager {
         // LavaPlayerAudioStream が「届け先を持たない経路」の既定へ落ち、曲名も重複抑止も
         // ラジオの沈黙も通らない裸の報告を出す。届くのは streaming スレッドなので main thread へ移す。
         instance.setFailureSink(
-                late -> Minecraft.getInstance().execute(() -> lateFailure(key, track, late)));
-        // 鳴り始めの 1 tick を positional で鳴らさないよう、play より前に聴取モデルを入れる。
-        instance.setDirectional(directionals.getOrDefault(key, Boolean.TRUE));
-        active.put(key, instance);
-        playingUrl.put(key, track.url());
-        playStartMillis.put(key, System.currentTimeMillis());
-        loadOffsetMs.put(key, startOffsetMs); // シーク判定の基準位置
+                late -> Minecraft.getInstance().execute(() -> lateFailure(key, token, track, late)));
+        // install は聴取モデルの適用も行う (鳴り始めの 1 tick を positional で鳴らさない)。
+        // 世代が古ければ受け付けず、同じ座標に残っていた音源は必ず止めてから置き換える。
+        if (!sessions.install(key, token, track.url(), startOffsetMs, instance)) {
+            instance.requestStop();
+            return;
+        }
         Minecraft.getInstance().getSoundManager().play(instance);
         // vanilla disc と同じ "Now Playing: ..." overlay を出す
         final String desc = (track.author() != null && !track.author().isBlank())
@@ -264,51 +190,32 @@ public final class ClientPlaybackManager {
     }
 
     /**
-     * ラジオストリームが終端 (read=-1) に達した時に main thread で呼ばれる。まだ再生継続が望まれて
-     * いれば、間隔を置いて再接続を試みる。安定再生後の瞬断なら試行回数をリセットし、上限超過なら停止する。
+     * ラジオストリームが終端 (read=-1) に達した時に main thread で呼ばれる。再接続するか諦めるかの
+     * 判断は {@link PlaybackSessions#radioStreamEnded} が持つ。
      */
-    private void onRadioStreamEnded(BlockPos key) {
-        if (!wanted.contains(key)) {
-            return; // ディスク撤去/停止済み → 再接続しない
-        }
-        final PlaybackRequest req = requests.get(key);
-        if (req == null || !req.track().radio()) {
-            return;
-        }
-        // 直前の再生が安定していたら (瞬断が久しぶりなら) 試行回数をリセットする。
-        final long started = playStartMillis.getOrDefault(key, 0L);
-        if (started > 0L && System.currentTimeMillis() - started >= STABLE_MS) {
-            reconnectAttempts.remove(key);
-        }
-        // 終了したインスタンスを片付ける (active から外す)。
-        final DiscSoundInstance ended = active.remove(key);
-        if (ended != null) {
-            ended.requestStop();
-            Minecraft.getInstance().getSoundManager().stop(ended);
-        }
-        playingUrl.remove(key);
-        playStartMillis.remove(key);
-        loadOffsetMs.remove(key);
-
-        final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
-        if (attempt > MAX_RECONNECT) {
-            // 恒久失敗 → クリーン停止して通知。
-            reconnectAttempts.remove(key);
-            wanted.remove(key);
-            requests.remove(key);
-            // 再接続を諦めた = 恒久的にこの音源は鳴らない。数秒で消えるアクションバーではなく
-            // チャットへ残す (「いつ止まったか」を後から読めるようにする)。
-            notifyChat(Component.translatable("music_disc_maker.radio.stopped"));
-            // 途中で拾っていた理由があれば、ここで初めて出す (「なぜ諦めたか」)。
-            final PlaybackFailure why = pendingFailure.remove(key);
-            if (why != null) {
-                PlaybackFailureReport.report(req.track(), why);
+    private void onRadioStreamEnded(BlockPos key, int token) {
+        final PlaybackSessions.Reconnect next = sessions.radioStreamEnded(key, token);
+        switch (next.kind()) {
+            case NONE -> {
+                // ディスク撤去/停止済み → 再接続しない
             }
-            return;
+            case RETRY -> {
+                notifyActionBar(Component.translatable("music_disc_maker.radio.reconnecting",
+                        next.attempt(), PlaybackSessions.MAX_RECONNECT));
+                final PlaybackSessions.Request req = next.request();
+                submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(),
+                        RECONNECT_DELAY_MS, token);
+            }
+            case GIVE_UP -> {
+                // 再接続を諦めた = 恒久的にこの音源は鳴らない。数秒で消えるアクションバーではなく
+                // チャットへ残す (「いつ止まったか」を後から読めるようにする)。
+                notifyChat(Component.translatable("music_disc_maker.radio.stopped"));
+                // 途中で拾っていた理由があれば、ここで初めて出す (「なぜ諦めたか」)。
+                if (next.why() != null) {
+                    PlaybackFailureReport.report(next.request().track(), next.why());
+                }
+            }
         }
-        reconnectAttempts.put(key, attempt);
-        notifyActionBar(Component.translatable("music_disc_maker.radio.reconnecting", attempt, MAX_RECONNECT));
-        submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(), RECONNECT_DELAY_MS);
     }
 
     /** チャットに一行残す (main thread から呼ぶこと)。数秒で消えては困る恒久的な結果に使う。 */
@@ -328,37 +235,10 @@ public final class ClientPlaybackManager {
     }
 
     public void stopPlayback(BlockPos pos) {
-        final BlockPos key = pos.immutable();
-        wanted.remove(key);
-        playingUrl.remove(key);
-        requests.remove(key);
-        directionals.remove(key);
-        reconnectAttempts.remove(key);
-        playStartMillis.remove(key);
-        loadOffsetMs.remove(key);
-        notices.forget(key);
-        pendingFailure.remove(key);
-        final DiscSoundInstance instance = active.remove(key);
-        if (instance != null) {
-            instance.requestStop();
-            Minecraft.getInstance().getSoundManager().stop(instance);
-        }
+        sessions.stop(pos.immutable());
     }
 
     public void stopAll() {
-        wanted.clear();
-        playingUrl.clear();
-        requests.clear();
-        directionals.clear();
-        reconnectAttempts.clear();
-        playStartMillis.clear();
-        loadOffsetMs.clear();
-        notices.forgetAll();
-        pendingFailure.clear();
-        active.values().forEach(instance -> {
-            instance.requestStop();
-            Minecraft.getInstance().getSoundManager().stop(instance);
-        });
-        active.clear();
+        sessions.stopAll();
     }
 }

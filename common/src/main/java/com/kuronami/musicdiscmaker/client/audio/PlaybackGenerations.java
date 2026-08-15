@@ -52,6 +52,19 @@ public final class PlaybackGenerations<K> {
     }
 
     /**
+     * 全ての鍵の進行中の再生を無効化する (ワールド退出・切断)。
+     *
+     * <p>鍵の集合はここが持っているので、呼び出し側の「鳴っているものの一覧」から数え上げない
+     * こと。まだ一度も鳴っていないロードは<b>その一覧に載らない</b>ので取り落とす。
+     * {@link Map#clear()} でもいけない — 消すと「未使用の鍵」に戻り、飛行中のロードが有効と
+     * 読まれうる ({@link #isCurrent} は未使用の鍵に偽を返すが、その後の {@link #begin} が
+     * 同じ番号を配り直す)。
+     */
+    public void invalidateAll() {
+        current.replaceAll((key, generation) -> generation + 1);
+    }
+
+    /**
      * その世代がまだ最新か。
      *
      * @param key        再生をまとめる鍵
