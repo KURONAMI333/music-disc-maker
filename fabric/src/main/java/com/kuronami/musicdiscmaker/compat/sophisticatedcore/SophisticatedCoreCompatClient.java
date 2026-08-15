@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
@@ -88,9 +89,11 @@ public final class SophisticatedCoreCompatClient {
                 final Entity entity = (payload.entityId() >= 0 && Minecraft.getInstance().level != null)
                         ? Minecraft.getInstance().level.getEntity(payload.entityId())
                         : null;
+                // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
+                // 構築子を直接呼べないのは意図的 (繋ぎ忘れをコンパイルで止める。CompatPlayback の javadoc)。
                 final DiscSoundInstance instance = entity != null
-                        ? new DiscSoundInstance(entity, resolved)
-                        : new DiscSoundInstance(payload.pos(), resolved);
+                        ? CompatPlayback.wired(entity, resolved, track)
+                        : CompatPlayback.wired(payload.pos(), resolved, track);
                 // SC の storageUuid 管理に載せる (= SC の停止がこの音声を止める)。play 内部で SoundManager.play 済み。
                 StorageSoundHandler.playStorageSound(payload.storageUuid(), instance);
                 final String desc = (track.author() != null && !track.author().isBlank())

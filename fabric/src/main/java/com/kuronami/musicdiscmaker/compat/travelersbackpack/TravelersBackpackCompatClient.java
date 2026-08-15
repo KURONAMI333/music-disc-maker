@@ -7,6 +7,7 @@ import java.util.concurrent.Executors;
 import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
@@ -113,7 +114,9 @@ public final class TravelersBackpackCompatClient {
                     resolved.close();
                     return;
                 }
-                final DiscSoundInstance instance = new DiscSoundInstance(entity, resolved);
+                // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
+                // 構築子を直接呼べないのは意図的 (繋ぎ忘れをコンパイルで止める。CompatPlayback の javadoc)。
+                final DiscSoundInstance instance = CompatPlayback.wired(entity, resolved, track);
                 activeInstance = instance;
                 Minecraft.getInstance().getSoundManager().play(instance);
                 final String desc = (track.author() != null && !track.author().isBlank())
