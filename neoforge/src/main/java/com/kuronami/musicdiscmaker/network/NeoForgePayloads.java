@@ -16,7 +16,10 @@ public final class NeoForgePayloads {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        final PayloadRegistrar registrar = event.registrar("1");
+        // 版は common 側の 1 箇所が正本 (ModNetwork.PROTOCOL_VERSION)。optional() は付けない —
+        // optional な channel は版が食い違うと黙って無効化され、「接続はできるのに何も鳴らない」
+        // に化ける。ここでは接続を断らせる (fail-fast)。
+        final PayloadRegistrar registrar = event.registrar(ModNetwork.PROTOCOL_VERSION);
 
         // client → server: URL コミット (BlockEntity に保存 → 条件が揃えば自動生成)
         registrar.playToServer(ResolveUrlPayload.TYPE, ResolveUrlPayload.STREAM_CODEC,
