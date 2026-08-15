@@ -1,13 +1,12 @@
 package com.kuronami.musicdiscmaker.compat.aeronautics;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.LivePlaybackRegistry;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
@@ -29,21 +28,19 @@ import net.minecraft.network.chat.Component;
  * 到達しない。{@code CreateAudioClient} (捕獲式) と同型。
  *
  * <p>同一 plot 座標への再送 (server は sub-level tracking player 全員へ {@code SWEEP_INTERVAL}=20 tick (1 秒) 毎に
- * 周期送信し、late-tracking を拾う) は {@link #ACTIVE} で dedup する。解体・再組立で plot 座標が変わると
- * 別 key になり張り替わる。
+ * 周期送信し、late-tracking を拾う) の捌き方は {@link LivePlaybackRegistry} が持つ。解体・再組立で
+ * plot 座標が変わると別 key になり張り替わる。
  *
- * <h2>周期再送とロード時間の競合</h2>
- * {@link #ACTIVE} への登録は URL ロード完了後 (main thread) にしか起きないため、初回ロードが 1 秒を
- * 超えると次の周期再送が {@link #ACTIVE} 未登録のまま {@link #play} に来る。ここで世代トークンを
- * 使うと「新しい要求が来るたびに前を破棄」する形になり、<b>再送間隔 (1 秒) がロード時間より短い
- * 音源 (ネットワーク経由はほぼ該当) では一度も {@code SoundManager.play()} に届かない</b>
- * (常に後発の世代が先に立ち上がり、先発が完了する頃には後発の後発が既に current を奪っている)。
- * ここで要るのは「後発を勝たせる」世代ではなく「同じロードが進行中なら後発を無視する」
- * {@link #PENDING} の in-flight ガード ({@code PlaybackRequestGate} の judgement と同じ形)。
+ * <h2>周期再送は「捨てる」のではなく「現在値として取り込む」</h2>
+ * server は 1 秒ごとに<b>その時点の</b>指向性・範囲・音量を載せて送ってくる。以前はここで
+ * 「同じ plot 座標で再生中なら早期 return」していたので、2 回目以降の payload が一度も読まれず、
+ * <b>GUI で設定を変えても Sable に載った音源にだけ永久に反映されなかった</b>。同じ URL の再送は
+ * 鳴らし直さずに値だけ押し込む ({@link LivePlaybackRegistry.Decision#LIVE_UPDATE})。
+ * 本体の強化版ジュークボックスが {@code DiscSoundInstance#tick} で client 側 BE を再読して
+ * 追従する経路は {@code StaticAnchor} 限定なので、Sable anchor はそちらに入らない。
  *
- * <p>{@link #FAILED_URL} は失敗した URL を plot 座標ごとに記憶し、同じ URL が生きている間は
- * 再送のたびにロードをやり直さない (1 Hz でチャット/ログが埋まるのを防ぐ)。曲が変わる
- * (URL が変わる) か、ロードが成功すればクリアされる。
+ * <p>世代トークンを使わない理由 (再送間隔がロード時間より短いと一度も鳴らなくなる) と、
+ * in-flight ガード・失敗 URL の記憶も {@link LivePlaybackRegistry} の javadoc にある。
  */
 public final class SableAudioClient {
 
@@ -53,14 +50,8 @@ public final class SableAudioClient {
         return thread;
     });
 
-    /** 再生中インスタンスの重複防止。key = plot 座標 (long)。 */
-    private static final Map<Long, DiscSoundInstance> ACTIVE = new ConcurrentHashMap<>();
-
-    /** ロード中の要求の URL (in-flight ガード)。key = plot 座標。 */
-    private static final Map<Long, String> PENDING = new ConcurrentHashMap<>();
-
-    /** 直近に失敗し報告済みの URL。key = plot 座標。同じ URL の間はロードも報告もやり直さない。 */
-    private static final Map<Long, String> FAILED_URL = new ConcurrentHashMap<>();
+    /** plot 座標ごとの再生スロット。周期再送の値取り込み・in-flight ガード・失敗記憶を持つ。 */
+    private static final LivePlaybackRegistry<Long> SLOTS = new LivePlaybackRegistry<>();
 
     private SableAudioClient() {
     }
@@ -71,17 +62,12 @@ public final class SableAudioClient {
             return;
         }
         final long actorKey = payload.plotPos().asLong();
-        final DiscSoundInstance previous = ACTIVE.get(actorKey);
-        if (previous != null && !previous.isStopped()) {
-            return; // 同じ plot 座標で既に再生中 (周期再送 / late-tracking 再送) はスキップ。
+        // 周期再送は「捨てる」のではなく「現在値として取り込む」。同じ曲が鳴っていれば
+        // ここで指向性・範囲・音量が反映され、ロードには進まない。
+        if (SLOTS.request(actorKey, track.url(), payload.rangeBlocks(), payload.volumePercent(),
+                payload.directional()) != LivePlaybackRegistry.Decision.LOAD) {
+            return;
         }
-        if (track.url().equals(PENDING.get(actorKey))) {
-            return; // 同じ URL を既にロード中 (周期再送)。ロードを重ねない。
-        }
-        if (track.url().equals(FAILED_URL.get(actorKey))) {
-            return; // 同じ URL が直近に失敗済み。曲が変わる/成功するまで繋ぎ直さない。
-        }
-        PENDING.put(actorKey, track.url());
         // 診断 (debug 既定 off): server の送信ログが出るのにこれが出なければ payload が client へ届いていない
         // (sub-level tracking の解決漏れ / 配送) を疑う。両方出るのに無音なら SableSubLevelAnchor の座標変換側。
         MusicDiscMaker.LOGGER.debug("Sable sub-level 再生を受信: plotPos={}", payload.plotPos());
@@ -105,15 +91,14 @@ public final class SableAudioClient {
             final PlaybackFailure reported = failure;
             Minecraft.getInstance().execute(() -> {
                 // in-flight ガードの解除は成否に関わらず必ず行う (残すと以後の再送が全部黙って無視される)。
-                PENDING.remove(actorKey, track.url());
+                SLOTS.loadFinished(actorKey, track.url());
                 if (resolved == null) {
                     // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
-                    // 同じ URL は FAILED_URL に記憶し、次の周期再送 (1 秒後) では繋ぎ直さない。
-                    FAILED_URL.put(actorKey, track.url());
+                    // 同じ URL は記憶し、次の周期再送 (1 秒後) では繋ぎ直さない。
+                    SLOTS.loadFailed(actorKey, track.url());
                     PlaybackFailureReport.report(track, reported);
                     return;
                 }
-                FAILED_URL.remove(actorKey, track.url());
                 if (Minecraft.getInstance().level == null) {
                     resolved.close();
                     return;
@@ -127,7 +112,11 @@ public final class SableAudioClient {
                 final DiscSoundInstance instance = new DiscSoundInstance(
                         anchor, resolved, payload.rangeBlocks(), payload.volumePercent(), null);
                 instance.setDirectional(payload.directional());
-                ACTIVE.put(actorKey, instance);
+                // ロード中に曲が変わっていたら鳴らさずに捨てる (遅れて完了した古い曲で上書きしない)。
+                if (!SLOTS.install(actorKey, track.url(), instance)) {
+                    instance.requestStop();
+                    return;
+                }
                 Minecraft.getInstance().getSoundManager().play(instance);
                 final String desc = (track.author() != null && !track.author().isBlank())
                         ? track.author() + " - " + track.title()
@@ -138,4 +127,5 @@ public final class SableAudioClient {
             });
         });
     }
+
 }

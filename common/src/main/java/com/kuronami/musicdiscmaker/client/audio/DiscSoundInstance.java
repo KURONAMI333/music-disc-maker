@@ -159,6 +159,33 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
     }
 
     /**
+     * 音量 (%) のライブ更新。次の {@link #tick} で {@link #computeVolume()} と PCM ゲインに乗る。
+     *
+     * <p>{@link #tick} が client 側 BE から再読するのは {@link StaticAnchor} の時だけなので、
+     * 移動構造物のアンカー (Create contraption・Sable sub-level) はそちらの経路に入らない。
+     * そこは server が周期送信する現在値をこの口で押し込む。
+     *
+     * @param value 音量 (%)。100 = 通常
+     */
+    public void setVolumePercent(int value) {
+        this.volumePercent = value;
+    }
+
+    /**
+     * 可聴範囲 (ブロック) のライブ更新。範囲は OpenAL の減衰半径なので、値が動いた時だけ
+     * 再生中チャンネルへ書き込む ({@link #applyLinearAttenuation})。<b>ここを書き換えるだけでは
+     * 音は変わらない</b> — 減衰半径は play 時に焼き込まれているため。
+     *
+     * @param value 可聴範囲 (ブロック)。0 = client config の既定を使う
+     */
+    public void setRangeBlocks(int value) {
+        if (this.rangeBlocks != value) {
+            this.rangeBlocks = value;
+            applyLinearAttenuation();
+        }
+    }
+
+    /**
      * 素材から耳までの総ゲイン = (volumePercent/100) × client の Records 相対倍率 × {@link #MATERIAL_GAIN}。
      * フラットモードで範囲外にいるときは 0 (= 範囲ゲート)。
      */
@@ -263,13 +290,9 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
             final Minecraft mc = Minecraft.getInstance();
             if (mc.level != null && mc.level.isLoaded(sa.pos())
                     && mc.level.getBlockEntity(sa.pos()) instanceof GoldenJukeboxBlockEntity be) {
-                this.volumePercent = be.getVolumePercent();
+                setVolumePercent(be.getVolumePercent());
                 setDirectional(be.isDirectional());
-                final int beRange = be.getRangeBlocks();
-                if (beRange != this.rangeBlocks) {
-                    this.rangeBlocks = beRange;
-                    applyLinearAttenuation();
-                }
+                setRangeBlocks(be.getRangeBlocks());
             }
         }
         applyListeningPosition(p);
