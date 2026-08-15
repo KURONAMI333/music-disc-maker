@@ -57,7 +57,7 @@ Paste an internet radio stream (Icecast/SHOUTcast) or a YouTube live URL and you
 - Additional Additions: drop custom discs into an Additional Additions album and they play their real audio.
 - Sophisticated Backpacks: custom discs play from a backpack's jukebox upgrade.
 - Traveler's Backpack: the same, from its jukebox upgrade slot. (NeoForge only on 1.21.11.)
-- Create and Create Aeronautics (1.21.1): a Golden Jukebox assembled onto a moving contraption or a physics airship keeps playing and follows it.
+- Create: a Golden Jukebox assembled onto a moving contraption keeps playing and follows it (1.21.1, and Forge on 1.20.1). Create Aeronautics physics airships too, on 1.21.1.
 - Valkyrien Skies 2, Eureka! and Clockwork (1.20.1): music follows the ship instead of staying at the ship's origin.
 
 **Notes**
@@ -68,18 +68,3 @@ Paste an internet radio stream (Icecast/SHOUTcast) or a YouTube live URL and you
 
 All Rights Reserved. Free to put in any modpack, on any platform, monetised or not - no permission needed, no credit required. Source is published so you can read exactly what it does: https://github.com/KURONAMI333/music-disc-maker
 
----
-
-## Changelog
-
-Full per-version notes are on the file itself. Latest release:
-
-### 2.2.0
-
-- **Fixed YouTube playback that could stop working entirely until you restarted the game.** Rejected connections are now swapped out and retried automatically, and playback only uses YouTube backends that can actually stream audio.
-- **Playback failures now tell you why** — in chat and in the log, including from backpacks and Create contraptions, which previously failed silently.
-- **Custom discs are much louder**, at vanilla level or above out of the box, with nothing to configure.
-- **Directional audio toggle** on the Golden Jukebox.
-- **Fixed discs restarting from the beginning** for anyone entering the chunk after the track had finished.
-- **Traveler's Backpack support.**
-- **Server and client now need matching mod versions** (see Notes).
