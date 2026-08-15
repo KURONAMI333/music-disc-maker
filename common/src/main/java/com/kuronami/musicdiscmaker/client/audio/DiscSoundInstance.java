@@ -63,11 +63,15 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
     /** フラットモードの範囲ゲートの履歴幅 (ブロック)。 */
     private static final double GATE_HYSTERESIS = 1.0;
 
-    public DiscSoundInstance(BlockPos pos, IAudioSource source) {
+    // 構築子は package-private。compat 経路 (compat.*) は CompatPlayback を通るしか作る手段が無く、
+    // そこが失敗の届け先を必ず繋ぐ。作るだけで繋がない経路を書くとコンパイルが通らない
+    // (理由は CompatPlayback の javadoc)。同じ package の ClientPlaybackManager は直接使える。
+
+    DiscSoundInstance(BlockPos pos, IAudioSource source) {
         this(pos, source, 0, 100, null);
     }
 
-    public DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent,
+    DiscSoundInstance(BlockPos pos, IAudioSource source, int rangeBlocks, int volumePercent,
             @Nullable Runnable onStreamEnded) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
@@ -81,7 +85,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
         initCommon();
     }
 
-    public DiscSoundInstance(Entity entity, IAudioSource source) {
+    DiscSoundInstance(Entity entity, IAudioSource source) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;
         this.anchor = new EntityAnchor(entity);
@@ -98,7 +102,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
      * 任意の {@link DiscAnchor} に張り付く汎用コンストラクタ。移動構造物 (Create contraption 等) の
      * loader 別アダプタが独自 anchor を渡すのに使う。初期 x/y/z は anchor の現在位置で埋める。
      */
-    public DiscSoundInstance(DiscAnchor anchor, IAudioSource source, int rangeBlocks, int volumePercent,
+    DiscSoundInstance(DiscAnchor anchor, IAudioSource source, int rangeBlocks, int volumePercent,
             @Nullable Runnable onStreamEnded) {
         super(ModSounds.CUSTOM_DISC_PLAYBACK.get(), SoundSource.RECORDS, RandomSource.create());
         this.source = source;

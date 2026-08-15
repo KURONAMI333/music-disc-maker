@@ -5,6 +5,7 @@ import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.LivePlaybackRegistry;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
@@ -109,9 +110,11 @@ public final class SableAudioClient {
                     resolved.close();
                     return;
                 }
-                final DiscSoundInstance instance = new DiscSoundInstance(
-                        anchor, resolved, payload.rangeBlocks(), payload.volumePercent(), null);
-                instance.setDirectional(payload.directional());
+                // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
+                // 構築子を直接呼べないのは意図的 (繋ぎ忘れをコンパイルで止める。CompatPlayback の javadoc)。
+                final DiscSoundInstance instance = CompatPlayback.wired(
+                        anchor, resolved, payload.rangeBlocks(), payload.volumePercent(),
+                        payload.directional(), track);
                 // ロード中に曲が変わっていたら鳴らさずに捨てる (遅れて完了した古い曲で上書きしない)。
                 if (!SLOTS.install(actorKey, track.url(), instance)) {
                     instance.requestStop();
