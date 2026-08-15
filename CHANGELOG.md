@@ -11,6 +11,7 @@
 - Updated the YouTube resolver to youtube-source 1.18.2.
 - Fixed the backpack Stop button doing nothing while a track was still loading, which could leave music playing after you stopped it, or start two tracks at once if you pressed Play twice.
 - Fixed playback bookkeeping not being released when a dimension unloads.
+- **Server and client now need matching mod versions.** A 2.1.0 client can no longer connect to a 2.2.0 server (or the reverse) — the mismatch is now rejected outright instead of causing unpredictable behavior, so make sure both sides are updated together.
 
 ## 2.1.0
 
