@@ -44,14 +44,21 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
     @Nullable
     private final Runnable onStreamEnded;
     /**
-     * 音の指向性。true = 従来どおり音源の座標を書き込む positional audio。
-     * false = 可聴範囲の中にいる限り listener の座標そのものを書き込む = 距離 0 = 左右差なし・減衰なしの
-     * フラット聴取 (BGM モード)。範囲外では音量 0 にする ({@link #flatAudible})。
+     * 音の指向性。true = 音源の座標を書き込む positional audio。
+     * false = 可聴範囲の中にいる限り左右差なし・減衰なしで鳴らすフラット聴取 (BGM モード)。
+     * 範囲外では音量 0 にする ({@link #flatAudible})。
      *
-     * <p>{@code relative} フラグを使わないのが要点。あれは {@code SoundEngine#play} 時に 1 回だけ
-     * 適用され tick では再適用されないので、ライブ切替に使うと「停止 → 現在 offset で再 play」= 再バッファの
-     * 音切れを伴う。位置は {@code SoundEngine#tickNonPaused} が毎 tick {@code setSelfPosition} で
-     * 押し込むので、座標を listener に置くだけで同じ聴こえ方が瞬時に得られる。
+     * <p>フラット側はバニラのグローバル音 ({@code SimpleSoundInstance#forMusic}) と同じ作法で作る:
+     * {@code relative} を立てて座標 {@code (0,0,0)} を書く。{@code relative} は座標をリスナー相対で
+     * 解釈させるので、距離は恒久的に厳密 0 になる。<b>音源座標に listener の座標をコピーする形では
+     * 足りない</b> — こちらの書き込みは {@link #tick} = 20Hz なのに対し、OpenAL の listener 座標は
+     * {@code SoundEngine#updateSource} が毎フレーム更新するので、相対ベクトルが 20Hz の鋸歯状に
+     * 振れる。{@code AL_SOURCE_RADIUS} は設定されず定位は正規化方向ベクトルだけで決まるため、
+     * 距離が 0.28 ブロックでも L/R ゲインが毎秒 20 回段差状に切り替わって歪む。
+     *
+     * <p>{@code relative} は {@code SoundEngine#play} 時にしか適用されないので、ライブ切替は
+     * 再生中チャンネルへ直接書き込む ({@link SoundEngineChannelAccess#mdm$setRelative})。
+     * 鳴らし直しは要らない。
      */
     private boolean directional = true;
     /**
@@ -59,9 +66,16 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
      * 現在の状態に {@link #GATE_HYSTERESIS} の余裕を与える。
      */
     private boolean flatAudible = true;
+    /**
+     * 範囲ゲートの現在のゲイン (0=無音 / 1=全開)。{@link #flatAudible} の反転をそのまま音量へ流すと
+     * フルスケールの段差 = ポップノイズになるので、tick ごとに目標へ寄せる。
+     */
+    private float flatGate = 1.0F;
 
     /** フラットモードの範囲ゲートの履歴幅 (ブロック)。 */
     private static final double GATE_HYSTERESIS = 1.0;
+    /** 範囲ゲートの立ち上がり/立ち下がりに掛ける tick 数 (20 tick = 1 秒)。 */
+    private static final int GATE_FADE_TICKS = 15;
 
     // 構築子は package-private。compat 経路 (compat.*) は CompatPlayback を通るしか作る手段が無く、
     // そこが失敗の届け先を必ず繋ぐ。作るだけで繋がない経路を書くとコンパイルが通らない
@@ -121,7 +135,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
         this.volume = computeVolume();
         this.pitch = 1.0F;
         this.looping = false;
-        this.relative = false;
+        // フラットモードは (0,0,0) をリスナー相対で書く。play 時点で OFF ならそこから乗る。
+        this.relative = !this.directional;
         this.attenuation = Attenuation.LINEAR;
     }
 
@@ -153,13 +168,28 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
 
     /**
      * 指向性の設定。生成直後 (play 前) と、client 側 BE 追従によるライブ切替から呼ぶ。
-     * モードが変わった時はゲート状態を「聴こえる」に戻す (次の tick で正しく再判定される)。
+     * モードが変わった時はゲート状態を「聴こえる」に戻し (次の tick で正しく再判定される)、
+     * 座標と {@code relative} を新しいモードのものへ即座に入れ替える。ゲインの現在値
+     * ({@link #flatGate}) は据え置くので、無音側から戻った時もフェードで立ち上がる。
      */
     public void setDirectional(boolean value) {
-        if (this.directional != value) {
-            this.directional = value;
-            this.flatAudible = true;
+        if (this.directional == value) {
+            return;
         }
+        this.directional = value;
+        this.relative = !value;
+        this.flatAudible = true;
+        if (value) {
+            final Vec3 p = anchor.worldPos(1.0F);
+            this.x = p.x;
+            this.y = p.y;
+            this.z = p.z;
+        } else {
+            this.x = 0.0;
+            this.y = 0.0;
+            this.z = 0.0;
+        }
+        applyRelative();
     }
 
     /**
@@ -190,14 +220,26 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
     }
 
     /**
-     * 素材から耳までの総ゲイン = (volumePercent/100) × client の Records 相対倍率 × {@link #MATERIAL_GAIN}。
-     * フラットモードで範囲外にいるときは 0 (= 範囲ゲート)。
+     * 素材から耳までの総ゲイン = (volumePercent/100) × client の Records 相対倍率 ×
+     * {@link #MATERIAL_GAIN} × 範囲ゲート ({@link #flatGate})。
+     *
+     * <p>ゲートはここで<b>1 回だけ</b>掛かる。{@link #computeVolume()} と {@link #computePcmGain()}
+     * はこの値を min/max で分け合うだけなので、{@code LavaPlayerAudioStream} の 1 極フィルタと
+     * 二重には掛からない (PCM 段が受け取るのは常に {@code max(totalGain,1.0)})。
      */
     private double totalGain() {
-        if (!directional && !flatAudible) {
-            return 0.0;
+        return volumePercent / 100.0 * Config.volumeMultiplier() * MATERIAL_GAIN * flatGate;
+    }
+
+    /** 範囲ゲートのゲインを目標へ 1 tick 分寄せる。目標は「フラットモードで範囲外」なら 0、他は 1。 */
+    private void advanceFlatGate() {
+        final float target = !directional && !flatAudible ? 0.0F : 1.0F;
+        final float step = 1.0F / GATE_FADE_TICKS;
+        if (flatGate < target) {
+            flatGate = Math.min(target, flatGate + step);
+        } else if (flatGate > target) {
+            flatGate = Math.max(target, flatGate - step);
         }
-        return volumePercent / 100.0 * Config.volumeMultiplier() * MATERIAL_GAIN;
     }
 
     /**
@@ -300,36 +342,51 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
             }
         }
         applyListeningPosition(p);
+        advanceFlatGate();
         this.volume = computeVolume();
         pushPcmGain();
     }
 
     /**
-     * その tick の音源座標を決める。
+     * その tick の音源座標を決め、フラットモードの範囲ゲートを判定する。
      *
-     * <p>指向性 ON = 実座標をそのまま書く (従来どおり OpenAL が定位と距離減衰をかける)。
-     * OFF = 実効可聴範囲の内側なら listener の座標を書く。距離 0 になるので線形減衰のゲインは 1.0、
-     * 方向ベクトルも 0 = 左右差なし。範囲外では実座標へ戻し、{@link #computeVolume()} が 0 を返す。
+     * <p>指向性 ON = 実座標をそのまま書く (OpenAL が定位と距離減衰をかける)。
+     * OFF = {@code relative} が立っているので {@code (0,0,0)} = 耳の位置。距離は厳密に 0 なので
+     * 線形減衰のゲインは 1.0、方向ベクトルも 0 = 左右差なし。範囲の判定は書き込む座標と無関係に
+     * <b>音源の実座標</b>で行い、範囲外なら {@link #flatGate} が音量を絞る。
      *
      * <p>ゲートは「停止」でなく「無音」にしてある。ストリームを閉じてしまうと範囲へ戻った時に再生を
      * 復帰させる手段が client 側に無く、server の再送を待つことになるため。指向性 ON でも範囲の外端では
      * 減衰で 0 になる (= ストリームは開いたまま) ので、外から見た挙動は連続している。
      */
     private void applyListeningPosition(Vec3 sourcePos) {
-        Vec3 write = sourcePos;
-        if (!directional) {
-            final Vec3 ear = listenerPos();
-            if (ear != null) {
-                final double limit = flatAudible ? effectiveRange() + GATE_HYSTERESIS : effectiveRange();
-                flatAudible = ear.distanceTo(sourcePos) <= limit;
-                if (flatAudible) {
-                    write = ear;
-                }
-            }
+        if (directional) {
+            this.x = sourcePos.x;
+            this.y = sourcePos.y;
+            this.z = sourcePos.z;
+            return;
         }
-        this.x = write.x;
-        this.y = write.y;
-        this.z = write.z;
+        final Vec3 ear = listenerPos();
+        if (ear != null) {
+            final double limit = flatAudible ? effectiveRange() + GATE_HYSTERESIS : effectiveRange();
+            flatAudible = ear.distanceTo(sourcePos) <= limit;
+        }
+        this.x = 0.0;
+        this.y = 0.0;
+        this.z = 0.0;
+    }
+
+    /**
+     * 現在のモードの {@code relative} を再生中チャンネルへ即反映する。
+     * チャンネル未割当 (play 直後の 1 tick 窓) の場合は {@code SoundEngine#play} が
+     * {@link #isRelative()} を読んで焼き込んだ値が既に載っているので何もしない。
+     */
+    private void applyRelative() {
+        final SoundManager soundManager = Minecraft.getInstance().getSoundManager();
+        if (soundManager instanceof SoundEngineHolder holder
+                && holder.mdm$soundEngine() instanceof SoundEngineChannelAccess channels) {
+            channels.mdm$setRelative(this, !directional);
+        }
     }
 
     @Override

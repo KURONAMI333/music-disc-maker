@@ -22,4 +22,15 @@ public interface SoundEngineChannelAccess {
      *                          ({@code max(getVolume(),1) * attenuationDistance}) で算出した値を渡す。
      */
     void mdm$updateLinearAttenuation(SoundInstance instance, float linearAttenuation);
+
+    /**
+     * 指定 SoundInstance に現在割り当てられているチャンネルの相対座標フラグ
+     * ({@code AL_SOURCE_RELATIVE}) を更新する。まだチャンネルが割り当てられていなければ
+     * (play 直後の 1 tick 窓) 何もしない — その窓は {@code SoundEngine#play} が
+     * {@code SoundInstance#isRelative} を読んで焼き込んだ値で埋まる。
+     *
+     * @param instance 対象の再生インスタンス
+     * @param relative true = 座標をリスナー相対で解釈する (0,0,0 = 耳の位置 = 距離 0)
+     */
+    void mdm$setRelative(SoundInstance instance, boolean relative);
 }
