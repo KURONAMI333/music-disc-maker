@@ -9,6 +9,13 @@ import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.compat.album.AlbumSupport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.SilentSongs;
+import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
+import com.kuronami.musicdiscmaker.event.AlbumPlaybackMirror;
+import com.kuronami.musicdiscmaker.event.JukeboxDiscController;
+import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.StopDiscPayload;
+import com.kuronami.musicdiscmaker.platform.Services;
+import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -45,6 +52,12 @@ public class AlbumJukeboxGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
     private static final String BATCH = "album";
+    /**
+     * 実 payload と {@link ActiveDiscRegistry} を見る回帰テストは別 batch に置く。batch は順に走り、
+     * 同一 batch 内のテストは並行に進むので、{@code Services.swapNetwork} を張っている間に
+     * 他テストの packet が混ざらないようにする ({@code ChunkResendRestartGameTests} と同じ理由)。
+     */
+    private static final String MIRROR_BATCH = "albumMirror";
 
     private static final String URL_A = "https://example.invalid/album-track-a";
     private static final String URL_B = "https://example.invalid/album-track-b";
@@ -74,6 +87,11 @@ public class AlbumJukeboxGameTests {
 
     @AfterBatch(batch = BATCH)
     public static void restoreAlbums(ServerLevel level) {
+        AlbumSupport.install(null);
+    }
+
+    @AfterBatch(batch = MIRROR_BATCH)
+    public static void restoreAlbumsAfterMirror(ServerLevel level) {
         AlbumSupport.install(null);
     }
 
@@ -244,5 +262,69 @@ public class AlbumJukeboxGameTests {
                             "復元後の現在トラック内の再生位置");
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * ミラーが管轄するのは<b>アルバムが挿さっている jukebox だけ</b>であること。
+     *
+     * <p>Additional Additions はバニラ {@code JukeboxBlockEntity} に mixin するので、AA を入れると
+     * MDM の tick フックは<b>全てのバニラジュークボックス</b>で走る。素のディスクが入っているだけの
+     * 座標でミラーが「MDM ストリーム対象なし」の停止側に落ちると、{@link JukeboxDiscController} が
+     * 挿入時に張ったばかりの再生を次の tick で消し、登録まで消える (登録が消えるので late-join 再送も
+     * 効かず、入れ直しても 1 tick 後にまた止まる)。
+     *
+     * <p>AA は {@code compileOnly} = この runtime に存在しないので、AA 側の状態読み取りではなく
+     * <b>ミラーの入口</b>を直接叩いて分岐を固定する。{@link AlbumSupport} に fake を差してあるので
+     * 「保持 stack がアルバムか」は生きた provider が答える (差していないと {@code ABSENT} が全部
+     * false を返し、テストが正しくない理由で通る)。あわせて、アルバム保持時にはミラーが従来どおり
+     * 停止もトラック送りも出せること (壊してはいけない遷移) を同じテストで固定する。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, batch = MIRROR_BATCH)
+    public static void mirrorLeavesPlainDiscJukeboxesAlone(GameTestHelper helper) {
+        installFakeAlbums();
+        final ServerLevel level = helper.getLevel();
+        final BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+        final ItemStack plainDisc = customDisc(URL_A, "A", 120_000L);
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            // 素のディスクの挿入。setTheItem フックと同じ入口で再生が張られる。
+            JukeboxDiscController.onContentChanged(level, pos, plainDisc);
+            helper.assertTrue(ActiveDiscRegistry.isActive(level.dimension(), pos),
+                    "前提: 素のディスクの挿入で再生登録が張られていない");
+            net.clear();
+
+            // 次の tick。AA 導入時はこの座標にもミラーが来る。
+            AlbumPlaybackMirror.mirrorAlbumJukebox(level, pos, plainDisc, null);
+
+            helper.assertTrue(ActiveDiscRegistry.isActive(level.dimension(), pos),
+                    "素のディスクの再生登録がミラーに消された");
+            helper.assertValueEqual(net.of(StopDiscPayload.class).size(), 0,
+                    "素のディスクの座標へミラーが停止 packet を送った");
+
+            // 判別: 同じ座標・同じ引数でも、保持 stack がアルバムならミラーは停止を出す
+            // (遷移「アルバムはあるが再生停止」)。
+            final ItemStack albumStack = album(customDisc(URL_B, "B", 120_000L));
+            net.clear();
+            AlbumPlaybackMirror.mirrorAlbumJukebox(level, pos, albumStack, null);
+            helper.assertFalse(ActiveDiscRegistry.isActive(level.dimension(), pos),
+                    "アルバム保持時にミラーが停止していない");
+            helper.assertValueEqual(net.of(StopDiscPayload.class).size(), 1,
+                    "アルバム保持時の停止 packet の数");
+
+            // 遷移「アルバムのトラック送り」: 手持ちはアルバムのままなのでミラーは走り続ける。
+            net.clear();
+            AlbumPlaybackMirror.mirrorAlbumJukebox(level, pos, albumStack, customDisc(URL_B, "B", 120_000L));
+            final ActiveDiscRegistry.Playing playing = ActiveDiscRegistry.current(level.dimension(), pos);
+            helper.assertTrue(playing != null && URL_B.equals(playing.track().url()),
+                    "アルバムのトラック送りがミラーから張られていない");
+            helper.assertValueEqual(net.of(PlayDiscPayload.class).size(), 1,
+                    "トラック送りの再生 packet の数");
+        } finally {
+            Services.swapNetwork(previous);
+            ActiveDiscRegistry.stop(level.dimension(), pos);
+        }
+        helper.succeed();
     }
 }

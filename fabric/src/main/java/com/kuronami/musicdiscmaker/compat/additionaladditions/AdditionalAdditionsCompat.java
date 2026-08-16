@@ -33,7 +33,11 @@ public final class AdditionalAdditionsCompat {
 
     /**
      * album jukebox の毎 tick フック (server 側)。現在トラックが MDM custom disc ならそれを、
-     * そうでなければ null を {@link AlbumPlaybackMirror#mirror} に渡す。
+     * そうでなければ null を、保持 stack と一緒に {@link AlbumPlaybackMirror#mirrorAlbumJukebox} に渡す。
+     *
+     * <p>AA は vanilla {@code JukeboxBlockEntity} に mixin しているので、下の
+     * {@code instanceof AlbumJukeboxExtension} は<b>素のディスクが入っているだけの jukebox でも真</b>
+     * になる。保持 stack を一緒に渡すのはそのため。アルバムかどうかの判定はミラーの入口が行う。
      */
     public static void onServerTick(Level level, BlockPos pos, JukeboxBlockEntity jukebox) {
         if (!(level instanceof ServerLevel serverLevel)) {
@@ -42,13 +46,14 @@ public final class AdditionalAdditionsCompat {
         if (!(jukebox instanceof AlbumJukeboxExtension album)) {
             return;
         }
+        final ItemStack held = jukebox.getTheItem();
 
         ItemStack mdmDisc = null;
         if (album.additionaladditions$isPlaying()) {
             final int track = album.additionaladditions$getTrack();
             if (track >= 0) {
                 final AlbumContents contents =
-                        jukebox.getTheItem().getOrDefault(AAMisc.ALBUM_CONTENTS_COMPONENT.get(), AlbumContents.EMPTY);
+                        held.getOrDefault(AAMisc.ALBUM_CONTENTS_COMPONENT.get(), AlbumContents.EMPTY);
                 final List<ItemStack> items = contents.items();
                 if (track < items.size()) {
                     final ItemStack candidate = items.get(track);
@@ -60,6 +65,6 @@ public final class AdditionalAdditionsCompat {
             }
         }
 
-        AlbumPlaybackMirror.mirror(serverLevel, pos, mdmDisc);
+        AlbumPlaybackMirror.mirrorAlbumJukebox(serverLevel, pos, held, mdmDisc);
     }
 }
