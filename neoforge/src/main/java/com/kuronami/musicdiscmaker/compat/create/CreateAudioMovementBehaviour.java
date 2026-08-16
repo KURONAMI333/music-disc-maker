@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.compat.create;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.compat.album.AlbumSupport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -84,7 +85,12 @@ public final class CreateAudioMovementBehaviour implements MovementBehaviour {
         }
         final NonNullList<ItemStack> items = NonNullList.withSize(1, ItemStack.EMPTY);
         ContainerHelper.loadAllItems(beData.getCompound("inventory"), items, context.world.registryAccess());
-        final ItemStack disc = items.get(GoldenJukeboxBlockEntity.SLOT_DISC);
+        ItemStack disc = items.get(GoldenJukeboxBlockEntity.SLOT_DISC);
+        // アルバムは中身の現在トラックが実体。index も凍結 NBT から引き継ぐ (欠け = -1 = 従来動作)。
+        final int albumTrack = beData.contains("albumTrack") ? beData.getInt("albumTrack") : -1;
+        if (albumTrack >= 0) {
+            disc = AlbumSupport.trackAt(disc, albumTrack);
+        }
         if (disc.is(ModItems.CUSTOM_MUSIC_DISC.get()) && disc.has(ModDataComponents.CUSTOM_TRACK.get())) {
             final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
             return track != null && !track.isEmpty() ? track : null;
