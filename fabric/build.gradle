@@ -28,6 +28,11 @@ dependencies {
     // 「Mod was built with a newer version of Loom」で modCompileOnly が拒否する (実測)。
     // 10.1.25 (Loom 1.7.4/mixin remap type) は同じ JukeboxWidget API で解決できるのでこちらを使う。
     modCompileOnly files("compat-libs/travelersbackpack-fabric-1.21.1-10.1.25.jar")
+
+    // [Let's Do] Furniture (互換): Gramophone (蓄音機) に挿した custom disc を実音声でストリーム再生する。
+    // loom が named に remap するので Furniture の型を直接参照できる (modCompileOnly=同梱しない、
+    // ソフト依存。fabric.mod.json に依存宣言しない)。mixin は @Pseudo で無害化。
+    modCompileOnly files("compat-libs/letsdo-furniture-fabric-1.1.4.jar")
 }
 
 // ─── LavaPlayer 隔離ロード wiring ────────────────────────────────────────
