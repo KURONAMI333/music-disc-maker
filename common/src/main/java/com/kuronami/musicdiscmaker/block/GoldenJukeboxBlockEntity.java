@@ -348,7 +348,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         final long rawElapsed = Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
         final long dur = trackDurationMs();
         if (dur > 0L && rawElapsed >= dur) {
-            if (repeat) {
+            if (albumTrack >= 0) {
+                // アルバム: 現在トラックは unload 中に鳴り終わっている → 次のトラックの頭から。
+                // repeat ならアルバム先頭へ戻り、そうでなければ最終トラックの後で停止する。
+                advanceAlbumTrack();
+            } else if (repeat) {
                 startPlayback(rawElapsed % dur); // リピートはループ内の現在位置へ。
             } else {
                 // 非リピートで復元前に自然終了済み → replay しない (頭出し再生を防ぐ)。
@@ -438,10 +442,13 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
         final long elapsed = Math.max(0L, System.currentTimeMillis() - startMillis);
         final long dur = track.durationMs();
-        if (dur > 0L && elapsed >= dur && !repeat) {
-            return; // repeat off の自然終了済み
+        // アルバムの repeat はアルバム全体のループ (曲内ループではない)。トラック送りのたびに
+        // startMillis が張り直されるので elapsed は常に「現在トラック内の位置」= 剰余を取らない。
+        final boolean loopsWithinTrack = repeat && albumTrack < 0;
+        if (dur > 0L && elapsed >= dur && !loopsWithinTrack) {
+            return; // 自然終了済み (アルバムは次の tick で次トラックへ送られる)
         }
-        final long offset = (dur > 0L && repeat) ? elapsed % dur : elapsed;
+        final long offset = (dur > 0L && loopsWithinTrack) ? elapsed % dur : elapsed;
         Services.NETWORK.sendToPlayer(player,
                 new PlayDiscPayload(getBlockPos(), track, offset, rangeBlocks, volumePercent, directional));
     }
