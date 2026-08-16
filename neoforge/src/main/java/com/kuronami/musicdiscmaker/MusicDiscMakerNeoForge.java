@@ -35,6 +35,8 @@ public class MusicDiscMakerNeoForge {
         modEventBus.addListener(com.kuronami.musicdiscmaker.compat.create.CreateCompat::onCommonSetup);
         // Create Aeronautics (Sable) 互換: ロードされていれば物理 sub-level に載った強化版ジュークボックスの再生追従を有効にする。
         modEventBus.addListener(com.kuronami.musicdiscmaker.compat.aeronautics.SableCompat::onCommonSetup);
+        // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
+        modEventBus.addListener(com.kuronami.musicdiscmaker.compat.additionaladditions.AlbumCompat::onCommonSetup);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, NeoForgeConfigHelper.SPEC);
     }

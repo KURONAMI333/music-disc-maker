@@ -47,6 +47,12 @@ public class MusicDiscMakerFabric implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(SeekJukeboxPayload.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleSeekJukebox(payload, ctx.player())));
 
+        // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
+        // AA の型に触れるのはガード通過後の呼び出しだけ (AlbumProvider がこの時点で初めて class-load される)。
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("additionaladditions")) {
+            com.kuronami.musicdiscmaker.compat.additionaladditions.AlbumProvider.install();
+        }
+
         // jukebox 出し入れ / 破壊イベント。
         FabricJukeboxEvents.register();
 
