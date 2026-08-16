@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.compat.album.AlbumSupport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
@@ -87,6 +88,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
      * client の進捗バー計算用に同期する (wall-clock はマルチプレイで機体差があるため gameTime を使う)。
      */
     private long playbackStartGameTime = -1L;
+    /**
+     * スロットのアイテムがアルバム ({@link AlbumSupport}) の時の再生中トラック index。
+     * <b>-1 = アルバムではない = 従来動作</b>。旧セーブにこのキーは無いので -1 に倒れる。
+     * {@link #playbackStartGameTime} は「このトラック内の再生位置」の意味になるのでセットで永続化する。
+     */
+    private int albumTrack = -1;
 
     // ── server 揮発 ──
     private final JukeboxSongPlayer songPlayer = new JukeboxSongPlayer(this::onSongChanged, this.getBlockPos());
@@ -158,13 +165,44 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         return !items.get(SLOT_DISC).isEmpty();
     }
 
+    /**
+     * ディスクスロットが受け入れるアイテムか。再生可能ディスク (JUKEBOX_PLAYABLE) と、複数ディスクを
+     * 束ねたアルバム。**3 箇所のゲート (BE の canPlaceItem・block の手挿し・menu の mayPlace) の唯一の源**。
+     */
+    public static boolean isPlayableInSlot(ItemStack stack) {
+        return stack.has(DataComponents.JUKEBOX_PLAYABLE) || AlbumSupport.isAlbum(stack);
+    }
+
+    /** スロットに入っている生のアイテム (アルバムならアルバム本体)。容器としての同一性はこちら。 */
     public ItemStack getDisc() {
         return items.get(SLOT_DISC);
     }
 
+    /**
+     * 実際に再生する対象のディスク。アルバムなら現在トラックの disc、そうでなければスロットの stack。
+     * 再生系 (曲名・尺・シーク・コンパレータ・ストリーム送出) は全てここを通す。
+     */
+    public ItemStack effectiveDisc() {
+        final ItemStack raw = items.get(SLOT_DISC);
+        if (albumTrack < 0) {
+            return raw;
+        }
+        return AlbumSupport.trackAt(raw, albumTrack);
+    }
+
+    /** アルバム再生中のトラック index (0 始まり)。-1 = アルバムではない。 */
+    public int getAlbumTrack() {
+        return albumTrack;
+    }
+
+    /** アルバムの総トラック数。アルバムでなければ 0。client からも呼べる (中身は component 同期される)。 */
+    public int albumTrackCount() {
+        return albumTrack < 0 ? 0 : AlbumSupport.trackCount(items.get(SLOT_DISC));
+    }
+
     /** 現在のディスクが custom disc なら track を、そうでなければ null。 */
     public CustomTrackData currentTrack() {
-        final ItemStack disc = items.get(SLOT_DISC);
+        final ItemStack disc = effectiveDisc();
         if (disc.is(ModItems.CUSTOM_MUSIC_DISC.get()) && disc.has(ModDataComponents.CUSTOM_TRACK.get())) {
             final CustomTrackData t = disc.get(ModDataComponents.CUSTOM_TRACK.get());
             return t != null && !t.isEmpty() ? t : null;
@@ -179,7 +217,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
      */
     @Nullable
     public Component discSongDescription() {
-        return songFor(getDisc()).map(Holder::value).map(JukeboxSong::description).orElse(null);
+        return songFor(effectiveDisc()).map(Holder::value).map(JukeboxSong::description).orElse(null);
     }
 
     /** 無限長ストリーム (ライブ/ラジオ) の custom disc か。リピートを無効化する判定に使う。 */
@@ -193,7 +231,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (level == null) {
             return 0;
         }
-        return JukeboxSong.fromStack(level.registryAccess(), items.get(SLOT_DISC))
+        // アルバムなら現在トラックのディスクの値 (バニラ準拠)。
+        return JukeboxSong.fromStack(level.registryAccess(), effectiveDisc())
                 .map(Holder::value).map(JukeboxSong::comparatorOutput).orElse(0);
     }
 
@@ -326,7 +365,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (!isServer() || !hasDisc()) {
             return;
         }
-        final ItemStack disc = items.get(SLOT_DISC);
+        final ItemStack disc = effectiveDisc();
         // vanilla 再生状態 (particle / comparator / 曲終了) + vanilla disc の実音。
         songFor(disc).ifPresent(song -> songPlayer.play(level, song));
         startMillis = System.currentTimeMillis() - offsetMs;
@@ -353,6 +392,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     /** ディスクスロットが変わった時 (挿入/取り出し・ホッパー・コマンド・GUI)。再生を起動/停止する。 */
     private void onDiscChanged() {
         final boolean hasDisc = hasDisc();
+        // スロットの中身が変わる唯一の合流点。アルバムならトラック 0 から、そうでなければ -1 (従来動作)。
+        this.albumTrack = AlbumSupport.isAlbum(items.get(SLOT_DISC)) ? 0 : -1;
         updateHasRecordState(hasDisc);
         if (isServer()) {
             pausedOffsetMs = 0L;
@@ -426,23 +467,72 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         }
         // vanilla songPlayer: particle / gameEvent / 曲終了で停止。
         songPlayer.tick(level, getBlockState());
+        // アルバム: 現在トラックが終わったら次へ送る。ラジオ復帰・repeat より先に判定する
+        // (アルバムの repeat はアルバム全体のループであって 1 曲ループではないため)。
+        if (albumTrack >= 0 && !paused && startMillis > 0L && currentAlbumTrackFinished()) {
+            advanceAlbumTrack();
+            return;
+        }
         // 案B (ラジオ): 無限長ストリームは silent song の最大尺 (2h) で vanilla 再生状態が切れるが、
         // client 側の音声は独立に流れ続ける。再生状態 (コンパレータ/particle) だけを再起動して
         // 無限に維持する。client への再 broadcast はしないので音声は途切れない。
         if (startMillis > 0L && !paused && !songPlayer.isPlaying()) {
             final CustomTrackData track = currentTrack();
             if (track != null && track.radio()) {
-                songFor(items.get(SLOT_DISC)).ifPresent(song -> songPlayer.play(level, song));
+                songFor(effectiveDisc()).ifPresent(song -> songPlayer.play(level, song));
             }
         }
-        // repeat: 有限曲を曲尺でループ。
-        if (repeat && !paused && startMillis > 0L) {
+        // repeat: 有限曲を曲尺でループ。アルバムの repeat はアルバム全体のループなので
+        // ここでは扱わない (advanceAlbumTrack が最終トラックの後で先頭へ戻す)。
+        if (repeat && albumTrack < 0 && !paused && startMillis > 0L) {
             final CustomTrackData track = currentTrack();
             if (track != null && track.durationMs() > 0L
                     && System.currentTimeMillis() - startMillis >= track.durationMs()) {
                 startPlayback(0L);
             }
         }
+    }
+
+    /**
+     * アルバムの現在トラックが再生し終わったか。
+     *
+     * <p>アルバムの中身は {@code JUKEBOX_PLAYABLE} を持つディスクなら何でもよく、MDM の custom disc と
+     * バニラディスクが混在しうる。custom disc は尺 (ms) が判っているのでそれで判定し、尺を持たない
+     * バニラ / 他 MOD のディスクは AA と同じく vanilla の再生状態が切れたことで判定する。ラジオ
+     * (無限長) は終わらない。
+     */
+    private boolean currentAlbumTrackFinished() {
+        final CustomTrackData track = currentTrack();
+        if (track != null && track.radio()) {
+            return false;
+        }
+        final long dur = trackDurationMs();
+        if (dur > 0L) {
+            return System.currentTimeMillis() - startMillis >= dur;
+        }
+        return !songPlayer.isPlaying();
+    }
+
+    /**
+     * 次のトラックへ送る。最終トラックの後は repeat ならアルバム先頭へ戻り (S4: repeat =
+     * アルバム全体のループ)、そうでなければ停止して先頭に戻す。
+     */
+    private void advanceAlbumTrack() {
+        final int count = AlbumSupport.trackCount(items.get(SLOT_DISC));
+        final int next = albumTrack + 1;
+        if (count <= 0 || next >= count) {
+            if (repeat && count > 0) {
+                albumTrack = 0;
+                startPlayback(0L);
+            } else {
+                albumTrack = 0;
+                stopPlayback();
+                sync();
+            }
+            return;
+        }
+        albumTrack = next;
+        startPlayback(0L);
     }
 
     private void onSongChanged() {
@@ -481,6 +571,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         this.pausedOffsetMs = tag.getLong("pausedOffset");
         this.playbackStartGameTime = tag.contains("playbackStartGameTime")
                 ? tag.getLong("playbackStartGameTime") : -1L;
+        // 旧セーブ (アルバム対応より前) には無いので、欠けていたら -1 = 従来動作。
+        this.albumTrack = tag.contains("albumTrack") ? tag.getInt("albumTrack") : -1;
     }
 
     @Override
@@ -496,6 +588,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         tag.putBoolean("paused", paused);
         tag.putLong("pausedOffset", pausedOffsetMs);
         tag.putLong("playbackStartGameTime", playbackStartGameTime);
+        // playbackStartGameTime は「このトラック内の位置」なので index とセットで保存する。
+        tag.putInt("albumTrack", albumTrack);
     }
 
     @Override
@@ -566,8 +660,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     @Override
     public boolean canPlaceItem(int slot, ItemStack stack) {
-        // 再生可能ディスク (vanilla + custom、いずれも JUKEBOX_PLAYABLE を持つ) のみ、空きスロットへ。
-        return slot == SLOT_DISC && stack.has(DataComponents.JUKEBOX_PLAYABLE) && items.get(SLOT_DISC).isEmpty();
+        // 再生可能ディスク (vanilla + custom、いずれも JUKEBOX_PLAYABLE を持つ) と、複数ディスクを
+        // 束ねたアルバム (JUKEBOX_PLAYABLE を持たない) のみ、空きスロットへ。
+        return slot == SLOT_DISC && isPlayableInSlot(stack) && items.get(SLOT_DISC).isEmpty();
     }
 
     @Override

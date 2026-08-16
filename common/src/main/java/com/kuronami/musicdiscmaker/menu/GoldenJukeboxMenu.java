@@ -7,7 +7,6 @@ import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -111,7 +110,7 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
         return original;
     }
 
-    /** ディスクスロット: 再生可能ディスク (JUKEBOX_PLAYABLE) のみ受け入れる。 */
+    /** ディスクスロット: 再生可能ディスク (JUKEBOX_PLAYABLE) とアルバムのみ受け入れる。 */
     private static class DiscSlot extends Slot {
         DiscSlot(GoldenJukeboxBlockEntity be, int slot, int x, int y) {
             super(be, slot, x, y);
@@ -119,7 +118,7 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
 
         @Override
         public boolean mayPlace(@NotNull ItemStack stack) {
-            return stack.has(DataComponents.JUKEBOX_PLAYABLE);
+            return GoldenJukeboxBlockEntity.isPlayableInSlot(stack);
         }
 
         @Override

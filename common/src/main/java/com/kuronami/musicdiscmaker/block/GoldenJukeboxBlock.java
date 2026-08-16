@@ -7,7 +7,6 @@ import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.Containers;
@@ -77,8 +76,9 @@ public class GoldenJukeboxBlock extends Block implements EntityBlock {
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
             Player player, InteractionHand hand, BlockHitResult hit) {
-        // 手にディスク & スロット空 → 挿入 (vanilla 同等)。それ以外は useWithoutItem (= GUI) へ流す。
-        if (stack.has(DataComponents.JUKEBOX_PLAYABLE)
+        // 手にディスク (またはアルバム) & スロット空 → 挿入 (vanilla 同等)。
+        // それ以外は useWithoutItem (= GUI) へ流す。
+        if (GoldenJukeboxBlockEntity.isPlayableInSlot(stack)
                 && level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be
                 && be.getDisc().isEmpty()) {
             if (!level.isClientSide) {
