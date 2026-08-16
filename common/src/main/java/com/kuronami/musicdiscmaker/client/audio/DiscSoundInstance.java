@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.debug.MdmProbe;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.register.ModSounds;
 
@@ -19,6 +20,7 @@ import net.minecraft.client.sounds.AudioStream;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -138,6 +140,55 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
         // フラットモードは (0,0,0) をリスナー相対で書く。play 時点で OFF ならそこから乗る。
         this.relative = !this.directional;
         this.attenuation = Attenuation.LINEAR;
+        MdmProbe.voiceCreated(anchor.getClass().getSimpleName(), anchor.worldPos(1.0F), rangeBlocks,
+                volumePercent, directional, relative, this.volume, effectiveRange(), probeAnchorDetail());
+    }
+
+    // ── 一時的な診断 (蓄音機経路の切り分け)。原因が確定したら probe 関連を丸ごと消す ──
+
+    /** 生成からの tick 数。probe の間引きにだけ使う。 */
+    private int probeTicks;
+
+    /**
+     * anchor が今どこに張り付いているかの説明。{@link StaticAnchor} では実ブロック id と block entity の
+     * 型まで出す ({@link StaticAnchor#isValid()} は jukebox / 強化版ジュークボックス以外を無効と見なす
+     * ので、ここに他 MOD のブロック id が出たら自己停止の直接原因)。
+     */
+    private String probeAnchorDetail() {
+        if (!(anchor instanceof StaticAnchor sa)) {
+            return "anchor=" + anchor.getClass().getSimpleName();
+        }
+        final Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return "level=null";
+        }
+        if (!mc.level.isLoaded(sa.pos())) {
+            return "chunk not loaded pos=" + sa.pos();
+        }
+        final var be = mc.level.getBlockEntity(sa.pos());
+        return "block=" + BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(sa.pos()).getBlock())
+                + " be=" + (be == null ? "-" : be.getClass().getName());
+    }
+
+    /** engine が今このインスタンスを抱えているか (拒否・即解放の検出)。 */
+    private boolean probeEngineActive() {
+        try {
+            return Minecraft.getInstance().getSoundManager().isActive(this);
+        } catch (final Throwable t) {
+            return false;
+        }
+    }
+
+    /** ストリームが今までに返した総バイト数。未開栓なら -1。 */
+    private long probeStreamBytes() {
+        final LavaPlayerAudioStream s = this.stream;
+        return s == null ? -1L : s.bytesReturned();
+    }
+
+    /** ストリームの read 呼び出し回数。未開栓なら -1。 */
+    private int probeStreamReads() {
+        final LavaPlayerAudioStream s = this.stream;
+        return s == null ? -1 : s.readCalls();
     }
 
     /**
@@ -320,9 +371,12 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
 
     @Override
     public void tick() {
+        probeTicks++;
         // 音源が消えたら (jukebox 撤去・entity 除去・移動構造物の解体等いずれの経路でも) 鳴りっぱなしを止める。
         // 判定は anchor に委譲する (StaticAnchor は chunk 未ロード時は停止しない = 遠距離の誤消音を防ぐ)。
         if (!anchor.isValid()) {
+            MdmProbe.voiceStopped("anchor.isValid()==false", anchor.worldPos(1.0F), probeTicks,
+                    probeAnchorDetail());
             stop();
             return;
         }
@@ -345,6 +399,10 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
         advanceFlatGate();
         this.volume = computeVolume();
         pushPcmGain();
+        final Vec3 ear = listenerPos();
+        MdmProbe.voiceState(probeTicks, p, isStopped(), probeEngineActive(), this.volume, flatGate,
+                directional, this.relative, true, ear == null ? -1.0 : ear.distanceTo(p), effectiveRange(),
+                probeStreamBytes(), probeStreamReads(), probeAnchorDetail());
     }
 
     /**
@@ -422,6 +480,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
         final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded, failureSink);
         s.setPcmGain(computePcmGain());
         this.stream = s;
+        MdmProbe.voiceStreamOpened(anchor.worldPos(1.0F), computePcmGain());
         return CompletableFuture.completedFuture(s);
     }
 
@@ -439,6 +498,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
     }
 
     public void requestStop() {
+        MdmProbe.voiceStopped("requestStop() (外部からの停止)", anchor.worldPos(1.0F), probeTicks,
+                probeAnchorDetail());
         this.stop();
         // stream 開栓前 (getCustomStream 未呼び出し) に停止すると、MC が AudioStream.close を
         // 発火しない = source が閉じられず LavaPlayer の player thread/buffer がリークする。

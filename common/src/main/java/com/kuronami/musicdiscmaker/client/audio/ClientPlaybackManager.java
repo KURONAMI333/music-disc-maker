@@ -183,6 +183,8 @@ public final class ClientPlaybackManager {
             return;
         }
         Minecraft.getInstance().getSoundManager().play(instance);
+        MdmProbe.voiceHandedToEngine(key, track.url(),
+                Minecraft.getInstance().getSoundManager().isActive(instance));
         // vanilla disc と同じ "Now Playing: ..." overlay を出す
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
