@@ -399,10 +399,12 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
         advanceFlatGate();
         this.volume = computeVolume();
         pushPcmGain();
-        final Vec3 ear = listenerPos();
-        MdmProbe.voiceState(probeTicks, p, isStopped(), probeEngineActive(), this.volume, flatGate,
-                directional, this.relative, true, ear == null ? -1.0 : ear.distanceTo(p), effectiveRange(),
-                probeStreamBytes(), probeStreamReads(), probeAnchorDetail());
+        if (MdmProbe.voiceStateDue(probeTicks)) {
+            final Vec3 ear = listenerPos();
+            MdmProbe.voiceState(probeTicks, p, isStopped(), probeEngineActive(), this.volume, flatGate,
+                    directional, this.relative, true, ear == null ? -1.0 : ear.distanceTo(p),
+                    effectiveRange(), probeStreamBytes(), probeStreamReads(), probeAnchorDetail());
+        }
     }
 
     /**

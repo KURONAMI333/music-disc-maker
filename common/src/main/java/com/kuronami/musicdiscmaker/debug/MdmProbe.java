@@ -137,15 +137,21 @@ public final class MdmProbe {
     }
 
     /**
-     * 生成後の状態。{@code tickIndex} 1・2・3 と、以降 20 tick ごとに 100 tick (5 秒) まで出す。
+     * この tick で {@link #voiceState} を出すか。<b>呼び出し側でこれを見てから呼ぶこと</b> —
+     * 引数の組み立て (block entity の引き直し・registry 逆引き・文字列連結) が 20Hz で走るのを避ける。
+     */
+    public static boolean voiceStateDue(int tickIndex) {
+        return tickIndex <= 3 || (tickIndex % 20 == 0 && tickIndex <= 100);
+    }
+
+    /**
+     * 生成後の状態。{@code tickIndex} 1・2・3 と、以降 20 tick ごとに 100 tick (5 秒) まで
+     * ({@link #voiceStateDue} が間引く)。
      * <b>この行が出ずに {@code voice stopped} だけが出るなら、鳴り始める前に自己停止している。</b>
      */
     public static void voiceState(int tickIndex, Vec3 pos, boolean stopped, boolean engineActive,
             float volume, float flatGate, boolean directional, boolean relative, boolean anchorValid,
             double distance, int effectiveRange, long streamBytes, int streamReads, String anchorDetail) {
-        if (!(tickIndex <= 3 || (tickIndex % 20 == 0 && tickIndex <= 100))) {
-            return;
-        }
         MusicDiscMaker.LOGGER.info(
                 TAG + "voice state t={}: pos=({},{},{}) stopped={} engineActive={} volume={} flatGate={} "
                         + "directional={} relative={} anchorValid={} dist={} effRange={} "
