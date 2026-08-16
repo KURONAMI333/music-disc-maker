@@ -1,11 +1,9 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
-import com.kuronami.musicdiscmaker.register.ModBlocks;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -46,7 +44,7 @@ public final class StaticAnchor implements DiscAnchor {
             return true;
         }
         final BlockState state = level.getBlockState(pos);
-        return state.is(Blocks.JUKEBOX) || state.is(ModBlocks.GOLDEN_JUKEBOX.get());
+        return !state.isAir();
     }
 
     @Override
