@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * 一時的な実機診断ログ (蓄音機経路の切り分け専用)。全て INFO で {@code [MDM-PROBE]} 接頭辞を持つ。
@@ -109,6 +110,64 @@ public final class MdmProbe {
     public static void clientPlaySkipped(BlockPos pos, @Nullable CustomTrackData track) {
         MusicDiscMaker.LOGGER.info(TAG + "play skipped (client dedup): pos={} url={}",
                 pos, track == null ? "-" : track.url());
+    }
+
+    // ── client 音響層 (配線が無実だった時の第 2 段) ──────────────────────────────
+
+    /** {@code DiscSoundInstance} が生成された (まだ SoundManager には渡っていない)。 */
+    public static void voiceCreated(String anchorKind, Vec3 pos, int rangeBlocks, int volumePercent,
+            boolean directional, boolean relative, float volume, int effectiveRange, String anchorDetail) {
+        MusicDiscMaker.LOGGER.info(
+                TAG + "voice created: anchor={} pos=({},{},{}) range={} effRange={} vol%={} volume={} "
+                        + "directional={} relative={} | {}",
+                anchorKind, fmt(pos.x), fmt(pos.y), fmt(pos.z), rangeBlocks, effectiveRange, volumePercent,
+                volume, directional, relative, anchorDetail);
+    }
+
+    /** {@code SoundManager.play()} を呼んだ直後。{@code active} が false なら engine に受理されていない。 */
+    public static void voiceHandedToEngine(BlockPos pos, String url, boolean active) {
+        MusicDiscMaker.LOGGER.info(TAG + "voice handed to SoundManager: pos={} url={} engineActive={}",
+                pos, url, active);
+    }
+
+    /** {@code LavaPlayerAudioStream} が開栓された (MC が pumpBuffers から read を呼ぶ手前)。 */
+    public static void voiceStreamOpened(Vec3 pos, float pcmGain) {
+        MusicDiscMaker.LOGGER.info(TAG + "voice stream opened: pos=({},{},{}) pcmGain={}",
+                fmt(pos.x), fmt(pos.y), fmt(pos.z), pcmGain);
+    }
+
+    /**
+     * 生成後の状態。{@code tickIndex} 1・2・3 と、以降 20 tick ごとに 100 tick (5 秒) まで出す。
+     * <b>この行が出ずに {@code voice stopped} だけが出るなら、鳴り始める前に自己停止している。</b>
+     */
+    public static void voiceState(int tickIndex, Vec3 pos, boolean stopped, boolean engineActive,
+            float volume, float flatGate, boolean directional, boolean relative, boolean anchorValid,
+            double distance, int effectiveRange, long streamBytes, int streamReads, String anchorDetail) {
+        if (!(tickIndex <= 3 || (tickIndex % 20 == 0 && tickIndex <= 100))) {
+            return;
+        }
+        MusicDiscMaker.LOGGER.info(
+                TAG + "voice state t={}: pos=({},{},{}) stopped={} engineActive={} volume={} flatGate={} "
+                        + "directional={} relative={} anchorValid={} dist={} effRange={} "
+                        + "streamBytes={} reads={} | {}",
+                tickIndex, fmt(pos.x), fmt(pos.y), fmt(pos.z), stopped, engineActive, volume, flatGate,
+                directional, relative, anchorValid, fmt(distance), effectiveRange, streamBytes, streamReads,
+                anchorDetail);
+    }
+
+    /** 音源が止まった。{@code reason} は停止を決めた場所の名前。 */
+    public static void voiceStopped(String reason, Vec3 pos, int tickIndex, String detail) {
+        MusicDiscMaker.LOGGER.info(TAG + "voice stopped: reason={} t={} pos=({},{},{}) | {}",
+                reason, tickIndex, fmt(pos.x), fmt(pos.y), fmt(pos.z), detail);
+    }
+
+    /** PCM が実際に読まれた最初の 1 回。{@code returned=0} なら供給側、非 0 なら OpenAL 側を疑う。 */
+    public static void streamFirstRead(int requested, int returned) {
+        MusicDiscMaker.LOGGER.info(TAG + "stream first read: requested={} returned={}", requested, returned);
+    }
+
+    private static String fmt(double v) {
+        return String.format("%.2f", v);
     }
 
     private static boolean allow(String branch, BlockPos pos) {

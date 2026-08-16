@@ -2,6 +2,8 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import javax.sound.sampled.AudioFormat;
@@ -9,6 +11,7 @@ import javax.sound.sampled.AudioFormat;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.BufferUtils;
 
+import com.kuronami.musicdiscmaker.debug.MdmProbe;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 
@@ -39,6 +42,10 @@ public class LavaPlayerAudioStream implements AudioStream {
     private final Consumer<PlaybackFailure> onFailure;
     /** 1 つのストリームから同じ失敗を二度上げないためのガード (read は何度も呼ばれる)。 */
     private final AtomicBoolean failureReported = new AtomicBoolean(false);
+    /** 一時的な診断カウンタ。原因が確定したら probe ごと消す。 */
+    private final AtomicLong bytesReturned = new AtomicLong();
+    private final AtomicInteger readCalls = new AtomicInteger();
+    private final AtomicBoolean firstReadLogged = new AtomicBoolean(false);
 
     /**
      * PCM 段のゲイン (1.0 = 素通し)。{@code SoundEngine#calculateVolume} が OpenAL へ渡す gain を
@@ -170,7 +177,23 @@ public class LavaPlayerAudioStream implements AudioStream {
             buffer.put(scratch, 0, read);
         }
         buffer.flip();
+        // 一時的な診断: 供給側 (LavaPlayer) と消費側 (OpenAL) のどちらで詰まっているかの切り分け。
+        readCalls.incrementAndGet();
+        bytesReturned.addAndGet(buffer.limit());
+        if (firstReadLogged.compareAndSet(false, true)) {
+            MdmProbe.streamFirstRead(size, buffer.limit());
+        }
         return buffer;
+    }
+
+    /** 一時的な診断: これまでに返した総バイト数。 */
+    public long bytesReturned() {
+        return bytesReturned.get();
+    }
+
+    /** 一時的な診断: {@code read} が呼ばれた回数。0 なら MC がこのストリームを一度も汲んでいない。 */
+    public int readCalls() {
+        return readCalls.get();
     }
 
     /**
