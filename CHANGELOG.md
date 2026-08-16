@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.1
+
+- **Fixed custom discs not playing in a normal jukebox when Additional Additions is installed.** The disc showed as playing and stayed silent, with no error. This has been broken since 2.0.0 for anyone running Additional Additions.
+- **Fixed crackling and jumping stereo with directional audio turned off.** Moving around while looking about made the sound break up and flick between left and right. It now plays as a flat, non-positional sound the way vanilla background music does, and fades in and out at the edge of the audible range instead of cutting.
+- **Additional Additions albums now work in the Golden Jukebox.** Albums could already hold custom discs and play them in a normal jukebox, but the Golden Jukebox refused to take them at all. It now plays through an album track by track, shows which track is playing, and repeat loops the whole album. Comparator output follows the current track.
+- **Custom discs now play in [Let's Do] Furniture's gramophone.** They could be inserted before, and the gramophone acted like they were playing, but no audio came out. Repeat works too, and breaking the gramophone stops the music for anyone still listening.
+
 ## 2.2.0
 
 - **Fixed YouTube playback that could stop working entirely until you restarted the game.** Occasionally YouTube would reject the connection Music Disc Maker was using to resolve a link; once that happened, every YouTube link — new and old — kept failing, and the only way back was restarting the game (which also restarts the mod). Failed connections are now swapped out and retried automatically instead of getting stuck, and playback now only uses YouTube backends that can actually stream audio: most of the previous defaults couldn't play anything at all, and one of them would resolve a link successfully and then fail partway into playback, which made the underlying problem easy to miss.
