@@ -22,6 +22,7 @@ import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
@@ -211,10 +212,18 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
 
         final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
         // ヘッダ: 曲名 (1 行目) / 作者名 (2 行目)。各行を個別に折り返してパネル幅超過を防ぐ。
+        // アルバムの時は 1 行目が現在トラック名になり、同じ行の右端に "3/8" を置く (行も widget も増やさない)。
+        final int albumCount = be.albumTrackCount();
+        final String counter = albumCount > 0 ? (be.getAlbumTrack() + 1) + "/" + albumCount : null;
+        final int titleW = counter == null ? TRACK_TEXT_W : TRACK_TEXT_W - font.width(counter) - 4;
+        if (counter != null) {
+            g.drawString(font, counter, TRACK_TEXT_X + TRACK_TEXT_W - font.width(counter),
+                    TITLE_Y, TIME_TEXT, false);
+        }
         final CustomTrackData track = be.currentTrack();
         if (track != null) {
             final String title = track.title() == null ? "" : track.title();
-            g.drawString(font, font.plainSubstrByWidth(title, TRACK_TEXT_W),
+            g.drawString(font, font.plainSubstrByWidth(title, titleW),
                     TRACK_TEXT_X, TITLE_Y, TEXT, false);
             final String author = track.author();
             if (author != null && !author.isBlank()) {
@@ -226,15 +235,17 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             // アイテム表示名 (例 "ミュージックディスク") を 2 行目に。custom disc と同じ 2 行構造を汎用化する。
             // description の "Artist - Title" 分割はしない (書式は vanilla lang の慣習で API 契約でなく、
             // 他 MOD の任意 description を壊すため)。description が無ければアイテム名だけ。
+            // アルバムなら現在トラックのディスク。空アルバム等で解決できなければアルバム本体の名前に落とす。
+            final ItemStack shown = be.effectiveDisc().isEmpty() ? be.getDisc() : be.effectiveDisc();
             final Component desc = be.discSongDescription();
-            final String itemName = be.getDisc().getHoverName().getString();
+            final String itemName = shown.getHoverName().getString();
             if (desc != null) {
-                g.drawString(font, font.plainSubstrByWidth(desc.getString(), TRACK_TEXT_W),
+                g.drawString(font, font.plainSubstrByWidth(desc.getString(), titleW),
                         TRACK_TEXT_X, TITLE_Y, TEXT, false);
                 g.drawString(font, font.plainSubstrByWidth(itemName, TRACK_TEXT_W),
                         TRACK_TEXT_X, AUTHOR_Y, TIME_TEXT, false);
             } else {
-                g.drawString(font, font.plainSubstrByWidth(itemName, TRACK_TEXT_W),
+                g.drawString(font, font.plainSubstrByWidth(itemName, titleW),
                         TRACK_TEXT_X, TITLE_Y, TEXT, false);
             }
         } else {
