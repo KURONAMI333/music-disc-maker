@@ -150,15 +150,33 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         return elapsed;
     }
 
-    /** 現在のディスクの総尺 (ms)。custom disc のみ。0 = 不明/ラジオ/vanilla disc。 */
+    /**
+     * 現在のディスクの総尺 (ms)。0 = 不明 / ラジオ。
+     *
+     * <p>custom disc は {@link CustomTrackData#durationMs()} が実尺を持つ。vanilla や他 MOD の
+     * ディスクは {@code jukebox_song} の {@code length_in_seconds} を使う (例: [Let's Do] Furniture の
+     * {@code furniture:letsdo_theme} = 124 秒)。<b>この順序を入れ替えてはいけない</b> —
+     * custom disc も {@code SilentSongs} のバケット長を持つ {@code jukebox_playable} を抱えているので、
+     * song を先に見ると実尺 95 秒のトラックがバケットの 120 秒として表示される。
+     */
     public long trackDurationMs() {
         final CustomTrackData t = currentTrack();
-        return t != null ? t.durationMs() : 0L;
+        if (t != null) {
+            return t.durationMs();
+        }
+        return songFor(effectiveDisc()).map(h -> h.value().lengthInTicks() * 50L).orElse(0L);
     }
 
-    /** progress バーで頭出し操作を許可できるか (有限尺の custom disc のみ)。 */
+    /**
+     * progress バーで頭出し操作を許可できるか (有限尺の custom disc のみ)。
+     *
+     * <p><b>{@code trackDurationMs() > 0} だけで判定してはいけない</b> — vanilla / 他 MOD の
+     * ディスクも尺を返すようになったが、実音は {@code JukeboxSongPlayer} が鳴らしていて頭出しの手段が
+     * 無い ({@link #seekTo} が {@code currentTrack() == null} で即 return する)。つまみだけ出て
+     * 掴んでも戻る、という形になるので custom disc であることを明示条件に残す。
+     */
     public boolean isSeekable() {
-        return hasDisc() && !isLiveStream() && trackDurationMs() > 0L;
+        return hasDisc() && currentTrack() != null && !isLiveStream() && trackDurationMs() > 0L;
     }
 
     public boolean hasDisc() {
@@ -513,7 +531,10 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         if (track != null && track.radio()) {
             return false;
         }
-        final long dur = trackDurationMs();
+        // ここは表示用の尺 (trackDurationMs) を使わない。あちらは vanilla / 他 MOD のディスクにも
+        // jukebox_song の length_in_seconds を返すが、その実音を鳴らしているのは songPlayer なので、
+        // 終了判定も songPlayer に聞くのが正しい (壁時計と tick はラグでずれる)。
+        final long dur = track != null ? track.durationMs() : 0L;
         if (dur > 0L) {
             return System.currentTimeMillis() - startMillis >= dur;
         }
