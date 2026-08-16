@@ -28,6 +28,11 @@ neoForge {
             systemProperty('neoforge.enabledGameTestNamespaces', mod_id)
             // dev: 隔離 classloader が読む packed jar の展開元 (mod jar 未経由)
             systemProperty('musicdiscmaker.dev', lavaDevPath)
+            // 一時的な診断: mixin の適用結果を run/.mixin.out/class/... へ書き出す。
+            // 「@Inject が当たったか」をログに依存せず yes/no のファイルとして確認できる。
+            // (蓄音機経路の切り分けが済んだら消す)
+            systemProperty('mixin.debug.export', 'true')
+            systemProperty('mixin.debug.verbose', 'true')
             ideName = "NeoForge ${it.name.capitalize()} (${project.path})" // Unify the run config names with fabric
         }
         client {

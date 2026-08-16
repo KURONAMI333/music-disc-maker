@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.debug.MdmProbe;
 import com.kuronami.musicdiscmaker.event.AlbumPlaybackMirror;
 
 import net.minecraft.server.level.ServerLevel;
@@ -64,10 +65,12 @@ public abstract class FurnitureGramophoneMixin {
     @Inject(method = "tick", at = @At("TAIL"), require = 0, remap = false)
     private void musicdiscmaker$mirror(Level level, BlockState state, CallbackInfo ci) {
         try {
+            final BlockEntity self = (BlockEntity) (Object) this;
+            // 一時的な実機診断。この行が latest.log に 1 度も出なければ mixin が当たっていない。
+            MdmProbe.gramophoneHook(level, self.getBlockPos(), this.isPlaying, this.recordItem);
             if (!(level instanceof ServerLevel serverLevel)) {
                 return;
             }
-            final BlockEntity self = (BlockEntity) (Object) this;
             final ItemStack disc = this.isPlaying ? this.recordItem : null;
 
             // repeat ループの張り直しは url が変わらないので、通常の mirror 呼び出しだけでは
