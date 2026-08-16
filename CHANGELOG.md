@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2.2.1
+- **Fixed the Golden Jukebox showing no track length and an empty progress bar for vanilla and other mods' discs.** The length was there all along, the jukebox just wasn't reading it. Scrubbing still only works on custom discs.
 
 - **Fixed custom discs not playing in a normal jukebox when Additional Additions is installed.** The disc showed as playing and stayed silent, with no error. This has been broken since 2.0.0 for anyone running Additional Additions.
 - **Fixed crackling and jumping stereo with directional audio turned off.** Moving around while looking about made the sound break up and flick between left and right. It now plays as a flat, non-positional sound the way vanilla background music does, and fades in and out at the edge of the audible range instead of cutting.
