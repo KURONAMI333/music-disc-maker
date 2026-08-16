@@ -5,6 +5,7 @@ import java.util.concurrent.Executors;
 
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.debug.MdmProbe;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
@@ -58,6 +59,7 @@ public final class ClientPlaybackManager {
 
     public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs, int rangeBlocks,
             int volumePercent, boolean directional) {
+        MdmProbe.clientPlayReceived(pos, track, startOffsetMs, rangeBlocks, volumePercent, directional);
         if (track == null || track.isEmpty()) {
             return;
         }
@@ -65,6 +67,7 @@ public final class ClientPlaybackManager {
         final PlaybackSessions.StartDecision decision =
                 sessions.start(key, track, startOffsetMs, rangeBlocks, volumePercent, directional);
         if (!decision.load()) {
+            MdmProbe.clientPlaySkipped(key, track);
             return; // 同じ曲の再送 (chunk 再入等)。聴取モデルだけ取り込み済み。
         }
         submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token());
