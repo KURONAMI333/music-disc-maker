@@ -2,7 +2,6 @@ package com.kuronami.musicdiscmaker.event;
 
 import com.kuronami.musicdiscmaker.compat.album.AlbumSupport;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
-import com.kuronami.musicdiscmaker.debug.MdmProbe;
 import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
@@ -75,15 +74,12 @@ public final class AlbumPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.url().equals(existing.track().url())) {
-                    MdmProbe.mirrorBranch("dedup", level, key, track.url(), -1);
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
                 // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
-                final ChunkPos chunk = new ChunkPos(key);
-                MdmProbe.mirrorBranch("start", level, key, track.url(), MdmProbe.recipients(level, chunk));
-                Services.NETWORK.sendToPlayersTrackingChunk(level, chunk,
+                Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
                 return;
             }
@@ -92,15 +88,8 @@ public final class AlbumPlaybackMirror {
         // MDM ストリーム対象なし → 直前まで鳴らしていたなら停止する。
         if (existing != null) {
             ActiveDiscRegistry.stop(dim, key);
-            final ChunkPos chunk = new ChunkPos(key);
-            MdmProbe.mirrorBranch("stop", level, key, existing.track().url(),
-                    MdmProbe.recipients(level, chunk));
-            Services.NETWORK.sendToPlayersTrackingChunk(level, chunk, new StopDiscPayload(key));
-            return;
+            Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
+                    new StopDiscPayload(key));
         }
-        // 何も鳴っていない座標。mdmDisc が来ているのに track が無い形 (= MDM のディスクではない)
-        // をここで見分けられるようにする。
-        MdmProbe.mirrorBranch(mdmDisc == null ? "idle (no disc)" : "idle (disc without track)",
-                level, key, null, -1);
     }
 }
