@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
@@ -70,7 +71,66 @@ public final class PocketJukeboxClient {
     private static final PocketJukeboxAdvance ADVANCE =
             new PocketJukeboxAdvance(System::currentTimeMillis);
 
+    /**
+     * {@code PocketJukeboxPlayerMixin} の 3 inject は全部 {@code require = 0} (第三者 MOD 相手なので
+     * AA が変わって解決できなくなってもクラッシュさせない)。その代わり「解決できず静かに従来動作
+     * (無音ディスクの尺=約 1 秒で曲送りされる) に退化した」ことがビルドにもログにも出ない。
+     *
+     * <p>3 inject のうち {@code tick}/{@code stop} は mixin の javadoc が書いているとおり停止について
+     * 冗長 ({@code stop} が死んでも次の {@code tick} の RETURN が拾う) なので、片方が死んでも実害が
+     * 出るまでに猶予がある。{@code startNextTrack} だけは代わりが無い唯一の砦 ({@link #holdsAdvance}
+     * が呼ばれなければ AA は無音ディスクの尺どおり曲を送り続ける = 「効いているつもりで壊れている」が
+     * 一番実害に直結する経路)。なので観測対象はこれ 1 つに絞ってある。
+     *
+     * <p>{@link #reconcile} は tick の inject が生きている証拠そのもの (これが呼ばれる時点で tick は
+     * 生きている) なので、tick 自体の生死をここで別途観測する必要は無い。
+     */
+    private static boolean advanceHookObserved = false;
+
+    /** {@link #advanceHookObserved} を待つ締切 (壁時計 ms)。負数 = 監視していない。 */
+    private static long advanceHookWatchDeadlineMs = -1L;
+
+    /** 生死の警告は 1 プロセスにつき 1 度だけ (毎 tick / 毎再生で出さない)。 */
+    private static boolean advanceHookWarned = false;
+
+    /**
+     * AA の無音ディスクは 1.0 秒 ({@code silence.ogg}) なので、{@code startNextTrack} の inject が
+     * 生きていれば再生開始から遅くとも 1 秒強で {@link #holdsAdvance} が呼ばれるはず。ロードの
+     * ネットワーク遅延と tick のジッタを見込んだ猶予 (推測値、実測はしていない — 3 倍近い余裕を
+     * 持たせてあるので誤検知よりは見落とし方向に倒してある)。
+     */
+    private static final long ADVANCE_HOOK_GRACE_MS = 3_000L;
+
     private PocketJukeboxClient() {
+    }
+
+    /**
+     * {@link #advanceHookWatchDeadlineMs} の締切が来ていたら判定して片付ける。{@link #reconcile} の
+     * 冒頭 (毎 client tick) から呼ぶ。
+     */
+    private static void checkAdvanceHookHealth() {
+        if (advanceHookWatchDeadlineMs < 0L) {
+            return;
+        }
+        if (advanceHookObserved) {
+            advanceHookWatchDeadlineMs = -1L;
+            return;
+        }
+        if (System.currentTimeMillis() < advanceHookWatchDeadlineMs) {
+            return;
+        }
+        advanceHookWatchDeadlineMs = -1L;
+        if (!advanceHookWarned) {
+            advanceHookWarned = true;
+            MusicDiscMaker.LOGGER.warn(
+                    "Pocket jukebox streaming started but Additional Additions never called back into "
+                            + "MDM's startNextTrack advance-hold hook within {} ms. This mixin injection point "
+                            + "(PocketJukeboxPlayer#startNextTrack, require=0) likely failed to resolve, which "
+                            + "means the installed Additional Additions version changed that method's shape. "
+                            + "Falling back silently to AA's default ~1s-per-track skip behavior. Check the "
+                            + "installed AA version against the one this MDM build targets.",
+                    ADVANCE_HOOK_GRACE_MS);
+        }
     }
 
     /**
@@ -81,6 +141,7 @@ public final class PocketJukeboxClient {
      * @param pocket       携帯ジュークボックスの stack ({@code null} 可)
      */
     public static void reconcile(boolean playing, int currentTrack, @Nullable ItemStack pocket) {
+        checkAdvanceHookHealth();
         if (!playing || currentTrack < 0 || pocket == null || pocket.isEmpty()) {
             stop();
             return;
@@ -107,17 +168,23 @@ public final class PocketJukeboxClient {
             previous.stop();
         }
         if (stream) {
+            if (!advanceHookObserved && !advanceHookWarned && advanceHookWatchDeadlineMs < 0L) {
+                advanceHookWatchDeadlineMs = System.currentTimeMillis() + ADVANCE_HOOK_GRACE_MS;
+            }
             beginLoad(currentTrack, url, track, carrier);
         }
     }
 
     /** AA の {@code startNextTrack()} の入口。真を返すと呼び出し元が曲送りを取り消す。 */
     public static boolean holdsAdvance(int currentTrack) {
+        advanceHookObserved = true;
         return ADVANCE.holdsAdvance(currentTrack);
     }
 
     /** AA の {@code stop()} の入口。ロード中の要求も含めて全部落とす。 */
     public static void stop() {
+        // 公正な観測窓が閉じた (曲が締切前に自分で止まった) だけなので誤検知にしない。
+        advanceHookWatchDeadlineMs = -1L;
         if (ADVANCE.isIdle()) {
             return;
         }
