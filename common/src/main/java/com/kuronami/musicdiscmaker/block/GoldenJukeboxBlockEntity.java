@@ -193,8 +193,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
      * {@link #resendTo} の offset も壁時計なので、表示をそこへ合わせるのがこの値の役目。
      * chunk ロード / contraption 解体で復元された直後は {@code startMillis} がまだ無いので、
      * その 1 tick だけ永続化された起点から埋める ({@link #resumePlaybackAfterLoad} と同じ式)。
+     *
+     * <p><b>呼び出し側は -1 を必ず弾くこと。</b> {@code hasDisc() && !isPaused()} だけでは
+     * 「実際に再生中」を保証しない — 非リピートアルバムが最後まで再生し終わると
+     * {@code albumTrack} を先頭へ戻したまま {@code stopPlayback()} する ({@link #advanceAlbumTrack}
+     * / {@link #resumePlaybackAfterLoad}) ので、ディスク (アルバム) は入ったまま・一時停止もして
+     * いないのに再生は止まっている、という窓が残る。この用途 (other-mod 向け同期・追従) では
+     * public にしてあるが、-1 をそのまま offset として下流に渡すと壁時計 -1ms のような無意味な
+     * 頭出しになる。
      */
-    private long syncElapsedMs() {
+    public long syncElapsedMs() {
         if (startMillis > 0L) {
             return Math.max(0L, System.currentTimeMillis() - startMillis);
         }

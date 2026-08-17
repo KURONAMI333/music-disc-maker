@@ -112,8 +112,17 @@ public final class SableServerAudio {
         if (track == null || track.isEmpty()) {
             return; // vanilla ディスク / 空 track = LavaPlayer 追従の対象外。
         }
+        // 頭出し位置は壁時計基準 (syncElapsedMs) で送る。tick 基準の currentElapsedMs() だと TPS が
+        // 20 を割った分だけずれる (実音・曲送りの判定はどちらも壁時計なので、tick 基準はここだけ
+        // 実態とずれた値になる)。hasDisc && !isPaused だけでは「実際に再生中」を保証しない
+        // (非リピートアルバムの再生完了直後は disc が入ったまま・pause もしていないのに再生は止まって
+        // いる) ので、syncElapsedMs() が -1 (= 再生していない) を返す窓はここで弾いて送らない。
+        final long elapsedMs = jukebox.syncElapsedMs();
+        if (elapsedMs < 0L) {
+            return;
+        }
         final SubLevelPlayDiscPayload payload = new SubLevelPlayDiscPayload(
-                jukebox.getBlockPos(), track, jukebox.currentElapsedMs(),
+                jukebox.getBlockPos(), track, elapsedMs,
                 jukebox.getRangeBlocks(), jukebox.getVolumePercent(), jukebox.isDirectional());
         for (final UUID uuid : trackers) {
             final ServerPlayer player = server.getPlayerList().getPlayer(uuid);

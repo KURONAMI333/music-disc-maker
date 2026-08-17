@@ -3,6 +3,7 @@
 ## 2.3.0
 - **Custom discs now play in Additional Additions' Pocket Jukebox.** Putting one in produced no sound at all, and the pocket jukebox gave up on the track after about a second. Both the audio and the track timing now follow the real track, so albums play through properly, and it keeps playing while you carry it. Radio discs are not supported here yet — inserting one stops shortly after, the same as in the gramophone.
 - **Albums no longer fall silent between tracks.** Playing an album in the Golden Jukebox left a five to ten second gap while the next track was looked up and buffered. The next track is now fetched and buffered in the background before the current one finishes, so it starts as soon as the previous one ends. This covers custom discs inside an album, including the wrap-around when repeat is on.
+- Fixed the Golden Jukebox re-syncing listeners on a Create Aeronautics airship to a tick-based playback position instead of the real one, drifting by the same amount TPS falls below 20 — 2.2.1 fixed this for the on-screen progress bar, this covers the actual audio re-sync used when someone gets back in range.
 
 ## 2.2.1
 - **Fixed the Golden Jukebox showing no track length and an empty progress bar for vanilla and other mods' discs.** The length was there all along, the jukebox just wasn't reading it. Scrubbing still only works on custom discs.
