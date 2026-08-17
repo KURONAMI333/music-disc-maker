@@ -294,6 +294,45 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     }
 
     /**
+     * アルバム再生中に<b>次に鳴る</b> custom disc の track。先読み ({@code PlaybackPrefetch}) が
+     * 掴む対象で、client 側 BE からも解決できる (アルバム本体・{@code albumTrack}・{@code repeat} は
+     * 同期される)。
+     *
+     * <p>次が無い場合は {@code null}。内訳は「アルバムでない」「最終トラックで repeat しない」
+     * 「次がバニラ / 他 MOD のディスク ({@code CUSTOM_TRACK} を持たない)」「次がラジオ・尺ゼロ」。
+     * 送り先の決め方は {@code advanceAlbumTrack} と同じ (次 index、最終なら repeat で先頭へ)。
+     *
+     * @return 次に鳴る custom disc の track。無ければ {@code null}
+     */
+    @Nullable
+    public CustomTrackData nextAlbumTrack() {
+        if (albumTrack < 0) {
+            return null;
+        }
+        final ItemStack album = items.get(SLOT_DISC);
+        final int count = AlbumSupport.trackCount(album);
+        if (count <= 0) {
+            return null;
+        }
+        int next = albumTrack + 1;
+        if (next >= count) {
+            if (!repeat) {
+                return null; // 最終トラックの後は停止する
+            }
+            next = 0; // repeat はアルバム全体のループ
+        }
+        final ItemStack disc = AlbumSupport.trackAt(album, next);
+        if (!disc.is(ModItems.CUSTOM_MUSIC_DISC.get()) || !disc.has(ModDataComponents.CUSTOM_TRACK.get())) {
+            return null;
+        }
+        final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
+        if (track == null || track.isEmpty() || track.radio() || track.durationMs() <= 0L) {
+            return null;
+        }
+        return track;
+    }
+
+    /**
      * vanilla / 他 MOD のディスクの {@link JukeboxSong#description()}（例: "C418 - cat"）。
      * custom disc・description を持たないディスク・{@code level==null} では {@code null}。
      * {@code jukebox_song} は同期される動的レジストリなので client 側 BE からも解決できる。
