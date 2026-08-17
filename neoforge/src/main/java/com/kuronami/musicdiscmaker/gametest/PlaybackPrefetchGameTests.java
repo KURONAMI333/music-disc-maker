@@ -193,6 +193,35 @@ public class PlaybackPrefetchGameTests {
         helper.succeed();
     }
 
+    /**
+     * 上限 ({@link PlaybackPrefetch#MAX_CONCURRENT_PREFETCH}) に達したら新しい鍵の先読みを始めない
+     * こと。miss 扱いなので {@code claim} は {@code null} を返すだけで、呼び出し側は従来どおり
+     * 普通のロードを走らせる (無音にはならない)。既存の鍵の曲差し替えは枠の再利用であって新規の
+     * 鍵ではないので、上限には塞がれないこと。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void newPrefetchesAreNotStartedOnceTheLimitIsReached(GameTestHelper helper) {
+        final AtomicLong clock = new AtomicLong(1_000L);
+        final PlaybackPrefetch<String> prefetch = new PlaybackPrefetch<>(clock::get);
+
+        for (int i = 0; i < PlaybackPrefetch.MAX_CONCURRENT_PREFETCH; i++) {
+            final PlaybackPrefetch.Ticket<String> ticket = prefetch.begin("jukebox-" + i, URL_A);
+            helper.assertTrue(ticket != null, "上限に達する前の先読みが始まっていない: " + i);
+        }
+
+        helper.assertTrue(prefetch.begin("jukebox-overflow", URL_A) == null,
+                "上限に達しているのに新しい鍵の先読みが始まっている");
+        helper.assertTrue(prefetch.claim("jukebox-overflow", URL_A, 0L) == null,
+                "始まっていない先読みが claim できている (claim は miss で null 以外を返してはいけない)");
+
+        // 既存の鍵の曲差し替えは枠の再利用であって新規の鍵ではないので、上限に塞がれない。
+        final PlaybackPrefetch.Ticket<String> swapped = prefetch.begin("jukebox-0", URL_B);
+        helper.assertTrue(swapped != null, "既存の鍵の曲差し替えが上限に塞がれている");
+        helper.assertTrue(URL_B.equals(prefetch.slotUrl("jukebox-0")), "曲差し替えが反映されていない");
+        helper.succeed();
+    }
+
     /** close 回数を数えるだけのソース。PCM は一切返さない。 */
     private static final class FakeSource implements IAudioSource {
 

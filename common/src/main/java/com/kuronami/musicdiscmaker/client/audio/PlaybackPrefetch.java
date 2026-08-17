@@ -48,6 +48,17 @@ public final class PlaybackPrefetch<K> {
     public static final long EXPIRY_MS = 30_000L;
 
     /**
+     * 同時に抱えていられる先読みの上限 (鍵の数)。1 本あたり frame 251 × 3840 バイト ≒ 964KB +
+     * デコーダ状態 + HTTP 接続 1 本を掴む。{@link com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance}
+     * 側の発火条件 (可聴範囲内で actively 再生中・残り {@code PREFETCH_LEAD_MS}=15 秒以内) があるので
+     * 定常状態の実数は小さいはずだが、それは呼び出し側の運用条件であってこのクラス自身の保証では
+     * ないので上限が無いこと自体を塞ぐ。値は実測ではなく推測 — ジュークボックスを密集させた展示等の
+     * worst case でも上限 × 単価がメモリを食い潰さない範囲、かつ通常プレイの定常同時数には
+     * まず届かない桁、を狙って選んだ余裕値。
+     */
+    public static final int MAX_CONCURRENT_PREFETCH = 16;
+
+    /**
      * 1 回の先読みの引換券。{@link #begin} が発行し、{@link #deliver} で照合する。
      *
      * <p><b>この id は「ロードするかどうか」の判断には一切使われない</b> — 届いたソースを
@@ -103,6 +114,11 @@ public final class PlaybackPrefetch<K> {
      * 呼び出し側は毎 tick 呼んでよい。別の URL を抱えていたらそれを閉じてから新しい枠を作る
      * (アルバム差し替え・曲送りで「次の曲」が変わった場合)。
      *
+     * <p>既に {@link #MAX_CONCURRENT_PREFETCH} 本を抱えている状態で新しい鍵の先読みを頼まれたら
+     * 始めない (miss 扱い)。呼び出し側は {@link #claim} が {@code null} を返すのと同じ道をたどり、
+     * 従来どおり普通のロードが走るだけで無音にはならない。既存の鍵の曲差し替え (枠を再利用するだけ
+     * で総数は増えない) は上限の対象にしない。
+     *
      * @param key 音源をまとめる鍵
      * @param url 先読みしたい曲の URL
      * @return 発行された引換券。始めないなら {@code null}
@@ -115,7 +131,9 @@ public final class PlaybackPrefetch<K> {
             if (existing.url.equals(url)) {
                 return null; // 同じ曲を既に抱えている (ロード中でも完了済みでも重ねない)
             }
-            discard(slots.remove(key)); // 次に鳴る曲が変わった
+            discard(slots.remove(key)); // 次に鳴る曲が変わった (枠の再利用なので上限には当たらない)
+        } else if (slots.size() >= MAX_CONCURRENT_PREFETCH) {
+            return null; // 上限に達しているので新規の先読みを始めない (miss 扱い = 従来どおりロードが走る)
         }
         final long now = clockMs.getAsLong();
         final Slot slot = new Slot(url, ids.incrementAndGet(), now + EXPIRY_MS);
