@@ -9,7 +9,8 @@
   ],
   "client": [
     "MixinGuiGraphics",
-    "MixinItemStack"
+    "MixinItemStack",
+    "PocketJukeboxPlayerMixin"
   ],
   "server": [],
   "injectors": {

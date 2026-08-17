@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 
@@ -72,6 +74,38 @@ public final class CompatPlayback {
      */
     public static DiscSoundInstance wired(BlockPos pos, IAudioSource source, CustomTrackData track) {
         return attach(source, new DiscSoundInstance(pos, source), track);
+    }
+
+    /**
+     * プレイヤーが携帯している音源を作り、失敗の届け先を繋いで返す (AA の携帯ジュークボックス)。
+     *
+     * <p>{@link #wired(Entity, IAudioSource, CustomTrackData)} と分けてあるのは、この経路だけが
+     * 追加で 2 つ要求するため。<b>共有されている既存の口に条件を足さない</b> (アルバム対応の時に
+     * {@code AlbumPlaybackMirror.mirror} へゲートを入れかけて蓄音機を無言で殺しかけた前例がある)。
+     *
+     * <ul>
+     *   <li><b>終端コールバック</b> — 曲送りの保留を解除する信号。{@code SoundManager.isActive} の
+     *       ポーリングではなく {@code LavaPlayerAudioStream} が {@code read()==-1} で一度だけ呼ぶ
+     *       この口を使う (ラジオ再接続が使っているのと同じ、確定した終端の信号)。</li>
+     *   <li><b>フラット聴取</b> — 音源は自分の頭の位置にあり距離は常に 0 なので、positional で
+     *       鳴らすと {@link DiscSoundInstance} の javadoc が書いている「至近距離 + 頭の回転」で
+     *       定位が毎 tick 振れる領域に入る。AA 自身の無音ディスクも {@code relative} + 減衰なしで
+     *       鳴らしており、そちらに揃う。</li>
+     * </ul>
+     *
+     * @param carrier       携帯しているプレイヤー
+     * @param source        ロード済みの音源
+     * @param track         報告に曲名を載せるための曲
+     * @param onStreamEnded ストリーム終端で一度だけ呼ばれる ({@code null} 可)。<b>再生スレッドから
+     *                      呼ばれる</b>ので、実装は重い処理を main thread へ逃がすこと
+     * @return 配線済みのインスタンス ({@code SoundManager.play} は呼び出し側が行う)
+     */
+    public static DiscSoundInstance carried(Entity carrier, IAudioSource source, CustomTrackData track,
+            @Nullable Runnable onStreamEnded) {
+        final DiscSoundInstance instance =
+                new DiscSoundInstance(new EntityAnchor(carrier), source, 0, 100, onStreamEnded);
+        instance.setDirectional(false);
+        return attach(source, instance, track);
     }
 
     private static DiscSoundInstance attach(IAudioSource source, DiscSoundInstance instance,
