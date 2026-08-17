@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.register.ModSounds;
 
@@ -323,6 +324,11 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
         // 音源が消えたら (jukebox 撤去・entity 除去・移動構造物の解体等いずれの経路でも) 鳴りっぱなしを止める。
         // 判定は anchor に委譲する (StaticAnchor は chunk 未ロード時は停止しない = 遠距離の誤消音を防ぐ)。
         if (!anchor.isValid()) {
+            // ここは server の停止 packet を待たずに自分で止まる経路 (ブロック撤去等) なので、
+            // 先読みの取り消しも自分でやる。放置すると 60 秒リーパーに殺されるまで居座る。
+            if (anchor instanceof StaticAnchor sa) {
+                ClientPlaybackManager.get().cancelPrefetch(sa.pos());
+            }
             stop();
             return;
         }
@@ -339,12 +345,52 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
                 setVolumePercent(be.getVolumePercent());
                 setDirectional(be.isDirectional());
                 setRangeBlocks(be.getRangeBlocks());
+                driveAlbumPrefetch(sa.pos(), be);
             }
         }
         applyListeningPosition(p);
         advanceFlatGate();
         this.volume = computeVolume();
         pushPcmGain();
+    }
+
+    /**
+     * アルバムの次トラックの先読みを始める残り時間 (ms)。
+     *
+     * <p>lavaplayer は {@code provide} されない player を 60 秒で殺す ({@code CLEANUP}) ので、
+     * 掴むまでの時間はそれより十分短く固定する。殺された先読みを掴むと {@code read()} が即
+     * {@code -1} を返し、MC は「尺ゼロの曲」として扱う = 完全無音で、元のギャップより悪い。
+     */
+    private static final long PREFETCH_LEAD_MS = 15_000L;
+
+    /**
+     * アルバム再生の終わり際に次トラックを先読みさせる (強化版ジュークボックス限定)。
+     *
+     * <p><b>残り時間が 0 以下でも取り消さない。</b> client の {@code currentElapsedMs()} は
+     * 尺でクランプされるので、曲の終わり際は残り 0 に張り付く。そこで取り消すと
+     * 次トラックの packet が来る直前に必ず閉じてしまい、先読みが一度も当たらなくなる。
+     * 取り消すのは「一時停止」「アルバムでない」「次が無い」「早すぎ (= 後方シークを含む)」だけ。
+     *
+     * <p>次の曲が変わった場合の閉じ直しは {@link PlaybackPrefetch#begin} が URL で判断するので、
+     * ここは毎 tick 素直に呼んでよい。
+     */
+    private static void driveAlbumPrefetch(BlockPos pos, GoldenJukeboxBlockEntity be) {
+        final ClientPlaybackManager manager = ClientPlaybackManager.get();
+        if (be.getAlbumTrack() < 0 || be.isPaused()) {
+            manager.cancelPrefetch(pos);
+            return;
+        }
+        final long duration = be.trackDurationMs();
+        if (duration <= 0L || duration - be.currentElapsedMs() > PREFETCH_LEAD_MS) {
+            manager.cancelPrefetch(pos);
+            return;
+        }
+        final CustomTrackData next = be.nextAlbumTrack();
+        if (next == null) {
+            manager.cancelPrefetch(pos);
+            return;
+        }
+        manager.prefetchNext(pos, next);
     }
 
     /**

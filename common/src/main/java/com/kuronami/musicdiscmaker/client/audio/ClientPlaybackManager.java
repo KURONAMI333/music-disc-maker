@@ -29,6 +29,10 @@ import net.minecraft.network.chat.Component;
  * <p>ラジオ (無限長ストリーム) は瞬断で lavaplayer の track が終了する。終端 (read=-1) を
  * {@link DiscSoundInstance} 経由で検知し、間隔を置いて最大 {@link PlaybackSessions#MAX_RECONNECT}
  * 回まで自動再接続する。安定再生できたら試行回数はリセットする。
+ *
+ * <p>アルバムの曲間の無音は {@link PlaybackPrefetch} で消す。次の曲を先に開いておき、
+ * 再生要求が来たら {@link PlaybackPrefetch#claim} で掴む。<b>ヒットしなければ従来どおり
+ * ロードする</b> — 先読みは単なるキャッシュで、世代管理には一切関与しない。
  */
 public final class ClientPlaybackManager {
 
@@ -42,6 +46,9 @@ public final class ClientPlaybackManager {
     }
 
     private final PlaybackSessions sessions = new PlaybackSessions(System::currentTimeMillis);
+
+    /** 次に鳴る曲の先読み置き場 (アルバムの曲間の無音対策)。 */
+    private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis);
 
     private final ExecutorService pool = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-playback");
@@ -67,7 +74,68 @@ public final class ClientPlaybackManager {
         if (!decision.load()) {
             return; // 同じ曲の再送 (chunk 再入等)。聴取モデルだけ取り込み済み。
         }
+        // 先読みが当たっていれば解決 (ネットワーク) と 4 秒のプリバッファを丸ごと飛ばせる。
+        // 外れたら null が返るだけなので、従来の経路がそのまま走る。
+        final IAudioSource warm = prefetch.claim(key, track.url(), startOffsetMs);
+        if (warm != null) {
+            attachFaultSink(warm, key, decision.token(), track);
+            Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, rangeBlocks,
+                    volumePercent, warm, null, decision.token()));
+            return;
+        }
         submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token());
+    }
+
+    /**
+     * 次に鳴る曲を先に開いておく。{@link DiscSoundInstance#tick} がアルバム再生中の残り時間を見て
+     * 毎 tick 呼ぶので、重ねない判断は {@link PlaybackPrefetch#begin} に任せる。
+     *
+     * <p><b>失敗の届け先はここでは差さない。</b> 差すと、まだ鳴らしてもいない曲の失敗がチャットに
+     * 出る。理由は {@link PlaybackPrefetch#claim} で掴んだ時に差し、{@code onPlaybackFault} は
+     * 「差した時点で既に壊れていればその場で 1 回呼ぶ」契約なので取りこぼさない。
+     *
+     * @param pos   ジュークボックスの位置
+     * @param track 次に鳴る曲
+     */
+    public void prefetchNext(BlockPos pos, CustomTrackData track) {
+        if (track == null || track.isEmpty() || track.radio() || track.durationMs() <= 0L) {
+            return; // ラジオ・尺ゼロは先読みしない (終わらない / 掴む先が無い)
+        }
+        final PlaybackPrefetch.Ticket<BlockPos> ticket = prefetch.begin(pos.immutable(), track.url());
+        if (ticket == null) {
+            return; // 同じ曲を既に抱えている
+        }
+        pool.submit(() -> {
+            IAudioSource source = null;
+            try {
+                UrlGuard.enforce(track.url());
+                source = LoaderHolder.get().openStreamDetailed(track.url(), 0L).source();
+            } catch (final Throwable t) {
+                source = null; // 先読みの失敗は黙って捨てる。同じ理由なら本番のロードが報告する
+            }
+            if (!prefetch.deliver(ticket, source) && source != null) {
+                source.close(); // 取り消し済み / 期限切れ。抱え主が居ないので必ずここで閉じる
+            }
+        });
+    }
+
+    /**
+     * この座標の先読みを捨てる。一時停止・後方シーク・アンカー消失 (ブロック撤去) から呼ぶ。
+     *
+     * @param pos ジュークボックスの位置
+     */
+    public void cancelPrefetch(BlockPos pos) {
+        prefetch.drop(pos.immutable());
+    }
+
+    /**
+     * 再生スレッドの中で落ちた失敗の届け先を差す。ロード経路と先読み経路の両方から呼ぶので、
+     * <b>片方だけ直る事故を防ぐために 1 箇所に畳んである</b>。
+     */
+    private void attachFaultSink(IAudioSource source, BlockPos key, int token, CustomTrackData track) {
+        source.onPlaybackFault(broken -> Minecraft.getInstance().execute(
+                () -> lateFailure(key, token, track,
+                        PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
     }
 
     /**
@@ -113,9 +181,7 @@ public final class ClientPlaybackManager {
             // ここから数百 ms で落ちうるので、play が始まってから差していると取り落とす窓ができる
             // (差した時点で既に壊れていれば relay がその場で流すので、順番はどちらでもよい)。
             if (resolved != null) {
-                resolved.onPlaybackFault(broken -> Minecraft.getInstance().execute(
-                        () -> lateFailure(key, token, track,
-                                PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
+                attachFaultSink(resolved, key, token, track);
             }
             Minecraft.getInstance().execute(() -> onLoaded(
                     key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported, token));
@@ -235,10 +301,13 @@ public final class ClientPlaybackManager {
     }
 
     public void stopPlayback(BlockPos pos) {
-        sessions.stop(pos.immutable());
+        final BlockPos key = pos.immutable();
+        prefetch.drop(key); // 停止・ディスク交換・ブロック撤去。抱えたまま放置すると 60 秒で殺される
+        sessions.stop(key);
     }
 
     public void stopAll() {
+        prefetch.dropAll();
         sessions.stopAll();
     }
 }
