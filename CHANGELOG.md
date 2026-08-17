@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.3.0
+- **Albums no longer fall silent between tracks.** Playing an album in the Golden Jukebox left a five to ten second gap while the next track was looked up and buffered. The next track is now fetched and buffered in the background before the current one finishes, so it starts as soon as the previous one ends. This covers custom discs inside an album, including the wrap-around when repeat is on.
+
 ## 2.2.1
 - **Fixed the Golden Jukebox showing no track length and an empty progress bar for vanilla and other mods' discs.** The length was there all along, the jukebox just wasn't reading it. Scrubbing still only works on custom discs.
 - **Fixed a hopper under the Golden Jukebox not pulling the disc out when the track ended.** Like a vanilla jukebox, the Golden Jukebox powers the block below it while a record plays, which switches a hopper off. It was measuring "still playing" against an internal placeholder rounded up to the next ten seconds — up to an hour for a disc of unknown length, and forever on a radio stream — so the hopper stayed switched off long after the music stopped. It now goes by the track's real length. Repeat and albums still hold the hopper off while they are actually playing.
