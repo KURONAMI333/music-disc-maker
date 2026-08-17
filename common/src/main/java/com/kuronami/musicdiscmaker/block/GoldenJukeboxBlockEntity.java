@@ -95,12 +95,31 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
      */
     private int albumTrack = -1;
 
+    /**
+     * sync 専用の NBT キー: 送出時点の再生経過 (ms)。-1 = 停止中。
+     * <b>{@link #saveAdditional} には書かない</b> (ディスクに残る値ではない)。
+     * {@link #getUpdateTag} だけが載せ、client の {@link #loadAdditional} が有無で判別する。
+     */
+    private static final String SYNC_ELAPSED_MS_KEY = "syncElapsedMs";
+
     // ── server 揮発 ──
     private final JukeboxSongPlayer songPlayer = new JukeboxSongPlayer(this::onSongChanged, this.getBlockPos());
     /** 現在の再生開始 wall-clock (ms)。0 = 未再生。live sync / repeat / late-join の offset 計算に使う。 */
     private long startMillis = 0L;
     /** 初回 server tick で chunk load 後の再生復帰を 1 度だけ行うためのフラグ。 */
     private boolean initialized = false;
+    /**
+     * 直近 tick の {@link #isRedstonePlaying()}。実尺での再生終了は vanilla の {@code songPlayer} には
+     * 見えない (無音バケットはまだ鳴っている) ので {@link #onSongChanged()} 由来の neighbor 更新が来ない。
+     * 値が変わった tick だけ更新を撃つためのラッチ。
+     */
+    private boolean redstonePlayingLatch = false;
+
+    // ── client 揮発 ──
+    /** sync で受け取った再生経過 (ms)。-1 = 停止中 / 未受信。 */
+    private long clientElapsedAnchorMs = -1L;
+    /** そのアンカーを受け取った client の壁時計 (ms)。 */
+    private long clientAnchorWallClockMs = 0L;
 
     public GoldenJukeboxBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.GOLDEN_JUKEBOX.get(), pos, state);
@@ -131,23 +150,69 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
 
     /**
      * 現在の再生経過 (ms)。progress バー表示用。一時停止中は保存 offset、停止中は 0。
-     * client からも呼べる (playbackStartGameTime を同期しているため)。
+     *
+     * <p>server は永続化された {@code playbackStartGameTime} 基準のまま (BE が復元された直後 =
+     * まだ tick していない状態でも同じ値を返す必要があるため。揮発の {@code startMillis} は 0)。
+     *
+     * <p>client は sync で受け取った経過 ({@value #SYNC_ELAPSED_MS_KEY}) を受信時刻に固定し、そこから
+     * 自分の壁時計で進める。<b>client でゲーム内 tick から数えてはいけない</b> — client の
+     * {@code gameTime} はサーバが 20 tick ごとに送る値で上書きされるので、TPS が 20 を割った分だけ
+     * 表示が遅れ、1 秒周期の補正で止まって飛ぶ (実測: 223 秒の曲で約 4 秒 = 1.8% のずれ)。
+     * 曲送りの判定も実音も壁時計基準なので、表示だけがずれていた。
      */
     public long currentElapsedMs() {
         if (paused) {
             return pausedOffsetMs;
         }
-        if (playbackStartGameTime < 0L || level == null) {
+        if (level == null) {
             return 0L;
         }
-        long elapsed = Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
-        // 有限尺は総尺でクランプ (非リピートの自然終了後に経過が尺を超えて増え続けるのを防ぐ)。
-        // リピート時はループごとに anchor がリセットされるため境界クランプは無害。
-        final long dur = trackDurationMs();
-        if (dur > 0L) {
-            elapsed = Math.min(elapsed, dur);
+        if (level.isClientSide) {
+            final long anchored = clientElapsedMs();
+            return anchored < 0L ? 0L : clampToTrackDuration(anchored);
         }
-        return elapsed;
+        if (playbackStartGameTime < 0L) {
+            return 0L;
+        }
+        return clampToTrackDuration(Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L));
+    }
+
+    /**
+     * 有限尺は総尺でクランプする (非リピートの自然終了後に経過が尺を超えて増え続けるのを防ぐ)。
+     * リピート時はループごとに起点がリセットされるため境界クランプは無害。
+     */
+    private long clampToTrackDuration(long elapsed) {
+        final long dur = trackDurationMs();
+        return dur > 0L ? Math.min(elapsed, dur) : elapsed;
+    }
+
+    /**
+     * sync に載せる再生経過 (ms)。-1 = 再生していない。
+     *
+     * <p>ここだけは<b>壁時計</b> ({@code startMillis}) で測る。実音 (LavaPlayer) も曲送りの判定も
+     * {@link #resendTo} の offset も壁時計なので、表示をそこへ合わせるのがこの値の役目。
+     * chunk ロード / contraption 解体で復元された直後は {@code startMillis} がまだ無いので、
+     * その 1 tick だけ永続化された起点から埋める ({@link #resumePlaybackAfterLoad} と同じ式)。
+     */
+    private long syncElapsedMs() {
+        if (startMillis > 0L) {
+            return Math.max(0L, System.currentTimeMillis() - startMillis);
+        }
+        if (playbackStartGameTime >= 0L && level != null) {
+            return Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
+        }
+        return -1L;
+    }
+
+    /**
+     * client 側の再生経過 (ms)。-1 = 停止中 / アンカー未受信。
+     * sync で受け取った経過を受信時刻に固定し、そこから client 自身の壁時計で進める。
+     */
+    private long clientElapsedMs() {
+        if (playbackStartGameTime < 0L || clientElapsedAnchorMs < 0L) {
+            return -1L;
+        }
+        return clientElapsedAnchorMs + Math.max(0L, System.currentTimeMillis() - clientAnchorWallClockMs);
     }
 
     /**
@@ -254,9 +319,55 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
                 .map(Holder::value).map(JukeboxSong::comparatorOutput).orElse(0);
     }
 
-    /** vanilla 再生状態 (redstone 信号源 = 再生中 15 の判定に使う)。 */
+    /** vanilla 再生状態 (無音バケット song が鳴っているか)。particle / gameEvent と同じ土俵。 */
     public boolean isVanillaPlaying() {
         return songPlayer.isPlaying();
+    }
+
+    /**
+     * redstone 信号源 (再生中 = 15) の判定。
+     *
+     * <p><b>{@link #isVanillaPlaying()} で判定してはいけない</b> — あれは custom disc に貼った無音
+     * バケット song の尺 (10 秒刻み・尺不明は 3600 秒・ラジオは 7200 秒) であって実曲の尺ではない。
+     * バケットで判定すると実曲が終わっても真下のホッパーが {@code ENABLED=false} のまま残り、
+     * ディスクが取り出せない (実尺 95 秒の曲でも 120 秒バケットなら 25 秒遅れる)。
+     *
+     * <ul>
+     * <li>一時停止中 → 0</li>
+     * <li>custom disc でない (vanilla / 他 MOD) → 実音の権威は {@code songPlayer} なのでそのまま (バニラ準拠)</li>
+     * <li>ライブ / ラジオ → 実尺が無く、実際に鳴り続けている → 再生中は 15 のまま</li>
+     * <li>repeat ON の有限尺 (アルバムを除く) → 曲尺ごとに張り直して鳴り続ける → 15 のまま</li>
+     * <li>それ以外の有限尺 custom disc → 実尺と経過で判定する</li>
+     * </ul>
+     */
+    public boolean isRedstonePlaying() {
+        if (paused) {
+            return false;
+        }
+        final CustomTrackData track = currentTrack();
+        if (track == null) {
+            return songPlayer.isPlaying();
+        }
+        if (track.radio() || track.durationMs() <= 0L || (repeat && albumTrack < 0)) {
+            return startMillis > 0L;
+        }
+        return startMillis > 0L && System.currentTimeMillis() - startMillis < track.durationMs();
+    }
+
+    /**
+     * redstone 信号が立ち上がった / 落ちた tick だけ neighbor を更新する。実尺での終了は
+     * {@code songPlayer} には見えず {@link #onSongChanged()} が呼ばれないので、ここが唯一の通知経路。
+     * 毎 tick は撃たない。
+     */
+    private void refreshRedstoneSignal() {
+        final boolean now = isRedstonePlaying();
+        if (now == redstonePlayingLatch) {
+            return;
+        }
+        redstonePlayingLatch = now;
+        if (level != null) {
+            level.updateNeighborsAt(getBlockPos(), getBlockState().getBlock());
+        }
     }
 
     private boolean isServer() {
@@ -310,6 +421,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             songPlayer.stop(level, getBlockState());
             startMillis = 0L;
             playbackStartGameTime = -1L;
+            redstonePlayingLatch = false;
             broadcast(new StopDiscPayload(getBlockPos()));
         } else if (hasDisc()) {
             startPlayback(pausedOffsetMs);
@@ -388,16 +500,20 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             return;
         }
         final ItemStack disc = effectiveDisc();
-        // vanilla 再生状態 (particle / comparator / 曲終了) + vanilla disc の実音。
-        songFor(disc).ifPresent(song -> songPlayer.play(level, song));
+        // 時計を先に張り直す。songPlayer.play() は onSongChanged 経由でその場で neighbor 更新を撃つので、
+        // 先に songPlayer を触ると「旧 startMillis = 実尺を超過 = 信号 0」の一瞬がホッパーに見えてしまう
+        // (repeat のループ境界・アルバムのトラック境界でディスクを吸い出される)。
         startMillis = System.currentTimeMillis() - offsetMs;
         playbackStartGameTime = level.getGameTime() - offsetMs / 50L;
+        // vanilla 再生状態 (particle / comparator / 曲終了) + vanilla disc の実音。
+        songFor(disc).ifPresent(song -> songPlayer.play(level, song));
         // custom disc は LavaPlayer ストリームを per-block 設定つきで broadcast。
         final CustomTrackData track = currentTrack();
         if (track != null) {
             broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent, directional));
         }
-        // playbackStartGameTime を client へ反映する (progress バーの起点)。
+        redstonePlayingLatch = isRedstonePlaying();
+        // 再生起点と現在経過を client へ反映する (progress バーの起点)。
         sync();
     }
 
@@ -408,6 +524,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         songPlayer.stop(level, getBlockState());
         startMillis = 0L;
         playbackStartGameTime = -1L;
+        // ディスクが抜けると HAS_RECORD=false で ticker ごと止まる。ここで戻さないと次に入れた
+        // ディスクで「変化なし」と誤判定して neighbor 更新が飛ばない。
+        redstonePlayingLatch = false;
         broadcast(new StopDiscPayload(getBlockPos()));
     }
 
@@ -495,7 +614,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
         // アルバム: 現在トラックが終わったら次へ送る。ラジオ復帰・repeat より先に判定する
         // (アルバムの repeat はアルバム全体のループであって 1 曲ループではないため)。
         if (albumTrack >= 0 && !paused && startMillis > 0L && currentAlbumTrackFinished()) {
+            // advanceAlbumTrack -> startPlayback が同じ tick で startMillis を張り直すので、
+            // 次トラックがある限り信号は落ちない (トラックの切れ目でホッパーに吸われない)。
+            // 最終トラックの後だけ stopPlayback を通って落ちる。
             advanceAlbumTrack();
+            refreshRedstoneSignal();
             return;
         }
         // 案B (ラジオ): 無限長ストリームは silent song の最大尺 (2h) で vanilla 再生状態が切れるが、
@@ -516,6 +639,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
                 startPlayback(0L);
             }
         }
+        // 実尺での再生終了 (= 無音バケットはまだ鳴っている) を redstone へ伝える唯一の経路。
+        refreshRedstoneSignal();
     }
 
     /**
@@ -601,6 +726,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
                 ? tag.getLong("playbackStartGameTime") : -1L;
         // 旧セーブ (アルバム対応より前) には無いので、欠けていたら -1 = 従来動作。
         this.albumTrack = tag.contains("albumTrack") ? tag.getInt("albumTrack") : -1;
+        // sync 由来の tag だけがこのキーを持つ (ディスクの tag には無い)。受信時刻を経過表示の
+        // アンカーに固定し、以降は client 自身の壁時計で進める。
+        if (tag.contains(SYNC_ELAPSED_MS_KEY)) {
+            this.clientElapsedAnchorMs = tag.getLong(SYNC_ELAPSED_MS_KEY);
+            this.clientAnchorWallClockMs = System.currentTimeMillis();
+        }
     }
 
     @Override
@@ -624,6 +755,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         final CompoundTag tag = new CompoundTag();
         saveAdditional(tag, registries);
+        // 経過は「送出時点の実測 ms」で運ぶ。client 側は受信時刻を起点に自分の壁時計で進める
+        // (tick 由来だと TPS 低下分だけ表示が遅れる)。ディスクには書かない = sync 限定のキー。
+        tag.putLong(SYNC_ELAPSED_MS_KEY, syncElapsedMs());
         return tag;
     }
 
