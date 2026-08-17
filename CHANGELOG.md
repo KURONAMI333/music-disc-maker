@@ -2,6 +2,8 @@
 
 ## 2.2.1
 - **Fixed the Golden Jukebox showing no track length and an empty progress bar for vanilla and other mods' discs.** The length was there all along, the jukebox just wasn't reading it. Scrubbing still only works on custom discs.
+- **Fixed a hopper under the Golden Jukebox not pulling the disc out when the track ended.** Like a vanilla jukebox, the Golden Jukebox powers the block below it while a record plays, which switches a hopper off. It was measuring "still playing" against an internal placeholder rounded up to the next ten seconds — up to an hour for a disc of unknown length, and forever on a radio stream — so the hopper stayed switched off long after the music stopped. It now goes by the track's real length. Repeat and albums still hold the hopper off while they are actually playing.
+- **Fixed the elapsed time and progress bar drifting behind the music.** The readout was counting game ticks, so it fell behind whenever the server dipped below 20 ticks per second and then jumped to catch up (about four seconds adrift over a four-minute track). It now follows the same clock as the audio.
 
 - **Fixed custom discs not playing in a normal jukebox when Additional Additions is installed.** The disc showed as playing and stayed silent, with no error. This has been broken since 2.0.0 for anyone running Additional Additions.
 - **Fixed crackling and jumping stereo with directional audio turned off.** Moving around while looking about made the sound break up and flick between left and right. It now plays as a flat, non-positional sound the way vanilla background music does, and fades in and out at the edge of the audible range instead of cutting.

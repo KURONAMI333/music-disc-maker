@@ -127,8 +127,13 @@ public class GoldenJukeboxBlock extends Block implements EntityBlock {
         return true;
     }
 
+    /**
+     * 再生中は 15 (バニラ jukebox 同等 = 真下のホッパーを {@code ENABLED=false} にする)。
+     * 判定は実曲の尺基準 ({@link GoldenJukeboxBlockEntity#isRedstonePlaying()})。無音バケット song の
+     * 尺で判定するとホッパーが実曲終了後も解放されない。
+     */
     @Override
     protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
-        return level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be && be.isVanillaPlaying() ? 15 : 0;
+        return level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be && be.isRedstonePlaying() ? 15 : 0;
     }
 }
