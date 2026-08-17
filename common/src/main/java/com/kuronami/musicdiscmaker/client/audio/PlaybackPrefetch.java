@@ -1,6 +1,5 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -69,8 +68,15 @@ public final class PlaybackPrefetch<K> {
         private final String url;
         private final long id;
         private final long deadlineMs;
+        /**
+         * 書き込み = ロードスレッド ({@link #deliver}) / 読み出し = main thread ({@link #claim})。
+         * <b>{@code volatile} が要る</b> — 書き込みは {@code ConcurrentHashMap} へ入れた後に起きるので、
+         * map 経由では公開されない。可視性が無いと main thread が {@code null} を読んで
+         * 「まだロード中」の枝へ落ち、<b>枠は既に取り除いた後・{@code deliver} は成功を返した後</b>に
+         * なるので、どちらも閉じない持ち主不在のソースが残る。
+         */
         @Nullable
-        private IAudioSource source;
+        private volatile IAudioSource source;
 
         private Slot(String url, long id, long deadlineMs) {
             this.url = url;
@@ -186,10 +192,11 @@ public final class PlaybackPrefetch<K> {
 
     /** 全ての先読みを捨てる (ワールド退出等)。 */
     public void dropAll() {
-        for (final Iterator<Slot> it = slots.values().iterator(); it.hasNext();) {
-            final Slot slot = it.next();
-            it.remove();
-            discard(slot);
+        for (final Map.Entry<K, Slot> entry : slots.entrySet()) {
+            final Slot slot = entry.getValue();
+            if (slots.remove(entry.getKey(), slot)) {
+                discard(slot);
+            }
         }
     }
 
@@ -205,13 +212,15 @@ public final class PlaybackPrefetch<K> {
         return slot == null ? null : slot.url;
     }
 
-    /** 期限切れの先読みを閉じる。60 秒リーパーに殺されたソースを掴まないための唯一の掃除口。 */
+    /**
+     * 期限切れの先読みを閉じる。main thread ({@link #begin}) とロードスレッド ({@link #deliver}) の
+     * 両方から走るので、取り除けた側だけが閉じる (二重に {@code discard} を撃たない)。
+     */
     private void sweep() {
         final long now = clockMs.getAsLong();
-        for (final Iterator<Map.Entry<K, Slot>> it = slots.entrySet().iterator(); it.hasNext();) {
-            final Slot slot = it.next().getValue();
-            if (now >= slot.deadlineMs) {
-                it.remove();
+        for (final Map.Entry<K, Slot> entry : slots.entrySet()) {
+            final Slot slot = entry.getValue();
+            if (now >= slot.deadlineMs && slots.remove(entry.getKey(), slot)) {
                 discard(slot);
             }
         }
