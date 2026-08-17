@@ -45,6 +45,19 @@ import net.minecraft.world.item.ItemStack;
  *   <li>{@code stop} の HEAD — 音源を落とす。AA 側の寿命判定は全部ここに合流する。</li>
  * </ul>
  *
+ * <h2>3 つの inject の関係 (写経するとき落とさないこと)</h2>
+ * {@code stop} と {@code tick} は<b>停止について冗長</b>にしてある。AA の {@code stop()} は
+ * {@code isPlaying} を倒すので、次の client tick で {@code tick()} が冒頭の
+ * {@code if (!isPlaying) return;} に落ち、その RETURN からも {@link PocketJukeboxClient#reconcile}
+ * が「再生していない」を受け取って音源を落とす。{@code stop} の inject が解決できなくても
+ * 最大 1 tick 遅れで止まる (これが {@code require = 0} を全部に付けられる根拠)。
+ * <b>{@code tick} の inject を {@code TAIL} に変えるとこの退路が消える</b> — TAIL は最後の RETURN
+ * 1 つだけなので、早期 return の出口を拾わなくなる。
+ *
+ * <p>解決できなかった時の症状: {@code tick} = 実音声が出ない (従来どおり) /
+ * {@code startNextTrack} = 約 1 秒で曲送りされる (従来どおり) / {@code stop} = 停止が 1 tick 遅れる。
+ * いずれも「この compat が無かった状態」以下には落ちない。
+ *
  * <h2>安全性</h2>
  * {@code @Pseudo} で AA 非導入環境では適用されない。inject 本体は try/catch で失敗を握りつぶす
  * (無音再生に退化)。<b>この mixin と呼び出し先は AA の型を一切参照しない</b> — トラック列は vanilla の
