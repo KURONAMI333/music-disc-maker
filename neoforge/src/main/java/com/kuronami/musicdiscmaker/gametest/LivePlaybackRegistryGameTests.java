@@ -2,6 +2,8 @@ package com.kuronami.musicdiscmaker.gametest;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.client.audio.LivePlaybackRegistry;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -30,6 +32,10 @@ public class LivePlaybackRegistryGameTests {
 
     private static final String URL_A = "https://example.invalid/a.mp3";
     private static final String URL_B = "https://example.invalid/b.mp3";
+
+    /** 一時的な失敗の代表 (回線)。時間が経てば直りうる = 掛け金にしてはいけない側。 */
+    private static final PlaybackFailure NETWORK =
+            PlaybackFailure.ofReason(FailureReason.CONNECTION_FAILED, "read timed out");
 
     /**
      * <b>これが今回の回帰テスト。</b> 同じ曲の周期再送で、指向性・範囲・音量が鳴っている音源へ
@@ -132,19 +138,91 @@ public class LivePlaybackRegistryGameTests {
         helper.succeed();
     }
 
-    /** 失敗した URL は繋ぎ直さないこと (1Hz の再送でチャットとログが埋まらない)。 */
+    /** 失敗した直後は繋ぎ直さないこと (1Hz の再送でチャットとログが埋まらない)。 */
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
-    public static void aFailedUrlIsNotRetriedUntilTheTrackChanges(GameTestHelper helper) {
+    public static void aFailedUrlIsNotRetriedImmediately(GameTestHelper helper) {
         final LivePlaybackRegistry<Long> registry = new LivePlaybackRegistry<>();
         registry.request(PLOT, URL_A, 64, 100, true);
         registry.loadFinished(PLOT, URL_A);
-        registry.loadFailed(PLOT, URL_A);
+        registry.loadFailed(PLOT, URL_A, NETWORK);
 
         helper.assertTrue(registry.request(PLOT, URL_A, 64, 100, true) == LivePlaybackRegistry.Decision.SKIP,
                 "失敗した URL を毎秒繋ぎ直している");
         helper.assertTrue(registry.request(PLOT, URL_B, 64, 100, true) == LivePlaybackRegistry.Decision.LOAD,
                 "曲を変えても繋ぎ直さない (差し替えで復帰できない)");
+        helper.succeed();
+    }
+
+    /**
+     * <b>これが今回の回帰テスト。</b> 一時的な失敗から自力で戻れること。
+     *
+     * <p>以前は失敗した URL をそのまま覚えて、曲が変わるまで二度と繋ぎ直さなかった。成功する
+     * 経路は閉じている (繋ぎ直さないので成功しようがない) ので、DNS の一瞬の失敗ひとつで
+     * その音源は<b>恒久的に無音</b>になっていた。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void aTransientFailureRecoversOnItsOwn(GameTestHelper helper) {
+        final long[] now = {1_000L};
+        final LivePlaybackRegistry<Long> registry = new LivePlaybackRegistry<>(() -> now[0]);
+        registry.request(PLOT, URL_A, 64, 100, true);
+        registry.loadFinished(PLOT, URL_A);
+        registry.loadFailed(PLOT, URL_A, NETWORK);
+
+        now[0] += LivePlaybackRegistry.FIRST_RETRY_MS - 1L;
+        helper.assertTrue(registry.request(PLOT, URL_A, 64, 100, true) == LivePlaybackRegistry.Decision.SKIP,
+                "待ち時間が明ける前に繋ぎ直している (1Hz の再送がそのまま通る)");
+
+        now[0] += 2L;
+        helper.assertTrue(registry.request(PLOT, URL_A, 64, 100, true) == LivePlaybackRegistry.Decision.LOAD,
+                "待ち時間が明けても繋ぎ直さない = 一時的な失敗で恒久的に無音になる");
+        helper.succeed();
+    }
+
+    /** 失敗が続いても諦めないこと。待ち時間は伸びるが上限で頭打ちにする。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void repeatedFailuresBackOffButNeverGiveUp(GameTestHelper helper) {
+        final long[] now = {1_000L};
+        final LivePlaybackRegistry<Long> registry = new LivePlaybackRegistry<>(() -> now[0]);
+        for (int attempt = 0; attempt < 10; attempt++) {
+            helper.assertTrue(registry.request(PLOT, URL_A, 64, 100, true) == LivePlaybackRegistry.Decision.LOAD,
+                    "繋ぎ直しを諦めている (attempt=" + attempt + ")");
+            registry.loadFinished(PLOT, URL_A);
+            registry.loadFailed(PLOT, URL_A, NETWORK);
+            now[0] += LivePlaybackRegistry.MAX_RETRY_MS;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 同じ理由は繰り返し報告しないが、成功を挟んだら忘れること。
+     *
+     * <p>忘れないと「失敗 → 復帰 → 同じ失敗」で 2 回目が黙る。掛け金を別の形で戻すことになる。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void theSameReasonIsReportedOnceUntilPlaybackSucceedsAgain(GameTestHelper helper) {
+        final long[] now = {1_000L};
+        final LivePlaybackRegistry<Long> registry = new LivePlaybackRegistry<>(() -> now[0]);
+        registry.request(PLOT, URL_A, 64, 100, true);
+        registry.loadFinished(PLOT, URL_A);
+
+        helper.assertTrue(registry.loadFailed(PLOT, URL_A, NETWORK), "最初の失敗が報告されていない");
+        now[0] += LivePlaybackRegistry.MAX_RETRY_MS;
+        registry.request(PLOT, URL_A, 64, 100, true);
+        registry.loadFinished(PLOT, URL_A);
+        helper.assertTrue(!registry.loadFailed(PLOT, URL_A, NETWORK),
+                "同じ理由を繋ぎ直しのたびにチャットへ積んでいる");
+
+        // 一度鳴った後にまた落ちたら、それは新しい出来事なので出す。
+        now[0] += LivePlaybackRegistry.MAX_RETRY_MS;
+        registry.request(PLOT, URL_A, 64, 100, true);
+        registry.loadFinished(PLOT, URL_A);
+        helper.assertTrue(registry.install(PLOT, URL_A, new FakeVoice(URL_A)), "install が通っていない");
+        helper.assertTrue(registry.loadFailed(PLOT, URL_A, NETWORK),
+                "復帰した後の失敗が黙っている (成功で記憶を捨てていない)");
         helper.succeed();
     }
 
