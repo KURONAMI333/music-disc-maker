@@ -58,7 +58,7 @@ final class YoutubeTokenSession implements YoutubeSession {
             youtube.getContextFilter().setTokenTracker(
                     new YoutubeAccessTokenTracker(youtube.getHttpInterfaceManager()));
         } catch (final Throwable t) {
-            LOGGER.warn("YouTube セッションの入れ替えに失敗: {}", t.toString());
+            LOGGER.warn("YouTube セッションの入れ替えに失敗", t);
             return false;
         }
         generation++;

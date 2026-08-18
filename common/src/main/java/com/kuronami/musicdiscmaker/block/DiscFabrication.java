@@ -82,7 +82,7 @@ public final class DiscFabrication {
                 failure = re.reason();
                 resolved = null;
             } catch (final Throwable t) {
-                MusicDiscMaker.LOGGER.warn("URL 解決中に例外 ({}): {}", url, t.toString());
+                MusicDiscMaker.LOGGER.warn("URL 解決中に例外 ({})", url, t);
                 failure = FailureReason.UNKNOWN;
                 resolved = null;
             }

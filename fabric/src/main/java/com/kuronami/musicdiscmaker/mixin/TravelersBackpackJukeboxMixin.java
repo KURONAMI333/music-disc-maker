@@ -38,7 +38,7 @@ public class TravelersBackpackJukeboxMixin {
             TravelersBackpackCompatClient.onPlayClicked(entityId);
         } catch (final Throwable t) {
             // fail-soft: TB の内部構造が変わってもクラッシュさせない (無音再生に退化)。
-            MusicDiscMaker.LOGGER.debug("TB jukebox streaming hook skipped: {}", t.toString());
+            MusicDiscMaker.LOGGER.debug("TB jukebox streaming hook skipped", t);
         }
     }
 
@@ -47,7 +47,7 @@ public class TravelersBackpackJukeboxMixin {
         try {
             TravelersBackpackCompatClient.onStopClicked();
         } catch (final Throwable t) {
-            MusicDiscMaker.LOGGER.debug("TB jukebox stop hook skipped: {}", t.toString());
+            MusicDiscMaker.LOGGER.debug("TB jukebox stop hook skipped", t);
         }
     }
 }

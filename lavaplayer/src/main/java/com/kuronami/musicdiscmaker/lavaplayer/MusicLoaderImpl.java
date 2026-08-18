@@ -133,7 +133,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             LOGGER.debug("source manager 登録: {} (client: ANDROID_VR)", manager.getSourceName());
             return manager;
         } catch (final Throwable t) {
-            LOGGER.warn("YouTube source manager 登録失敗: {}", t.toString());
+            LOGGER.warn("YouTube source manager 登録失敗", t);
             return null;
         }
     }
@@ -146,7 +146,7 @@ public class MusicLoaderImpl implements IMusicLoader {
                 LOGGER.debug("source manager 登録: {}", manager.getSourceName());
             }
         } catch (final Throwable t) {
-            LOGGER.warn("source manager 登録失敗: {}", t.toString());
+            LOGGER.warn("source manager 登録失敗", t);
         }
     }
 
@@ -242,7 +242,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             try {
                 track.setPosition(startMs);
             } catch (final Throwable t) {
-                LOGGER.warn("seek 失敗 ({}ms) → 先頭から再生: {}", startMs, t.toString());
+                LOGGER.warn("seek 失敗 ({}ms) → 先頭から再生", startMs, t);
             }
         }
         final AudioPlayer player = apm.createPlayer();
@@ -362,7 +362,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             LOGGER.warn("URL ロードがタイムアウト ({})", url);
             throw new ResolveException(FailureReason.CONNECTION_FAILED);
         } catch (final ExecutionException ex) {
-            LOGGER.warn("URL ロード失敗 ({}): {}", url, String.valueOf(ex.getCause()));
+            LOGGER.warn("URL ロード失敗 ({})", url, ex.getCause());
             throw new ResolveException(FailureClassifier.classify(ex.getCause()));
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
