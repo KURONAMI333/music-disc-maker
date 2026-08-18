@@ -105,12 +105,26 @@ public final class SableAudioClient {
                     return;
                 }
                 if (Minecraft.getInstance().level == null) {
+                    // ワールドを抜けた。利用者に伝えることは無いが、無言で消えると
+                    // 「payload は届いたのに鳴らない」の切り分けができないので跡は残す。
+                    MusicDiscMaker.LOGGER.debug(
+                            "Dropped Sable sub-level playback because the client left the world (plotPos={})",
+                            payload.plotPos());
                     resolved.close();
                     return;
                 }
                 final SableSubLevelAnchor anchor = new SableSubLevelAnchor(payload.plotPos());
                 // plot が client に無い (sub-level 未 tracking) 場合は再生しない (無音より安全)。
                 if (!anchor.isValid()) {
+                    // 無音になるが、利用者に取れる手は無い (sub-level の tracking はこちらの都合)。
+                    // チャットには出さず、ログには残す — 「再生中と出るのに鳴らない」の報告で
+                    // ここに落ちていたかどうかが読めるのは latest.log だけ。
+                    MusicDiscMaker.LOGGER.warn(
+                            "The Sable sub-level carrying this audio source is not present on the client, so nothing was played (plotPos={})",
+                            payload.plotPos());
+                    // 黙って捨てると 1 秒ごとの再送で毎回ストリームを開き直すことになる。
+                    // 待ち時間を置いてから繋ぎ直す (報告はしないので理由は渡さない)。
+                    SLOTS.loadFailed(actorKey, track.url(), null);
                     resolved.close();
                     return;
                 }

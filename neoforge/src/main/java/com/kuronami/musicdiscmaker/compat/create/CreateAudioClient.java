@@ -89,13 +89,24 @@ public final class CreateAudioClient {
                     return;
                 }
                 if (Minecraft.getInstance().level == null) {
+                    // ワールドを抜けた。利用者に伝えることは無いが、無言で消えると
+                    // 「payload は届いたのに鳴らない」の切り分けができないので跡は残す。
+                    MusicDiscMaker.LOGGER.debug(
+                            "Dropped Create contraption playback because the client left the world (entityId={})",
+                            payload.contraptionEntityId());
                     resolved.close();
                     return;
                 }
                 final Entity entity = Minecraft.getInstance().level.getEntity(payload.contraptionEntityId());
                 if (!(entity instanceof AbstractContraptionEntity contraption)) {
+                    // contraption が既に消えている / まだ届いていない。Sable と違って再送は無いので
+                    // この音源はもう鳴らない。利用者に取れる手は無いのでチャットには出さないが、
+                    // ここに落ちたことが後から読めないと「無音」としか分からなくなる。
+                    MusicDiscMaker.LOGGER.warn(
+                            "The Create contraption carrying this audio source is not on the client, so nothing was played (entityId={} found={})",
+                            payload.contraptionEntityId(), entity == null ? "nothing" : entity.getType());
                     resolved.close();
-                    return; // contraption が既に消えている等。
+                    return;
                 }
                 final ContraptionAnchor anchor = new ContraptionAnchor(contraption, payload.localPos());
                 // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
