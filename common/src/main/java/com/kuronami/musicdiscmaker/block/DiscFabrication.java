@@ -79,6 +79,10 @@ public final class DiscFabrication {
                 resolved = null;
             } catch (final ResolveException re) {
                 // impl が分類済みの失敗理由 (非公開/地域/年齢/接続/対応外)。
+                // GUI の失敗表示は client 側にしか出ないので、ここで server ログにも 1 行残す
+                // (dedicated server の管理者は client のチャット/GUI を見られない)。
+                MusicDiscMaker.LOGGER.warn("URL resolution failed [{}] url={} detail={}",
+                        re.reason(), url, re.detail());
                 failure = re.reason();
                 resolved = null;
             } catch (final Throwable t) {
