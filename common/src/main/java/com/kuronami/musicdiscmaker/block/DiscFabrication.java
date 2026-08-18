@@ -72,6 +72,13 @@ public final class DiscFabrication {
             try {
                 UrlGuard.enforce(url); // SSRF 遮断: 内部 IP / 非 http(s) scheme を解決前に弾く
                 resolved = LoaderHolder.get().resolve(url);
+                // 解決が返した URL は入力と別物でありうる (YouTube が弾かれた時の代替ソース /
+                // Spotify 経路 / リダイレクト後の実体)。ディスクに焼くのはこちらなので、
+                // 入力と同じ検査をここでも通す。
+                if (resolved != null && resolved.uri() != null && !resolved.uri().isBlank()
+                        && !resolved.uri().equals(url)) {
+                    UrlGuard.enforce(resolved.uri());
+                }
             } catch (final UrlBlockedException blocked) {
                 // SSRF ガードが拒否 → GUI に「blocked」理由を出す (gui.music_disc_maker.failed.blocked)。
                 MusicDiscMaker.LOGGER.warn("Rejected URL ({}): {}", blocked.reason(), url);
