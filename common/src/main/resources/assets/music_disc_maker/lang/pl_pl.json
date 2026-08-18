@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "Ten film jest zablokowany w Twoim regionie",
   "music_disc_maker.playback_failed.reason.age": "Ten film ma ograniczenie wiekowe i nie może zostać odtworzony",
   "music_disc_maker.playback_failed.reason.bot_check": "To źródło wymaga zalogowania dla tego połączenia (weryfikacja bota) - spróbuj bezpośredniego odnośnika lub innego źródła",
+  "music_disc_maker.playback_failed.reason.sound_engine": "Silnik dźwiękowy gry nie zaakceptował tego dźwięku",
+  "music_disc_maker.playback_failed.reason.muted": "Głośność jest ustawiona na 0 (sprawdź Ogólny poziom głośności i Bloki dźwiękowe w Opcjach muzyki i dźwięku)",
   "music_disc_maker.radio.reconnecting": "Ponowne łączenie z radiem… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio zatrzymane (ponowne łączenie nie powiodło się)",
   "block.music_disc_maker.golden_jukebox": "Złoty gramofon",

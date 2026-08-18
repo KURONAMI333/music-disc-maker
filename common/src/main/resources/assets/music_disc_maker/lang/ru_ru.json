@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "Это видео недоступно в вашем регионе",
   "music_disc_maker.playback_failed.reason.age": "У видео есть возрастное ограничение, воспроизведение невозможно",
   "music_disc_maker.playback_failed.reason.bot_check": "Этот источник требует входа для этого подключения (проверка на робота) — попробуйте прямую ссылку или другой источник",
+  "music_disc_maker.playback_failed.reason.sound_engine": "Звуковой движок игры не принял этот звук",
+  "music_disc_maker.playback_failed.reason.muted": "Громкость установлена на 0 (проверьте Общую громкость и Музыкальные блоки в разделе Настройки музыки и звуков)",
   "music_disc_maker.radio.reconnecting": "Переподключение к радио… (%s/%s)",
   "music_disc_maker.radio.stopped": "Радио остановлено (не удалось переподключиться)",
   "block.music_disc_maker.golden_jukebox": "Золотой проигрыватель",

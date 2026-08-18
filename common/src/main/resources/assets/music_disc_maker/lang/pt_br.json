@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "Este vídeo está bloqueado na sua região",
   "music_disc_maker.playback_failed.reason.age": "Este vídeo tem restrição de idade e não pode ser reproduzido",
   "music_disc_maker.playback_failed.reason.bot_check": "Esta fonte está pedindo login nesta conexão (verificação de robô) - tente um link direto ou outra fonte",
+  "music_disc_maker.playback_failed.reason.sound_engine": "O motor de som do jogo não aceitou este som",
+  "music_disc_maker.playback_failed.reason.muted": "O volume está em 0 (verifique Volume principal e Blocos musicais em Ajustes de música e sons)",
   "music_disc_maker.radio.reconnecting": "Reconectando ao rádio… (%s/%s)",
   "music_disc_maker.radio.stopped": "Rádio parado (falha na reconexão)",
   "block.music_disc_maker.golden_jukebox": "Jukebox dourada",

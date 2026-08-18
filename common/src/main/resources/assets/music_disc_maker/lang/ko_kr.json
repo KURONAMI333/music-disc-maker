@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "이 동영상은 현재 지역에서 재생할 수 없습니다",
   "music_disc_maker.playback_failed.reason.age": "이 동영상은 연령 제한이 있어 재생할 수 없습니다",
   "music_disc_maker.playback_failed.reason.bot_check": "이 음원이 이 연결에 로그인을 요구하고 있습니다(봇 확인). 직접 링크나 다른 음원을 사용해 보세요",
+  "music_disc_maker.playback_failed.reason.sound_engine": "게임의 사운드 엔진이 이 소리를 받아들이지 않았습니다",
+  "music_disc_maker.playback_failed.reason.muted": "음량이 0으로 설정되어 있습니다 (음악 및 소리 설정에서 전체 음량과 주크박스/소리 블록을 확인해 보세요)",
   "music_disc_maker.radio.reconnecting": "라디오에 재연결 중… (%s/%s)",
   "music_disc_maker.radio.stopped": "라디오가 중지되었습니다 (재연결 실패)",
   "block.music_disc_maker.golden_jukebox": "황금 주크박스",
