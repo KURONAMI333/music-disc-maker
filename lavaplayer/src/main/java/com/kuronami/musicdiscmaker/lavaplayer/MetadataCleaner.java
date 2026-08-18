@@ -63,25 +63,34 @@ public final class MetadataCleaner {
     private static final Pattern FEATURE_BRACKET = Pattern.compile(
             "(?i)\\s*" + OPEN + "\\s*(?:feat|ft|featuring)\\.?\\s[^" + CLOSED + "]*[" + CLOSED + "]");
     /**
-     * 括弧の無い客演表記。<b>目印から曲名の終わりまでを丸ごと</b>落とす。
+     * 括弧の無い客演表記。<b>目印から次の区切りまで</b>を落とし、その先は残す。
      *
      * <p>客演の名前がどこで終わるかは書式が無いので決められない —
      * {@code "See You Again ft. Charlie Puth Furious 7 Soundtrack"} の
      * {@code Furious 7 Soundtrack} が曲名の続きなのか客演の一部なのか、字面からは分けられない。
-     * ここで<b>後ろを全部落とす</b>ので、末尾に別名が付いた曲
-     * ({@code "神っぽいな feat. 初音ミク / God-ish"}) はその別名も一緒に消える。
-     * 括弧に入った注記は残したいので、そちらは {@link #FEATURE_BRACKET} が別に扱う。
+     * そこで<b>区切りが出るまで</b>を客演の句とみなす。区切りは {@code /} と開き括弧
+     * ({@code (} {@code [} {@code （} {@code ［} {@code 【}) と文末。
+     *
+     * <p>区切りで止める理由は<b>後ろに別名が続く型</b>があるため。実測 888 件のうち 23 件が
+     * {@code "ピノキオピー - 神っぽいな feat. 初音ミク / God-ish"} の形で、
+     * 目印から文末まで落とすと英題 {@code God-ish} まで消えていた (2026-08-19 実測)。
+     * 開き括弧も区切りに入れるのは {@code "Mithuriya feat. @DILUBeats (මිතුරියක නොවේ ඔබ මගේ)"}
+     * のように原語の曲名が括弧で続く型があるため。
+     *
+     * <p>代わりに<b>曖昧さを 1 つ抱える</b>: {@code "Song feat. A / B"} の {@code B} が
+     * 2 人目の客演なのか別名なのかは字面から分けられない。実測ではこの位置に現れたのは
+     * 全て別名だったので、別名として残す側に倒してある。
      *
      * <p>{@code w.} を入れるのは実測に出るため
      * ({@code "Post Malone - I Like You (A Happier Song) w. Doja Cat [Official Music Video]"})。
      * <b>点を要求する</b> — 裸の {@code w} まで拾うと {@code "w"} で始まる普通の語を巻き込む。
      *
      * <p>括弧が開いたままの位置では<b>使わない</b> ({@link #stripFeature} が見る)。
-     * {@code "Dynasty (Orchestral Version feat. KORK)"} の客演は括弧の注記の一部で、
-     * 末尾として落とすと {@code "Dynasty (Orchestral Version"} という開きっぱなしが残る。
+     * {@code "Dynasty (Orchestral Version feat. KORK)"} の客演は括弧の注記の一部なので、
+     * ここで落とすと注記の中身を書き換えてしまう ({@code "Dynasty (Orchestral Version)"})。
      */
     private static final Pattern FEATURE_TAIL = Pattern.compile(
-            "(?i)[\\s,]*\\b(?:(?:feat|ft|featuring)\\.?|w\\.)\\s+\\S.*$");
+            "(?i)[\\s,]*\\b(?:(?:feat|ft|featuring)\\.?|w\\.)\\s+\\S[^/\\(\\[（［【]*");
 
     private MetadataCleaner() {
     }
@@ -136,6 +145,10 @@ public final class MetadataCleaner {
      * {@code "Luis Fonsi - Despacito ft. Daddy Yankee"} は曲名側に {@code ft. Daddy Yankee} を
      * 残すので、{@code Despacito} としか名乗らない候補と語の集合が一致しない (2026-08-18 実測)。
      *
+     * <p>落とすのは<b>客演の句だけ</b>で、その後ろに続く別名は残す
+     * ({@link #FEATURE_TAIL} が区切りで止まる)。切った跡には空白を 1 つ置き、
+     * 二重になった空白は {@link #finish} が畳む。
+     *
      * @param title 整形途中の曲名
      * @return 客演表記を落とした曲名。全部消えるなら元のまま返す
      */
@@ -145,9 +158,10 @@ public final class MetadataCleaner {
         }
         String t = FEATURE_BRACKET.matcher(title).replaceAll("");
         final Matcher tail = FEATURE_TAIL.matcher(t);
-        if (tail.find()) {
-            final String kept = t.substring(0, tail.start()).trim();
-            if (!kept.isEmpty() && bracketsClosed(t.substring(0, tail.start()))) {
+        if (tail.find() && bracketsClosed(t.substring(0, tail.start()))) {
+            final String kept =
+                    (t.substring(0, tail.start()) + " " + t.substring(tail.end())).trim();
+            if (!kept.isEmpty()) {
                 t = kept;
             }
         }

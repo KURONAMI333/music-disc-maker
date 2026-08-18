@@ -122,6 +122,37 @@ class MetadataCleanerTest {
             clean("Dynasty (Orchestral Version feat. KORK)", "MIIA",
                     "Dynasty (Orchestral Version feat. KORK)", "MIIA");
         }
+
+        @Test
+        @DisplayName("客演の後ろに / で続く別名は残す")
+        void keepsTheAliasAfterASlash() {
+            // 2026-08-19 実測。888 件中 23 件がこの形で、目印から文末まで落とすと英題が消えていた。
+            clean("ピノキオピー - 神っぽいな feat. 初音ミク / God-ish",
+                    "ピノキオピー PINOCCHIOP OFFICIAL CHANNEL",
+                    "神っぽいな / God-ish", "ピノキオピー");
+            // 客演が 2 人並ぶ形でも、別名まで飲み込まない。
+            clean("ピノキオピー - T氏の話を信じるな feat. 初音ミク・重音テト / Don’t Believe in T",
+                    "ピノキオピー PINOCCHIOP OFFICIAL CHANNEL",
+                    "T氏の話を信じるな / Don’t Believe in T", "ピノキオピー");
+        }
+
+        @Test
+        @DisplayName("客演の後ろに括弧で続く原語の曲名も残す")
+        void keepsTheAliasInsideBrackets() {
+            // 2026-08-19 実測 (NK5q8RTz5yc)。注記の括弧ではないので、括弧ノイズ除去では落ちない。
+            clean("Induja Perera - Mithuriya feat. @DILUBeats (මිතුරියක නොවේ ඔබ මගේ) "
+                    + "Official Music Video ", "INDUJA PERERA",
+                    "Mithuriya (මිතුරියක නොවේ ඔබ මගේ)", "Induja Perera");
+        }
+
+        @Test
+        @DisplayName("区切りが無ければ従来どおり文末まで落とす")
+        void stillDropsToTheEndWithoutASeparator() {
+            // [Official Video] は括弧ノイズとして先に消えるので、客演の後ろに区切りが残らない。
+            // Furious 7 Soundtrack が曲名の続きか客演の一部かは字面から分けられないので落とす。
+            clean("Wiz Khalifa - See You Again ft. Charlie Puth [Official Video] "
+                    + "Furious 7 Soundtrack", "Wiz Khalifa Music", "See You Again", "Wiz Khalifa");
+        }
     }
 
     /** 区切りと注記の表記ゆれ。<b>実測に出た形だけ</b>を扱う。 */
