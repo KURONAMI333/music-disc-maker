@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +83,31 @@ public class MusicLoaderImpl implements IMusicLoader {
     /** 再生中に落ちた時の開き直し回数。streaming スレッドを長く塞がないので 1 回だけ。 */
     private static final int REOPEN_RETRIES = 1;
 
+    /**
+     * YouTube で鳴らせなかった時に代わりを探す検索接頭辞 (試す順)。
+     *
+     * <p>{@code bcsearch:} は 2026-08-18 時点で結果を返さない — Bandcamp の検索ページが
+     * 「Client Challenge」(JS を要求する bot 判定) を返すようになり、lavaplayer が読む
+     * {@code .searchresult} が HTML に無い。<b>それでも残してある</b>のは、失敗する時は
+     * HTTP 1 往復で {@code noMatches} に落ちるだけで、Bandcamp 側か lavaplayer 側が直れば
+     * コードを変えずに効き始めるため。<b>ここを「動く逃げ道」として案内してはいけない。</b>
+     */
+    private static final String[] ALTERNATE_SEARCH_PREFIXES = {"scsearch:", "bcsearch:"};
+    /**
+     * 1 つの検索で中身を見る候補の数。1 回の応答に入っている件数なので、増やしても通信は増えない。
+     * 上位が全部カバーやリミックスでも後ろまで見る。
+     */
+    private static final int MAX_CANDIDATES = 10;
+    /** oEmbed で曲名を取る時の待ち上限。 */
+    private static final long OEMBED_TIMEOUT_MS = 8_000L;
+    /** 代替ソースの検索 1 回あたりの待ち上限。 */
+    private static final long ALTERNATE_SEARCH_TIMEOUT_MS = 10_000L;
+    /**
+     * 代替ソース探しの全体予算。ここに収める理由は、既に {@link #SYNC_RETRY} で最大 20 秒
+     * 使い切った後に積まれる時間だから ({@code DiscFabrication} の解決プールは 2 本しかない)。
+     */
+    private static final long SUBSTITUTE_BUDGET_MS = 20_000L;
+
     private final AudioPlayerManager apm;
     /** 登録できた YouTube source manager (登録に失敗したら {@code null})。 */
     private final YoutubeAudioSourceManager youtube;
@@ -152,6 +179,10 @@ public class MusicLoaderImpl implements IMusicLoader {
     /**
      * URL を解決する。失敗時は理由つき {@link ResolveException} を投げる
      * (mod 側の GUI が理由別メッセージを出せるように分類する)。
+     *
+     * <p>YouTube が「この動画は観られない」種類の失敗を返した場合だけ、
+     * {@link #substituteForYoutube} が別のソースで同じ曲を探す。<b>ここ (ディスクを作る時) に
+     * 置くのが要点</b> — 再生時に探すと、各クライアントが独立に検索して人によって違う曲が鳴る。
      */
     @Override
     public TrackInfo resolve(String url) {
@@ -159,7 +190,16 @@ public class MusicLoaderImpl implements IMusicLoader {
         if (SpotifyResolver.isSpotifyTrack(url)) {
             return resolveViaSpotify(url);
         }
-        final AudioTrack track = loadTrackSync(url);
+        final AudioTrack track;
+        try {
+            track = loadTrackSync(url);
+        } catch (final ResolveException ex) {
+            final TrackInfo substitute = substituteForYoutube(normalizeYoutubeUrl(url), ex.reason());
+            if (substitute != null) {
+                return substitute;
+            }
+            throw ex;
+        }
         final AudioTrackInfo info = track.getInfo();
         final String[] cleaned = MetadataCleaner.clean(info.title, info.author);
         return new TrackInfo(cleaned[0], cleaned[1], info.length, info.uri, info.identifier,
@@ -174,11 +214,187 @@ public class MusicLoaderImpl implements IMusicLoader {
                     "could not read the Spotify page metadata");
         }
         final String query = (meta[1].isBlank() ? "" : meta[1] + " ") + meta[0];
-        final AudioTrack yt = loadTrackSync("ytsearch:" + query);
+        final AudioTrack yt;
+        try {
+            yt = loadTrackSync("ytsearch:" + query);
+        } catch (final ResolveException ex) {
+            // Spotify 経路は最終的に YouTube 検索に落ちるので、YouTube が弾かれると道連れになる。
+            // 曲名は既に og タグから取れているので oEmbed は要らない。検索が bot 判定で弾かれると
+            // 結果 0 件 = UNSUPPORTED_URL で返ってくるので、それも発火対象に含める。
+            if (firesSubstitute(ex.reason()) || ex.reason() == FailureReason.UNSUPPORTED_URL) {
+                final TrackInfo substitute =
+                        substitute(meta[0], meta[1], spotifyUrl, System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS);
+                if (substitute != null) {
+                    return substitute;
+                }
+            }
+            throw ex;
+        }
         final AudioTrackInfo info = yt.getInfo();
         // 表示は Spotify のクリーンなメタ、再生は YouTube の uri。ジャケットは YouTube 側のもの。
         return new TrackInfo(meta[0], meta[1], info.length, info.uri, info.identifier,
                 info.isStream, safe(info.artworkUrl));
+    }
+
+    /**
+     * その失敗は「YouTube 側の都合でこの動画が観られない」ものか。
+     *
+     * <p>ここを間違えると害になる。<b>利用者の回線が死んでいる時に別ソースを探しても同じく
+     * 失敗するだけで、待ち時間が伸びる。</b>
+     *
+     * <ul>
+     * <li>{@link FailureReason#BOT_CHECK} — bot 判定。MOD 側では解決できない (MDM_DECISIONS D2)</li>
+     * <li>{@link FailureReason#AGE_RESTRICTED} — 年齢制限。実際には YouTube 経路でほぼ到達しない
+     *     (D7) が、分類が届いた時の扱いは bot 判定と同じ</li>
+     * <li>{@link FailureReason#REGION_LOCKED} — 地域制限</li>
+     * <li>{@link FailureReason#PRIVATE_OR_REMOVED} — 非公開・削除済み。削除済みでも oEmbed は
+     *     曲名を返す (実測) ので、曲そのものが別のソースに在ることは十分ありうる。
+     *     本当に存在しない ID なら oEmbed が 404 になって自動的に諦める</li>
+     * </ul>
+     *
+     * <p><b>入れないもの</b>: {@link FailureReason#CONNECTION_FAILED} は分類器の既定値でもあるので
+     * 「利用者の回線障害」と「分類できなかった何か」が同居している。{@link FailureReason#UNKNOWN} も同じ。
+     * {@link FailureReason#BLOCKED_URL} は SSRF ガードが拒んだ URL なので、二度と解決しにいかない。
+     * {@link FailureReason#UNSUPPORTED_URL} は「そもそも YouTube の URL ではない」。
+     *
+     * @param reason 解決が返した理由
+     * @return 代替ソース探しを始めてよいなら {@code true}
+     */
+    static boolean firesSubstitute(FailureReason reason) {
+        return switch (reason) {
+            case BOT_CHECK, AGE_RESTRICTED, REGION_LOCKED, PRIVATE_OR_REMOVED -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * YouTube の watch URL が鳴らせなかった時に、oEmbed で曲名を取って別のソースを探す。
+     *
+     * <p>相手が YouTube であることを {@link #isYoutubeTarget} で確かめてから動く。理由だけで
+     * 判断してはいけない — 直リンク HTTP のホストが 403 を返すと {@code BOT_CHECK} に分類される
+     * (MDM_DECISIONS D8) が、その URL に oEmbed は無く、探す語も得られない。
+     *
+     * @param normalizedUrl 正規化済みの URL
+     * @param reason        解決が返した理由
+     * @return 代わりに使えるトラック、見つからなければ {@code null}
+     */
+    private TrackInfo substituteForYoutube(String normalizedUrl, FailureReason reason) {
+        if (!isYoutubeTarget(normalizedUrl) || isSearch(normalizedUrl) || !firesSubstitute(reason)) {
+            return null;
+        }
+        final long deadline = System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS;
+        final String[] meta = YoutubeOEmbed.fetch(normalizedUrl, OEMBED_TIMEOUT_MS);
+        if (meta == null) {
+            LOGGER.info("No oEmbed metadata for the blocked YouTube link ({}) [{}]",
+                    normalizedUrl, reason);
+            return null;
+        }
+        return substitute(meta[0], meta[1], normalizedUrl, deadline);
+    }
+
+    /**
+     * 曲名とアーティストから別のソースを検索し、<b>同じ録音とみなせる候補だけ</b>を返す。
+     *
+     * <p>一致しなければ {@code null} を返して従来の失敗に落ちる。無理に何か鳴らさない —
+     * 違う曲が鳴るのは、鳴らないより悪い。
+     *
+     * <h2>一致した中では一番長いものを採る</h2>
+     * 同じ曲名・同じアーティストでも<b>尺の違う版が並ぶ</b> (2026-08-18 実測: Interscope が
+     * SoundCloud に上げた「LMFAO - Sorry For Party Rocking」は 1:30 の短縮版で、フル尺は
+     * YouTube 側にしかない)。元の尺は YouTube が拒んだ時点で取れないので突き合わせられないが、
+     * <b>短縮版はフル尺より短い</b>ので、一致した候補のうち最長のものを採ればフル尺に寄る。
+     *
+     * @param rawTitle  元の生タイトル
+     * @param rawAuthor 元の生アーティスト
+     * @param originUrl 元の URL (ログ用)
+     * @param deadline  これを過ぎたら諦める時刻 (壁時計 ms)
+     * @return 代わりに使えるトラック、見つからなければ {@code null}
+     */
+    private TrackInfo substitute(String rawTitle, String rawAuthor, String originUrl, long deadline) {
+        final String[] want = MetadataCleaner.clean(rawTitle, rawAuthor);
+        if (want[0].isBlank() || want[1].isBlank()) {
+            return null;
+        }
+        final String query = want[1] + " " + want[0];
+        for (final String prefix : ALTERNATE_SEARCH_PREFIXES) {
+            final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - System.currentTimeMillis());
+            if (budget <= 0L) {
+                LOGGER.info("Ran out of time while looking for an alternate source ({})", originUrl);
+                return null;
+            }
+            AudioTrackInfo best = null;
+            for (final AudioTrack candidate : loadCandidates(prefix + query, budget)) {
+                final AudioTrackInfo info = candidate.getInfo();
+                // 曲の代わりに無限長ストリームや長さ不明のものを掴まない。
+                if (info.isStream || info.length <= 0L || info.length == Long.MAX_VALUE) {
+                    continue;
+                }
+                if (!TrackMatch.sameRecording(rawTitle, rawAuthor, info.title, info.author)) {
+                    continue;
+                }
+                if (best == null || info.length > best.length) {
+                    best = info;
+                }
+            }
+            if (best != null) {
+                final String[] cleaned = MetadataCleaner.clean(best.title, best.author);
+                LOGGER.info("Substituting an alternate source for {} -> {} ({} - {}, {}ms)",
+                        originUrl, best.uri, cleaned[1], cleaned[0], best.length);
+                return new TrackInfo(cleaned[0], cleaned[1], best.length, best.uri,
+                        best.identifier, best.isStream, safe(best.artworkUrl));
+            }
+        }
+        LOGGER.info("No matching track on the alternate sources for ({})", originUrl);
+        return null;
+    }
+
+    /**
+     * 検索の結果を先頭から数件まで読む。検索そのものが失敗したら空を返す
+     * (代替ソース探しは「見つからなければ従来の失敗に落ちる」だけなので、ここで投げない)。
+     *
+     * @param query     {@code scsearch:} 等の接頭辞つき検索クエリ
+     * @param timeoutMs 待ち上限
+     * @return 候補 (最大 {@link #MAX_CANDIDATES} 件・失敗時は空)
+     */
+    private List<AudioTrack> loadCandidates(String query, long timeoutMs) {
+        final CompletableFuture<List<AudioTrack>> future = new CompletableFuture<>();
+        apm.loadItem(new AudioReference(query, null), new AudioLoadResultHandler() {
+            @Override
+            public void trackLoaded(AudioTrack track) {
+                future.complete(List.of(track));
+            }
+
+            @Override
+            public void playlistLoaded(AudioPlaylist playlist) {
+                final List<AudioTrack> tracks = new ArrayList<>();
+                for (final AudioTrack track : playlist.getTracks()) {
+                    if (track != null && tracks.size() < MAX_CANDIDATES) {
+                        tracks.add(track);
+                    }
+                }
+                future.complete(tracks);
+            }
+
+            @Override
+            public void noMatches() {
+                future.complete(List.of());
+            }
+
+            @Override
+            public void loadFailed(FriendlyException exception) {
+                LOGGER.debug("Alternate source search failed ({})", query, exception);
+                future.complete(List.of());
+            }
+        });
+        try {
+            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (final TimeoutException | ExecutionException ex) {
+            LOGGER.debug("Alternate source search did not answer in time ({})", query);
+            return List.of();
+        } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        }
     }
 
     private static String safe(String s) {
