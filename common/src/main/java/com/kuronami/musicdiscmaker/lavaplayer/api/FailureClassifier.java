@@ -109,19 +109,46 @@ public final class FailureClassifier {
      * {@code unavailable} のような単語は技術的な文面に部分文字列として紛れ込みやすい。
      *
      * <p>youtube-source の {@code AllClientsFailedException} は、各 client の失敗理由を
-     * <b>自分のメッセージに連結して</b>持つ (「(yts.version: x) All clients failed to load the
-     * item.」の後ろに「Client [ANDROID_VR] failed: This video requires login.」が続く)。
-     * ここへ 1 本の文字列として当てると、どの client の理由かに関係なく語句の優先順位だけで
-     * 決まってしまうので、<b>呼び出し側は client 単位に切ってからここへ渡す</b>
-     * ({@code ClientFailureDetails#classify})。現行構成は {@code AndroidVr} 単独なので
-     * 出荷時のリストは常に 1 件。
+     * <b>自分のメッセージに改行で連結して</b>持つ (「(yts.version: x) All clients failed to load
+     * the item.」の後ろに「Client [ANDROID_VR] failed: This video requires login.」が続く)。
+     * そこで判別は<b>行単位</b>で行い、既定値以外に落ちた最初の行を採る。全体を 1 本の文字列
+     * として見ると、ある client の HTTP ステータスが別の client の理由を打ち消す。
+     *
+     * <p>それでも「どの client の理由か」までは分からないので、<b>理由を知りたい呼び出し側は
+     * client 単位に切ってからここへ渡す</b> ({@code ClientFailureDetails#classify})。
+     * 現行構成は {@code AndroidVr} 単独なので出荷時のリストは常に 1 件。
      *
      * @param message 例外のメッセージ ({@code null} 可)
      * @return 分類結果。判別できない失敗は {@link FailureReason#CONNECTION_FAILED}
      */
     public static FailureReason classifyMessage(String message) {
-        final String m = message == null ? "" : message.toLowerCase(Locale.ROOT);
+        if (message == null || message.isEmpty()) {
+            return FailureReason.CONNECTION_FAILED;
+        }
+        // 行ごとに判別して、既定値以外に落ちた最初の行を採る。集約例外のメッセージは
+        // client ごとの理由を改行で連ねた 1 本なので、全体を 1 つの文字列として見ると
+        // ある client の HTTP ステータスが別の client の理由を打ち消しうる (実測: 400 を
+        // 返した client と "This video is unavailable" を返した client が混ざると、
+        // 全体では接続失敗に落ちていた)。
+        for (final String line : message.split("\\R")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            final FailureReason reason = classifyLine(line.toLowerCase(Locale.ROOT));
+            if (reason != FailureReason.CONNECTION_FAILED) {
+                return reason;
+            }
+        }
+        return FailureReason.CONNECTION_FAILED;
+    }
 
+    /**
+     * 1 行を分類する。判別の順序は {@link #classifyMessage} の javadoc のとおり。
+     *
+     * @param m 小文字化済みの 1 行
+     * @return 分類結果
+     */
+    private static FailureReason classifyLine(String m) {
         // 1. HTTP ステータス。数字だけの失敗は語句を持たないので、ここで見ないと
         //    「回線が繋がらない」と同じ分類に落ちる。実測した形:
         //      "Status code 403"                                  (直リンク HTTP の probe)

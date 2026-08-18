@@ -100,6 +100,18 @@ class FailureClassifierTest {
     }
 
     @Test
+    void aStatusOnOneClientDoesNotSuppressAnotherClientsReason() {
+        // 集約例外のメッセージは client ごとの理由を改行で連ねた 1 本。全体を 1 つの文字列と
+        // して見ると、先頭の client の 400 が後ろの client の "unavailable" を打ち消していた。
+        final String blob = "(yts.version: 1.18.2) All clients failed to load the item."
+                + System.lineSeparator() + System.lineSeparator()
+                + "Client [ANDROID_VR] failed: java.io.IOException: " + PLAYLIST_400
+                + System.lineSeparator() + System.lineSeparator()
+                + "Client [WEB] failed: " + VIDEO_UNAVAILABLE;
+        assertEquals(FailureReason.PRIVATE_OR_REMOVED, FailureClassifier.classifyMessage(blob));
+    }
+
+    @Test
     void aMissingSoundcloudTrackIsNotAnOfflineConnection() {
         // before: どの語句にも当たらず CONNECTION_FAILED = 画面に "Offline"。
         assertEquals(FailureReason.PRIVATE_OR_REMOVED,
