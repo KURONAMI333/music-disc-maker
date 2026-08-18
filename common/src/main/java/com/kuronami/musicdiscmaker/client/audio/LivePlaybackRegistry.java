@@ -180,6 +180,20 @@ public final class LivePlaybackRegistry<K> {
         return Math.min(FIRST_RETRY_MS << steps, MAX_RETRY_MS);
     }
 
+    /**
+     * 実際に鳴り始めたことを記録する。待ち時間と報告の抑止をここで捨てる。
+     *
+     * <p><b>{@link #install} ではなくここが成功の点。</b> install は「ロードが間に合った」
+     * でしかなく、その後に sound engine が受理しないことがある ({@link SoundEngineAcceptance})。
+     * install で捨てていると、音量 0 のように必ず弾かれる理由が繋ぎ直しのたびに
+     * 「初めての失敗」に戻り、待ち時間も伸びない。
+     *
+     * @param key 音源をまとめる鍵
+     */
+    public void playing(K key) {
+        forgetFailure(key);
+    }
+
     /** 失敗の記憶を捨てる (成功・曲の差し替え)。報告の抑止も一緒に解く。 */
     private void forgetFailure(K key) {
         failures.remove(key);
@@ -201,9 +215,9 @@ public final class LivePlaybackRegistry<K> {
         if (!url.equals(wanted.get(key))) {
             return false; // ロード中に曲が変わった (この音源はもう要らない)
         }
-        // 成功したら記憶ごと捨てる。報告の抑止も一緒に解かないと、直った後に同じ理由で
-        // また落ちた時に何も出なくなる (掛け金を別の形で戻すことになる)。
-        forgetFailure(key);
+        // 記憶を捨てるのはここではない ({@link #playing})。install は「ロードが間に合った」
+        // でしかなく、この後 sound engine に弾かれて一音も鳴らないことがある。ここで捨てると、
+        // 音量 0 のように必ず弾かれる理由が繋ぎ直しのたびに「初めての失敗」として報告される。
         final Slot previous = active.put(key, new Slot(url, voice));
         if (previous != null && !previous.voice().isStopped()) {
             // 取りこぼしの防波堤。ここに来る = 上の判定をすり抜けた同時完了なので、
