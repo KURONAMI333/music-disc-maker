@@ -72,6 +72,7 @@ final class YoutubeWatchPage {
                 .setSocketTimeout(timeout)
                 .setConnectionRequestTimeout(timeout)
                 .build();
+        final long deadline = System.currentTimeMillis() + timeoutMs;
         try (CloseableHttpClient http = HttpClients.custom().setDefaultRequestConfig(cfg).build()) {
             final HttpGet get = new HttpGet(watchUrl);
             get.setHeader("Accept-Language", "en");
@@ -80,7 +81,7 @@ final class YoutubeWatchPage {
                     return null;
                 }
                 return scan(new InputStreamReader(resp.getEntity().getContent(),
-                        StandardCharsets.UTF_8));
+                        StandardCharsets.UTF_8), deadline);
             });
             if (found == null || found <= 0L) {
                 LOGGER.debug("No duration on the watch page ({})", watchUrl);
@@ -96,10 +97,15 @@ final class YoutubeWatchPage {
     /**
      * 尺が現れるまで読み進める。
      *
-     * @param reader ページ本文
+     * <p>締切を毎チャンク見るのは、<b>socket のタイムアウトが総転送時間を縛らない</b>ため
+     * (あれは 1 回の読み取りが止まった時間の上限)。1MB 超のページを細く長く受け取り続けると、
+     * どの読み取りも止まらないまま予算を食い潰せる。解決プールは 2 本しかないのでそこを縛る。
+     *
+     * @param reader   ページ本文
+     * @param deadline これを過ぎたら読むのをやめる時刻 (壁時計 ms)
      * @return 尺 (ms)。見つからなければ {@code null}
      */
-    private static Long scan(Reader reader) throws java.io.IOException {
+    private static Long scan(Reader reader, long deadline) throws java.io.IOException {
         final StringBuilder page = new StringBuilder();
         final char[] buffer = new char[CHUNK_CHARS];
         int scannedTo = 0;
@@ -111,6 +117,10 @@ final class YoutubeWatchPage {
                 return seconds * 1000L;
             }
             scannedTo = page.length();
+            if (System.currentTimeMillis() > deadline) {
+                LOGGER.debug("Gave up reading the watch page after {} chars", page.length());
+                break;
+            }
         }
         final Matcher iso = ISO_DURATION.matcher(page);
         if (iso.find()) {
@@ -121,16 +131,15 @@ final class YoutubeWatchPage {
     }
 
     /** {@code "lengthSeconds":"439"} を {@code from} 以降から探す (閉じ引用符まで揃っている時だけ採る)。 */
-    private static Long seconds(CharSequence page, int from) {
-        final String text = page.toString();
-        int at = text.indexOf(SECONDS_MARKER, from);
+    private static Long seconds(StringBuilder page, int from) {
+        int at = page.indexOf(SECONDS_MARKER, from);
         while (at >= 0) {
             final int start = at + SECONDS_MARKER.length();
-            final int end = text.indexOf('"', start);
+            final int end = page.indexOf("\"", start);
             if (end < 0) {
                 return null; // まだ値の途中。次のチャンクで読み直す
             }
-            final String value = text.substring(start, end);
+            final String value = page.substring(start, end);
             if (!value.isEmpty() && value.chars().allMatch(Character::isDigit)) {
                 try {
                     final long parsed = Long.parseLong(value);
@@ -141,7 +150,7 @@ final class YoutubeWatchPage {
                     // 桁があふれるほどの値は尺ではない
                 }
             }
-            at = text.indexOf(SECONDS_MARKER, at + SECONDS_MARKER.length());
+            at = page.indexOf(SECONDS_MARKER, at + SECONDS_MARKER.length());
         }
         return null;
     }
