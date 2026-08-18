@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "Це відео недоступне у вашому регіоні",
   "music_disc_maker.playback_failed.reason.age": "Відео має вікове обмеження, відтворення неможливе",
   "music_disc_maker.playback_failed.reason.bot_check": "Це джерело вимагає входу для цього підключення (перевірка на робота) — спробуйте пряме посилання або інше джерело",
+  "music_disc_maker.playback_failed.reason.sound_engine": "Звуковий рушій гри не прийняв цей звук",
+  "music_disc_maker.playback_failed.reason.muted": "Гучність встановлено на 0 (перевірте Загальну гучність і Програвач, нотні блоки в розділі Налаштування музики й звуку)",
   "music_disc_maker.radio.reconnecting": "Повторне підключення до радіо… (%s/%s)",
   "music_disc_maker.radio.stopped": "Радіо зупинено (не вдалося перепідключитися)",
   "block.music_disc_maker.golden_jukebox": "Золотий програвач",

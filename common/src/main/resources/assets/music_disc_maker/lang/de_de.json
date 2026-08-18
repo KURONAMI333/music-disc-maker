@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "Dieses Video ist in deiner Region gesperrt",
   "music_disc_maker.playback_failed.reason.age": "Dieses Video ist altersbeschränkt und kann nicht abgespielt werden",
   "music_disc_maker.playback_failed.reason.bot_check": "Diese Quelle verlangt für diese Verbindung eine Anmeldung (Bot-Prüfung) - probiere einen direkten Link oder eine andere Quelle",
+  "music_disc_maker.playback_failed.reason.sound_engine": "Die Sound-Engine des Spiels hat diesen Klang nicht angenommen",
+  "music_disc_maker.playback_failed.reason.muted": "Die Lautstärke ist auf 0 eingestellt (prüfe Gesamtlautstärke und Musikblöcke in den Musik‐ & Geräuschoptionen)",
   "music_disc_maker.radio.reconnecting": "Verbinde erneut mit Radio… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio gestoppt (erneute Verbindung fehlgeschlagen)",
   "block.music_disc_maker.golden_jukebox": "Goldene Jukebox",

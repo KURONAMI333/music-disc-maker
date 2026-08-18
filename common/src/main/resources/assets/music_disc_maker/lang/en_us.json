@@ -38,6 +38,8 @@
   "music_disc_maker.playback_failed.reason.region": "this video is blocked in your region",
   "music_disc_maker.playback_failed.reason.age": "this video is age-restricted and cannot be played",
   "music_disc_maker.playback_failed.reason.bot_check": "this source is asking this connection to sign in (bot check) - try a direct link or another source",
+  "music_disc_maker.playback_failed.reason.sound_engine": "the game's sound engine did not accept this sound",
+  "music_disc_maker.playback_failed.reason.muted": "the volume is set to 0 (check Master Volume and Jukebox/Note Blocks under Music & Sound Options)",
   "music_disc_maker.radio.reconnecting": "Reconnecting to radio… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio stopped (reconnection failed)",
   "block.music_disc_maker.golden_jukebox": "Golden Jukebox",

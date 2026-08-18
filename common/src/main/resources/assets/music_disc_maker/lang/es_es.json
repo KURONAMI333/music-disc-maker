@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "Este vídeo está bloqueado en tu región",
   "music_disc_maker.playback_failed.reason.age": "Este vídeo tiene restricción de edad y no se puede reproducir",
   "music_disc_maker.playback_failed.reason.bot_check": "Esta fuente pide iniciar sesión en esta conexión (comprobación antibots): prueba un enlace directo u otra fuente",
+  "music_disc_maker.playback_failed.reason.sound_engine": "El motor de sonido del juego no aceptó este sonido",
+  "music_disc_maker.playback_failed.reason.muted": "El volumen está en 0 (revisa Volumen general y Bloques musicales en Opciones de música y sonido)",
   "music_disc_maker.radio.reconnecting": "Reconectando a la radio… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio detenida (fallo de reconexión)",
   "block.music_disc_maker.golden_jukebox": "Tocadiscos dorado",

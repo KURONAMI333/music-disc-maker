@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "該影片在你所在的地區被封鎖",
   "music_disc_maker.playback_failed.reason.age": "該影片有年齡限制，無法播放",
   "music_disc_maker.playback_failed.reason.bot_check": "此音源要求此連線登入（機器人驗證），請嘗試直接連結或換一個音源",
+  "music_disc_maker.playback_failed.reason.sound_engine": "遊戲的音效引擎未接受這段音訊",
+  "music_disc_maker.playback_failed.reason.muted": "音量被設為 0（請在音樂和音效選項中檢查主音量和唱片機／音階盒）",
   "music_disc_maker.radio.reconnecting": "正在重新連線電台… (%s/%s)",
   "music_disc_maker.radio.stopped": "電台已停止（重新連線失敗）",
   "block.music_disc_maker.golden_jukebox": "黃金唱片機",

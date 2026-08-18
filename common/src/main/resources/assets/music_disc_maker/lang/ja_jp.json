@@ -37,6 +37,8 @@
   "music_disc_maker.playback_failed.reason.region": "この動画はお住まいの地域では再生できません",
   "music_disc_maker.playback_failed.reason.age": "この動画は年齢制限があり再生できません",
   "music_disc_maker.playback_failed.reason.bot_check": "この接続にログインを要求しています（bot 判定）。直リンクや別の音源をお試しください",
+  "music_disc_maker.playback_failed.reason.sound_engine": "ゲームのサウンドエンジンがこの音を受理しませんでした",
+  "music_disc_maker.playback_failed.reason.muted": "音量が0に設定されています（サウンド設定の主音量とジュークボックス／音符ブロックを確認してください）",
   "music_disc_maker.radio.reconnecting": "ラジオに再接続中… (%s/%s)",
   "music_disc_maker.radio.stopped": "ラジオを停止しました (再接続に失敗)",
   "block.music_disc_maker.golden_jukebox": "金のジュークボックス",
