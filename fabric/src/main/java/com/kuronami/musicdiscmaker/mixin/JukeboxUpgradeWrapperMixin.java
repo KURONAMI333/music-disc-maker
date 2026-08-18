@@ -88,7 +88,7 @@ public abstract class JukeboxUpgradeWrapperMixin {
             });
         } catch (final Throwable t) {
             // fail-soft: port の内部構造が変わってもクラッシュさせない (無音再生に退化)。
-            MusicDiscMaker.LOGGER.debug("SB Fabric port streaming hook skipped: {}", t.toString());
+            MusicDiscMaker.LOGGER.debug("SB Fabric port streaming hook skipped", t);
         }
     }
 }

@@ -166,7 +166,7 @@ public final class JacketCache {
             // texture 登録は render スレッドで行う (off-thread 登録は OpenGL 破壊のバグ源)。
             Minecraft.getInstance().execute(() -> register(hash, image));
         } catch (final Throwable t) {
-            MusicDiscMaker.LOGGER.debug("ジャケット取得失敗 ({}): {}", url, t.toString());
+            MusicDiscMaker.LOGGER.debug("ジャケット取得失敗 ({})", url, t);
             markFailed(hash);
         }
     }

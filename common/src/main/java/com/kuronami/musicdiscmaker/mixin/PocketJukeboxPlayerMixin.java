@@ -88,7 +88,7 @@ public abstract class PocketJukeboxPlayerMixin {
             PocketJukeboxClient.reconcile(this.isPlaying, getCurrentTrack(), this.jukeboxStack);
         } catch (final Throwable t) {
             // fail-soft: AA の内部構造が変わってもクラッシュさせない (無音再生に退化)。
-            MusicDiscMaker.LOGGER.debug("Pocket jukebox streaming hook skipped: {}", t.toString());
+            MusicDiscMaker.LOGGER.debug("Pocket jukebox streaming hook skipped", t);
         }
     }
 
@@ -99,7 +99,7 @@ public abstract class PocketJukeboxPlayerMixin {
                 ci.cancel();
             }
         } catch (final Throwable t) {
-            MusicDiscMaker.LOGGER.debug("Pocket jukebox advance hook skipped: {}", t.toString());
+            MusicDiscMaker.LOGGER.debug("Pocket jukebox advance hook skipped", t);
         }
     }
 
@@ -108,7 +108,7 @@ public abstract class PocketJukeboxPlayerMixin {
         try {
             PocketJukeboxClient.stop();
         } catch (final Throwable t) {
-            MusicDiscMaker.LOGGER.debug("Pocket jukebox stop hook skipped: {}", t.toString());
+            MusicDiscMaker.LOGGER.debug("Pocket jukebox stop hook skipped", t);
         }
     }
 }

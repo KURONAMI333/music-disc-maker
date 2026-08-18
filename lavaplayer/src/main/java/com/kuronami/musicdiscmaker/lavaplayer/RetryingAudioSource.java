@@ -146,7 +146,7 @@ final class RetryingAudioSource implements IAudioSource {
         } catch (final ResolveException ex) {
             return new PlaybackFault(ex.reason(), "retry: " + ex.reason());
         } catch (final Throwable t) {
-            LOGGER.warn("開き直しに失敗: {}", t.toString());
+            LOGGER.warn("開き直しに失敗", t);
             return fault;
         }
     }

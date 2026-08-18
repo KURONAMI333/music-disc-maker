@@ -56,7 +56,7 @@ public abstract class FurnitureGramophoneBlockMixin {
             AlbumPlaybackMirror.mirror(serverLevel, basePos, null);
         } catch (final Throwable t) {
             // fail-soft: Furniture の内部構造が変わってもクラッシュさせない。
-            MusicDiscMaker.LOGGER.debug("Furniture gramophone remove-stop hook skipped: {}", t.toString());
+            MusicDiscMaker.LOGGER.debug("Furniture gramophone remove-stop hook skipped", t);
         }
     }
 }
