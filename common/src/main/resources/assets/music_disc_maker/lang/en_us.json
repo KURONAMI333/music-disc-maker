@@ -20,6 +20,7 @@
   "gui.music_disc_maker.clear": "Clear",
   "tooltip.music_disc_maker.artist": "by %s",
   "tooltip.music_disc_maker.duration": "Length: %s",
+  "tooltip.music_disc_maker.source": "Source: %s",
   "tooltip.music_disc_maker.live": "LIVE",
   "tooltip.music_disc_maker.empty_disc": "No track",
   "subtitles.music_disc_maker.custom_disc_playback": "Custom disc playing",

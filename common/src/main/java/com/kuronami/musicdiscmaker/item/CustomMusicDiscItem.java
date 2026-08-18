@@ -58,6 +58,13 @@ public class CustomMusicDiscItem extends Item {
                 tooltip.add(Component.translatable("tooltip.music_disc_maker.duration", track.formattedDuration())
                         .withStyle(ChatFormatting.DARK_GRAY));
             }
+            // 焼かれた URL は貼った URL と別物でありうる (YouTube が弾かれた時の代替ソース /
+            // Spotify 経路)。どの録音が鳴るのかをディスク自身に言わせる。
+            final String source = track.sourceName();
+            if (!source.isEmpty()) {
+                tooltip.add(Component.translatable("tooltip.music_disc_maker.source", source)
+                        .withStyle(ChatFormatting.DARK_GRAY));
+            }
         } else {
             tooltip.add(Component.translatable("tooltip.music_disc_maker.empty_disc")
                     .withStyle(ChatFormatting.DARK_GRAY));

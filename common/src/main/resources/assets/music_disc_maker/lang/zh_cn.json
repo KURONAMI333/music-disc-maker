@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "清除",
   "tooltip.music_disc_maker.artist": "艺术家：%s",
   "tooltip.music_disc_maker.duration": "时长：%s",
+  "tooltip.music_disc_maker.source": "来源：%s",
   "tooltip.music_disc_maker.live": "直播",
   "tooltip.music_disc_maker.empty_disc": "无音轨",
   "subtitles.music_disc_maker.custom_disc_playback": "自定义唱片播放中",

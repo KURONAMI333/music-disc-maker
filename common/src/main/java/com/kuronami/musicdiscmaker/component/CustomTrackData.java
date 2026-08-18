@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.component;
 
+import java.util.Locale;
+
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
@@ -65,6 +67,64 @@ public record CustomTrackData(
 
     public boolean isEmpty() {
         return url == null || url.isBlank();
+    }
+
+    /**
+     * 音が実際にどこから来るかの表示名。
+     *
+     * <p>貼った URL と焼かれた URL が別物になることがあるので必要になる — YouTube が弾かれた時は
+     * 別のソースで見つけた同じ曲が入り、Spotify のリンクは再生できる別サービスの音源に置き換わる。
+     * <b>どこの録音が鳴っているのか分からないまま持たせない</b>ための 1 行。
+     *
+     * @return 知っているサービスなら正式名、それ以外はホスト名 (取り出せなければ空文字)
+     */
+    public String sourceName() {
+        final String host = host();
+        if (host.isEmpty()) {
+            return "";
+        }
+        if (host.equals("youtube.com") || host.equals("youtu.be") || host.endsWith(".youtube.com")) {
+            return "YouTube";
+        }
+        if (host.equals("soundcloud.com") || host.endsWith(".soundcloud.com")) {
+            return "SoundCloud";
+        }
+        if (host.equals("bandcamp.com") || host.endsWith(".bandcamp.com")) {
+            return "Bandcamp";
+        }
+        if (host.equals("spotify.com") || host.endsWith(".spotify.com")) {
+            return "Spotify";
+        }
+        if (host.equals("vimeo.com") || host.endsWith(".vimeo.com")) {
+            return "Vimeo";
+        }
+        if (host.equals("twitch.tv") || host.endsWith(".twitch.tv")) {
+            return "Twitch";
+        }
+        return host;
+    }
+
+    /** URL から {@code www.} を落としたホスト名を取り出す (取り出せなければ空文字)。 */
+    private String host() {
+        if (url == null || url.isBlank()) {
+            return "";
+        }
+        final String trimmed = url.trim();
+        final int schemeEnd = trimmed.indexOf("://");
+        if (schemeEnd < 0) {
+            return "";
+        }
+        final String rest = trimmed.substring(schemeEnd + 3);
+        int end = rest.length();
+        for (int i = 0; i < rest.length(); i++) {
+            final char c = rest.charAt(i);
+            if (c == '/' || c == '?' || c == '#' || c == ':') {
+                end = i;
+                break;
+            }
+        }
+        final String host = rest.substring(0, end).toLowerCase(Locale.ROOT);
+        return host.startsWith("www.") ? host.substring(4) : host;
     }
 
     /** 表示用 "M:SS"。 */

@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "Очистити",
   "tooltip.music_disc_maker.artist": "Виконавець: %s",
   "tooltip.music_disc_maker.duration": "Тривалість: %s",
+  "tooltip.music_disc_maker.source": "Джерело: %s",
   "tooltip.music_disc_maker.live": "НАЖИВО",
   "tooltip.music_disc_maker.empty_disc": "Немає треку",
   "subtitles.music_disc_maker.custom_disc_playback": "Грає власна платівка",
