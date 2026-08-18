@@ -131,6 +131,17 @@ class TrackMatchTest {
     }
 
     @Test
+    @DisplayName("隅付き括弧【】の中の版の目印も拾う")
+    void findsVariantMarkersInsideLenticularBrackets() {
+        // oEmbed が実際に返したタイトル (2026-08-18 取得)。NFKC は【】を半角へ倒さないので、
+        // ここを見ないと「歌ってみた」の目印が消えて原曲と一致してしまう。
+        assertTrue(TrackMatch.variantMarkers("【歌ってみた】ライラック / Mrs. GREEN APPLE【にじさんじ/珠乃井ナナ】")
+                .contains("歌ってみた"));
+        assertFalse(TrackMatch.sameRecording("Mrs. GREEN APPLE - ライラック", "Mrs. GREEN APPLE",
+                "【歌ってみた】ライラック / Mrs. GREEN APPLE【にじさんじ/珠乃井ナナ】", "珠乃井ナナ"));
+    }
+
+    @Test
     @DisplayName("曲名とアーティストが既に分かれている入口では、再分割しない (Spotify 経路)")
     void doesNotSplitAlreadySeparatedMetadata() {
         // og:title は「Song - Remastered 2011」のようにダッシュ付きの版注記を持つ。生の入口へ
