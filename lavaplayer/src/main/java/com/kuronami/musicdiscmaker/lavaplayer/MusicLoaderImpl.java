@@ -11,7 +11,6 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
@@ -171,7 +170,8 @@ public class MusicLoaderImpl implements IMusicLoader {
         final String[] meta = SpotifyResolver.fetchMeta(spotifyUrl);
         if (meta == null || meta[0].isBlank()) {
             LOGGER.warn("Failed to fetch Spotify metadata: {}", spotifyUrl);
-            throw new ResolveException(FailureReason.CONNECTION_FAILED);
+            throw new ResolveException(FailureReason.CONNECTION_FAILED,
+                    "could not read the Spotify page metadata");
         }
         final String query = (meta[1].isBlank() ? "" : meta[1] + " ") + meta[0];
         final AudioTrack yt = loadTrackSync("ytsearch:" + query);
@@ -192,7 +192,8 @@ public class MusicLoaderImpl implements IMusicLoader {
             track = loadTrackSync(url);
         } catch (final ResolveException ex) {
             // 理由を要る呼び出し側は openStreamDetailed を使う。この signature は従来どおり null。
-            LOGGER.warn("Failed to load track for playback ({}): {}", url, ex.reason());
+            LOGGER.warn("Failed to load track for playback ({}) [{}] {}", url, ex.reason(),
+                    ex.detail());
             return null;
         }
         return startPlayback(track, startMs, url);
@@ -208,8 +209,9 @@ public class MusicLoaderImpl implements IMusicLoader {
         try {
             track = loadTrackSync(url);
         } catch (final ResolveException ex) {
-            LOGGER.warn("Failed to load track for playback ({}): {}", url, ex.reason());
-            return OpenStreamResult.failed(ex.reason(), null);
+            LOGGER.warn("Failed to load track for playback ({}) [{}] {}", url, ex.reason(),
+                    ex.detail());
+            return OpenStreamResult.failed(ex.reason(), ex.detail());
         }
         return OpenStreamResult.ok(startPlayback(track, startMs, url));
     }
@@ -360,17 +362,29 @@ public class MusicLoaderImpl implements IMusicLoader {
             track = future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (final TimeoutException ex) {
             LOGGER.warn("Timed out while loading URL ({})", url);
-            throw new ResolveException(FailureReason.CONNECTION_FAILED);
+            throw new ResolveException(FailureReason.CONNECTION_FAILED,
+                    "no answer within " + timeoutMs + "ms");
         } catch (final ExecutionException ex) {
-            LOGGER.warn("Failed to load URL ({})", url, ex.getCause());
-            throw new ResolveException(FailureClassifier.classify(ex.getCause()));
+            // 集約例外なら client ごとの理由で分類し、同じ理由を detail にも使う。
+            // 一番外側の文面 (「All clients failed to load the item.」) はどの失敗でも同じで、
+            // 利用者が報告に貼っても何も伝わらない。
+            final Throwable cause = ex.getCause();
+            final FailureReason reason = ClientFailureDetails.classify(cause);
+            final String detail = ClientFailureDetails.shortDetail(cause);
+            final String verbose = ClientFailureDetails.verbose(cause);
+            // 長い理由 (client ごとのスタックフレーム込み) と原因チェーンはログ側に出す。
+            LOGGER.warn("Failed to load URL ({}) [{}] {}{}", url, reason, detail,
+                    verbose.isEmpty() ? "" : System.lineSeparator() + verbose, cause);
+            throw new ResolveException(reason, detail);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new ResolveException(FailureReason.CONNECTION_FAILED);
+            throw new ResolveException(FailureReason.CONNECTION_FAILED, "interrupted while loading");
         }
         if (track == null) {
             // どの source manager も一致しない = 対応外 URL / 検索ヒットなし。
-            throw new ResolveException(FailureReason.UNSUPPORTED_URL);
+            LOGGER.warn("No source manager matched the URL ({})", url);
+            throw new ResolveException(FailureReason.UNSUPPORTED_URL,
+                    "no source manager matched");
         }
         return track;
     }
