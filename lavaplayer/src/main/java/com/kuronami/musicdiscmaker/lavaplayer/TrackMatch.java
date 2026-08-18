@@ -246,18 +246,29 @@ public final class TrackMatch {
         return found;
     }
 
-    /** 括弧 / 角括弧 / 波括弧の中身を取り出す (閉じていない括弧は行末までを 1 つとみなす)。 */
+    /**
+     * 括弧の中身を取り出す (閉じていない括弧は行末までを 1 つとみなす)。
+     *
+     * <p><b>隅付き括弧 {@code 【】} も見る</b>。全角の丸括弧・角括弧は {@link #fold} の NFKC が
+     * 半角へ倒すので勝手に入るが、{@code 【】} は倒れないので明示が要る。
+     *
+     * <p>{@link MetadataCleaner} が {@code 【】} の中の注記を落とすようになったので、
+     * ここが同じ括弧を見ないと<b>版の目印だけが片側から消える</b>
+     * ({@code 【Official Live Video】} が消えてライブ音源がスタジオ版と一致する)。
+     * 注記の除去と目印探しは同じ括弧の集合を見る必要がある。
+     * あわせて {@code 【歌ってみた】} のようなカバーの目印も拾えるようになる (2026-08-18 実測)。
+     */
     private static Set<String> bracketed(String folded) {
         final Set<String> segments = new LinkedHashSet<>();
         final StringBuilder current = new StringBuilder();
         int depth = 0;
         for (int i = 0; i < folded.length(); i++) {
             final char c = folded.charAt(i);
-            if (c == '(' || c == '[' || c == '{') {
+            if (c == '(' || c == '[' || c == '{' || c == '【') {
                 depth++;
                 continue;
             }
-            if (c == ')' || c == ']' || c == '}') {
+            if (c == ')' || c == ']' || c == '}' || c == '】') {
                 if (depth > 0) {
                     depth--;
                     if (depth == 0 && current.length() > 0) {
