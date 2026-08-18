@@ -58,6 +58,11 @@ public final class TrackMatch {
      * ({@code "Rock & Roll"} と {@code "Rock and Roll"} を同じにするため)。
      * 内容語 ({@code "video"} {@code "the"} 等) は落とさない — 曲名そのものでありうる。
      */
+    /** 尺の下限 (元に対する比)。これを下回る候補は抜粋・試聴版とみなす。 */
+    private static final double MIN_DURATION_RATIO = 0.35d;
+    /** 尺の上限 (元に対する比)。これを超える候補は寄せ集め・ループとみなす。 */
+    private static final double MAX_DURATION_RATIO = 3.0d;
+
     private static final Set<String> IGNORED_WORDS =
             Set.of("and", "feat", "featuring", "ft", "with", "prod", "vs");
 
@@ -122,6 +127,70 @@ public final class TrackMatch {
             return false;
         }
         return sourceArtist.containsAll(candidateArtist) || candidateArtist.containsAll(sourceArtist);
+    }
+
+    /**
+     * 候補の尺が元と釣り合っているか。
+     *
+     * <h2>幅の決め方 (2026-08-18 の実測から)</h2>
+     * 落としたいのは<b>短縮版と抜粋</b>。SoundCloud にはレーベルが上げた 1:30 の販促版や 30 秒の
+     * 試聴版が混じる (実測: Interscope の「LMFAO - Sorry For Party Rocking」は 1:30 で、
+     * 同じ曲の YouTube 側は 7:19)。
+     *
+     * <p>一方で<b>元が曲より長いのは普通</b> — ミュージックビデオは寸劇や間奏を抱えるので、
+     * 正しい候補でも元の半分以下になりうる (上の 7:19 に対して曲そのものは 3:22 前後)。
+     * そのため下限は<b>フェードやイントロの差</b>ではなく「明らかな抜粋」を切る位置に置く:
+     * 元の 0.35 倍未満、または 3.0 倍超を落とす。
+     *
+     * <p><b>この幅だけでは分けきれない帯がある</b>: 3:30 の曲に対する 1:30 の販促版は 0.43 倍で、
+     * 寸劇つき MV に対する正しい曲 (0.42〜0.46 倍) と重なる。だから幅は粗い足切りに留め、
+     * <b>通った候補の中では元の尺に一番近いものを採る</b> ({@code MusicLoaderImpl#substitute})。
+     *
+     * @param sourceMs    元の尺 (ms)。{@code 0} 以下なら分からない
+     * @param candidateMs 候補の尺 (ms)
+     * @return 釣り合っていれば {@code true}。元の尺が分からない時は常に {@code true}
+     */
+    public static boolean durationFits(long sourceMs, long candidateMs) {
+        if (sourceMs <= 0L) {
+            return true; // 尺が取れない環境で機能を殺さない
+        }
+        if (candidateMs <= 0L) {
+            return false;
+        }
+        return candidateMs >= sourceMs * MIN_DURATION_RATIO
+                && candidateMs <= sourceMs * MAX_DURATION_RATIO;
+    }
+
+    /**
+     * 尺の釣り合う候補のうち、採るべきものの位置を返す。
+     *
+     * <p>元の尺が分かっているなら<b>元に一番近いもの</b>を採る。3:30 の曲に対する 1:30 の販促版と、
+     * 寸劇つき MV に対する正しい曲は{@link #durationFits 幅だけでは分けられない}ので、
+     * 両方が並んだ時にここが正しい方を拾う。
+     *
+     * <p>元の尺が分からないなら<b>一番長いもの</b>を採る (短縮版はフル尺より短い)。
+     *
+     * @param candidateMs 候補の尺 (ms) を並び順のまま
+     * @param sourceMs    元の尺 (ms)。{@code 0} 以下なら分からない
+     * @return 採るべき候補の位置。釣り合うものが無ければ {@code -1}
+     */
+    public static int bestByDuration(long[] candidateMs, long sourceMs) {
+        int best = -1;
+        for (int i = 0; i < candidateMs.length; i++) {
+            if (!durationFits(sourceMs, candidateMs[i])) {
+                continue;
+            }
+            if (best < 0) {
+                best = i;
+            } else if (sourceMs > 0L) {
+                if (Math.abs(candidateMs[i] - sourceMs) < Math.abs(candidateMs[best] - sourceMs)) {
+                    best = i;
+                }
+            } else if (candidateMs[i] > candidateMs[best]) {
+                best = i;
+            }
+        }
+        return best;
     }
 
     /**

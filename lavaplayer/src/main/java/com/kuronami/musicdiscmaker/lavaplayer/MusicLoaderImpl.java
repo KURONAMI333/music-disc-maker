@@ -98,13 +98,18 @@ public class MusicLoaderImpl implements IMusicLoader {
      * 上位が全部カバーやリミックスでも後ろまで見る。
      */
     private static final int MAX_CANDIDATES = 10;
-    /** oEmbed で曲名を取る時の待ち上限。 */
-    private static final long OEMBED_TIMEOUT_MS = 8_000L;
+    /** oEmbed で曲名を取る時の待ち上限 (返るのは数百バイトの JSON)。 */
+    private static final long OEMBED_TIMEOUT_MS = 5_000L;
+    /** watch ページから元の尺を取る時の待ち上限 (約 700KB 読んだところで打ち切る)。 */
+    private static final long WATCH_PAGE_TIMEOUT_MS = 6_000L;
     /** 代替ソースの検索 1 回あたりの待ち上限。 */
-    private static final long ALTERNATE_SEARCH_TIMEOUT_MS = 10_000L;
+    private static final long ALTERNATE_SEARCH_TIMEOUT_MS = 8_000L;
     /**
      * 代替ソース探しの全体予算。ここに収める理由は、既に {@link #SYNC_RETRY} で最大 20 秒
      * 使い切った後に積まれる時間だから ({@code DiscFabrication} の解決プールは 2 本しかない)。
+     *
+     * <p>各段の上限を足すとこれを超えるが、<b>締切で頭を押さえてある</b>ので伸びない。
+     * 尺の取得は<b>候補が 1 つでも見つかってから</b>行う (曲名すら一致しない時に 1 往復を捨てない)。
      */
     private static final long SUBSTITUTE_BUDGET_MS = 20_000L;
 
@@ -224,7 +229,8 @@ public class MusicLoaderImpl implements IMusicLoader {
             if (firesSubstitute(ex.reason()) || ex.reason() == FailureReason.UNSUPPORTED_URL) {
                 // og タグの曲名とアーティストは既に分かれているので、MetadataCleaner の
                 // 「Artist - Song」分割をかけない (Spotify の "Song - Remastered 2011" が壊れる)。
-                final TrackInfo substitute = substitute(meta[0], meta[0], meta[1], spotifyUrl,
+                // Spotify の URL には watch ページが無いので、尺は分からないまま探す。
+                final TrackInfo substitute = substitute(meta[0], meta[0], meta[1], spotifyUrl, null,
                         System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS);
                 if (substitute != null) {
                     return substitute;
@@ -292,7 +298,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             return null;
         }
         final String[] want = MetadataCleaner.clean(meta[0], meta[1]);
-        return substitute(meta[0], want[0], want[1], normalizedUrl, deadline);
+        return substitute(meta[0], want[0], want[1], normalizedUrl, normalizedUrl, deadline);
     }
 
     /**
@@ -301,56 +307,93 @@ public class MusicLoaderImpl implements IMusicLoader {
      * <p>一致しなければ {@code null} を返して従来の失敗に落ちる。無理に何か鳴らさない —
      * 違う曲が鳴るのは、鳴らないより悪い。
      *
-     * <h2>一致した中では一番長いものを採る</h2>
+     * <h2>尺で抜粋を落とし、残った中では元に一番近いものを採る</h2>
      * 同じ曲名・同じアーティストでも<b>尺の違う版が並ぶ</b> (2026-08-18 実測: Interscope が
-     * SoundCloud に上げた「LMFAO - Sorry For Party Rocking」は 1:30 の短縮版で、フル尺は
-     * YouTube 側にしかない)。元の尺は YouTube が拒んだ時点で取れないので突き合わせられないが、
-     * <b>短縮版はフル尺より短い</b>ので、一致した候補のうち最長のものを採ればフル尺に寄る。
+     * SoundCloud に上げた「LMFAO - Sorry For Party Rocking」は 1:30 の販促版で、YouTube 側の
+     * 同じ曲は 7:19)。元の尺は player API が拒んでも<b>watch ページから取れる</b>ので、
+     * それと突き合わせて明らかな抜粋を落とす ({@link TrackMatch#durationFits})。
+     *
+     * <p>尺が取れなかった時は<b>従来どおり一番長いものを採る</b>。bot 判定で watch ページごと
+     * 弾かれる環境では尺は永久に取れないので、そこで機能を止めない。
      *
      * @param markerTitle 版の目印を探す元のタイトル
      * @param title       探す曲名 (整形済み)
      * @param author      探すアーティスト (整形済み)
      * @param originUrl   元の URL (ログ用)
+     * @param watchUrl    元の尺を取れる watch URL ({@code null} 可 = 尺は分からない)
      * @param deadline    これを過ぎたら諦める時刻 (壁時計 ms)
      * @return 代わりに使えるトラック、見つからなければ {@code null}
      */
     private TrackInfo substitute(String markerTitle, String title, String author, String originUrl,
-            long deadline) {
+            String watchUrl, long deadline) {
         if (title.isBlank() || author.isBlank()) {
             return null;
         }
         final String query = author + " " + title;
+        long sourceMs = -1L; // -1 = まだ取りに行っていない / 0 = 取れなかった
         for (final String prefix : ALTERNATE_SEARCH_PREFIXES) {
             final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - System.currentTimeMillis());
             if (budget <= 0L) {
                 LOGGER.info("Ran out of time while looking for an alternate source ({})", originUrl);
                 return null;
             }
-            AudioTrackInfo best = null;
+            final List<AudioTrackInfo> matched = new ArrayList<>();
             for (final AudioTrack candidate : loadCandidates(prefix + query, budget)) {
                 final AudioTrackInfo info = candidate.getInfo();
                 // 曲の代わりに無限長ストリームや長さ不明のものを掴まない。
                 if (info.isStream || info.length <= 0L || info.length == Long.MAX_VALUE) {
                     continue;
                 }
-                if (!TrackMatch.sameRecordingFromCleanSource(markerTitle, title, author,
+                if (TrackMatch.sameRecordingFromCleanSource(markerTitle, title, author,
                         info.title, info.author)) {
-                    continue;
-                }
-                if (best == null || info.length > best.length) {
-                    best = info;
+                    matched.add(info);
                 }
             }
+            if (matched.isEmpty()) {
+                continue;
+            }
+            if (sourceMs < 0L) {
+                // 曲名の一致が 1 つでも出てから初めて尺を取りに行く。
+                sourceMs = YoutubeWatchPage.durationMs(watchUrl,
+                        Math.min(WATCH_PAGE_TIMEOUT_MS, deadline - System.currentTimeMillis()));
+            }
+            final AudioTrackInfo best = pick(matched, sourceMs, originUrl);
             if (best != null) {
                 final String[] cleaned = MetadataCleaner.clean(best.title, best.author);
-                LOGGER.info("Substituting an alternate source for {} -> {} ({} - {}, {}ms)",
-                        originUrl, best.uri, cleaned[1], cleaned[0], best.length);
+                LOGGER.info("Substituting an alternate source for {} -> {} ({} - {}, {}ms against {}ms)",
+                        originUrl, best.uri, cleaned[1], cleaned[0], best.length, sourceMs);
                 return new TrackInfo(cleaned[0], cleaned[1], best.length, best.uri,
                         best.identifier, best.isStream, safe(best.artworkUrl));
             }
         }
         LOGGER.info("No matching track on the alternate sources for ({})", originUrl);
         return null;
+    }
+
+    /**
+     * 曲名が一致した候補から 1 つ選ぶ。
+     *
+     * <p>元の尺が分かっているなら、釣り合わないもの (抜粋・寄せ集め) を落として<b>元に一番近い</b>
+     * ものを採る。分かっていないなら<b>一番長い</b>ものを採る
+     * (短縮版はフル尺より短いという性質だけを使う)。
+     *
+     * @param matched   曲名とアーティストが一致した候補
+     * @param sourceMs  元の尺 (ms)。{@code 0} 以下なら分からない
+     * @param originUrl 元の URL (ログ用)
+     * @return 選んだ候補。尺で全部落ちたら {@code null}
+     */
+    private static AudioTrackInfo pick(List<AudioTrackInfo> matched, long sourceMs, String originUrl) {
+        final long[] lengths = new long[matched.size()];
+        for (int i = 0; i < lengths.length; i++) {
+            final AudioTrackInfo info = matched.get(i);
+            lengths[i] = info.length;
+            if (!TrackMatch.durationFits(sourceMs, info.length)) {
+                LOGGER.info("Dropping a length mismatch for {}: {}ms against {}ms ({})",
+                        originUrl, info.length, sourceMs, info.uri);
+            }
+        }
+        final int chosen = TrackMatch.bestByDuration(lengths, sourceMs);
+        return chosen < 0 ? null : matched.get(chosen);
     }
 
     /**
