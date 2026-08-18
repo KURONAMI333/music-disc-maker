@@ -69,11 +69,11 @@ final class SessionRetry {
                     throw ex;
                 }
                 if (i >= policy.maxAttempts()) {
-                    LOGGER.warn("再試行の上限 ({} 回) を使い切った: {}", policy.maxAttempts(), ex.reason());
+                    LOGGER.warn("Used up the retry limit ({} attempts): {}", policy.maxAttempts(), ex.reason());
                     break;
                 }
                 if (clockMs.getAsLong() - startedMs >= policy.deadlineMs()) {
-                    LOGGER.warn("再試行の締切 ({}ms) に達した: {}", policy.deadlineMs(), ex.reason());
+                    LOGGER.warn("Hit the retry deadline ({}ms): {}", policy.deadlineMs(), ex.reason());
                     break;
                 }
                 if (!session.rollIfStale(seen)) {

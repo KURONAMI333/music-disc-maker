@@ -65,7 +65,7 @@ public final class FabricRegistrationProvider<T> implements RegistrationProvider
             @SuppressWarnings("unchecked")
             final Registry<T> registry = (Registry<T>) BuiltInRegistries.REGISTRY.get(registryKey.location());
             if (registry == null) {
-                throw new IllegalStateException("root registry に " + registryKey.location() + " が見つからない");
+                throw new IllegalStateException("Registry " + registryKey.location() + " not found in the root registry");
             }
             return new FabricRegistrationProvider<>(registry, modid);
         }

@@ -537,7 +537,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
             }
             return;
         }
-        MusicDiscMaker.LOGGER.debug("金ジューク再生を復元: resume={}ms (playbackStartGameTime={} gameTime={})",
+        MusicDiscMaker.LOGGER.debug("Restored golden jukebox playback: resume={}ms (playbackStartGameTime={} gameTime={})",
                 rawElapsed, playbackStartGameTime, level.getGameTime());
         startPlayback(rawElapsed);
     }

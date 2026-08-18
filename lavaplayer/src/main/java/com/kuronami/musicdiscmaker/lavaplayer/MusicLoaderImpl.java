@@ -130,10 +130,10 @@ public class MusicLoaderImpl implements IMusicLoader {
         try {
             final YoutubeAudioSourceManager manager = new YoutubeAudioSourceManager(new AndroidVr());
             apm.registerSourceManager(manager);
-            LOGGER.debug("source manager 登録: {} (client: ANDROID_VR)", manager.getSourceName());
+            LOGGER.debug("Registered source manager: {} (client: ANDROID_VR)", manager.getSourceName());
             return manager;
         } catch (final Throwable t) {
-            LOGGER.warn("YouTube source manager 登録失敗", t);
+            LOGGER.warn("Failed to register the YouTube source manager", t);
             return null;
         }
     }
@@ -143,10 +143,10 @@ public class MusicLoaderImpl implements IMusicLoader {
             final AudioSourceManager manager = supplier.get();
             if (manager != null) {
                 apm.registerSourceManager(manager);
-                LOGGER.debug("source manager 登録: {}", manager.getSourceName());
+                LOGGER.debug("Registered source manager: {}", manager.getSourceName());
             }
         } catch (final Throwable t) {
-            LOGGER.warn("source manager 登録失敗", t);
+            LOGGER.warn("Failed to register the source managers", t);
         }
     }
 
@@ -170,7 +170,7 @@ public class MusicLoaderImpl implements IMusicLoader {
     private TrackInfo resolveViaSpotify(String spotifyUrl) {
         final String[] meta = SpotifyResolver.fetchMeta(spotifyUrl);
         if (meta == null || meta[0].isBlank()) {
-            LOGGER.warn("Spotify メタ取得失敗: {}", spotifyUrl);
+            LOGGER.warn("Failed to fetch Spotify metadata: {}", spotifyUrl);
             throw new ResolveException(FailureReason.CONNECTION_FAILED);
         }
         final String query = (meta[1].isBlank() ? "" : meta[1] + " ") + meta[0];
@@ -192,7 +192,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             track = loadTrackSync(url);
         } catch (final ResolveException ex) {
             // 理由を要る呼び出し側は openStreamDetailed を使う。この signature は従来どおり null。
-            LOGGER.warn("再生用ロード失敗 ({}): {}", url, ex.reason());
+            LOGGER.warn("Failed to load track for playback ({}): {}", url, ex.reason());
             return null;
         }
         return startPlayback(track, startMs, url);
@@ -208,7 +208,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         try {
             track = loadTrackSync(url);
         } catch (final ResolveException ex) {
-            LOGGER.warn("再生用ロード失敗 ({}): {}", url, ex.reason());
+            LOGGER.warn("Failed to load track for playback ({}): {}", url, ex.reason());
             return OpenStreamResult.failed(ex.reason(), null);
         }
         return OpenStreamResult.ok(startPlayback(track, startMs, url));
@@ -242,7 +242,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             try {
                 track.setPosition(startMs);
             } catch (final Throwable t) {
-                LOGGER.warn("seek 失敗 ({}ms) → 先頭から再生", startMs, t);
+                LOGGER.warn("Seek failed ({}ms), playing from the start instead", startMs, t);
             }
         }
         final AudioPlayer player = apm.createPlayer();
@@ -359,10 +359,10 @@ public class MusicLoaderImpl implements IMusicLoader {
         try {
             track = future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (final TimeoutException ex) {
-            LOGGER.warn("URL ロードがタイムアウト ({})", url);
+            LOGGER.warn("Timed out while loading URL ({})", url);
             throw new ResolveException(FailureReason.CONNECTION_FAILED);
         } catch (final ExecutionException ex) {
-            LOGGER.warn("URL ロード失敗 ({})", url, ex.getCause());
+            LOGGER.warn("Failed to load URL ({})", url, ex.getCause());
             throw new ResolveException(FailureClassifier.classify(ex.getCause()));
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();

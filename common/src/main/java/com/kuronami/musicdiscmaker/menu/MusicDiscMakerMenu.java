@@ -49,7 +49,7 @@ public class MusicDiscMakerMenu extends AbstractContainerMenu {
         if (be instanceof MusicDiscMakerBlockEntity maker) {
             return maker;
         }
-        throw new IllegalStateException("Music Disc Maker BlockEntity が見つからない");
+        throw new IllegalStateException("Music Disc Maker BlockEntity not found");
     }
 
     public MusicDiscMakerBlockEntity getBlockEntity() {

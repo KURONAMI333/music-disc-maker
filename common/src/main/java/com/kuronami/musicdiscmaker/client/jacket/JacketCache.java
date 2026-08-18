@@ -152,7 +152,7 @@ public final class JacketCache {
             }
             // デコード前に寸法を検査してデコード爆弾を弾く (byte 上限だけでは展開後サイズを防げない)。
             if (!dimensionsWithinLimit(bytes)) {
-                MusicDiscMaker.LOGGER.debug("ジャケット拒否 (寸法超過/不明): {}", url);
+                MusicDiscMaker.LOGGER.debug("Rejected jacket image (oversized or unknown dimensions): {}", url);
                 markFailed(hash);
                 return;
             }
@@ -166,7 +166,7 @@ public final class JacketCache {
             // texture 登録は render スレッドで行う (off-thread 登録は OpenGL 破壊のバグ源)。
             Minecraft.getInstance().execute(() -> register(hash, image));
         } catch (final Throwable t) {
-            MusicDiscMaker.LOGGER.debug("ジャケット取得失敗 ({})", url, t);
+            MusicDiscMaker.LOGGER.debug("Failed to fetch jacket image ({})", url, t);
             markFailed(hash);
         }
     }
@@ -229,11 +229,11 @@ public final class JacketCache {
         }
         final java.awt.image.BufferedImage img = ImageIO.read(new ByteArrayInputStream(bytes));
         if (img == null) {
-            throw new IOException("ImageIO が画像を decode できない");
+            throw new IOException("ImageIO could not decode the image");
         }
         final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         if (!ImageIO.write(img, "png", out)) {
-            throw new IOException("PNG への再エンコードに失敗 (writer 無し)");
+            throw new IOException("Failed to re-encode the image as PNG (no writer available)");
         }
         return out.toByteArray();
     }

@@ -46,7 +46,7 @@ public final class DependencyManager {
             return;
         }
         loaded = true;
-        LOGGER.info("LavaPlayer 依存をロード中…");
+        LOGGER.info("Loading LavaPlayer dependencies...");
 
         final Path tmp = createExtractDirectory();
         final String devPath = System.getProperty("musicdiscmaker.dev");
@@ -67,7 +67,7 @@ public final class DependencyManager {
                 .map(DependencyManager::toUrl)
                 .forEach(CLASSLOADER::addURL);
 
-        LOGGER.info("LavaPlayer 依存ロード完了 ({} 個)", packed.size());
+        LOGGER.info("Loaded LavaPlayer dependencies ({} jars)", packed.size());
     }
 
     private static Path createExtractDirectory() {
@@ -82,7 +82,7 @@ public final class DependencyManager {
             Files.createDirectories(dir);
             return dir;
         } catch (final IOException ex) {
-            throw new RuntimeException("展開用 temp ディレクトリを作成できない", ex);
+            throw new RuntimeException("Failed to create the temp directory used for extraction", ex);
         }
     }
 
@@ -107,7 +107,7 @@ public final class DependencyManager {
         try (Stream<Path> stream = Files.walk(root)) {
             return stream.filter(f -> f.toString().endsWith(FILE_ENDING)).collect(Collectors.toSet());
         } catch (final IOException ex) {
-            LOGGER.error("packed jar の探索に失敗: {}", root, ex);
+            LOGGER.error("Failed to scan for packed jars under {}", root, ex);
             return Collections.emptySet();
         }
     }
@@ -118,7 +118,7 @@ public final class DependencyManager {
                 OutputStream out = Files.newOutputStream(target, StandardOpenOption.CREATE)) {
             in.transferTo(out);
         } catch (final IOException ex) {
-            throw new RuntimeException("packed jar を展開できない: " + source, ex);
+            throw new RuntimeException("Failed to extract a packed jar: " + source, ex);
         }
         return target;
     }
@@ -135,7 +135,7 @@ public final class DependencyManager {
         try {
             return pathLocator().locate("music_disc_maker", folder);
         } catch (final Exception ex) {
-            throw new RuntimeException("mod jar 内の " + folder + " を特定できない", ex);
+            throw new RuntimeException("Cannot locate " + folder + " inside the mod jar", ex);
         }
     }
 
@@ -147,7 +147,7 @@ public final class DependencyManager {
                 if (local == null) {
                     local = ServiceLoader.load(PathLocator.class, DependencyManager.class.getClassLoader())
                             .findFirst()
-                            .orElseThrow(() -> new IllegalStateException("PathLocator service が見つからない"));
+                            .orElseThrow(() -> new IllegalStateException("No PathLocator service is registered"));
                     pathLocator = local;
                 }
             }

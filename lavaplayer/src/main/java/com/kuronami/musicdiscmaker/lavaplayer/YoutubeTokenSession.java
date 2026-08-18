@@ -51,18 +51,18 @@ final class YoutubeTokenSession implements YoutubeSession {
             return true;
         }
         if (!budget.take()) {
-            LOGGER.warn("YouTube セッションの入れ替えが上限に達した (これ以上は再試行しない)");
+            LOGGER.warn("YouTube session rotation hit its limit (no further retries)");
             return false;
         }
         try {
             youtube.getContextFilter().setTokenTracker(
                     new YoutubeAccessTokenTracker(youtube.getHttpInterfaceManager()));
         } catch (final Throwable t) {
-            LOGGER.warn("YouTube セッションの入れ替えに失敗", t);
+            LOGGER.warn("Failed to rotate the YouTube session", t);
             return false;
         }
         generation++;
-        LOGGER.info("YouTube セッションを入れ替えた (世代 {})", generation);
+        LOGGER.info("Rotated the YouTube session (generation {})", generation);
         return true;
     }
 }

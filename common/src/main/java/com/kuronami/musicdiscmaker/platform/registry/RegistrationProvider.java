@@ -30,7 +30,7 @@ public interface RegistrationProvider<T> {
 
         Factory INSTANCE = ServiceLoader.load(Factory.class).findFirst()
                 .orElseThrow(() -> new IllegalStateException(
-                        "RegistrationProvider.Factory の実装が見つからない (loader 実装の META-INF/services 未登録)"));
+                        "No RegistrationProvider.Factory implementation found (the loader implementation is missing from META-INF/services)"));
 
         <T> RegistrationProvider<T> create(ResourceKey<? extends Registry<T>> registryKey, String modid);
     }

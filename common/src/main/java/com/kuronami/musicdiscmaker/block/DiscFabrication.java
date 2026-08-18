@@ -74,7 +74,7 @@ public final class DiscFabrication {
                 resolved = LoaderHolder.get().resolve(url);
             } catch (final UrlBlockedException blocked) {
                 // SSRF ガードが拒否 → GUI に「blocked」理由を出す (gui.music_disc_maker.failed.blocked)。
-                MusicDiscMaker.LOGGER.warn("URL を拒否 ({}): {}", blocked.reason(), url);
+                MusicDiscMaker.LOGGER.warn("Rejected URL ({}): {}", blocked.reason(), url);
                 failure = FailureReason.BLOCKED_URL;
                 resolved = null;
             } catch (final ResolveException re) {
@@ -82,7 +82,7 @@ public final class DiscFabrication {
                 failure = re.reason();
                 resolved = null;
             } catch (final Throwable t) {
-                MusicDiscMaker.LOGGER.warn("URL 解決中に例外 ({})", url, t);
+                MusicDiscMaker.LOGGER.warn("Exception while resolving URL ({})", url, t);
                 failure = FailureReason.UNKNOWN;
                 resolved = null;
             }

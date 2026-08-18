@@ -71,7 +71,7 @@ public final class SableAudioClient {
         }
         // 診断 (debug 既定 off): server の送信ログが出るのにこれが出なければ payload が client へ届いていない
         // (sub-level tracking の解決漏れ / 配送) を疑う。両方出るのに無音なら SableSubLevelAnchor の座標変換側。
-        MusicDiscMaker.LOGGER.debug("Sable sub-level 再生を受信: plotPos={}", payload.plotPos());
+        MusicDiscMaker.LOGGER.debug("Received Sable sub-level playback: plotPos={}", payload.plotPos());
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
         POOL.submit(() -> {
             IAudioSource source = null;
