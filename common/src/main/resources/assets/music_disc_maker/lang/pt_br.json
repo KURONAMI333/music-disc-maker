@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "Limpar",
   "tooltip.music_disc_maker.artist": "por %s",
   "tooltip.music_disc_maker.duration": "Duração: %s",
+  "tooltip.music_disc_maker.source": "Fonte: %s",
   "tooltip.music_disc_maker.live": "AO VIVO",
   "tooltip.music_disc_maker.empty_disc": "Sem faixa",
   "subtitles.music_disc_maker.custom_disc_playback": "Tocando disco personalizado",

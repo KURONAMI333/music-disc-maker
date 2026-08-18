@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "Wyczyść",
   "tooltip.music_disc_maker.artist": "Wykonawca: %s",
   "tooltip.music_disc_maker.duration": "Długość: %s",
+  "tooltip.music_disc_maker.source": "Źródło: %s",
   "tooltip.music_disc_maker.live": "NA ŻYWO",
   "tooltip.music_disc_maker.empty_disc": "Brak utworu",
   "subtitles.music_disc_maker.custom_disc_playback": "Odtwarzanie własnej płyty",

@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "クリア",
   "tooltip.music_disc_maker.artist": "%s",
   "tooltip.music_disc_maker.duration": "長さ: %s",
+  "tooltip.music_disc_maker.source": "音源: %s",
   "tooltip.music_disc_maker.live": "ライブ",
   "tooltip.music_disc_maker.empty_disc": "曲なし",
   "subtitles.music_disc_maker.custom_disc_playback": "カスタムディスク再生中",

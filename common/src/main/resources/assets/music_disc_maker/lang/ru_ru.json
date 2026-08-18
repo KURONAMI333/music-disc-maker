@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "Очистить",
   "tooltip.music_disc_maker.artist": "Исполнитель: %s",
   "tooltip.music_disc_maker.duration": "Длина: %s",
+  "tooltip.music_disc_maker.source": "Источник: %s",
   "tooltip.music_disc_maker.live": "В ЭФИРЕ",
   "tooltip.music_disc_maker.empty_disc": "Нет трека",
   "subtitles.music_disc_maker.custom_disc_playback": "Играет своя пластинка",

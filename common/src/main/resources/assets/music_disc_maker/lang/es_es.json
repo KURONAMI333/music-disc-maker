@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "Borrar",
   "tooltip.music_disc_maker.artist": "por %s",
   "tooltip.music_disc_maker.duration": "Duración: %s",
+  "tooltip.music_disc_maker.source": "Fuente: %s",
   "tooltip.music_disc_maker.live": "EN VIVO",
   "tooltip.music_disc_maker.empty_disc": "Sin pista",
   "subtitles.music_disc_maker.custom_disc_playback": "Reproduciendo disco personalizado",

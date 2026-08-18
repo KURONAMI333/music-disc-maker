@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "Löschen",
   "tooltip.music_disc_maker.artist": "von %s",
   "tooltip.music_disc_maker.duration": "Länge: %s",
+  "tooltip.music_disc_maker.source": "Quelle: %s",
   "tooltip.music_disc_maker.live": "LIVE",
   "tooltip.music_disc_maker.empty_disc": "Kein Titel",
   "subtitles.music_disc_maker.custom_disc_playback": "Eigene Schallplatte spielt",

@@ -19,6 +19,7 @@
   "gui.music_disc_maker.clear": "지우기",
   "tooltip.music_disc_maker.artist": "아티스트: %s",
   "tooltip.music_disc_maker.duration": "길이: %s",
+  "tooltip.music_disc_maker.source": "출처: %s",
   "tooltip.music_disc_maker.live": "라이브",
   "tooltip.music_disc_maker.empty_disc": "트랙 없음",
   "subtitles.music_disc_maker.custom_disc_playback": "커스텀 음반 재생 중",
