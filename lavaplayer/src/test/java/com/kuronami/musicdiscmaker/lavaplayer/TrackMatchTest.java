@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -149,6 +150,62 @@ class TrackMatchTest {
     @DisplayName("表記ゆれだけの語 (and / & / feat) は照合から落ちる")
     void ignoresConnectiveWords() {
         assertTrue(TrackMatch.words("Rock & Roll").equals(TrackMatch.words("Rock and Roll")));
+    }
+
+    // --- watch ページから採った実物の尺 (2026-08-18) ---
+    /** {@code SkTt9k4Y-a8} の {@code "lengthSeconds":"439"}。player API は拒否するのに読めた。 */
+    private static final long YT_LMFAO_MS = 439_000L;
+    /** {@code dQw4w9WgXcQ} の {@code "lengthSeconds":"213"}。 */
+    private static final long YT_ASTLEY_MS = 213_000L;
+    /** scsearch が返した Interscope の販促版 (1:30)。 */
+    private static final long SC_LMFAO_SHORT_MS = 90_130L;
+    /** scsearch が返した pajlada の再アップロード。YouTube 側と 0.5 秒差。 */
+    private static final long SC_ASTLEY_MS = 212_525L;
+
+    @Test
+    @DisplayName("販促版・試聴版を尺で落とす")
+    void rejectsShortenedUploads() {
+        // 7:19 の動画に対する 1:30 の販促版。これが焼かれていたのを潰すのがこの判定の目的。
+        assertFalse(TrackMatch.durationFits(YT_LMFAO_MS, SC_LMFAO_SHORT_MS));
+        // 3:30 の曲に対する 30 秒の試聴版。
+        assertFalse(TrackMatch.durationFits(210_000L, 30_000L));
+        // 1 時間のループ・寄せ集め。
+        assertFalse(TrackMatch.durationFits(YT_ASTLEY_MS, 3_600_000L));
+        // 尺そのものが取れていない候補。
+        assertFalse(TrackMatch.durationFits(YT_ASTLEY_MS, 0L));
+    }
+
+    @Test
+    @DisplayName("正しい候補は尺で落とさない (寸劇つき MV との差を含む)")
+    void keepsLegitimateLengths() {
+        // ほぼ同尺。
+        assertTrue(TrackMatch.durationFits(YT_ASTLEY_MS, SC_ASTLEY_MS));
+        // 寸劇や間奏で MV が長い場合。曲そのものは元の半分以下になりうる。
+        assertTrue(TrackMatch.durationFits(YT_LMFAO_MS, 202_000L));
+        // フェード・イントロの数秒差。
+        assertTrue(TrackMatch.durationFits(YT_ASTLEY_MS, 205_000L));
+        assertTrue(TrackMatch.durationFits(YT_ASTLEY_MS, 221_000L));
+    }
+
+    @Test
+    @DisplayName("元の尺が取れない時は尺で落とさない (機能を丸ごと殺さない)")
+    void neverBlocksWhenTheSourceLengthIsUnknown() {
+        assertTrue(TrackMatch.durationFits(0L, SC_LMFAO_SHORT_MS));
+        assertTrue(TrackMatch.durationFits(-1L, 30_000L));
+    }
+
+    @Test
+    @DisplayName("尺が分かるなら元に一番近いもの、分からないなら一番長いものを採る")
+    void picksTheClosestOrTheLongest() {
+        // 販促版とフル尺が両方並んだ場合。幅だけでは両方通るので、近さで選ぶ。
+        final long[] both = {SC_LMFAO_SHORT_MS, 202_000L};
+        assertEquals(1, TrackMatch.bestByDuration(both, YT_LMFAO_MS));
+        // 販促版しか無ければ何も選ばない (従来の失敗に落ちる)。
+        assertEquals(-1, TrackMatch.bestByDuration(
+                new long[] {SC_LMFAO_SHORT_MS, SC_LMFAO_SHORT_MS}, YT_LMFAO_MS));
+        // 元の尺が分からなければ一番長いものを採る (v2.3.0 の当初の挙動)。
+        assertEquals(1, TrackMatch.bestByDuration(both, 0L));
+        assertEquals(-1, TrackMatch.bestByDuration(new long[0], YT_LMFAO_MS));
     }
 
     @Test
