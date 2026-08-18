@@ -235,6 +235,74 @@ class TrackMatchTest {
         assertEquals(-1, TrackMatch.bestByDuration(new long[0], YT_LMFAO_MS));
     }
 
+    // --- 尺が並んだ時にアーティスト名で順位を付ける (2026-08-19 実測) ---
+    /** {@code OPf0YbXqDm0} の watch ページ。 */
+    private static final long YT_UPTOWN_MS = 270_000L;
+    /** {@code soundcloud.com/robert-radley-1/uptown-funk-the-hot-shots} (差 914ms)。 */
+    private static final long SC_UPTOWN_HOTSHOTS_MS = 269_086L;
+    /** {@code soundcloud.com/ravi-bhatt-52209416/mark-ronson-uptown-funk-ft-bruno-mars} (差 8960ms)。 */
+    private static final long SC_UPTOWN_NAMED_MS = 278_960L;
+    /** {@code RgKAFK5djSk} の watch ページ。 */
+    private static final long YT_SEEYOUAGAIN_MS = 237_000L;
+    /** {@code soundcloud.com/wizkhalifa/see-you-again-feat-charlie-1} (差 7436ms)。 */
+    private static final long SC_SEEYOUAGAIN_OWN_MS = 229_564L;
+    /** {@code soundcloud.com/kurniawan-ardi-kusuma-effendy/128a} (差 4307ms)。 */
+    private static final long SC_SEEYOUAGAIN_OTHER_MS = 232_693L;
+
+    @Test
+    @DisplayName("尺が並んだらアーティスト名を名乗る候補を採る")
+    void prefersTheCandidateThatNamesTheArtist() {
+        // 尺の近さだけだと the-hot-shots (差 914ms) が採られ、カバーの疑いが濃いものが焼かれる。
+        final long[] uptown = {SC_UPTOWN_HOTSHOTS_MS, SC_UPTOWN_NAMED_MS};
+        assertEquals(0, TrackMatch.bestByDuration(uptown, YT_UPTOWN_MS));
+        assertEquals(1, TrackMatch.bestByDuration(uptown, new boolean[] {false, true},
+                YT_UPTOWN_MS));
+        // 本人アカウントの音源が、slug に名前を持たない再アップロードより後ろに居た形。
+        final long[] seeYouAgain = {SC_SEEYOUAGAIN_OWN_MS, SC_SEEYOUAGAIN_OTHER_MS};
+        assertEquals(1, TrackMatch.bestByDuration(seeYouAgain, YT_SEEYOUAGAIN_MS));
+        assertEquals(0, TrackMatch.bestByDuration(seeYouAgain, new boolean[] {true, false},
+                YT_SEEYOUAGAIN_MS));
+    }
+
+    @Test
+    @DisplayName("足切りにはしない (尺が離れていれば名乗っていても採らない)")
+    void neverLetsTheArtistNameOverrideAClearLengthGap() {
+        // 元 3:33 に対して 3:32 と 6:16。6:16 の方が slug に名前を持っていても採らない。
+        final long[] astley = {SC_ASTLEY_MS, 376_085L};
+        assertEquals(0, TrackMatch.bestByDuration(astley, new boolean[] {false, true},
+                YT_ASTLEY_MS));
+        // 名乗る候補が 1 つも無ければ、そのまま尺の近さで決まる。
+        assertEquals(0, TrackMatch.bestByDuration(astley, new boolean[] {false, false},
+                YT_ASTLEY_MS));
+        // 尺で全部落ちるなら順位付けの出番も無い。
+        assertEquals(-1, TrackMatch.bestByDuration(
+                new long[] {SC_LMFAO_SHORT_MS}, new boolean[] {true}, YT_LMFAO_MS));
+        // 元の尺が分からない時は幅を測れないので、従来どおり一番長いものを採る。
+        assertEquals(1, TrackMatch.bestByDuration(astley, new boolean[] {true, false}, 0L));
+    }
+
+    @Test
+    @DisplayName("slug と投稿者名からアーティスト名を拾う (区切りの無い slug も)")
+    void findsTheArtistNameInTheSlugOrUploader() {
+        assertTrue(TrackMatch.mentionsArtist("Mark Ronson",
+                "https://soundcloud.com/ravi-bhatt-52209416/mark-ronson-uptown-funk-ft-bruno-mars",
+                "ravi. bhatt"));
+        assertFalse(TrackMatch.mentionsArtist("Mark Ronson",
+                "https://soundcloud.com/robert-radley-1/uptown-funk-the-hot-shots",
+                "Rob Radley Music"));
+        // 区切りの無い slug。語には割れないが詰めれば一致する。
+        assertTrue(TrackMatch.mentionsArtist("Wiz Khalifa",
+                "https://soundcloud.com/wizkhalifa/see-you-again-feat-charlie-1", "Wiz Khalifa"));
+        assertFalse(TrackMatch.mentionsArtist("Wiz Khalifa",
+                "https://soundcloud.com/officialreddots/the-weeknd-earned-it", "RED DOTS"));
+        // ハングルを含むアーティスト名は ASCII の slug に現れない = 判定は効かない。
+        assertFalse(TrackMatch.mentionsArtist("BTS (방탄소년단)",
+                "https://soundcloud.com/jryvvnn/bts-dynamite-instrumental", "jryvvnn"));
+        // 材料が無ければ名乗っていない扱い。
+        assertFalse(TrackMatch.mentionsArtist("", "https://soundcloud.com/x/y"));
+        assertFalse(TrackMatch.mentionsArtist("Queen", (String[]) null));
+    }
+
     @Test
     @DisplayName("代替ソースを探し始める失敗の一覧を固定する")
     void firesOnlyOnYoutubeSideRefusals() {
