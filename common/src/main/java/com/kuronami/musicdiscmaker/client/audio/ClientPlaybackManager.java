@@ -245,7 +245,14 @@ public final class ClientPlaybackManager {
             instance.requestStop();
             return;
         }
-        Minecraft.getInstance().getSoundManager().play(instance);
+        // play は受理しなかったことを戻り値で返さない。見ずに進むと、鳴っていないのに
+        // "Now Playing" が出て、同じ URL の再通知も既存 session に弾かれる = 停止まで無音が固定される。
+        if (!SoundEngineAcceptance.start(instance, instance, rejected -> {
+            sessions.abandon(key, token);
+            PlaybackFailureReport.report(track, rejected);
+        })) {
+            return;
+        }
         // vanilla disc と同じ "Now Playing: ..." overlay を出す
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()

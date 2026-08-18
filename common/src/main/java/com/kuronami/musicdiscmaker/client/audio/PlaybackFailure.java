@@ -56,7 +56,11 @@ public record PlaybackFailure(Kind kind, String detail) {
         /** 年齢制限。 */
         AGE_RESTRICTED("age"),
         /** YouTube の bot 判定でログインを要求された。 */
-        BOT_CHECK("bot_check");
+        BOT_CHECK("bot_check"),
+        /** sound engine が再生を受理しなかった (未登録 sound event・チャンネル枯渇・他 MOD の取り消し)。 */
+        SOUND_ENGINE("sound_engine"),
+        /** 音量が 0 なので engine が捨てた。engine の拒否のうち<b>利用者が自分で直せる</b>唯一のもの。 */
+        MUTED("muted");
 
         private final String suffix;
 
@@ -93,6 +97,19 @@ public record PlaybackFailure(Kind kind, String detail) {
     /** 同時再生上限で起こさなかった。 */
     public static PlaybackFailure concurrentLimit(int limit) {
         return new PlaybackFailure(Kind.CONCURRENT_LIMIT, "limit=" + limit);
+    }
+
+    /**
+     * sound engine が {@code play} を受理しなかった ({@link SoundEngineAcceptance})。
+     * 音源のロードは成功しているので、原因は MC 側 (sound event・チャンネル・他 MOD の取り消し)。
+     */
+    public static PlaybackFailure soundEngineRejected() {
+        return new PlaybackFailure(Kind.SOUND_ENGINE, "play rejected");
+    }
+
+    /** 音量が 0 なので engine が捨てた ({@link SoundEngineAcceptance})。 */
+    public static PlaybackFailure soundMuted() {
+        return new PlaybackFailure(Kind.MUTED, "volume=0");
     }
 
     /**

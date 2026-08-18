@@ -11,6 +11,7 @@ import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
 import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.SoundEngineAcceptance;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
@@ -103,7 +104,13 @@ public final class CreateAudioClient {
                         anchor, resolved, payload.rangeBlocks(), payload.volumePercent(),
                         payload.directional(), track);
                 ACTIVE.put(actorKey, instance);
-                Minecraft.getInstance().getSoundManager().play(instance);
+                // play は受理しなかったことを戻り値で返さない (SoundEngineAcceptance の javadoc)。
+                // 見ずに進むと、鳴っていないのに "Now Playing" が出たまま固定される。
+                if (!SoundEngineAcceptance.start(instance, instance,
+                        rejected -> PlaybackFailureReport.report(track, rejected))) {
+                    ACTIVE.remove(actorKey, instance); // 鳴っていない席を残さない (次の payload が弾かれる)
+                    return;
+                }
                 final String desc = (track.author() != null && !track.author().isBlank())
                         ? track.author() + " - " + track.title()
                         : track.title();
