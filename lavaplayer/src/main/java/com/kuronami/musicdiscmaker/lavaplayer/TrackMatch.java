@@ -75,24 +75,48 @@ public final class TrackMatch {
      */
     public static boolean sameRecording(String sourceTitle, String sourceAuthor,
             String candidateTitle, String candidateAuthor) {
-        if (blank(sourceTitle) || blank(candidateTitle)) {
-            return false;
-        }
-        if (!variantMarkers(sourceTitle).equals(variantMarkers(candidateTitle))) {
+        if (blank(sourceTitle)) {
             return false;
         }
         final String[] source = MetadataCleaner.clean(sourceTitle, sourceAuthor);
+        return sameRecordingFromCleanSource(sourceTitle, source[0], source[1],
+                candidateTitle, candidateAuthor);
+    }
+
+    /**
+     * 元の側の曲名・アーティストが<b>既に分かっている</b>時の照合。
+     *
+     * <p>Spotify 経路がこちらを使う — og タグから曲名とアーティストを別々に取っているので、
+     * {@link MetadataCleaner} の「Artist - Song」分割をかけると<b>壊れる</b>
+     * ({@code "Bohemian Rhapsody - Remastered 2011"} はアーティスト
+     * {@code "Bohemian Rhapsody"} ・曲名 {@code "Remastered 2011"} になる)。
+     *
+     * @param markerTitle     版の目印を探す元のタイトル
+     * @param sourceTitle     整形済みの曲名
+     * @param sourceAuthor    整形済みのアーティスト
+     * @param candidateTitle  候補の生タイトル
+     * @param candidateAuthor 候補の生アーティスト
+     * @return 同じ録音とみなせるなら {@code true}
+     */
+    public static boolean sameRecordingFromCleanSource(String markerTitle, String sourceTitle,
+            String sourceAuthor, String candidateTitle, String candidateAuthor) {
+        if (blank(sourceTitle) || blank(candidateTitle)) {
+            return false;
+        }
+        if (!variantMarkers(markerTitle).equals(variantMarkers(candidateTitle))) {
+            return false;
+        }
         final String[] candidate = MetadataCleaner.clean(candidateTitle, candidateAuthor);
-        if (blank(source[1]) || blank(candidate[1])) {
+        if (blank(sourceAuthor) || blank(candidate[1])) {
             // 照合する材料が片側に無い。曲名だけの一致で通すと、同名異曲やカバーが素通りする。
             return false;
         }
-        final Set<String> sourceWords = words(source[0]);
+        final Set<String> sourceWords = words(sourceTitle);
         final Set<String> candidateWords = words(candidate[0]);
         if (sourceWords.isEmpty() || !sourceWords.equals(candidateWords)) {
             return false;
         }
-        final Set<String> sourceArtist = words(source[1]);
+        final Set<String> sourceArtist = words(sourceAuthor);
         final Set<String> candidateArtist = words(candidate[1]);
         if (sourceArtist.isEmpty() || candidateArtist.isEmpty()) {
             return false;
