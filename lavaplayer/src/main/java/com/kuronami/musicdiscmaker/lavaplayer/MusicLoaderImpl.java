@@ -394,7 +394,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         for (int i = 0; i < lengths.length; i++) {
             final AudioTrackInfo info = matched.get(i);
             lengths[i] = info.length;
-            mentions[i] = TrackMatch.mentionsArtist(author, info.uri, info.author);
+            mentions[i] = TrackMatch.mentionsArtist(author, slugOf(info.uri), info.author);
             if (!TrackMatch.durationFits(sourceMs, info.length)) {
                 LOGGER.info("Dropping a length mismatch for {}: {}ms against {}ms ({})",
                         originUrl, info.length, sourceMs, info.uri);
@@ -402,6 +402,25 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
         final int chosen = TrackMatch.bestByDuration(lengths, mentions, sourceMs);
         return chosen < 0 ? null : matched.get(chosen);
+    }
+
+    /**
+     * URL から scheme と host を落として、投稿者と slug の部分だけを返す。
+     *
+     * <p>host を残すと {@code soundcloud.com} がどの候補の住所にも入るので、
+     * {@code Cloud} のように短くて host の一部に噛むアーティスト名では
+     * 全候補が「名乗っている」ことになり、順位付けの信号が死ぬ。
+     *
+     * @param uri 候補の URL ({@code null} 可)
+     * @return {@code 投稿者/slug} の部分。切り出せなければ元の文字列
+     */
+    private static String slugOf(String uri) {
+        if (uri == null) {
+            return "";
+        }
+        final int scheme = uri.indexOf("//");
+        final int host = uri.indexOf('/', scheme < 0 ? 0 : scheme + 2);
+        return host < 0 ? uri : uri.substring(host + 1);
     }
 
     /**
