@@ -86,8 +86,22 @@ class ClientFailureDetailsTest {
                 FriendlyException.Severity.COMMON, new IllegalStateException("Status code 403"));
         assertEquals("", ClientFailureDetails.verbose(thrown));
         assertNull(ClientFailureDetails.aggregate(thrown));
+        // 一番外側 ("That URL is not playable.") ではなく、分類の根拠になった内側を採る。
         assertEquals("IllegalStateException: Status code 403",
-                ClientFailureDetails.describe(thrown.getCause()));
+                ClientFailureDetails.shortDetail(thrown));
+    }
+
+    @Test
+    void aConnectionFailureShowsTheInnermostFrameRatherThanTheLavaplayerBoilerplate() {
+        // 実測チェーン: FriendlyException("Connecting to the URL failed.")
+        //                 <- UnknownHostException("そのようなホストは不明です。 (...)")
+        final Throwable thrown = new FriendlyException("Connecting to the URL failed.",
+                FriendlyException.Severity.COMMON,
+                new java.net.UnknownHostException(
+                        "そのようなホストは不明です。 (kuronami-does-not-exist-42.invalid)"));
+        assertEquals("UnknownHostException: そのようなホストは不明です。"
+                + " (kuronami-does-not-exist-42.invalid)",
+                ClientFailureDetails.shortDetail(thrown));
     }
 
     private static ClientException clientFailure(String reason) {

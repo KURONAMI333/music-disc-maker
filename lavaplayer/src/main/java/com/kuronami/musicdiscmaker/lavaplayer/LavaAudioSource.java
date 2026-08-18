@@ -7,7 +7,6 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
@@ -64,9 +63,7 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
             // youtube-source の集約例外なら client ごとの理由を優先する (先頭行だけを採ると
             // 「All clients failed to load the item.」しか残らず、何も伝わらない)。
             final FailureReason reason = ClientFailureDetails.classify(ex.exception);
-            final String detail = ClientFailureDetails.aggregate(ex.exception) != null
-                    ? ClientFailureDetails.shortDetail(ex.exception)
-                    : ClientFailureDetails.describe(FailureClassifier.blamed(ex.exception));
+            final String detail = ClientFailureDetails.shortDetail(ex.exception);
             // チャットは 1 行なので、client ごとの長い理由とスタックトレースはログ側へ出す。
             // 最後の引数の Throwable は slf4j が原因チェーンごと展開する (2b9eeee と同じ形)。
             final String verbose = ClientFailureDetails.verbose(ex.exception);

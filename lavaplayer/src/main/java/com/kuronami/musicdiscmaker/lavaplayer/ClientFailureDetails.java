@@ -88,8 +88,10 @@ final class ClientFailureDetails {
     /**
      * チャットに載せる短い詳細。client が複数なら {@code " | "} で繋ぐ。
      *
-     * <p>集約例外でない場合は従来どおり<b>型名 + メッセージの先頭行</b>を返す
-     * ({@link #describe})。
+     * <p>集約例外でない場合は<b>分類の根拠になった例外</b>の型名 + メッセージの先頭行を返す
+     * ({@link FailureClassifier#blamed})。一番外側をそのまま採ると、lavaplayer の定型文
+     * (「Connecting to the URL failed.」等) しか出ず、実際に落ちた場所の文面
+     * (「UnknownHostException: ...」) が消える。
      *
      * @param thrown 詳細を採りたい例外 ({@code null} 可)
      * @return 1 行の技術詳細 ({@code null} は返さない)
@@ -97,7 +99,7 @@ final class ClientFailureDetails {
     static String shortDetail(Throwable thrown) {
         final List<String> reasons = clientReasons(thrown);
         if (reasons.isEmpty()) {
-            return describe(thrown);
+            return describe(FailureClassifier.blamed(thrown));
         }
         return String.join(" | ", reasons);
     }
