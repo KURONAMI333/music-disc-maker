@@ -25,7 +25,8 @@ public final class DiscFabrication {
     /** これを超える長さ (ms) は無限長ストリーム扱い (12h)。lavaplayer の長さ不明は Long.MAX_VALUE。 */
     private static final long RADIO_DURATION_THRESHOLD_MS = 43_200_000L;
 
-    /** URL 解決は最大 30s ブロックするので main thread から外す。 */
+    // URL 解決は長くブロックする (通常 30s + YouTube が弾かれた時の代替ソース探しで最大 20s)
+    // ので main thread から外す。スレッドは 2 本しかないので、ここが伸びると同時に作れる枚数が減る。
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-fabricate");
         thread.setDaemon(true);

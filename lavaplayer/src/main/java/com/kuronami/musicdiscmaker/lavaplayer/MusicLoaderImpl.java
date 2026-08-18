@@ -222,8 +222,10 @@ public class MusicLoaderImpl implements IMusicLoader {
             // 曲名は既に og タグから取れているので oEmbed は要らない。検索が bot 判定で弾かれると
             // 結果 0 件 = UNSUPPORTED_URL で返ってくるので、それも発火対象に含める。
             if (firesSubstitute(ex.reason()) || ex.reason() == FailureReason.UNSUPPORTED_URL) {
-                final TrackInfo substitute =
-                        substitute(meta[0], meta[1], spotifyUrl, System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS);
+                // og タグの曲名とアーティストは既に分かれているので、MetadataCleaner の
+                // 「Artist - Song」分割をかけない (Spotify の "Song - Remastered 2011" が壊れる)。
+                final TrackInfo substitute = substitute(meta[0], meta[0], meta[1], spotifyUrl,
+                        System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS);
                 if (substitute != null) {
                     return substitute;
                 }
@@ -289,7 +291,8 @@ public class MusicLoaderImpl implements IMusicLoader {
                     normalizedUrl, reason);
             return null;
         }
-        return substitute(meta[0], meta[1], normalizedUrl, deadline);
+        final String[] want = MetadataCleaner.clean(meta[0], meta[1]);
+        return substitute(meta[0], want[0], want[1], normalizedUrl, deadline);
     }
 
     /**
@@ -304,18 +307,19 @@ public class MusicLoaderImpl implements IMusicLoader {
      * YouTube 側にしかない)。元の尺は YouTube が拒んだ時点で取れないので突き合わせられないが、
      * <b>短縮版はフル尺より短い</b>ので、一致した候補のうち最長のものを採ればフル尺に寄る。
      *
-     * @param rawTitle  元の生タイトル
-     * @param rawAuthor 元の生アーティスト
-     * @param originUrl 元の URL (ログ用)
-     * @param deadline  これを過ぎたら諦める時刻 (壁時計 ms)
+     * @param markerTitle 版の目印を探す元のタイトル
+     * @param title       探す曲名 (整形済み)
+     * @param author      探すアーティスト (整形済み)
+     * @param originUrl   元の URL (ログ用)
+     * @param deadline    これを過ぎたら諦める時刻 (壁時計 ms)
      * @return 代わりに使えるトラック、見つからなければ {@code null}
      */
-    private TrackInfo substitute(String rawTitle, String rawAuthor, String originUrl, long deadline) {
-        final String[] want = MetadataCleaner.clean(rawTitle, rawAuthor);
-        if (want[0].isBlank() || want[1].isBlank()) {
+    private TrackInfo substitute(String markerTitle, String title, String author, String originUrl,
+            long deadline) {
+        if (title.isBlank() || author.isBlank()) {
             return null;
         }
-        final String query = want[1] + " " + want[0];
+        final String query = author + " " + title;
         for (final String prefix : ALTERNATE_SEARCH_PREFIXES) {
             final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - System.currentTimeMillis());
             if (budget <= 0L) {
@@ -329,7 +333,8 @@ public class MusicLoaderImpl implements IMusicLoader {
                 if (info.isStream || info.length <= 0L || info.length == Long.MAX_VALUE) {
                     continue;
                 }
-                if (!TrackMatch.sameRecording(rawTitle, rawAuthor, info.title, info.author)) {
+                if (!TrackMatch.sameRecordingFromCleanSource(markerTitle, title, author,
+                        info.title, info.author)) {
                     continue;
                 }
                 if (best == null || info.length > best.length) {

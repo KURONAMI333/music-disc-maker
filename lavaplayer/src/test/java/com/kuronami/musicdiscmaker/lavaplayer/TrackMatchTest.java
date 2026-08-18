@@ -122,6 +122,20 @@ class TrackMatchTest {
     }
 
     @Test
+    @DisplayName("曲名とアーティストが既に分かれている入口では、再分割しない (Spotify 経路)")
+    void doesNotSplitAlreadySeparatedMetadata() {
+        // og:title は「Song - Remastered 2011」のようにダッシュ付きの版注記を持つ。生の入口へ
+        // 渡すと "Bohemian Rhapsody" がアーティストとして切り出されて照合が壊れる。
+        assertTrue(TrackMatch.sameRecordingFromCleanSource("Bohemian Rhapsody - Remastered 2011",
+                "Bohemian Rhapsody - Remastered 2011", "Queen",
+                "Queen - Bohemian Rhapsody - Remastered 2011", "queenofficial"));
+        // 候補に版注記が無ければ落とす (元の版と同じとは言えないので、鳴らさない側に倒す)。
+        assertFalse(TrackMatch.sameRecordingFromCleanSource("Bohemian Rhapsody - Remastered 2011",
+                "Bohemian Rhapsody - Remastered 2011", "Queen",
+                "Queen - Bohemian Rhapsody", "queenofficial"));
+    }
+
+    @Test
     @DisplayName("目印は括弧の中だけを見る (曲名そのものの語で落とさない)")
     void marksOnlyInsideBrackets() {
         assertTrue(TrackMatch.variantMarkers("Live and Let Die").isEmpty());
