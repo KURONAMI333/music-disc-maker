@@ -1,8 +1,10 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
 import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -21,8 +23,9 @@ import java.util.Set;
  *     両側で<b>一致しなければ</b>落とす (片側だけに付いている = 別の版)</li>
  * <li><b>曲名</b> — 正規化した語の集合が<b>完全に一致</b>すること。部分一致を許すと
  *     「Sexy And I Know It, Sorry For Party Rocking, Party Rock Anthem」のような寄せ集めが通る</li>
- * <li><b>アーティスト</b> — 正規化した語の集合が一致するか、<b>片方がもう片方を含む</b>こと。
- *     どちらかが空なら落とす (照合する材料が無い = 判定できない)</li>
+ * <li><b>アーティスト</b> — 正規化した語が<b>先頭から噛み合う</b>こと (客演の足し引きは許すが、
+ *     主が入れ替わったら落とす)。どちらかが空なら落とす (照合する材料が無い = 判定できない)</li>
+ * <li><b>尺</b> — 元の尺が取れているなら釣り合っていること ({@link #durationFits})</li>
  * </ol>
  *
  * <p>入力は<b>生のメタ情報</b>を渡す。整形は {@link MetadataCleaner} に任せる
@@ -58,13 +61,13 @@ public final class TrackMatch {
      * ({@code "Rock & Roll"} と {@code "Rock and Roll"} を同じにするため)。
      * 内容語 ({@code "video"} {@code "the"} 等) は落とさない — 曲名そのものでありうる。
      */
-    /** 尺の下限 (元に対する比)。これを下回る候補は抜粋・試聴版とみなす。 */
-    private static final double MIN_DURATION_RATIO = 0.35d;
-    /** 尺の上限 (元に対する比)。これを超える候補は寄せ集め・ループとみなす。 */
-    private static final double MAX_DURATION_RATIO = 3.0d;
-
     private static final Set<String> IGNORED_WORDS =
             Set.of("and", "feat", "featuring", "ft", "with", "prod", "vs");
+
+    /** 尺の下限 (元に対する比)。これを下回る候補は抜粋・試聴版とみなす。 */
+    private static final double MIN_DURATION_RATIO = 0.5d;
+    /** 尺の上限 (元に対する比)。これを超える候補は寄せ集め・ループとみなす。 */
+    private static final double MAX_DURATION_RATIO = 3.0d;
 
     private TrackMatch() {
     }
@@ -121,30 +124,58 @@ public final class TrackMatch {
         if (sourceWords.isEmpty() || !sourceWords.equals(candidateWords)) {
             return false;
         }
-        final Set<String> sourceArtist = words(sourceAuthor);
-        final Set<String> candidateArtist = words(candidate[1]);
-        if (sourceArtist.isEmpty() || candidateArtist.isEmpty()) {
+        return artistsAgree(wordList(sourceAuthor), wordList(candidate[1]));
+    }
+
+    /**
+     * アーティスト名が噛み合っているか。<b>片方がもう片方の先頭から始まっている</b>ことを見る。
+     *
+     * <h2>「含む」で判定してはいけない (2026-08-18 実測)</h2>
+     * 集合の包含で通すと、<b>マッシュアップが素通りする</b>。
+     * {@code "Alan Walker - Faded"} を探した時に {@code "2Pac Ft. Alan Walker - Faded"} が
+     * 返ってきた ({@code soundcloud.com/jamiegos/2pac-ft-alan-walker-faded-jamie-gos-remix})。
+     * 語の集合では {@code {alan, walker}} が {@code {2pac, alan, walker}} に含まれるので通ってしまうが、
+     * これは別の録音。
+     *
+     * <p>{@code "Daft Punk"} に対する {@code "Daft Punk feat. Romanthony"} との違いは<b>並び</b>にある
+     * — 客演が後ろに足された時は先頭が一致し、マッシュアップで別のアーティストが主になった時は
+     * 先頭から食い違う。
+     *
+     * @param source    元のアーティスト名の語 (並び順のまま)
+     * @param candidate 候補のアーティスト名の語 (並び順のまま)
+     * @return 噛み合っていれば {@code true}
+     */
+    private static boolean artistsAgree(List<String> source, List<String> candidate) {
+        if (source.isEmpty() || candidate.isEmpty()) {
             return false;
         }
-        return sourceArtist.containsAll(candidateArtist) || candidateArtist.containsAll(sourceArtist);
+        final int shared = Math.min(source.size(), candidate.size());
+        for (int i = 0; i < shared; i++) {
+            if (!source.get(i).equals(candidate.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
      * 候補の尺が元と釣り合っているか。
      *
-     * <h2>幅の決め方 (2026-08-18 の実測から)</h2>
-     * 落としたいのは<b>短縮版と抜粋</b>。SoundCloud にはレーベルが上げた 1:30 の販促版や 30 秒の
-     * 試聴版が混じる (実測: Interscope の「LMFAO - Sorry For Party Rocking」は 1:30 で、
-     * 同じ曲の YouTube 側は 7:19)。
+     * <h2>幅の決め方 (2026-08-18 に 8 曲で実測した比から)</h2>
+     * 落としたいのは<b>レーベルが上げる 1:30 の販促版</b>。2 件出た —
+     * Interscope の「LMFAO - Sorry For Party Rocking」(90秒 / 元 7:19 = <b>0.205</b>) と
+     * 「OneRepublic - Counting Stars」(90秒 / 元 4:43 = <b>0.320</b>)。
      *
-     * <p>一方で<b>元が曲より長いのは普通</b> — ミュージックビデオは寸劇や間奏を抱えるので、
-     * 正しい候補でも元の半分以下になりうる (上の 7:19 に対して曲そのものは 3:22 前後)。
-     * そのため下限は<b>フェードやイントロの差</b>ではなく「明らかな抜粋」を切る位置に置く:
-     * 元の 0.35 倍未満、または 3.0 倍超を落とす。
+     * <p>通すべき候補の比は <b>0.767 / 0.881 / 0.998 / 1.027</b> だった。元が曲より長いのは普通で
+     * (ミュージックビデオは寸劇や間奏を抱える)、Adele「Hello」は MV 6:07 に対して音源 4:41 = 0.767。
      *
-     * <p><b>この幅だけでは分けきれない帯がある</b>: 3:30 の曲に対する 1:30 の販促版は 0.43 倍で、
-     * 寸劇つき MV に対する正しい曲 (0.42〜0.46 倍) と重なる。だから幅は粗い足切りに留め、
-     * <b>通った候補の中では元の尺に一番近いものを採る</b> ({@code MusicLoaderImpl#substitute})。
+     * <p>0.32 と 0.767 の間が空いているので、下限はそこに置く (元の 0.5 倍未満を落とす)。上限は 3.0 倍
+     * — 寄せ集めやループを切る。
+     *
+     * <p><b>それでも分けきれない帯は残る</b>: 販促版はどの曲でもほぼ 90 秒固定なので、元が 3:00 の
+     * 動画なら比は 0.5 に届く。<b>迷う帯では鳴らさない側に倒す</b>方針で下限を上に置いてあるが、
+     * 幅は粗い足切りに留め、<b>通った候補の中では元の尺に一番近いものを採る</b>
+     * ({@code MusicLoaderImpl#substitute})。
      *
      * @param sourceMs    元の尺 (ms)。{@code 0} 以下なら分からない
      * @param candidateMs 候補の尺 (ms)
@@ -254,7 +285,18 @@ public final class TrackMatch {
      * @return 語の集合 (順序は持たない)
      */
     static Set<String> words(String text) {
-        final Set<String> result = new LinkedHashSet<>();
+        return new LinkedHashSet<>(wordList(text));
+    }
+
+    /**
+     * 照合用に文字列を語へ落とす ({@link #words} と同じ規則で、<b>並びを保つ</b>)。
+     * アーティスト名は先頭から突き合わせるので順序が要る。
+     *
+     * @param text 整形済みの曲名 / アーティスト名
+     * @return 語 (現れた順)
+     */
+    static List<String> wordList(String text) {
+        final List<String> result = new ArrayList<>();
         if (text == null) {
             return result;
         }
