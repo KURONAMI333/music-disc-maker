@@ -63,6 +63,7 @@ Paste an internet radio stream (Icecast/SHOUTcast) or a YouTube live URL and you
 **Notes**
 
 - Audio is streamed from the source each time it plays. It isn't stored inside the disc, so it needs an internet connection. Some tracks may be region-locked or unavailable.
+- Not all sources are equally reliable. Direct audio-file links, SoundCloud, and Bandcamp don't do bot checks. YouTube (and Spotify, which resolves through a YouTube search) can occasionally hit a login/bot-check wall on some server IPs — most common on hosted or rented servers. The maker tells you when that happens; a direct link or one of the other sources is the fix.
 - Install it on the server and on every client. Audio plays client-side. No other mods required.
 - **The server and every client must run the same version of this mod.** From 2.2.0 on, NeoForge and Forge reject a mismatch when you connect. Fabric has no version handshake, so a mismatch there is not caught and will misbehave instead — update both sides together.
 
