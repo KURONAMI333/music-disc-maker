@@ -14,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.sounds.AudioStream;
@@ -25,7 +26,8 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
-public class DiscSoundInstance extends AbstractTickableSoundInstance implements PlaybackVoice {
+public class DiscSoundInstance extends AbstractTickableSoundInstance
+        implements PlaybackVoice, SoundEngineAcceptance.Engine {
 
     private final IAudioSource source;
     /** source を高々一度だけ close するためのガード (requestStop と stream 経由の close の二重解放を防ぐ)。 */
@@ -462,6 +464,37 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
      */
     public void setFailureSink(@Nullable Consumer<PlaybackFailure> sink) {
         this.failureSink = sink;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>{@code SoundManager#play} は受理しなかったことを戻り値で返さないので、engine 側の
+     * 唯一の観測点で見る。{@code SoundEngine#play} は成功経路の中で {@code instanceToChannel} へ
+     * 入れてから返るため、直後の {@code isActive} が偽なら捨てられている (捨てる 8 経路と
+     * その静けさは {@link SoundEngineAcceptance} の javadoc)。
+     */
+    @Override
+    public boolean playAndConfirm() {
+        final SoundManager sounds = Minecraft.getInstance().getSoundManager();
+        sounds.play(this);
+        return sounds.isActive(this);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>engine の {@code calculateVolume} は {@code volume × Records} を、{@code listener} の
+     * gain は master をそのまま見る。どれかが 0 なら {@code play} は必ず捨てるので、
+     * 「engine が受理しなかった」ではなく「音量が 0 だ」と答えられる。
+     * この音源自身の音量 (ジュークボックスのスライダー・{@code volumeMultiplier}) も同じ扱いにする。
+     */
+    @Override
+    public boolean mutedOut() {
+        final Options options = Minecraft.getInstance().options;
+        return getVolume() <= 0.0F
+                || options.getSoundSourceVolume(SoundSource.MASTER) <= 0.0F
+                || options.getSoundSourceVolume(SoundSource.RECORDS) <= 0.0F;
     }
 
     public CompletableFuture<AudioStream> getCustomStream() {
