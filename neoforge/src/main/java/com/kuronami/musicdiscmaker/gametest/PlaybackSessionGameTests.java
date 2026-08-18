@@ -305,4 +305,62 @@ public class PlaybackSessionGameTests {
                 "止めた再生の失敗がチャットに出ている");
         helper.succeed();
     }
+
+    /**
+     * <b>これが今回の回帰テスト。</b> engine が受理しなかった理由は、鳴り始めるまで 1 回だけ
+     * 出すこと。
+     *
+     * <p>音量 0 のような理由は直るまで<b>何度やっても同じところで弾かれる</b>。出すこと自体は
+     * 正しい (誤って 0 にしている人には必要な情報) が、毎回出すと意図してミュートしている人には
+     * ただのノイズになる。だから頻度の問題として扱う。
+     *
+     * <p>既存の {@code notices} に乗せてもこれは実現しない — あちらは {@code stop} で忘れ、
+     * 再生要求は必ず {@code stop} を通ってから新しい世代を起こすので、chunk 再入のたびに
+     * 「初めての失敗」に戻る。ここではその再入をそのまま再現している。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void anEngineRejectionIsReportedOnceUntilItActuallyPlays(GameTestHelper helper) {
+        final PlaybackSessions sessions = new PlaybackSessions(() -> CLOCK_START);
+        final PlaybackFailure muted = PlaybackFailure.soundMuted();
+
+        final PlaybackSessions.StartDecision first = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        helper.assertTrue(sessions.engineRejected(JUKEBOX, first.token(), muted) == muted,
+                "最初の拒否が黙っている (誤って音量を 0 にしている人が気づけない)");
+
+        // chunk 再入の再送。stop -> 新しい世代、を通る現実の順番。
+        final PlaybackSessions.StartDecision second = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        helper.assertTrue(sessions.engineRejected(JUKEBOX, second.token(), muted) == null,
+                "同じ理由が再生要求のたびにチャットへ積まれている");
+
+        // 理由が変われば別の情報なので通す。
+        final PlaybackSessions.StartDecision third = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        final PlaybackFailure engine = PlaybackFailure.soundEngineRejected();
+        helper.assertTrue(sessions.engineRejected(JUKEBOX, third.token(), engine) == engine,
+                "理由が変わったのに黙っている");
+        helper.succeed();
+    }
+
+    /** 一度鳴り始めたら記憶を捨てること (直った後にまた弾かれたら、それは新しい出来事)。 */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void anEngineRejectionIsReportedAgainAfterPlaybackSucceeded(GameTestHelper helper) {
+        final PlaybackSessions sessions = new PlaybackSessions(() -> CLOCK_START);
+        final PlaybackFailure muted = PlaybackFailure.soundMuted();
+
+        final PlaybackSessions.StartDecision first = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        helper.assertTrue(sessions.engineRejected(JUKEBOX, first.token(), muted) == muted, "最初の拒否");
+
+        // 音量を戻して鳴った。
+        final PlaybackSessions.StartDecision second = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        helper.assertTrue(sessions.install(JUKEBOX, second.token(), TRACK_A.url(), 0L, new FakeVoice("A")),
+                "install が通っていない");
+        sessions.engineAccepted(JUKEBOX);
+
+        // また 0 にした。同じラベルでも新しい出来事なので出す。
+        final PlaybackSessions.StartDecision third = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        helper.assertTrue(sessions.engineRejected(JUKEBOX, third.token(), muted) == muted,
+                "鳴った後にまた弾かれたのに黙っている (抑止が解けていない)");
+        helper.succeed();
+    }
 }

@@ -247,12 +247,17 @@ public final class ClientPlaybackManager {
         }
         // play は受理しなかったことを戻り値で返さない。見ずに進むと、鳴っていないのに
         // "Now Playing" が出て、同じ URL の再通知も既存 session に弾かれる = 停止まで無音が固定される。
+        // 出すかどうかは PlaybackSessions が決める。engine の拒否は直るまで何度でも同じ理由で
+        // 起きるので、毎回出すと今度はノイズになる (同じ理由は鳴り始めるまで 1 回だけ)。
         if (!SoundEngineAcceptance.start(instance, instance, rejected -> {
-            sessions.abandon(key, token);
-            PlaybackFailureReport.report(track, rejected);
+            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
+            if (show != null) {
+                PlaybackFailureReport.report(track, show);
+            }
         })) {
             return;
         }
+        sessions.engineAccepted(key); // 実際に鳴り始めた。拒否の記憶を捨てる唯一の点
         // vanilla disc と同じ "Now Playing: ..." overlay を出す
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()

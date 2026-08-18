@@ -107,6 +107,18 @@ public final class PlaybackSessions {
      * 落ち直すので、覚えておかないと同じ行がチャットに積まれる。忘れるのは停止した時だけ。
      */
     private final PlaybackFailureNotices notices = new PlaybackFailureNotices();
+    /**
+     * sound engine が受理しなかった失敗の重複抑止。{@link #notices} と<b>別に持つ</b>。
+     *
+     * <p>あちらは停止のたびに忘れる ({@link #stop})。再生要求は必ず {@code stop} を通ってから
+     * 新しい世代を起こすので、あちらに乗せると<b>何も抑えられない</b> — 音量 0 のように
+     * 「鳴らそうとするたびに同じ理由で弾かれる」失敗は、chunk 再入のたびに同じ行を積む。
+     *
+     * <p>だからこちらが忘れるのは<b>実際に鳴り始めた時</b>だけにする ({@link #engineAccepted})。
+     * 意図してミュートしている人は最初の 1 回だけ見て以降は黙り、誤って 0 にしている人は
+     * 気づける。理由が変われば (音量 0 → チャンネル枯渇) 別の情報なので通る。
+     */
+    private final PlaybackFailureNotices startNotices = new PlaybackFailureNotices();
 
     private final LongSupplier clockMs;
 
@@ -245,6 +257,37 @@ public final class PlaybackSessions {
     }
 
     /**
+     * sound engine が再生を受理しなかった ({@link SoundEngineAcceptance})。この再生を諦めた上で、
+     * 利用者に出すべきかどうかを答える。
+     *
+     * <p>ロードは成功しているので原因は MC 側にあり、直るまで<b>何度やっても同じ理由で弾かれる</b>。
+     * 出すこと自体は正しい (誤って音量を 0 にしている人には必要な情報) が、毎回出すとノイズになる。
+     * だから頻度の問題として扱う — 同じ理由は実際に鳴り始めるまで 1 回だけ。
+     *
+     * @param key     jukebox の位置
+     * @param token   この再生の世代
+     * @param failure 受理されなかった理由
+     * @return 出すべき失敗。黙るなら {@code null}
+     */
+    @Nullable
+    public PlaybackFailure engineRejected(BlockPos key, int token, PlaybackFailure failure) {
+        abandon(key, token);
+        return startNotices.shouldReport(key, failure) ? failure : null;
+    }
+
+    /**
+     * sound engine が再生を受理した = 実際に鳴り始めた。受理されなかった理由の記憶を捨てる。
+     *
+     * <p>ここが唯一の忘れる点。{@link #stop} で忘れないのは、停止と再生を挟んで繰り返される
+     * 失敗こそが抑えたい相手だから ({@link #startNotices})。
+     *
+     * @param key jukebox の位置
+     */
+    public void engineAccepted(BlockPos key) {
+        startNotices.forget(key);
+    }
+
+    /**
      * ラジオストリームが終端に達した。再接続するか、諦めるかを決める。
      *
      * <p>直前の再生が {@link #STABLE_MS} 以上続いていたら (瞬断が久しぶりなら) 試行回数をリセットする。
@@ -317,6 +360,7 @@ public final class PlaybackSessions {
         loadOffsetMs.clear();
         pendingFailure.clear();
         notices.forgetAll();
+        startNotices.forgetAll();
         active.values().forEach(PlaybackVoice::stopAndRelease);
         active.clear();
     }

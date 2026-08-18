@@ -221,6 +221,15 @@ public class LivePlaybackRegistryGameTests {
         registry.request(PLOT, URL_A, 64, 100, true);
         registry.loadFinished(PLOT, URL_A);
         helper.assertTrue(registry.install(PLOT, URL_A, new FakeVoice(URL_A)), "install が通っていない");
+        // install だけでは捨てない。この後 sound engine に弾かれて一音も鳴らないことがある。
+        helper.assertTrue(!registry.loadFailed(PLOT, URL_A, NETWORK),
+                "鳴り始める前に記憶を捨てている (engine に弾かれる理由が毎回「初めて」に戻る)");
+
+        now[0] += LivePlaybackRegistry.MAX_RETRY_MS;
+        registry.request(PLOT, URL_A, 64, 100, true);
+        registry.loadFinished(PLOT, URL_A);
+        helper.assertTrue(registry.install(PLOT, URL_A, new FakeVoice(URL_A)), "install が通っていない");
+        registry.playing(PLOT); // 実際に鳴り始めた
         helper.assertTrue(registry.loadFailed(PLOT, URL_A, NETWORK),
                 "復帰した後の失敗が黙っている (成功で記憶を捨てていない)");
         helper.succeed();

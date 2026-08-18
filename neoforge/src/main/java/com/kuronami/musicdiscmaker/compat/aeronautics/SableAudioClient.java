@@ -149,6 +149,7 @@ public final class SableAudioClient {
                 })) {
                     return;
                 }
+                SLOTS.playing(actorKey); // 実際に鳴り始めた。待ち時間と報告の抑止を捨てる唯一の点
                 final String desc = (track.author() != null && !track.author().isBlank())
                         ? track.author() + " - " + track.title()
                         : track.title();
