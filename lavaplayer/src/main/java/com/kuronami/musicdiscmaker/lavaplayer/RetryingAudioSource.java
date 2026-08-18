@@ -141,12 +141,12 @@ final class RetryingAudioSource implements IAudioSource {
                 closeQuietly(fresh);
                 return fault;
             }
-            LOGGER.info("再生が落ちたので YouTube セッションを入れ替えて開き直した ({})", fault.reason());
+            LOGGER.info("Playback died, so the YouTube session was rotated and the stream reopened ({})", fault.reason());
             return null;
         } catch (final ResolveException ex) {
             return new PlaybackFault(ex.reason(), "retry: " + ex.reason());
         } catch (final Throwable t) {
-            LOGGER.warn("開き直しに失敗", t);
+            LOGGER.warn("Failed to reopen the stream", t);
             return fault;
         }
     }

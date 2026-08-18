@@ -64,9 +64,9 @@ public final class SableServerAudio {
                 // Sable 内部 API が未検証環境で throw しても server tick を巻き込まない (soft-compat 隔離)。
                 if (!warnedOnce) {
                     warnedOnce = true;
-                    MusicDiscMaker.LOGGER.warn("Sable sub-level 走査で例外 (以後は debug)", t);
+                    MusicDiscMaker.LOGGER.warn("Exception while scanning Sable sub-levels (further occurrences are logged at debug)", t);
                 } else {
-                    MusicDiscMaker.LOGGER.debug("Sable sub-level 走査で例外", t);
+                    MusicDiscMaker.LOGGER.debug("Exception while scanning Sable sub-levels", t);
                 }
             }
         }

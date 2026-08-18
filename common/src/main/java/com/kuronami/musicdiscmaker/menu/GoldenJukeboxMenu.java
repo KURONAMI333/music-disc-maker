@@ -55,7 +55,7 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
         if (be instanceof GoldenJukeboxBlockEntity jukebox) {
             return jukebox;
         }
-        throw new IllegalStateException("Enhanced Jukebox BlockEntity が見つからない");
+        throw new IllegalStateException("Enhanced Jukebox BlockEntity not found");
     }
 
     public GoldenJukeboxBlockEntity getBlockEntity() {

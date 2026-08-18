@@ -66,7 +66,7 @@ final class SpotifyResolver {
             }
             return new String[] {title.trim(), artist};
         } catch (final Throwable t) {
-            LOGGER.warn("Spotify ページ取得失敗 ({})", url, t);
+            LOGGER.warn("Failed to fetch the Spotify page ({})", url, t);
             return null;
         }
     }

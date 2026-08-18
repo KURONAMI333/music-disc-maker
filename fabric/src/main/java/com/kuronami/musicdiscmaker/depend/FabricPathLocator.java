@@ -14,8 +14,8 @@ public class FabricPathLocator implements DependencyManager.PathLocator {
     public Path locate(String modid, String folder) {
         return FabricLoader.getInstance()
                 .getModContainer(modid)
-                .orElseThrow(() -> new IllegalStateException("mod container が見つからない: " + modid))
+                .orElseThrow(() -> new IllegalStateException("Mod container not found: " + modid))
                 .findPath(folder)
-                .orElseThrow(() -> new IllegalStateException("mod jar 内に " + folder + " が見つからない: " + modid));
+                .orElseThrow(() -> new IllegalStateException("Path " + folder + " not found inside the mod jar of " + modid));
     }
 }

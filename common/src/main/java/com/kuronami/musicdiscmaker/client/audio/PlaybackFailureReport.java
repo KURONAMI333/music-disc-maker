@@ -39,7 +39,7 @@ public final class PlaybackFailureReport {
 
     /** 曲データを持たない経路 (プレイリスト解決前など) 向け。 */
     public static void report(@Nullable String title, @Nullable String url, PlaybackFailure failure) {
-        MusicDiscMaker.LOGGER.warn("再生に失敗 [{}] 曲={} url={}", failure.label(),
+        MusicDiscMaker.LOGGER.warn("Playback failed [{}] track={} url={}", failure.label(),
                 title == null || title.isBlank() ? "?" : title, url == null ? "?" : url);
         final Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {

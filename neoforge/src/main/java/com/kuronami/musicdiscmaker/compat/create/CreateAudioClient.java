@@ -56,7 +56,7 @@ public final class CreateAudioClient {
         }
         // 診断 (debug 既定 off): startMoving の送信ログが出るのにこれが出なければ payload が client へ
         // 届いていない (tracker 未確立/配送) を疑う。両方出るのに無音なら ContraptionAnchor の座標/capture 側。
-        MusicDiscMaker.LOGGER.debug("Create contraption 再生を受信: entityId={} localPos={}",
+        MusicDiscMaker.LOGGER.debug("Received Create contraption playback: entityId={} localPos={}",
                 payload.contraptionEntityId(), payload.localPos());
         final long actorKey = key(payload.contraptionEntityId(), payload.localPos().asLong());
         final DiscSoundInstance previous = ACTIVE.get(actorKey);

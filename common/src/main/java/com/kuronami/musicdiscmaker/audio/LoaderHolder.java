@@ -28,9 +28,9 @@ public final class LoaderHolder {
                                 true, DependencyManager.CLASSLOADER);
                         local = (IMusicLoader) clazz.getDeclaredConstructor().newInstance();
                         loader = local;
-                        MusicDiscMaker.LOGGER.info("LavaPlayer loader 初期化完了");
+                        MusicDiscMaker.LOGGER.info("LavaPlayer loader initialized");
                     } catch (final Exception ex) {
-                        throw new IllegalStateException("LavaPlayer loader を初期化できない", ex);
+                        throw new IllegalStateException("Failed to initialize the LavaPlayer loader", ex);
                     }
                 }
             }
