@@ -96,9 +96,12 @@ public final class SableAudioClient {
                 SLOTS.loadFinished(actorKey, track.url());
                 if (resolved == null) {
                     // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
-                    // 同じ URL は記憶し、次の周期再送 (1 秒後) では繋ぎ直さない。
-                    SLOTS.loadFailed(actorKey, track.url());
-                    PlaybackFailureReport.report(track, reported);
+                    // 同じ URL はしばらく繋ぎ直さないが、待ちが明ければ自分で戻る (LivePlaybackRegistry)。
+                    final PlaybackFailure why = reported == null
+                            ? PlaybackFailure.streamUnavailable() : reported;
+                    if (SLOTS.loadFailed(actorKey, track.url(), why)) {
+                        PlaybackFailureReport.report(track, why);
+                    }
                     return;
                 }
                 if (Minecraft.getInstance().level == null) {
