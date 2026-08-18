@@ -158,6 +158,63 @@ class RetryingAudioSourceTest {
                 "開き直しの失敗理由が届いていない");
     }
 
+    /**
+     * <b>これが今回の回帰テスト。</b> 開けたのに 1 バイトも鳴らずに終わったら、理由が付いて
+     * いなくても失敗として上げること。
+     *
+     * <p>従来は「理由なしの終端 = 最後まで鳴った」と一括りにしていたので、この経路は
+     * 利用者にもログにも何も出ないまま無音で終わっていた。
+     */
+    @Test
+    void aStreamThatEndsWithoutEverProducingAudioIsReportedAsAFailure() {
+        final FakeSource empty = new FakeSource(new byte[0], null, 0L);
+        final FakeYoutubeSession session = new FakeYoutubeSession(8);
+        final RetryingAudioSource source = wrap(empty, new Opened(), session, 1);
+        final AtomicReference<PlaybackFault> reported = new AtomicReference<>();
+        source.onPlaybackFault(reported::set);
+
+        assertEquals(-1, source.read(new byte[16], 0, 16), "終端を返していない");
+        assertNotNull(reported.get(), "一音も鳴らずに終わったのに何も出ていない (完全な無音)");
+        assertEquals(FailureReason.UNKNOWN, reported.get().reason());
+        assertTrue(reported.get().detail().contains("without audio"),
+                "何が起きたか分からない detail: " + reported.get().detail());
+    }
+
+    /** <b>対照。</b> PCM を渡した後の理由なしの終端は「最後まで鳴った」なので何も出さないこと。 */
+    @Test
+    void aStreamThatPlayedToTheEndStaysSilent() {
+        final FakeSource played = new FakeSource(new byte[] {1, 2, 3, 4}, null, 0L);
+        final FakeYoutubeSession session = new FakeYoutubeSession(8);
+        final RetryingAudioSource source = wrap(played, new Opened(), session, 1);
+        final AtomicReference<PlaybackFault> reported = new AtomicReference<>();
+        source.onPlaybackFault(reported::set);
+
+        final byte[] buffer = new byte[16];
+        assertEquals(4, source.read(buffer, 0, buffer.length));
+        assertEquals(-1, source.read(buffer, 0, buffer.length));
+        assertNull(reported.get(), "最後まで鳴ったのに失敗を出している");
+    }
+
+    /**
+     * <b>対照。</b> 停止による終端を失敗に仕立てないこと。
+     *
+     * <p>{@code close} は理由の到着待ち ({@code graceMs}) の中でも起きうるので、そこで返る
+     * {@code null} を「理由なしの終端」と同じに扱うと、ディスクを抜くたびに失敗が出る。
+     */
+    @Test
+    void aDeliberateCloseIsNotTurnedIntoAFailure() {
+        final FakeSource empty = new FakeSource(new byte[0], null, 0L);
+        final FakeYoutubeSession session = new FakeYoutubeSession(8);
+        final RetryingAudioSource source = wrap(empty, new Opened(), session, 1);
+        final AtomicReference<PlaybackFault> reported = new AtomicReference<>();
+        source.onPlaybackFault(reported::set);
+
+        source.close();
+
+        assertEquals(-1, source.read(new byte[16], 0, 16));
+        assertNull(reported.get(), "停止したのに失敗として報告している");
+    }
+
     /** 停止されたら、やり直さずに中のソースを閉じること。 */
     @Test
     void closingStopsTheRetryAndClosesTheInnerSource() {

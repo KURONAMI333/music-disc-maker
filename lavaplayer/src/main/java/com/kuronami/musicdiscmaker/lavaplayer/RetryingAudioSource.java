@@ -97,7 +97,7 @@ final class RetryingAudioSource implements IAudioSource {
             }
             final PlaybackFault fault = awaitFault(current);
             if (fault == null) {
-                return -1; // 理由が付かないまま終わった = 最後まで鳴った
+                return endedWithoutReason();
             }
             if (!canRetry(fault)) {
                 relay.record(fault);
@@ -110,6 +110,29 @@ final class RetryingAudioSource implements IAudioSource {
             }
             // 開き直せた → ループ先頭から新しいソースを読む (上の層は終端を見ない)
         }
+    }
+
+    /**
+     * 理由が付かないまま終端に達した時の答え。
+     *
+     * <p>PCM を 1 バイトでも渡していれば「最後まで鳴った」で正しい。渡していないなら違う —
+     * <b>開けたのに一音も鳴らないまま終わった</b>のであって、理由が付いていないだけ。
+     * 従来はこの 2 つを同じ {@code -1} に潰していたので、上の層は正常終了として扱い、
+     * 利用者にもログにも何も出ないまま無音になっていた。
+     *
+     * <p>{@link #closed} を見るのは、{@link #awaitFault} が理由の到着を待っている間 (最大
+     * {@link #graceMs}) に停止されうるから。その {@code null} は失敗ではなく停止の結果なので、
+     * 失敗を捏造しない。
+     *
+     * @return 常に {@code -1} (終端)
+     */
+    private int endedWithoutReason() {
+        if (emitted || closed) {
+            return -1;
+        }
+        LOGGER.warn("The stream ended without producing any audio and without reporting a reason");
+        relay.record(new PlaybackFault(FailureReason.UNKNOWN, "stream ended without audio"));
+        return -1;
     }
 
     /** やり直す価値があるか。 */

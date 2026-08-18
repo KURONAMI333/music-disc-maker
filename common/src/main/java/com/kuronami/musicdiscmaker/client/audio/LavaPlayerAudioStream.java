@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import javax.sound.sampled.AudioFormat;
@@ -9,6 +10,8 @@ import javax.sound.sampled.AudioFormat;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.BufferUtils;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 
@@ -39,6 +42,17 @@ public class LavaPlayerAudioStream implements AudioStream {
     private final Consumer<PlaybackFailure> onFailure;
     /** 1 つのストリームから同じ失敗を二度上げないためのガード (read は何度も呼ばれる)。 */
     private final AtomicBoolean failureReported = new AtomicBoolean(false);
+    /**
+     * これまでに MC へ渡した PCM のバイト数。終端が「最後まで鳴った」のか「一音も鳴らなかった」のかは
+     * {@code read} の戻り値では区別できないので、ここで数える。
+     */
+    private final AtomicLong pcmBytes = new AtomicLong();
+    /**
+     * こちらが意図して終わらせた印 (ディスク取り出し・撤去・差し替え)。立っている間の終端は
+     * 失敗ではないので報告しない。<b>これが無いと、曲の途中でディスクを抜くたびに
+     * 「途中で切れた」が出る</b>。
+     */
+    private final AtomicBoolean expectedEnd = new AtomicBoolean(false);
 
     /**
      * PCM 段のゲイン (1.0 = 素通し)。{@code SoundEngine#calculateVolume} が OpenAL へ渡す gain を
@@ -156,7 +170,7 @@ public class LavaPlayerAudioStream implements AudioStream {
                 // ただし「最後まで鳴った」のか「途中で落ちた」のかは read の戻り値では区別が
                 // つかない。落ちていた時だけソースが理由を持っているので、ここで引いて報告する
                 // (ここを見ないと、再生スレッドの中で落ちた失敗は完全な無音のまま終わる)。
-                reportFaultIfAny();
+                reportEnd();
                 // ラジオの瞬断もここに来る (lavaplayer が track を終了させる) ので再接続を促す。
                 if (onEnded != null && endedNotified.compareAndSet(false, true)) {
                     onEnded.run();
@@ -168,22 +182,57 @@ public class LavaPlayerAudioStream implements AudioStream {
             }
             applyGain(scratch, read);
             buffer.put(scratch, 0, read);
+            pcmBytes.addAndGet(read);
         }
         buffer.flip();
         return buffer;
     }
 
     /**
-     * ソースが理由を持っていれば一度だけ届ける。streaming スレッドから呼ばれるので、
-     * 届け先を持たない場合の既定の報告は main thread へ移してから行う
-     * ({@link PlaybackFailureReport} はチャットを触る)。
+     * こちらが意図して終わらせることを伝える (ディスク取り出し・撤去・差し替え)。
+     * 以後の終端は失敗として扱わない。{@link DiscSoundInstance} が音源を閉じる前に呼ぶ。
      */
-    private void reportFaultIfAny() {
+    void expectEnd() {
+        expectedEnd.set(true);
+    }
+
+    /**
+     * 終端に達した時の後始末。理由が付いていれば報告し、付いていなければ
+     * 「最後まで鳴った」のか「一音も鳴らなかった」のかをここで分ける。
+     *
+     * <p>streaming スレッドから呼ばれるので、届け先を持たない場合の既定の報告は main thread へ
+     * 移してから行う ({@link PlaybackFailureReport} はチャットを触る)。
+     */
+    private void reportEnd() {
         final PlaybackFault fault = source.playbackFault();
-        if (fault == null || !failureReported.compareAndSet(false, true)) {
+        if (fault != null) {
+            report(PlaybackFailure.ofReason(fault.reason(), fault.detail()));
             return;
         }
-        final PlaybackFailure failure = PlaybackFailure.ofReason(fault.reason(), fault.detail());
+        if (expectedEnd.get()) {
+            return; // 止めたのはこちら。失敗ではない
+        }
+        final long bytes = pcmBytes.get();
+        if (bytes == 0L) {
+            // 開けたのに 1 バイトも鳴らないまま終わった。理由が付いていないので、従来は
+            // 「最後まで鳴った」と同じ扱いで完全な無音のまま何も出なかった。
+            MusicDiscMaker.LOGGER.warn(
+                    "The stream ended without producing any audio and without reporting a reason");
+            report(PlaybackFailure.ofReason(FailureReason.UNKNOWN, "no audio"));
+            return;
+        }
+        // 途中で切れたのか最後まで鳴ったのかは、ここでは曲の尺を知らないので断定できない。
+        // 断定できないものをチャットへ出す代わりに、鳴った長さをログへ残す (latest.log を貼れば
+        // 「12 秒で終わった」と「3 分 33 秒鳴った」が区別できる)。
+        MusicDiscMaker.LOGGER.info("Stream ended after {} ms of audio with no failure reported",
+                playedMs(bytes));
+    }
+
+    /** 同じストリームから二度報告しない ({@code read} は何度も呼ばれる)。 */
+    private void report(PlaybackFailure failure) {
+        if (!failureReported.compareAndSet(false, true)) {
+            return;
+        }
         if (onFailure != null) {
             onFailure.accept(failure);
             return;
@@ -191,6 +240,16 @@ public class LavaPlayerAudioStream implements AudioStream {
         // 曲名を持たない経路 (compat 側の再生等)。曲名が無くても分類とログは残す。
         Minecraft.getInstance().execute(
                 () -> PlaybackFailureReport.report((String) null, null, failure));
+    }
+
+    /** 渡した PCM のバイト数を再生時間 (ms) に直す。 */
+    private long playedMs(long bytes) {
+        final int bytesPerFrame = format.getChannels() * (format.getSampleSizeInBits() / 8);
+        final float rate = format.getSampleRate();
+        if (bytesPerFrame <= 0 || rate <= 0.0F) {
+            return 0L;
+        }
+        return Math.round(bytes / (double) bytesPerFrame / rate * 1000.0);
     }
 
     @Override

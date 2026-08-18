@@ -331,6 +331,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             if (anchor instanceof StaticAnchor sa) {
                 ClientPlaybackManager.get().cancelPrefetch(sa.pos());
             }
+            markExpectedEnd(); // 撤去による停止。この後の終端を「途中で切れた」と報告しない
             stop();
             return;
         }
@@ -517,8 +518,21 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         Minecraft.getInstance().getSoundManager().stop(this);
     }
 
+    /**
+     * こちらが意図して終わらせることをストリームへ伝える。ストリームは終端を見た時に
+     * 「一音も鳴らずに終わった」を失敗として報告するので、<b>停止をその経路に入れないための印</b>。
+     * これが無いと、曲の途中でディスクを抜くたびに失敗が出る。
+     */
+    private void markExpectedEnd() {
+        final LavaPlayerAudioStream s = this.stream;
+        if (s != null) {
+            s.expectEnd();
+        }
+    }
+
     public void requestStop() {
         this.stop();
+        markExpectedEnd();
         // stream 開栓前 (getCustomStream 未呼び出し) に停止すると、MC が AudioStream.close を
         // 発火しない = source が閉じられず LavaPlayer の player thread/buffer がリークする。
         // ここで冪等に閉じる。stream 経由で後から close されても LavaAudioSource.close は無害。
