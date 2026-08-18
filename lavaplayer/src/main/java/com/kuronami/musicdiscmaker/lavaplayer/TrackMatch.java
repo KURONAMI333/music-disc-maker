@@ -69,6 +69,21 @@ public final class TrackMatch {
     /** 尺の上限 (元に対する比)。これを超える候補は寄せ集め・ループとみなす。 */
     private static final double MAX_DURATION_RATIO = 3.0d;
 
+    /**
+     * 尺の近さが<b>並んだ</b>とみなす幅 (ms)。一番近い候補との差がこの中に収まる候補は
+     * 尺では区別しない扱いにして、{@link #bestByDuration(long[], boolean[], long)} が
+     * 別の信号で順位を付ける。
+     *
+     * <p><b>幅の決め方 (2026-08-19 に 16 曲で実測した差から)</b>。同じ録音の再アップロードどうしが
+     * 一番近い候補と開いた差は {@code 497} / {@code 2560} / {@code 3129} / {@code 8046}
+     * / {@code 8715} ms だった (Maroon 5「Sugar」/ YOASOBI「夜に駆ける」/ Wiz Khalifa
+     * 「See You Again」/ Mark Ronson「Uptown Funk」/ Queen「Bohemian Rhapsody」)。
+     * 別の版が並んだ時の差は {@code 18756} ms (BTS「Dynamite」の Instrumental とカバー) と
+     * {@code 162610} ms (Rick Astley の 3:32 と 6:16) で、8715 と 18756 の間が空いている。
+     * そこに置いた。
+     */
+    private static final long DURATION_TIE_MS = 15_000L;
+
     private TrackMatch() {
     }
 
@@ -222,6 +237,91 @@ public final class TrackMatch {
             }
         }
         return best;
+    }
+
+    /**
+     * 尺が並んだ候補の中では、<b>アーティスト名を名乗っている候補を先に採る</b>。
+     *
+     * <p><b>これは足切りではない</b>。名乗っていない候補を落とすと、正しく採れているものが壊れる —
+     * Rick Astley の正解 {@code soundcloud.com/pajlada/…} の投稿者名にアーティスト名は無い。
+     * ここでやるのは<b>順位付けだけ</b>で、名乗る候補が無ければ
+     * {@link #bestByDuration(long[], long)} の「元の尺に一番近いもの」にそのまま落ちる。
+     *
+     * <p><b>なぜ要るか (2026-08-19 実測)</b>。{@code Mark Ronson - Uptown Funk} は
+     * 元 4:30 に対して {@code robert-radley-1/uptown-funk-the-hot-shots} (269086ms・差 914ms) と
+     * {@code ravi-bhatt-52209416/mark-ronson-uptown-funk-ft-bruno-mars} (278960ms・差 8960ms)
+     * が並び、尺の近さだけでは前者が採られる。前者は Essex のシンガーの投稿でカバーの疑いが濃く、
+     * 表題の文字列は本人名義と区別が付かない。分かれるのは<b>投稿の住所</b>で、
+     * 後者だけが slug にアーティスト名を持つ。
+     *
+     * <p><b>順序</b>。①元の尺との差が一番近い候補から {@link #DURATION_TIE_MS} 以内 かつ
+     * ②アーティスト名を名乗る、の両方を満たす候補のうち<b>元の尺に一番近いもの</b>。
+     * 同着なら先に並んでいたもの (= 検索の順位)。尺を主・名乗りを従にするのは、
+     * 尺が「同じ録音か」の証拠で、名乗りは<b>誰が上げたか</b>の証拠でしかないため。
+     *
+     * <p>元の尺が分からない時は幅を測れないので<b>何もしない</b> (従来どおり一番長いものを採る)。
+     *
+     * @param candidateMs     候補の尺 (ms) を並び順のまま
+     * @param artistMentioned 候補ごとの「アーティスト名を名乗っているか」({@link #mentionsArtist})
+     * @param sourceMs        元の尺 (ms)。{@code 0} 以下なら分からない
+     * @return 採るべき候補の位置。釣り合うものが無ければ {@code -1}
+     */
+    public static int bestByDuration(long[] candidateMs, boolean[] artistMentioned, long sourceMs) {
+        final int best = bestByDuration(candidateMs, sourceMs);
+        if (best < 0 || sourceMs <= 0L || artistMentioned.length != candidateMs.length) {
+            return best;
+        }
+        final long bestDiff = Math.abs(candidateMs[best] - sourceMs);
+        int preferred = -1;
+        long preferredDiff = 0L;
+        for (int i = 0; i < candidateMs.length; i++) {
+            if (!artistMentioned[i] || !durationFits(sourceMs, candidateMs[i])) {
+                continue;
+            }
+            final long diff = Math.abs(candidateMs[i] - sourceMs);
+            if (diff - bestDiff > DURATION_TIE_MS) {
+                continue;
+            }
+            if (preferred < 0 || diff < preferredDiff) {
+                preferred = i;
+                preferredDiff = diff;
+            }
+        }
+        return preferred < 0 ? best : preferred;
+    }
+
+    /**
+     * 候補の住所 (URL の slug・投稿者名) がアーティスト名を名乗っているか。
+     *
+     * <p>照合は {@link #wordList} と同じ正規化を<b>両側に</b>掛けてから、語を詰めた文字列の
+     * 部分一致で見る。詰めるのは slug が区切りを持たない形で書かれるため —
+     * {@code soundcloud.com/wizkhalifa/see-you-again-feat-charlie-1} の {@code wizkhalifa} は
+     * 語に割れないが、{@code Wiz Khalifa} を詰めた {@code wizkhalifa} とは一致する (2026-08-19 実測)。
+     *
+     * <p><b>効かない相手がある</b>。{@code BTS (방탄소년단)} のように CJK やハングルを含む
+     * アーティスト名は ASCII の slug に現れないので、この判定は常に {@code false} を返す。
+     * 順位付けにしか使わないので、その時は尺の近さだけで決まる。
+     *
+     * @param artist    整形済みのアーティスト名
+     * @param haystacks 候補の URL や投稿者名
+     * @return どれか 1 つでも名乗っていれば {@code true}
+     */
+    public static boolean mentionsArtist(String artist, String... haystacks) {
+        final String needle = compact(artist);
+        if (needle.isEmpty() || haystacks == null) {
+            return false;
+        }
+        for (final String haystack : haystacks) {
+            if (compact(haystack).contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@link #wordList} の語を区切り無しで詰める (slug の {@code wizkhalifa} に噛ませるため)。 */
+    private static String compact(String text) {
+        return String.join("", wordList(text));
     }
 
     /**

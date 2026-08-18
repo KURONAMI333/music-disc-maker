@@ -357,7 +357,7 @@ public class MusicLoaderImpl implements IMusicLoader {
                 sourceMs = YoutubeWatchPage.durationMs(watchUrl,
                         Math.min(WATCH_PAGE_TIMEOUT_MS, deadline - System.currentTimeMillis()));
             }
-            final AudioTrackInfo best = pick(matched, sourceMs, originUrl);
+            final AudioTrackInfo best = pick(matched, author, sourceMs, originUrl);
             if (best != null) {
                 final String[] cleaned = MetadataCleaner.clean(best.title, best.author);
                 LOGGER.info("Substituting an alternate source for {} -> {} ({} - {}, {}ms against {}ms)",
@@ -377,22 +377,30 @@ public class MusicLoaderImpl implements IMusicLoader {
      * ものを採る。分かっていないなら<b>一番長い</b>ものを採る
      * (短縮版はフル尺より短いという性質だけを使う)。
      *
+     * <p>尺の近さが並んだ候補の間では、<b>投稿の住所がアーティスト名を名乗っている方</b>を先に採る
+     * ({@link TrackMatch#bestByDuration(long[], boolean[], long)})。名乗る候補が無ければ
+     * 尺の近さだけで決まるので、これは足切りではない。
+     *
      * @param matched   曲名とアーティストが一致した候補
+     * @param author    探しているアーティスト (整形済み)
      * @param sourceMs  元の尺 (ms)。{@code 0} 以下なら分からない
      * @param originUrl 元の URL (ログ用)
      * @return 選んだ候補。尺で全部落ちたら {@code null}
      */
-    private static AudioTrackInfo pick(List<AudioTrackInfo> matched, long sourceMs, String originUrl) {
+    private static AudioTrackInfo pick(List<AudioTrackInfo> matched, String author, long sourceMs,
+            String originUrl) {
         final long[] lengths = new long[matched.size()];
+        final boolean[] mentions = new boolean[matched.size()];
         for (int i = 0; i < lengths.length; i++) {
             final AudioTrackInfo info = matched.get(i);
             lengths[i] = info.length;
+            mentions[i] = TrackMatch.mentionsArtist(author, info.uri, info.author);
             if (!TrackMatch.durationFits(sourceMs, info.length)) {
                 LOGGER.info("Dropping a length mismatch for {}: {}ms against {}ms ({})",
                         originUrl, info.length, sourceMs, info.uri);
             }
         }
-        final int chosen = TrackMatch.bestByDuration(lengths, sourceMs);
+        final int chosen = TrackMatch.bestByDuration(lengths, mentions, sourceMs);
         return chosen < 0 ? null : matched.get(chosen);
     }
 
