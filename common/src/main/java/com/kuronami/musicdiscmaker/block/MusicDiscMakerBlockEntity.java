@@ -47,9 +47,25 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
     /** {@link #resolvedTrack} を生成した元 URL。同一 URL の複数ディスクを完全一致させるためのキャッシュ鍵。 */
     private String resolvedForUrl = "";
     private boolean resolving = false;
-    /** 直近の解決が失敗したか (GUI のエラー表示用)。同期のみ・永続化しない。 */
+    /**
+     * 直近の解決が失敗したか (GUI のエラー表示用)。NBT に永続化するので、GUI を閉じて
+     * 開き直しても (chunk がアンロード・再ロードされても) 見える。
+     *
+     * <p>消えるのは次のいずれか (これ以外では消えない = 永久残留を避けるための一覧):
+     * <ul>
+     *   <li>新しい URL がコミットされた時 ({@link #setCurrentUrl}。同じ URL の再送では消えない)</li>
+     *   <li>次の解決が始まった時 ({@link #setResolving(boolean)} で {@code true} に入った瞬間。
+     *       同じ URL でも入力スロットへディスクを挿し直せば再解決が走り、ここで消える)</li>
+     *   <li>解決が成功してディスクが生成され、ニュートラルへ戻った時 ({@link #resetToNeutral()})</li>
+     *   <li>原因だった入力スロットの空ディスクが取り出された時 ({@link #onContentsChanged()}。
+     *       ペンディング中の attempt が無くなった状態で古い失敗だけ表示され続けるのを防ぐ)</li>
+     * </ul>
+     */
     private boolean resolveFailed = false;
-    /** 直近の失敗理由 (GUI の理由別メッセージ用)。{@link #resolveFailed} が true の時だけ意味を持つ。 */
+    /**
+     * 直近の失敗理由 (GUI の理由別メッセージ用)。{@link #resolveFailed} が true の時だけ意味を持ち、
+     * 消えるタイミングも {@link #resolveFailed} と同じ。NBT に永続化する。
+     */
     private FailureReason failureReason = FailureReason.UNKNOWN;
 
     public MusicDiscMakerBlockEntity(BlockPos pos, BlockState state) {
@@ -176,6 +192,11 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
 
     /** スロット変更時: 同期 + (server 側で条件が揃えば) 自動生成。出力を先に埋める順序で再入を抑制。 */
     private void onContentsChanged() {
+        if (resolveFailed && items.get(SLOT_INPUT).isEmpty()) {
+            // 失敗の原因だった入力の空ディスクが取り出された = そのペンディングは無かったことになる。
+            // 消さずに置くと、次に来た人が何もしていないのに古い失敗表示だけが残って紛らわしい。
+            resolveFailed = false;
+        }
         sync();
         DiscFabrication.process(this);
     }
@@ -211,6 +232,11 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
         tag.put("inventory", invTag);
         tag.putString("url", currentUrl);
         tag.putString("resolvedForUrl", resolvedForUrl);
+        // resolveFailed/failureReason: GUI を閉じて開き直しても失敗表示が残るように永続化する
+        // (resolving は意図的に含めない。server 再起動でスレッドプールごと消える一時状態なので、
+        // 永続化すると「取得中…」のまま二度と終わらない spinner が固定化してしまう)。
+        tag.putBoolean("resolveFailed", resolveFailed);
+        tag.putString("failureReason", failureReason.name());
         if (hasResolvedTrack()) {
             CustomTrackData.CODEC
                     .encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, resolvedTrack)
@@ -222,10 +248,9 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements Container 
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         final CompoundTag tag = new CompoundTag();
-        saveAdditional(tag, registries);
+        saveAdditional(tag, registries); // resolveFailed/failureReason はここに含まれる (永続化と共用)
+        // resolving は非永続 (server 再起動でスレッドプールごと消える一時状態) なので同期専用にここで足す。
         tag.putBoolean("resolving", resolving);
-        tag.putBoolean("resolveFailed", resolveFailed);
-        tag.putString("failureReason", failureReason.name());
         return tag;
     }
 
