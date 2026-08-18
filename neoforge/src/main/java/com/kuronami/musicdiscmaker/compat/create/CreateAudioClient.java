@@ -85,7 +85,10 @@ public final class CreateAudioClient {
             Minecraft.getInstance().execute(() -> {
                 if (resolved == null) {
                     // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
-                    PlaybackFailureReport.report(track, reported);
+                    // 理由が付かずに null が返る経路でも報告そのものは落とさない (ここで NPE を投げると
+                    // 報告ごと消えて、直そうとしている無音に戻る)。
+                    PlaybackFailureReport.report(track,
+                            reported == null ? PlaybackFailure.streamUnavailable() : reported);
                     return;
                 }
                 if (Minecraft.getInstance().level == null) {
