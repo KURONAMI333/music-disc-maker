@@ -107,10 +107,18 @@ class TrackMatchTest {
     }
 
     @Test
-    @DisplayName("アーティスト名は片方がもう片方を含めば通す (feat. の有無)")
-    void acceptsWhenOneArtistNameContainsTheOther() {
+    @DisplayName("アーティスト名は先頭から噛み合えば通す (客演の足し引き)")
+    void acceptsWhenTheLeadArtistAgrees() {
         assertTrue(TrackMatch.sameRecording("Daft Punk - One More Time", "Daft Punk",
                 "Daft Punk feat. Romanthony - One More Time", "uploader"));
+    }
+
+    @Test
+    @DisplayName("主が入れ替わったマッシュアップを落とす (scsearch が実際に返した1件)")
+    void rejectsMashupThatMerelyContainsTheArtist() {
+        // 語の集合で包含を見ていた時はこれが通り、2Pac のマッシュアップが焼かれていた。
+        assertFalse(TrackMatch.sameRecording("Alan Walker - Faded", "Alan Walker",
+                "2Pac Ft. Alan Walker - Faded", "Jamie Gos"));
     }
 
     @Test
@@ -167,6 +175,8 @@ class TrackMatchTest {
     void rejectsShortenedUploads() {
         // 7:19 の動画に対する 1:30 の販促版。これが焼かれていたのを潰すのがこの判定の目的。
         assertFalse(TrackMatch.durationFits(YT_LMFAO_MS, SC_LMFAO_SHORT_MS));
+        // 同じ形がもう 1 件。Interscope の「OneRepublic - Counting Stars」90.47 秒 / 元 4:43。
+        assertFalse(TrackMatch.durationFits(283_000L, 90_470L));
         // 3:30 の曲に対する 30 秒の試聴版。
         assertFalse(TrackMatch.durationFits(210_000L, 30_000L));
         // 1 時間のループ・寄せ集め。
@@ -176,12 +186,15 @@ class TrackMatchTest {
     }
 
     @Test
-    @DisplayName("正しい候補は尺で落とさない (寸劇つき MV との差を含む)")
+    @DisplayName("正しい候補は尺で落とさない (実測した 4 件の比をそのまま固定する)")
     void keepsLegitimateLengths() {
-        // ほぼ同尺。
+        // ほぼ同尺 (0.998)。
         assertTrue(TrackMatch.durationFits(YT_ASTLEY_MS, SC_ASTLEY_MS));
-        // 寸劇や間奏で MV が長い場合。曲そのものは元の半分以下になりうる。
-        assertTrue(TrackMatch.durationFits(YT_LMFAO_MS, 202_000L));
+        // Adele「Hello」: MV 6:07 に対して音源 4:41 = 0.767。実測した最小の正しい比。
+        assertTrue(TrackMatch.durationFits(367_000L, 281_600L));
+        // PSY「GANGNAM STYLE」= 1.027 / Isaac silva の再アップロード = 0.881。
+        assertTrue(TrackMatch.durationFits(252_000L, 258_897L));
+        assertTrue(TrackMatch.durationFits(252_000L, 221_903L));
         // フェード・イントロの数秒差。
         assertTrue(TrackMatch.durationFits(YT_ASTLEY_MS, 205_000L));
         assertTrue(TrackMatch.durationFits(YT_ASTLEY_MS, 221_000L));
@@ -197,14 +210,17 @@ class TrackMatchTest {
     @Test
     @DisplayName("尺が分かるなら元に一番近いもの、分からないなら一番長いものを採る")
     void picksTheClosestOrTheLongest() {
-        // 販促版とフル尺が両方並んだ場合。幅だけでは両方通るので、近さで選ぶ。
-        final long[] both = {SC_LMFAO_SHORT_MS, 202_000L};
-        assertEquals(1, TrackMatch.bestByDuration(both, YT_LMFAO_MS));
+        // 実測 (dQw4w9WgXcQ): 元 3:33 に対して 3:32 の再アップロードと 6:16 の長尺版が並んだ。
+        // 「一番長い」で採ると 6:16 の方を焼いてしまうので、近さで選ぶ。
+        final long[] astley = {SC_ASTLEY_MS, 376_085L};
+        assertEquals(0, TrackMatch.bestByDuration(astley, YT_ASTLEY_MS));
+        // 元の尺が分からなければ一番長いものを採る (尺を見る前の挙動)。
+        assertEquals(1, TrackMatch.bestByDuration(astley, 0L));
         // 販促版しか無ければ何も選ばない (従来の失敗に落ちる)。
         assertEquals(-1, TrackMatch.bestByDuration(
                 new long[] {SC_LMFAO_SHORT_MS, SC_LMFAO_SHORT_MS}, YT_LMFAO_MS));
-        // 元の尺が分からなければ一番長いものを採る (v2.3.0 の当初の挙動)。
-        assertEquals(1, TrackMatch.bestByDuration(both, 0L));
+        // 販促版とフル尺が並んだら、販促版は幅で落ちてフル尺が残る。
+        assertEquals(1, TrackMatch.bestByDuration(new long[] {90_470L, 250_000L}, 283_000L));
         assertEquals(-1, TrackMatch.bestByDuration(new long[0], YT_LMFAO_MS));
     }
 
