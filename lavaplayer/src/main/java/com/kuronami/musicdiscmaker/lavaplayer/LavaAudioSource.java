@@ -4,6 +4,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
@@ -24,6 +27,8 @@ import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
  * 境界の向こうへは {@link PlaybackFault} (理由 + 短い文字列) だけを渡す。
  */
 class LavaAudioSource implements IAudioSource, AudioEventListener {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(LavaAudioSource.class);
 
     /** 開始時の buffering を待つ上限 (ms)。 */
     private static final long BUFFER_DEADLINE_MS = 10_000L;
@@ -56,40 +61,24 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
         if (event instanceof TrackExceptionEvent ex) {
             // 詳細は「分類の根拠になった例外」から採る。lavaplayer は再生スレッドの例外を
             // FriendlyException で包むので、一番外側の文面はどの失敗でも定型文になる。
-            record(FailureClassifier.classify(ex.exception),
-                    describe(FailureClassifier.blamed(ex.exception)));
+            // youtube-source の集約例外なら client ごとの理由を優先する (先頭行だけを採ると
+            // 「All clients failed to load the item.」しか残らず、何も伝わらない)。
+            final FailureReason reason = ClientFailureDetails.classify(ex.exception);
+            final String detail = ClientFailureDetails.aggregate(ex.exception) != null
+                    ? ClientFailureDetails.shortDetail(ex.exception)
+                    : ClientFailureDetails.describe(FailureClassifier.blamed(ex.exception));
+            // チャットは 1 行なので、client ごとの長い理由とスタックトレースはログ側へ出す。
+            // 最後の引数の Throwable は slf4j が原因チェーンごと展開する (2b9eeee と同じ形)。
+            final String verbose = ClientFailureDetails.verbose(ex.exception);
+            LOGGER.warn("Playback failed on the audio thread [{}] {}{}", reason, detail,
+                    verbose.isEmpty() ? "" : System.lineSeparator() + verbose, ex.exception);
+            record(reason, detail);
         }
     }
 
     /** 最初の 1 件だけを残し、届け先が居ればその場で流す。 */
     private void record(FailureReason reason, String detail) {
         relay.record(reason, detail);
-    }
-
-    /**
-     * 例外を 1 行の技術詳細に畳む。メッセージ全文は client ごとのスタックトレースを
-     * 抱えていることがある (youtube-source の {@code AllClientsFailedException}) ので、
-     * 型名 + メッセージの先頭行だけを取る。
-     */
-    private static String describe(Throwable thrown) {
-        if (thrown == null) {
-            return "";
-        }
-        final String message = thrown.getMessage();
-        final String head = message == null ? "" : firstLine(message);
-        return head.isEmpty() ? thrown.getClass().getSimpleName()
-                : thrown.getClass().getSimpleName() + ": " + head;
-    }
-
-    /** 最初の非空行。 */
-    private static String firstLine(String text) {
-        for (final String line : text.split("\\R")) {
-            final String trimmed = line.trim();
-            if (!trimmed.isEmpty()) {
-                return trimmed;
-            }
-        }
-        return "";
     }
 
     @Override
