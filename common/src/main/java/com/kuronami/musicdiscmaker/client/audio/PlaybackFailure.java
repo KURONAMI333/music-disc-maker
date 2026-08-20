@@ -81,6 +81,45 @@ public record PlaybackFailure(Kind kind, String detail) {
         public String translationKey() {
             return "music_disc_maker.playback_failed.reason." + suffix;
         }
+
+        /**
+         * GUI に出す<b>一言</b>のラベルの翻訳キー ({@link FailureReason#guiKey()} と同じ役割・同じ名前空間)。
+         *
+         * <p>{@link #translationKey()} と分けてあるのは長さが違うから。あちらはチャット 1 行の文
+         * ({@code 「地域制限のため再生できません」}級) で、こちらは狭い枠に収まる 1〜2 語。
+         *
+         * <p>制作機側と<b>同じキーを共有する</b> — 制作機が「取得できない」と言う理由と、
+         * 金ジュークが「鳴らせない」と言う理由は利用者にとって同じ概念なので、
+         * 訳語を 2 つ作ると同じ状態が画面ごとに違う言葉で出る。共有できるのは
+         * {@link FailureReason} 側に既訳がある 8 つで、残り 5 つはここで新しく足したキー。
+         *
+         * <p>対応表をここに置いて {@code default} を書かないのは {@link FailureReason#guiKey()}
+         * と同じ理由 — 分類を 1 つ増やした時に<b>コンパイラに検出させる</b>ため。lang への
+         * 追記漏れは {@code PlaybackFailureGameTests#everyKindHasItsGuiLabelInEveryLocale} が見る。
+         *
+         * @return 翻訳キー
+         */
+        public String guiKey() {
+            return switch (this) {
+                // 制作機側に既訳があるもの (FailureReason.guiKey() と同一キー)。
+                case UNSUPPORTED_URL -> "gui.music_disc_maker.failed.unsupported";
+                case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.failed.private";
+                case REGION_LOCKED -> "gui.music_disc_maker.failed.region";
+                case AGE_RESTRICTED -> "gui.music_disc_maker.failed.age";
+                case NETWORK -> "gui.music_disc_maker.failed.connection";
+                case REFUSED -> "gui.music_disc_maker.failed.refused";
+                case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
+                case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
+                // 再生時にしか起きないもの (制作機は URL を解決するだけなので相当する語が無い)。
+                // STREAM_UNAVAILABLE は制作機の汎用キー gui.music_disc_maker.failed ("取得失敗")
+                // に寄せない — 解決は成功していて開けなかった状態なので、言うことが違う。
+                case STREAM_UNAVAILABLE -> "gui.music_disc_maker.failed.stream";
+                case OPEN_ERROR -> "gui.music_disc_maker.failed.error";
+                case CONCURRENT_LIMIT -> "gui.music_disc_maker.failed.limit";
+                case SOUND_ENGINE -> "gui.music_disc_maker.failed.soundengine";
+                case MUTED -> "gui.music_disc_maker.failed.muted";
+            };
+        }
     }
 
     /** ローダーが理由なしで {@code null} を返した。 */
@@ -218,6 +257,11 @@ public record PlaybackFailure(Kind kind, String detail) {
     /** 表示文の翻訳キー。 */
     public String translationKey() {
         return kind.translationKey();
+    }
+
+    /** GUI に出す一言のラベルの翻訳キー ({@link Kind#guiKey()})。 */
+    public String guiKey() {
+        return kind.guiKey();
     }
 
     /** ログ・チャットの角括弧に出す機械可読なラベル (利用者がそのまま報告に貼れる)。 */
