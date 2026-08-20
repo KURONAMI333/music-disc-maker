@@ -14,7 +14,7 @@
   "gui.music_disc_maker.failed.refused": "Recusado",
   "gui.music_disc_maker.failed.blocked": "Bloqueado",
   "gui.music_disc_maker.failed.botcheck": "Login",
-  "gui.music_disc_maker.failed.botcheck.tip": "Esta fonte está marcando o IP deste servidor como um bot e exigindo login. Não é um problema de conexão. Costuma acontecer em servidores hospedados ou alugados. Tente um link direto ou outra fonte.",
+  "gui.music_disc_maker.failed.botcheck.tip": "Esta fonte está marcando esta conexão como um bot e exigindo login. Não é um problema de conexão: depende do endereço IP de onde parte a requisição, então pode acontecer tanto em um jogador quanto em um servidor. Tente um link direto ou outra fonte.",
   "gui.music_disc_maker.hint": "Cole uma URL + insira um disco em branco",
   "gui.music_disc_maker.paste": "Colar",
   "gui.music_disc_maker.clear": "Limpar",

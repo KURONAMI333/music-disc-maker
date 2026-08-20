@@ -14,7 +14,7 @@
   "gui.music_disc_maker.failed.refused": "Refusé",
   "gui.music_disc_maker.failed.blocked": "Bloqué",
   "gui.music_disc_maker.failed.botcheck": "Login",
-  "gui.music_disc_maker.failed.botcheck.tip": "Cette source considère l'IP de ce serveur comme un bot et exige une connexion. Ce n'est pas un problème de réseau. Cela arrive souvent sur les serveurs hébergés ou loués. Essayez un lien direct ou une autre source.",
+  "gui.music_disc_maker.failed.botcheck.tip": "Cette source considère cette connexion comme un bot et exige une connexion au compte. Ce n'est pas un problème de réseau : cela dépend de l'adresse IP d'où part la requête, donc cela peut arriver en solo comme sur un serveur. Essayez un lien direct ou une autre source.",
   "gui.music_disc_maker.hint": "Collez une URL + insérez un disque vierge",
   "gui.music_disc_maker.paste": "Coller",
   "gui.music_disc_maker.clear": "Effacer",
