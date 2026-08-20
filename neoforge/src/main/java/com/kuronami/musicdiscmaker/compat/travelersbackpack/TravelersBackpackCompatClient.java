@@ -105,7 +105,7 @@ public final class TravelersBackpackCompatClient {
             final PlaybackFailure reported = failure;
             Minecraft.getInstance().execute(() -> {
                 if (resolved == null) {
-                    // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
+                    // 無音で終わらせない。理由の分類つきでログに残す (この経路は画面を持たないのでログだけ)。
                     PlaybackFailureReport.report(track, reported);
                     return;
                 }

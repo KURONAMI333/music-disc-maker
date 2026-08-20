@@ -5,19 +5,20 @@ import org.jetbrains.annotations.Nullable;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 
-import net.minecraft.ChatFormatting;
-import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-
 /**
- * 再生できなかったことを、その client の<b>チャットとログの両方</b>へ理由つきで残す。
+ * 再生できなかったことを、その client の<b>ログ</b>へ理由つきで残す。
  *
- * <h2>アクションバーではなくチャットである理由</h2>
- * アクションバーは数秒で消える。「鳴らない」の報告 3 件はいずれも失敗表示に一言も触れておらず、
- * 出ていたとしても<b>後から読み返せない形</b>だった。原因の切り分けには「いつ・どの曲が・
- * どの分類で落ちたか」が残っている必要があるので、チャット (履歴に残る) と
- * {@code latest.log} (kura へ貼れる) の両方に出す。
+ * <h2>画面に出すのは GUI の一言ラベル・ここはログだけ</h2>
+ * 利用者に見せる理由は {@code GoldenJukeboxScreen} が金ジュークの画面へ 1 行で出す
+ * ({@link GoldenJukeboxFailures} が座標ごとに覚えている)。理由が要るのは「鳴らないな」と思って
+ * その jukebox を開いた人だけなので、出口はそこに絞る。チャットへ流すと、<b>その jukebox を
+ * 見ていない全員</b>に届き、ラジオの再接続や複数台の同時再生では読む気を無くす量になる。
+ *
+ * <p>ここが残すのは 1 行の {@code WARN} で、宛先は {@code latest.log}。分類ラベル・曲名・URL は
+ * 画面の一言には載らないので、切り分けと報告への貼り付けはこちらが受け持つ。
+ *
+ * <p><b>画面を持たない経路はログだけになる</b> — バックパック・Create の移動構造物・
+ * Pocket Jukebox・バニラのジュークボックスは GUI が無いか座標キーを持たない。
  *
  * <p>分類そのものは {@link PlaybackFailure} が持つ (MC 非依存・headless テスト対象)。ここは
  * 文面の組み立てと配送だけを持つ。
@@ -41,19 +42,5 @@ public final class PlaybackFailureReport {
     public static void report(@Nullable String title, @Nullable String url, PlaybackFailure failure) {
         MusicDiscMaker.LOGGER.warn("Playback failed [{}] track={} url={}", failure.label(),
                 title == null || title.isBlank() ? "?" : title, url == null ? "?" : url);
-        final Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
-            return;
-        }
-        final MutableComponent line = Component.translatable("music_disc_maker.playback_failed.chat",
-                Component.translatable(failure.translationKey()));
-        // 機械可読なラベルと曲名を灰色で添える。利用者がそのまま報告に貼れることを狙う。
-        final StringBuilder tail = new StringBuilder(" [").append(failure.label()).append(']');
-        if (title != null && !title.isBlank()) {
-            tail.append(' ').append(title);
-        }
-        line.append(Component.literal(tail.toString()).withStyle(ChatFormatting.DARK_GRAY));
-        // 第 2 引数 false = チャット欄 (履歴に残る)。true にするとアクションバーで数秒後に消える。
-        minecraft.player.displayClientMessage(line, false);
     }
 }
