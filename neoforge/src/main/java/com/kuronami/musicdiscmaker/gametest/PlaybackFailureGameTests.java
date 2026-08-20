@@ -238,8 +238,9 @@ public class PlaybackFailureGameTests {
         // 年齢制限は "requires login" と別語句なので衝突しない。
         helper.assertTrue(FailureClassifier.classifyMessage("This video requires age verification.")
                         == FailureReason.AGE_RESTRICTED, "年齢制限が bot 判定に吸われている");
-        // 判別できない失敗は従来どおり接続失敗。null でも壊れない。
-        helper.assertTrue(FailureClassifier.classify(null) == FailureReason.CONNECTION_FAILED,
+        // 判別できない失敗は UNKNOWN。null でも壊れない。ここが CONNECTION_FAILED に戻ると、
+        // 何も分かっていない失敗が「この端末がホストに到達できない」と名乗り始める。
+        helper.assertTrue(FailureClassifier.classify(null) == FailureReason.UNKNOWN,
                 "例外が無い経路で分類が壊れている");
         helper.succeed();
     }

@@ -128,13 +128,49 @@ class FailureClassifierTest {
                 FailureClassifier.classifyMessage(SOUNDCLOUD_MISSING));
     }
 
+    /**
+     * 期待値の変更 (2026-08-21): これらはどれも<b>積極的に接続失敗と判別されていたのではなく、
+     * 既定値に落ちていただけ</b>だった。既定値が「この端末がホストに到達できない (回線か DNS)」を
+     * 名乗ると、分類できなかった失敗まで回線を疑わせることになるので、既定値は UNKNOWN にした。
+     *
+     * <p>{@link #UNKNOWN_HOST} が文字列では判別できないことも、ここが証拠になっている —
+     * この本文は日本語ロケールの JDK が出したもので、英語の語句マーカーはどれも当たらない。
+     */
+    @Test
+    void connectionFailureTextAloneDoesNotProveANetworkProblem() {
+        assertEquals(FailureReason.UNKNOWN, FailureClassifier.classifyMessage(CONNECT_FAILED));
+        assertEquals(FailureReason.UNKNOWN, FailureClassifier.classifyMessage(UNKNOWN_HOST));
+        assertEquals(FailureReason.UNKNOWN, FailureClassifier.classifyMessage(REFUSED));
+        assertEquals(FailureReason.UNKNOWN, FailureClassifier.classifyMessage(NOT_PLAYABLE));
+        assertEquals(FailureReason.UNKNOWN, FailureClassifier.classifyMessage(null));
+    }
+
+    /** 本物の回線障害は例外の<b>型</b>で判別する (文面はロケールで変わるが型は変わらない)。 */
     @Test
     void realConnectionFailuresStayConnectionFailures() {
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classifyMessage(CONNECT_FAILED));
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classifyMessage(UNKNOWN_HOST));
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classifyMessage(REFUSED));
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classifyMessage(NOT_PLAYABLE));
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classifyMessage(null));
+        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classify(
+                new java.net.UnknownHostException("kuronami-does-not-exist-42.invalid")));
+        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classify(
+                new java.net.ConnectException("Connection refused: getsockopt")));
+        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classify(
+                new java.net.SocketTimeoutException("Read timed out")));
+        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classify(
+                new javax.net.ssl.SSLHandshakeException("handshake_failure")));
+        // 包み紙の下にある時も拾う (lavaplayer は必ず定型文で包んで配る)。
+        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classify(
+                new FriendlyException(CONNECT_FAILED, FriendlyException.Severity.COMMON,
+                        new java.net.UnknownHostException("kuronami-does-not-exist-42.invalid"))));
+    }
+
+    /**
+     * 型の判定は<b>文面がどれにも当たらなかった時だけ</b>効くこと。
+     * 逆順にすると、相手が 503 を返した失敗をタイムアウト型が包んでいるだけで回線障害に化ける。
+     */
+    @Test
+    void theExceptionTypeDoesNotOverrideAClassifiedMessage() {
+        final Throwable thrown = new java.net.SocketTimeoutException(NOT_PLAYABLE);
+        thrown.initCause(new java.io.IOException(HTTP_503));
+        assertEquals(FailureReason.SOURCE_REFUSED, FailureClassifier.classify(thrown));
     }
 
     /**
@@ -143,11 +179,12 @@ class FailureClassifierTest {
      */
     @Test
     void wordsInsideOtherWordsDoNotMatch() {
-        assertEquals(FailureReason.CONNECTION_FAILED,
+        // 期待値の変更 (2026-08-21): 語句が当たらなかった時の落とし所が UNKNOWN になった。
+        assertEquals(FailureReason.UNKNOWN,
                 FailureClassifier.classifyMessage("Failed to read the privatekey store"));
-        assertEquals(FailureReason.CONNECTION_FAILED,
+        assertEquals(FailureReason.UNKNOWN,
                 FailureClassifier.classifyMessage("undeleted temp file left behind"));
-        assertEquals(FailureReason.CONNECTION_FAILED,
+        assertEquals(FailureReason.UNKNOWN,
                 FailureClassifier.classifyMessage("regionalization table missing"));
         // 語として現れていれば従来どおり当たる。
         assertEquals(FailureReason.REGION_LOCKED,
@@ -197,7 +234,9 @@ class FailureClassifierTest {
                 return this;
             }
         };
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classify(looping));
+        // 期待値の変更 (2026-08-21): 既定値が UNKNOWN になった。根拠を持たない失敗が
+        // 「回線か DNS を見ろ」と言わなくなる。
+        assertEquals(FailureReason.UNKNOWN, FailureClassifier.classify(looping));
         assertSame(looping, FailureClassifier.blamed(looping));
     }
 }

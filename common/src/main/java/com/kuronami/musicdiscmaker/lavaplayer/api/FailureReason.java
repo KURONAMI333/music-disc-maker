@@ -8,7 +8,13 @@ package com.kuronami.musicdiscmaker.lavaplayer.api;
  */
 public enum FailureReason {
 
-    /** 分類できない一般的な失敗。 */
+    /**
+     * 分類できない一般的な失敗。<b>分類器の既定値</b>でもある。
+     *
+     * <p>ここに「回線が落ちている」等の推測を混ぜないこと。分類器がどれにも当てられなかった
+     * ことだけを表す。{@link #CONNECTION_FAILED} と分けているのは、根拠なく回線を疑わせる
+     * 文面を利用者に出さないため。
+     */
     UNKNOWN,
     /** 対応していないサービス / URL 形式 (どの source manager も一致しない)。 */
     UNSUPPORTED_URL,
@@ -18,7 +24,13 @@ public enum FailureReason {
     REGION_LOCKED,
     /** 年齢制限で再生できない。 */
     AGE_RESTRICTED,
-    /** ネットワーク接続失敗・タイムアウト・一時的な障害。 */
+    /**
+     * ホストへ到達できなかった (DNS 解決失敗・接続拒否・タイムアウト・切断)。
+     *
+     * <p><b>例外の型で積極的に判別した時だけ</b>ここへ落とす ({@code FailureClassifier} の
+     * {@code hasNetworkCause})。既定値ではないので、この理由が出ている時は「この端末とホストの
+     * 間で通信が成立しなかった」と言い切ってよい。
+     */
     CONNECTION_FAILED,
     /**
      * 相手は応答したが、要求を通さなかった (401/403/429 以外のステータス番号。400 / 404 / 410 / 5xx 等)。

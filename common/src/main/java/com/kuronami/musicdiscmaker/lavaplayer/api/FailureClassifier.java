@@ -21,7 +21,8 @@ import java.util.Locale;
  * <li><b>HTTP ステータス</b>。数字は語句を持たないので、語句一致より先に見ないと必ず取り落とす</li>
  * <li>bot 判定 → 年齢 → 地域 → 非公開/削除 の語句一致 (具体的なものから)</li>
  * <li>語句が当たらず、それでもステータス番号を持つなら「相手が要求を通さなかった」</li>
- * <li>どれでもなければ接続失敗</li>
+ * <li>どれでもなければ「分類できなかった」。<b>接続失敗はここに落とさない</b> —
+ *     本物の回線障害は例外の型で積極的に判別する ({@code hasNetworkCause})</li>
  * </ol>
  */
 public final class FailureClassifier {
@@ -48,8 +49,12 @@ public final class FailureClassifier {
      * {@code "Something broke when playing the track."}) で包んで配るため。実際の理由は
      * 連鎖の奥にある。
      *
+     * <p>文面がどれにも当たらなかった時だけ、例外の<b>型</b>で回線障害を判別する。逆順にしない —
+     * 「ホストに繋がったが 503 を返した」を包む例外がタイムアウト型でありうるので、
+     * 型を先に見ると相手の応答が回線障害に化ける。
+     *
      * @param thrown 分類したい例外 ({@code null} 可)
-     * @return 分類結果。判別できない失敗は {@link FailureReason#CONNECTION_FAILED}
+     * @return 分類結果。どれにも当たらない失敗は {@link FailureReason#UNKNOWN}
      */
     public static FailureReason classify(Throwable thrown) {
         return resolve(thrown).reason();
@@ -87,7 +92,7 @@ public final class FailureClassifier {
         Throwable current = thrown;
         Throwable deepest = thrown;
         Throwable chosen = null;
-        FailureReason chosenReason = FailureReason.CONNECTION_FAILED;
+        FailureReason chosenReason = FailureReason.UNKNOWN;
         Throwable refused = null;
         for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
             final FailureReason reason = classifyMessage(current.getMessage());
@@ -107,7 +112,46 @@ public final class FailureClassifier {
         if (refused != null) {
             return new Blame(refused, FailureReason.SOURCE_REFUSED);
         }
-        return new Blame(deepest, FailureReason.CONNECTION_FAILED);
+        return new Blame(deepest,
+                hasNetworkCause(thrown) ? FailureReason.CONNECTION_FAILED : FailureReason.UNKNOWN);
+    }
+
+    /**
+     * 連鎖のどこかが「ホストへ到達できなかった」型か。<b>本物の回線障害だけ</b>を
+     * {@link FailureReason#CONNECTION_FAILED} に入れるための判定。
+     *
+     * <p>文面では判定しない。JDK が出す本文は<b>実行環境のロケールで変わる</b>ので
+     * (日本語の JDK は「そのようなホストは不明です。」を出す)、語句マーカーを置いても
+     * 環境によって当たらない。型とクラス名なら変わらない。
+     *
+     * <p>同じ判定が {@code PlaybackFailure#isNetworkFailure} にもある。あちらは client 側で
+     * {@code PlaybackFailure.Kind} を決める用で、こちらはローダー側で {@link FailureReason} を
+     * 決める用。<b>片方を直したらもう片方も見ること</b> (このクラスは JDK と自パッケージ以外に
+     * 依存を持てないので、共有できない)。
+     *
+     * @param thrown たどりたい例外 ({@code null} 可)
+     * @return 到達できなかった型が連鎖に居れば {@code true}
+     */
+    private static boolean hasNetworkCause(Throwable thrown) {
+        Throwable current = thrown;
+        for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
+            if (current instanceof java.net.UnknownHostException
+                    || current instanceof java.net.SocketException
+                    || current instanceof java.io.InterruptedIOException) {
+                // SocketTimeoutException は InterruptedIOException、ConnectException /
+                // NoRouteToHostException は SocketException の子なのでここで全部拾える。
+                return true;
+            }
+            final String name = current.getClass().getName();
+            if (name.contains("Timeout") || name.contains("UnknownHost")
+                    || name.contains("ConnectionClosed") || name.contains("NoHttpResponse")
+                    || name.contains("SSLException") || name.contains("SSLHandshake")) {
+                return true;
+            }
+            final Throwable next = current.getCause();
+            current = next == current ? null : next;
+        }
+        return false;
     }
 
     /**
@@ -122,12 +166,18 @@ public final class FailureClassifier {
      * @return 語句で判別できた分類なら {@code true}
      */
     public static boolean isSpecific(FailureReason reason) {
-        return reason != FailureReason.CONNECTION_FAILED && reason != FailureReason.SOURCE_REFUSED;
+        return reason != FailureReason.UNKNOWN && reason != FailureReason.SOURCE_REFUSED;
     }
 
     /**
      * エラーメッセージ 1 本を分類する。lavaplayer / YouTube のメッセージは英語固定なので
-     * 語句一致で判別する。判別できない失敗は接続失敗として扱う。
+     * 語句一致で判別する。判別できない失敗は {@link FailureReason#UNKNOWN} として扱う。
+     *
+     * <p><b>接続失敗をここへ落とさない</b>のは、文字列では本物の回線障害を確かめられないため。
+     * lavaplayer が回線障害に付ける包み紙 ({@code "Connecting to the URL failed."}) は
+     * 「URL 形式が読めなかった」にも付き、その下の JDK の本文は実行環境のロケールで変わる。
+     * 既定値を接続失敗にすると、分類できなかった失敗まで「この端末がホストに到達できない」と
+     * 名乗ることになる。
      *
      * <p>語句一致は<b>語境界つき</b>。{@code private} / {@code removed} / {@code deleted} /
      * {@code unavailable} のような単語は技術的な文面に部分文字列として紛れ込みやすい。
@@ -147,13 +197,13 @@ public final class FailureClassifier {
      * 現行構成は {@code AndroidVr} 単独なので出荷時のリストは常に 1 件。
      *
      * @param message 例外のメッセージ ({@code null} 可)
-     * @return 分類結果。判別できない失敗は {@link FailureReason#CONNECTION_FAILED}
+     * @return 分類結果。判別できない失敗は {@link FailureReason#UNKNOWN}
      */
     public static FailureReason classifyMessage(String message) {
         if (message == null || message.isEmpty()) {
-            return FailureReason.CONNECTION_FAILED;
+            return FailureReason.UNKNOWN;
         }
-        // 行ごとに判別して、既定値以外に落ちた最初の行を採る。集約例外のメッセージは
+        // 行ごとに判別して、語句で判別できた最初の行を採る。集約例外のメッセージは
         // client ごとの理由を改行で連ねた 1 本なので、全体を 1 つの文字列として見ると
         // ある client の HTTP ステータスが別の client の理由を打ち消しうる (実測: 400 を
         // 返した client と "This video is unavailable" を返した client が混ざると、
@@ -171,7 +221,7 @@ public final class FailureClassifier {
                 refused = reason;
             }
         }
-        return refused != null ? refused : FailureReason.CONNECTION_FAILED;
+        return refused != null ? refused : FailureReason.UNKNOWN;
     }
 
     /**
@@ -182,7 +232,7 @@ public final class FailureClassifier {
      */
     private static FailureReason classifyLine(String m) {
         // 1. HTTP ステータス。数字だけの失敗は語句を持たないので、ここで見ないと
-        //    「回線が繋がらない」と同じ分類に落ちる。実測した形:
+        //    「分類できなかった」に落ちる。実測した形:
         //      "Status code 403"                                  (直リンク HTTP の probe)
         //      "Not success status code: 403"                     (再生中のストリーム)
         //      "Invalid status code for playlist response: 400"   (youtube-source の API 呼び)
@@ -191,7 +241,7 @@ public final class FailureClassifier {
             // 相手がこの接続を名指しで拒んでいる。利用者が取るべき手 (別のソース / 別の回線) は
             // bot 判定と同じで、「自分の回線が落ちている」ではない。
             // 再試行の扱いも変わらない (MusicLoaderImpl#isRetryable は BOT_CHECK と
-            // CONNECTION_FAILED をどちらも再試行対象にしている)。
+            // SOURCE_REFUSED をどちらも再試行対象にしている)。
             return FailureReason.BOT_CHECK;
         }
 
@@ -233,7 +283,7 @@ public final class FailureClassifier {
         // "Not success status code: 400" と "This video requires login." を 1 行に並べうる) の
         // 分類を今までどおり語句側に残すため。前へ移すと BOT_CHECK が減り、代替ソース探しの
         // 発火集合 (MDM_DECISIONS D11) が黙って縮む。
-        return status >= 0 ? FailureReason.SOURCE_REFUSED : FailureReason.CONNECTION_FAILED;
+        return status >= 0 ? FailureReason.SOURCE_REFUSED : FailureReason.UNKNOWN;
     }
 
     /**
