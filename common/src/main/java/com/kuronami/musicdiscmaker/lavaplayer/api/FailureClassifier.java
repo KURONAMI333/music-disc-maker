@@ -20,6 +20,7 @@ import java.util.Locale;
  * <ol>
  * <li><b>HTTP ステータス</b>。数字は語句を持たないので、語句一致より先に見ないと必ず取り落とす</li>
  * <li>bot 判定 → 年齢 → 地域 → 非公開/削除 の語句一致 (具体的なものから)</li>
+ * <li>語句が当たらず、それでもステータス番号を持つなら「相手が要求を通さなかった」</li>
  * <li>どれでもなければ接続失敗</li>
  * </ol>
  */
@@ -87,18 +88,41 @@ public final class FailureClassifier {
         Throwable deepest = thrown;
         Throwable chosen = null;
         FailureReason chosenReason = FailureReason.CONNECTION_FAILED;
+        Throwable refused = null;
         for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
             final FailureReason reason = classifyMessage(current.getMessage());
-            if (reason != FailureReason.CONNECTION_FAILED) {
+            if (isSpecific(reason)) {
                 chosen = current;
                 chosenReason = reason;
+            } else if (reason == FailureReason.SOURCE_REFUSED) {
+                refused = current;
             }
             deepest = current;
             final Throwable next = current.getCause();
             current = next == current ? null : next;
         }
-        return chosen != null ? new Blame(chosen, chosenReason)
-                : new Blame(deepest, FailureReason.CONNECTION_FAILED);
+        if (chosen != null) {
+            return new Blame(chosen, chosenReason);
+        }
+        if (refused != null) {
+            return new Blame(refused, FailureReason.SOURCE_REFUSED);
+        }
+        return new Blame(deepest, FailureReason.CONNECTION_FAILED);
+    }
+
+    /**
+     * 語句から判別できた分類か。既定値と {@link FailureReason#SOURCE_REFUSED} は含まない。
+     *
+     * <p>ステータス番号だけを根拠にした {@link FailureReason#SOURCE_REFUSED} を<b>弱い</b>分類として
+     * 扱うのがこの述語の役目。集約例外は「番号を返した client」と「理由を語で返した client」を
+     * 並べて持つので、番号を対等に扱うと<b>並び順だけで</b>分類が決まり、後ろの client の
+     * 年齢制限や非公開が消える (この失敗は実測されていて、行単位の判別はそれを直すために入った)。
+     *
+     * @param reason 判定したい分類
+     * @return 語句で判別できた分類なら {@code true}
+     */
+    public static boolean isSpecific(FailureReason reason) {
+        return reason != FailureReason.CONNECTION_FAILED && reason != FailureReason.SOURCE_REFUSED;
     }
 
     /**
@@ -111,8 +135,12 @@ public final class FailureClassifier {
      * <p>youtube-source の {@code AllClientsFailedException} は、各 client の失敗理由を
      * <b>自分のメッセージに改行で連結して</b>持つ (「(yts.version: x) All clients failed to load
      * the item.」の後ろに「Client [ANDROID_VR] failed: This video requires login.」が続く)。
-     * そこで判別は<b>行単位</b>で行い、既定値以外に落ちた最初の行を採る。全体を 1 本の文字列
+     * そこで判別は<b>行単位</b>で行い、語句で判別できた最初の行を採る。全体を 1 本の文字列
      * として見ると、ある client の HTTP ステータスが別の client の理由を打ち消す。
+     *
+     * <p>ステータス番号だけを根拠にした {@link FailureReason#SOURCE_REFUSED} は<b>弱い</b>分類として
+     * 扱い、どの行も語句を持たなかった時にだけ採る ({@link #isSpecific})。番号を対等に扱うと、
+     * 行単位にした意味が無くなる (番号を返した client が先に並ぶだけで後ろの理由が消える)。
      *
      * <p>それでも「どの client の理由か」までは分からないので、<b>理由を知りたい呼び出し側は
      * client 単位に切ってからここへ渡す</b> ({@code ClientFailureDetails#classify})。
@@ -130,16 +158,20 @@ public final class FailureClassifier {
         // ある client の HTTP ステータスが別の client の理由を打ち消しうる (実測: 400 を
         // 返した client と "This video is unavailable" を返した client が混ざると、
         // 全体では接続失敗に落ちていた)。
+        FailureReason refused = null;
         for (final String line : message.split("\\R")) {
             if (line.isBlank()) {
                 continue;
             }
             final FailureReason reason = classifyLine(line.toLowerCase(Locale.ROOT));
-            if (reason != FailureReason.CONNECTION_FAILED) {
+            if (isSpecific(reason)) {
                 return reason;
             }
+            if (reason == FailureReason.SOURCE_REFUSED && refused == null) {
+                refused = reason;
+            }
         }
-        return FailureReason.CONNECTION_FAILED;
+        return refused != null ? refused : FailureReason.CONNECTION_FAILED;
     }
 
     /**
@@ -196,7 +228,12 @@ public final class FailureClassifier {
                 || hasWord(m, "unavailable") || hasWord(m, "terminated"))) {
             return FailureReason.PRIVATE_OR_REMOVED;
         }
-        return FailureReason.CONNECTION_FAILED;
+        // ここまでで語句が当たらず、それでもステータス番号が付いている = 相手は応答して要求を
+        // 通さなかった。この判定を最後に置くのは、番号と語句を両方持つ行 (集約例外は
+        // "Not success status code: 400" と "This video requires login." を 1 行に並べうる) の
+        // 分類を今までどおり語句側に残すため。前へ移すと BOT_CHECK が減り、代替ソース探しの
+        // 発火集合 (MDM_DECISIONS D11) が黙って縮む。
+        return status >= 0 ? FailureReason.SOURCE_REFUSED : FailureReason.CONNECTION_FAILED;
     }
 
     /**

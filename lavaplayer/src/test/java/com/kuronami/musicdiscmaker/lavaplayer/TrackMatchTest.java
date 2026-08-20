@@ -313,6 +313,8 @@ class TrackMatchTest {
         // 利用者の回線が死んでいる / 分類できなかった / URL 自体が拒まれた場合は探しに行かない。
         assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.CONNECTION_FAILED));
         assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.UNKNOWN));
+        // 相手が番号を返して拒んだ場合も探しに行かない (MDM_DECISIONS D11 の発火集合を変えない)。
+        assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.SOURCE_REFUSED));
         assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.BLOCKED_URL));
         assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.UNSUPPORTED_URL));
     }

@@ -68,19 +68,29 @@ class FailureClassifierTest {
     }
 
     @Test
-    void serverSideStatusCodesStayConnectionFailures() {
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classifyMessage(HTTP_503));
-        assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classifyMessage(PLAYLIST_400));
+    void serverSideStatusCodesAreReportedAsARefusal() {
+        // 期待値の変更 (2026-08-21): 相手が番号を返した時点で通信は成立しているので、
+        // 「この端末がホストに到達できない」という接続失敗の文面は嘘になる。SOURCE_REFUSED へ分ける。
+        assertEquals(FailureReason.SOURCE_REFUSED, FailureClassifier.classifyMessage(HTTP_503));
+        assertEquals(FailureReason.SOURCE_REFUSED, FailureClassifier.classifyMessage(PLAYLIST_400));
     }
 
     @Test
     void aStatusNumberNeverBecomesPrivateOrRemoved() {
         // HTTP の理由句は非公開/削除の語彙とそのまま重なる。番号が付いている失敗は
         // 動画の状態ではなく通信の結果なので、その語彙に落とさない。
-        assertEquals(FailureReason.CONNECTION_FAILED,
+        assertEquals(FailureReason.SOURCE_REFUSED,
                 FailureClassifier.classifyMessage("Status code 503 Service Unavailable"));
-        assertEquals(FailureReason.CONNECTION_FAILED,
+        assertEquals(FailureReason.SOURCE_REFUSED,
                 FailureClassifier.classifyMessage("Not success status code: 410 Gone, resource removed"));
+    }
+
+    @Test
+    void aReasonPhraseStillWinsOverTheStatusNumberOnTheSameLine() {
+        // 番号の判定は語句の後ろに置いてある。ここが前へ動くと bot 判定が SOURCE_REFUSED に
+        // 化けて、代替ソース探しの発火集合 (MDM_DECISIONS D11) が黙って縮む。
+        assertEquals(FailureReason.BOT_CHECK,
+                FailureClassifier.classifyMessage("Not success status code: 400. " + REQUIRES_LOGIN));
     }
 
     @Test

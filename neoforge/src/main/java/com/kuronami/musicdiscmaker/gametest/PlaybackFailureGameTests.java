@@ -184,6 +184,9 @@ public class PlaybackFailureGameTests {
                 "接続失敗が NETWORK に寄っていない");
         helper.assertTrue(kindOf(FailureReason.BLOCKED_URL) == Kind.BLOCKED_URL,
                 "ガード拒否が BLOCKED_URL に寄っていない");
+        // 相手が応答して番号を返した失敗は、回線障害と逆のことを言う必要がある。
+        helper.assertTrue(kindOf(FailureReason.SOURCE_REFUSED) == Kind.REFUSED,
+                "相手の拒否が NETWORK に寄せられている");
         helper.assertTrue(kindOf(FailureReason.UNKNOWN) == Kind.STREAM_UNAVAILABLE,
                 "理由不明が従来の粒度に落ちていない");
         helper.assertTrue(PlaybackFailure.ofReason(null, null).kind() == Kind.STREAM_UNAVAILABLE,
