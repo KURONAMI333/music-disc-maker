@@ -114,20 +114,14 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         }
     }
 
-    /** 失敗理由に対応する翻訳キーの短いメッセージ。未知は汎用の「取得失敗」。 */
+    /**
+     * 失敗理由に対応する翻訳キーの短いメッセージ。未知は汎用の「取得失敗」。
+     *
+     * <p>対応表は {@link FailureReason#guiKey()} が持つ。ここに switch を戻さないこと —
+     * 画面側に置くと {@code default} が要り、理由を 1 つ増やした時に黙って汎用の文面へ落ちる。
+     */
     private static Component failedMessage(FailureReason reason) {
-        final String key = switch (reason == null ? FailureReason.UNKNOWN : reason) {
-            case UNSUPPORTED_URL -> "gui.music_disc_maker.failed.unsupported";
-            case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.failed.private";
-            case REGION_LOCKED -> "gui.music_disc_maker.failed.region";
-            case AGE_RESTRICTED -> "gui.music_disc_maker.failed.age";
-            case CONNECTION_FAILED -> "gui.music_disc_maker.failed.connection";
-            case SOURCE_REFUSED -> "gui.music_disc_maker.failed.refused";
-            case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
-            case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
-            default -> "gui.music_disc_maker.failed";
-        };
-        return Component.translatable(key);
+        return Component.translatable((reason == null ? FailureReason.UNKNOWN : reason).guiKey());
     }
 
     /**
