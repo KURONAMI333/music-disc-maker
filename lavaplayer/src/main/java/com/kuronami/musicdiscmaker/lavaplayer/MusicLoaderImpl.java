@@ -260,8 +260,9 @@ public class MusicLoaderImpl implements IMusicLoader {
      *     本当に存在しない ID なら oEmbed が 404 になって自動的に諦める</li>
      * </ul>
      *
-     * <p><b>入れないもの</b>: {@link FailureReason#CONNECTION_FAILED} は分類器の既定値でもあるので
-     * 「利用者の回線障害」と「分類できなかった何か」が同居している。{@link FailureReason#UNKNOWN} も同じ。
+     * <p><b>入れないもの</b>: {@link FailureReason#CONNECTION_FAILED} は利用者の回線障害なので、
+     * 別ソースを探しても同じく失敗して遅くなるだけ。{@link FailureReason#UNKNOWN} は分類器の
+     * 既定値 = 何が起きたか分かっていない。
      * {@link FailureReason#SOURCE_REFUSED} も入れない — 発火集合は MDM_DECISIONS D11 のままにする。
      * D11 の覆し条件は「その理由で『別ソースに在って YouTube に無い』実例を示すこと」で、
      * 番号つきの拒否についてその実例を持っていない。
