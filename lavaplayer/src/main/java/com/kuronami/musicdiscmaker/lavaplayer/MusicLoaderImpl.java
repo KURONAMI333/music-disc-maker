@@ -262,6 +262,9 @@ public class MusicLoaderImpl implements IMusicLoader {
      *
      * <p><b>入れないもの</b>: {@link FailureReason#CONNECTION_FAILED} は分類器の既定値でもあるので
      * 「利用者の回線障害」と「分類できなかった何か」が同居している。{@link FailureReason#UNKNOWN} も同じ。
+     * {@link FailureReason#SOURCE_REFUSED} も入れない — 発火集合は MDM_DECISIONS D11 のままにする。
+     * D11 の覆し条件は「その理由で『別ソースに在って YouTube に無い』実例を示すこと」で、
+     * 番号つきの拒否についてその実例を持っていない。
      * {@link FailureReason#BLOCKED_URL} は SSRF ガードが拒んだ URL なので、二度と解決しにいかない。
      * {@link FailureReason#UNSUPPORTED_URL} は「そもそも YouTube の URL ではない」。
      *
@@ -588,10 +591,14 @@ public class MusicLoaderImpl implements IMusicLoader {
      * <p>{@link FailureReason#UNSUPPORTED_URL} を検索の時だけ再試行に含めるのは、検索が bot 判定で
      * 弾かれると<b>結果ゼロ件 = noMatches</b> として返ってくるため (Spotify 経路がここに落ちる)。
      * 検索でない URL の「対応外」は本当に対応外なので、再試行しない。
+     *
+     * <p>{@link FailureReason#SOURCE_REFUSED} を<b>明示で</b>書いてあるのは、ここが
+     * {@code default -> false} に落ちると 5xx が再試行されなくなるため。この理由が生まれる前は
+     * 番号つきの失敗が {@link FailureReason#CONNECTION_FAILED} に同居していて再試行されていた。
      */
     static boolean isRetryable(FailureReason reason, boolean search) {
         return switch (reason) {
-            case BOT_CHECK, CONNECTION_FAILED, UNKNOWN -> true;
+            case BOT_CHECK, CONNECTION_FAILED, SOURCE_REFUSED, UNKNOWN -> true;
             case UNSUPPORTED_URL -> search;
             default -> false;
         };

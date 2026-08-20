@@ -130,7 +130,7 @@ final class ClientFailureDetails {
     }
 
     /**
-     * 失敗を分類する。集約例外なら<b>client ごとに分類して、既定値以外に落ちた最初のものを採る</b>。
+     * 失敗を分類する。集約例外なら<b>client ごとに分類して、語句で判別できた最初のものを採る</b>。
      *
      * <h2>連結された 1 本の文字列に当てない理由</h2>
      * 集約例外のメッセージは全 client の理由を連結して持つので、そこへ語句一致を当てると
@@ -146,13 +146,17 @@ final class ClientFailureDetails {
      * @return 分類結果
      */
     static FailureReason classify(Throwable thrown) {
+        FailureReason refused = null;
         for (final String reason : clientReasons(thrown)) {
             final FailureReason classified = FailureClassifier.classifyMessage(reason);
-            if (classified != FailureReason.CONNECTION_FAILED) {
+            if (FailureClassifier.isSpecific(classified)) {
                 return classified;
             }
+            if (classified == FailureReason.SOURCE_REFUSED && refused == null) {
+                refused = classified;
+            }
         }
-        return FailureClassifier.classify(thrown);
+        return refused != null ? refused : FailureClassifier.classify(thrown);
     }
 
     /**

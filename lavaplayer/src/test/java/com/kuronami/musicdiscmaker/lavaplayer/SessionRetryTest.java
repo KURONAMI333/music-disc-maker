@@ -156,6 +156,8 @@ class SessionRetryTest {
         assertTrue(MusicLoaderImpl.isRetryable(FailureReason.BOT_CHECK, false));
         assertTrue(MusicLoaderImpl.isRetryable(FailureReason.CONNECTION_FAILED, false));
         assertTrue(MusicLoaderImpl.isRetryable(FailureReason.UNKNOWN, false));
+        // 5xx はここに落ちる。false に転ぶと、開き直せば通る失敗を 1 回で諦めることになる。
+        assertTrue(MusicLoaderImpl.isRetryable(FailureReason.SOURCE_REFUSED, false));
         assertFalse(MusicLoaderImpl.isRetryable(FailureReason.PRIVATE_OR_REMOVED, true));
         assertFalse(MusicLoaderImpl.isRetryable(FailureReason.AGE_RESTRICTED, true));
         assertFalse(MusicLoaderImpl.isRetryable(FailureReason.REGION_LOCKED, true));

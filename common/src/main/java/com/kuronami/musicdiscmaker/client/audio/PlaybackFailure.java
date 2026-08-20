@@ -43,6 +43,11 @@ public record PlaybackFailure(Kind kind, String detail) {
         BLOCKED_URL("blocked"),
         /** ホストへ到達できなかった (DNS 解決失敗・接続タイムアウト・切断)。 */
         NETWORK("network"),
+        /**
+         * 相手は応答したが、要求を通さなかった (401/403/429 以外のステータス番号)。
+         * 通信は成立しているので {@link #NETWORK} とは利用者に言うことが逆になる。
+         */
+        REFUSED("refused"),
         /** それ以外の例外 (デコード・ローダー内部)。 */
         OPEN_ERROR("error"),
         /** 同時再生上限に達したのでこの再生を起こさなかった。 */
@@ -146,6 +151,7 @@ public record PlaybackFailure(Kind kind, String detail) {
             // 行動が既存の分類と同じものは寄せる (ガード拒否・回線)。
             case BLOCKED_URL -> Kind.BLOCKED_URL;
             case CONNECTION_FAILED -> Kind.NETWORK;
+            case SOURCE_REFUSED -> Kind.REFUSED;
             // 理由を持たない失敗は従来どおりの粒度。
             case UNKNOWN -> Kind.STREAM_UNAVAILABLE;
         };

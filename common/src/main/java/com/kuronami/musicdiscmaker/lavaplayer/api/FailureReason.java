@@ -20,6 +20,19 @@ public enum FailureReason {
     AGE_RESTRICTED,
     /** ネットワーク接続失敗・タイムアウト・一時的な障害。 */
     CONNECTION_FAILED,
+    /**
+     * 相手は応答したが、要求を通さなかった (401/403/429 以外のステータス番号。400 / 404 / 410 / 5xx 等)。
+     *
+     * <p>{@link #CONNECTION_FAILED} と分けるのは、利用者に言うことが逆になるため。
+     * こちらは<b>この端末とホストの間の通信そのものは成立している</b>ので、回線や DNS を
+     * 疑わせる文面は嘘になる。401/403/429 だけは「この接続を名指しで拒んだ」なので
+     * {@link #BOT_CHECK} に寄せる (MDM_DECISIONS D8)。
+     *
+     * <p>再試行は {@link #CONNECTION_FAILED} と同じく行う (5xx は開き直すと通ることがある)。
+     * 代替ソース探しは行わない — 発火集合は MDM_DECISIONS D11 のまま変えない
+     * ({@code MusicLoaderImpl#firesSubstitute})。
+     */
+    SOURCE_REFUSED,
     /** SSRF ガードが URL を拒否した (Track 1 が設定する)。 */
     BLOCKED_URL,
     /** YouTube の bot 判定でログインを要求された (datacenter IP でよく起きる。接続失敗ではない)。 */

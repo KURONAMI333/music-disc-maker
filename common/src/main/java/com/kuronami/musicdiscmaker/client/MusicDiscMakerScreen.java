@@ -122,6 +122,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             case REGION_LOCKED -> "gui.music_disc_maker.failed.region";
             case AGE_RESTRICTED -> "gui.music_disc_maker.failed.age";
             case CONNECTION_FAILED -> "gui.music_disc_maker.failed.connection";
+            case SOURCE_REFUSED -> "gui.music_disc_maker.failed.refused";
             case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
             case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
             default -> "gui.music_disc_maker.failed";
