@@ -138,6 +138,11 @@ final class ClientFailureDetails {
      * (どこか 1 つに bot 判定の語があれば、別の client の年齢制限や地域制限より先に採られる)。
      * client 単位に切ってから分類すれば、少なくとも「1 つの client の中では 1 つの理由」になる。
      *
+     * <p>ステータス番号だけを根拠にした {@link FailureReason#SOURCE_REFUSED} は<b>いったん保留し、
+     * どの client も語句を持たなかった時にだけ採る</b> ({@link FailureClassifier#isSpecific})。
+     * 対等に扱うと、番号を返した client が先に並ぶだけで後ろの client の年齢制限や非公開が消える
+     * = client 単位に切った意味が無くなる。
+     *
      * <p>client 順は youtube-source が試した順そのもの。現行構成は {@code AndroidVr} 単独なので
      * リストは常に 1 件で、順序の選択そのものは出荷構成では効かない
      * ({@code MusicLoaderImpl#registerYoutube} の javadoc)。
