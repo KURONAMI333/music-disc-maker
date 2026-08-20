@@ -50,6 +50,14 @@ public final class ClientPlaybackManager {
     /** 次に鳴る曲の先読み置き場 (アルバムの曲間の無音対策)。 */
     private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis);
 
+    /**
+     * 座標ごとの直近の失敗。チャットへ出したものと同じ失敗をここにも残す。
+     *
+     * <p><b>今はまだ誰も読まない</b> — 画面への描画は別の作業で足す。ここで先に書き手だけを
+     * 作るのは、読み手だけが先に居ると「失敗しているのに画面が空」になるから (v2.3.0 A6 の逆)。
+     */
+    private final GoldenJukeboxFailures failures = GoldenJukeboxFailures.get();
+
     private final ExecutorService pool = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-playback");
         thread.setDaemon(true);
@@ -196,6 +204,7 @@ public final class ClientPlaybackManager {
     private void lateFailure(BlockPos key, int token, CustomTrackData track, PlaybackFailure late) {
         final PlaybackFailure show = sessions.lateFailure(key, token, track, late);
         if (show != null) {
+            failures.record(key, show);
             PlaybackFailureReport.report(track, show);
         }
     }
@@ -210,8 +219,10 @@ public final class ClientPlaybackManager {
                 sessions.abandon(key, token);
                 // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す
                 // (ストリームは client ごとに開くので、片方の client だけ失敗しうる)。
-                PlaybackFailureReport.report(track,
-                        failure == null ? PlaybackFailure.streamUnavailable() : failure);
+                final PlaybackFailure show =
+                        failure == null ? PlaybackFailure.streamUnavailable() : failure;
+                failures.record(key, show);
+                PlaybackFailureReport.report(track, show);
             }
             return;
         }
@@ -224,7 +235,9 @@ public final class ClientPlaybackManager {
         final int limit = com.kuronami.musicdiscmaker.Config.maxConcurrent();
         if (playing >= limit) {
             // 上限は client ごとに効くので片側だけ無音になりうる。無言で捨てない。
-            PlaybackFailureReport.report(track, PlaybackFailure.concurrentLimit(limit));
+            final PlaybackFailure overLimit = PlaybackFailure.concurrentLimit(limit);
+            failures.record(key, overLimit);
+            PlaybackFailureReport.report(track, overLimit);
             resolved.close();
             sessions.abandon(key, token);
             return;
@@ -253,12 +266,17 @@ public final class ClientPlaybackManager {
         if (!SoundEngineAcceptance.start(instance, instance, rejected -> {
             final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
             if (show != null) {
+                failures.record(key, show);
                 PlaybackFailureReport.report(track, show);
             }
         })) {
             return;
         }
         sessions.engineAccepted(key); // 実際に鳴り始めた。拒否の記憶を捨てる唯一の点
+        // 直近の失敗の記憶もここで捨てる。install (ロードが間に合った) では捨てない —
+        // engine の受理はその後なので、install で捨てると鳴っていないのにラベルだけ消える
+        // (MDM_DECISIONS D10 が名指しで警告している取り違え)。
+        failures.clear(key);
         // vanilla disc と同じ "Now Playing: ..." overlay を出す
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
@@ -291,6 +309,9 @@ public final class ClientPlaybackManager {
                 notifyChat(Component.translatable("music_disc_maker.radio.stopped"));
                 // 途中で拾っていた理由があれば、ここで初めて出す (「なぜ諦めたか」)。
                 if (next.why() != null) {
+                    // ラジオの失敗が入れ物に載るのはここだけ。再接続中は保留されているので
+                    // (PlaybackSessions#pendingFailure)、試行中の jukebox はラベルを持たない。
+                    failures.record(key, next.why());
                     PlaybackFailureReport.report(next.request().track(), next.why());
                 }
             }
@@ -313,14 +334,27 @@ public final class ClientPlaybackManager {
         }
     }
 
+    /**
+     * この座標の再生を止める ({@code StopDiscPayload})。
+     *
+     * <p>直近の失敗の記憶もここで捨てる。server が停止を告げてくる経路は、ディスクの取り出し・
+     * ブロック撤去のほかに一時停止とアルバムの曲送りも通る。<b>client からは区別できない</b>
+     * (payload は座標しか運ばない) ので、まとめて「この jukebox は止まった」として扱う。
+     *
+     * <p>chunk 再入の再送はここを通らない ({@code startPlayback} が同じ曲の再送として畳む) ので、
+     * 出入りのたびにラベルが消えることはない。
+     */
     public void stopPlayback(BlockPos pos) {
         final BlockPos key = pos.immutable();
         prefetch.drop(key); // 停止・ディスク交換・ブロック撤去。抱えたまま放置すると 60 秒で殺される
         sessions.stop(key);
+        failures.clear(key);
     }
 
+    /** 全ての再生を止める (ワールド離脱)。失敗の記憶も持ち越さない。 */
     public void stopAll() {
         prefetch.dropAll();
         sessions.stopAll();
+        failures.clearAll();
     }
 }

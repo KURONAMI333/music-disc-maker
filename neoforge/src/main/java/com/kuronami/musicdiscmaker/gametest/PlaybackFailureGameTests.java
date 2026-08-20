@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.client.audio.GoldenJukeboxFailures;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure.Kind;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureNotices;
@@ -24,6 +25,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -203,6 +205,44 @@ public class PlaybackFailureGameTests {
                 "回線の分類が制作機側と別のキーになっている");
         helper.assertTrue(Kind.BOT_CHECK.guiKey().equals(FailureReason.BOT_CHECK.guiKey()),
                 "bot 判定の分類が制作機側と別のキーになっている");
+        helper.succeed();
+    }
+
+    /**
+     * 金ジュークの失敗の入れ物 ({@link GoldenJukeboxFailures}) が、座標ごとに独立して覚え、
+     * <b>消すと言われた座標だけ</b>を消すこと。
+     *
+     * <p>ここで固定するのは「時間で消さない」という性質でもある — 入れ物は時計を一切持たない
+     * ので、覚えたものは上の 3 つの点で消されるまで残る。直っていない失敗が黙って消えると、
+     * 利用者が画面を見に行った時に何も無い状態へ戻る。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void jukeboxFailuresAreRememberedPerPosition(GameTestHelper helper) {
+        final GoldenJukeboxFailures failures = new GoldenJukeboxFailures();
+        final BlockPos first = new BlockPos(1, 2, 3);
+        final BlockPos second = new BlockPos(4, 5, 6);
+        helper.assertTrue(failures.latest(first) == null, "何も起きていないのに失敗を覚えている");
+
+        failures.record(first, PlaybackFailure.soundMuted());
+        failures.record(second, PlaybackFailure.concurrentLimit(4));
+        helper.assertTrue(failures.latest(first).kind() == Kind.MUTED, "座標ごとの記憶が混ざっている");
+        helper.assertTrue(failures.latest(second).kind() == Kind.CONCURRENT_LIMIT,
+                "座標ごとの記憶が混ざっている");
+
+        // 同じ座標の新しい失敗は上書きする (古い理由を残すと、直った後も古い話が出る)。
+        failures.record(first, PlaybackFailure.streamUnavailable());
+        helper.assertTrue(failures.latest(first).kind() == Kind.STREAM_UNAVAILABLE,
+                "同じ座標の失敗が上書きされていない");
+
+        // 消える点 1・2 は座標を名指しする。他の jukebox の記憶を巻き添えにしない。
+        failures.clear(first);
+        helper.assertTrue(failures.latest(first) == null, "名指しした座標の記憶が消えていない");
+        helper.assertTrue(failures.latest(second) != null, "他の座標の記憶まで消えている");
+
+        // 消える点 3 (ワールド離脱) だけが全部消す。
+        failures.clearAll();
+        helper.assertTrue(failures.latest(second) == null, "ワールド離脱で記憶が残っている");
         helper.succeed();
     }
 
