@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 同じ音源の同じ失敗を二度チャットに出さないための覚え書き。
+ * 同じ音源の同じ失敗を二度報告しないための覚え書き (報告先は画面のラベルとログ)。
  *
  * <h2>これが要る理由</h2>
  * 再生スレッドの中で落ちた失敗は、ストリームが終わるたびに 1 件ずつ上がってくる。ラジオは
