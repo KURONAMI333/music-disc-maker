@@ -125,6 +125,12 @@ public class AlbumJukeboxGameTests {
         return track == null ? "" : track.url();
     }
 
+    /** 先読みが掴む「次に鳴る曲」の URL。次が無ければ空文字。 */
+    private static String nextUrlOf(GoldenJukeboxBlockEntity jukebox) {
+        final CustomTrackData track = jukebox.nextPlaybackTrack();
+        return track == null ? "" : track.url();
+    }
+
     /**
      * アルバムを挿せる。アルバム item は {@code JUKEBOX_PLAYABLE} を持たないので、v2.2.0 までの
      * ゲートでは 3 箇所 (canPlaceItem / 手挿し / menu) すべてで弾かれていた。ここでは容器としての
@@ -216,6 +222,49 @@ public class AlbumJukeboxGameTests {
                     helper.assertTrue(jukebox.isVanillaPlaying(),
                             "トラックを送った後に vanilla 再生状態が立っていない");
                 })
+                .thenSucceed();
+    }
+
+    /**
+     * 先読みが掴む「次に鳴る曲」({@code nextPlaybackTrack}) の分岐。アルバムの曲送りと
+     * 単曲 repeat の折り返しの両方がここへ集まる。
+     *
+     * <p><b>アルバムの判定が repeat より先にあること</b>を最終トラックで確かめる。repeat を先に
+     * 見る実装だと、アルバム + repeat の最終トラックで「次 = 今と同じ曲」が返り、アルバム全体の
+     * ループが 1 曲ループに化ける (repeat の意味はアルバムでは全体ループ・単曲では曲内ループ)。
+     * 最終トラック以外では両者の答えが一致してしまうので、送った後で判定する。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, batch = BATCH, timeoutTicks = 200)
+    public static void nextPlaybackTrackCoversAlbumAdvanceAndSingleRepeat(GameTestHelper helper) {
+        installFakeAlbums();
+        final BlockPos albumRel = new BlockPos(1, 1, 1);
+        final BlockPos plainRel = new BlockPos(5, 1, 1);
+        final GoldenJukeboxBlockEntity withAlbum = placeJukebox(helper, albumRel);
+        final GoldenJukeboxBlockEntity withDisc = placeJukebox(helper, plainRel);
+        if (withAlbum == null || withDisc == null) {
+            return;
+        }
+
+        // 素のディスク: repeat していなければ曲が終わって止まるだけなので「次」は無い。
+        withDisc.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, customDisc(URL_B, "B", 120_000L));
+        helper.assertTrue(withDisc.nextPlaybackTrack() == null,
+                "repeat していない素のディスクに「次に鳴る曲」がある (無駄なストリームを開く)");
+        // 単曲 repeat: 折り返しは同じ曲を頭から鳴らし直すので「次」は今の曲そのもの。
+        withDisc.setRepeat(true);
+        helper.assertValueEqual(nextUrlOf(withDisc), URL_B, "単曲 repeat の次に鳴る曲");
+
+        // アルバム: 1 曲目を極短尺にして 2 曲目へ送らせ、最終トラックで先頭へ戻ることを見る。
+        withAlbum.setRepeat(true);
+        withAlbum.setItem(GoldenJukeboxBlockEntity.SLOT_DISC,
+                album(customDisc(URL_A, "A", 1L), customDisc(URL_B, "B", 120_000L)));
+        helper.assertValueEqual(nextUrlOf(withAlbum), URL_B, "アルバム 1 曲目の次に鳴る曲");
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertValueEqual(withAlbum.getAlbumTrack(), 1,
+                        "前提: 1 曲目が終わってもトラックが送られない"))
+                .thenExecute(() -> helper.assertValueEqual(nextUrlOf(withAlbum), URL_A,
+                        "アルバム最終トラック + repeat の次に鳴る曲 (先頭へ戻らず 1 曲ループに化けている)"))
                 .thenSucceed();
     }
 

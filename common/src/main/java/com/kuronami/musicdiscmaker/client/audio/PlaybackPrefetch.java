@@ -10,7 +10,8 @@ import org.jetbrains.annotations.Nullable;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 
 /**
- * 次に鳴る曲を先に開いておく置き場 (MC 非依存)。アルバムの曲間に空く 5〜10 秒の無音を消すためのもの。
+ * 次に鳴る曲を先に開いておく置き場 (MC 非依存)。曲の切れ目に空く 5〜10 秒の無音を消すためのもの
+ * (アルバムの曲送りと、単曲 repeat の折り返しの両方が対象)。
  *
  * <h2>なぜ「開いておく」だけで効くのか</h2>
  * 無音の内訳は (a) URL 解決 (ネットワーク) と (b) MC が再生開始時に 4 秒分の PCM を引き切るまで
@@ -174,8 +175,16 @@ public final class PlaybackPrefetch<K> {
      *
      * <p>{@code startOffsetMs != 0} を必ず外すのは、先読みが常に頭 (0ms) から開くから。
      * chunk 再入の再送やシーク要求に当てると<b>途中から鳴るはずの曲が頭から鳴る</b>。
-     * アルバムの曲送り ({@code advanceAlbumTrack}) は必ず {@code startPlayback(0L)} なので、
-     * この条件で落ちる正当なヒットは無い。
+     * 先読みが仕掛かる 2 つの経路 (アルバムの曲送り {@code advanceAlbumTrack} と単曲 repeat の
+     * 折り返し) はどちらも必ず {@code startPlayback(0L)} なので、この条件が本命のヒットを
+     * 落とすことは無い。
+     *
+     * <p><b>ただし「この条件で落ちるヒットは存在しない」ではない。</b> 単曲 repeat では次に鳴る
+     * 曲が今鳴っているのと同じ URL なので、温めている最中に来た chunk 再入の再送は URL まで
+     * 一致する。{@code GoldenJukeboxBlockEntity#resendTo} は単曲 repeat のとき
+     * {@code elapsed % dur} = <b>非ゼロの offset</b> を送るので、ここまで届いた場合は正しく捨てられる
+     * (途中から鳴るはずの曲が頭から鳴るのを防ぐ = この条件の本来の仕事)。通常はその手前の
+     * {@code PlaybackSessions#start} が同じ曲の再送として dedup するので、ここには来ない。
      *
      * @param key           音源をまとめる鍵
      * @param url           これから鳴らす曲の URL
