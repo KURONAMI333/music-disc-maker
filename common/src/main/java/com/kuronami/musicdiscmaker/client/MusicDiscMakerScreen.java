@@ -26,7 +26,9 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private static final ResourceLocation TEXTURE =
             ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/music_disc_maker.png");
     private static final int TEXT = 0x404040;
-    private static final int ERROR = 0xCC3333;
+    // バニラ金床「Too Expensive!」と同じ形 (色 + 板)。板は文字 y に対し上-2/下+10 の12pxで敷く。
+    private static final int ERROR = 0xFF5050;
+    private static final int ERROR_PLATE = 0x4F000000;
 
     private EditBox urlField;
     private boolean urlWasFocused;
@@ -110,7 +112,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             g.drawString(font, fetching, imageWidth - 8 - font.width(fetching), 51, TEXT, false);
         } else if (menu.getBlockEntity().isResolveFailed()) {
             final Component failed = failedMessage(menu.getBlockEntity().getFailureReason());
-            g.drawString(font, failed, imageWidth - 8 - font.width(failed), 51, ERROR, false);
+            final int textX = imageWidth - 8 - font.width(failed);
+            final int textY = 51;
+            // 板 (取得中スピナーと同じ行を共有するので、失敗時だけ板で区別する)
+            g.fill(textX - 2, textY - 2, imageWidth - 8 + 2, textY + 10, ERROR_PLATE);
+            g.drawString(font, failed, textX, textY, ERROR, false);
         }
     }
 
