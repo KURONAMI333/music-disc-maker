@@ -14,7 +14,7 @@
   "gui.music_disc_maker.failed.refused": "Abgelehnt",
   "gui.music_disc_maker.failed.blocked": "Blockiert",
   "gui.music_disc_maker.failed.botcheck": "Anmeldung",
-  "gui.music_disc_maker.failed.botcheck.tip": "Diese Quelle stuft die IP dieses Servers als Bot ein und verlangt eine Anmeldung. Das ist kein Verbindungsproblem. Es tritt häufig bei gehosteten oder gemieteten Servern auf - probiere einen direkten Link oder eine andere Quelle.",
+  "gui.music_disc_maker.failed.botcheck.tip": "Diese Quelle stuft diese Verbindung als Bot ein und verlangt eine Anmeldung. Das ist kein Verbindungsproblem - es hängt von der IP-Adresse ab, von der die Anfrage kommt, und kann daher im Einzelspieler genauso auftreten wie auf einem Server. Probiere einen direkten Link oder eine andere Quelle.",
   "gui.music_disc_maker.hint": "URL einfügen + leere Schallplatte einlegen",
   "gui.music_disc_maker.paste": "Einfügen",
   "gui.music_disc_maker.clear": "Löschen",

@@ -14,7 +14,7 @@
   "gui.music_disc_maker.failed.refused": "拒否",
   "gui.music_disc_maker.failed.blocked": "遮断",
   "gui.music_disc_maker.failed.botcheck": "ログイン",
-  "gui.music_disc_maker.failed.botcheck.tip": "接続元がこのサーバーの IP を bot と判定し、ログインを求めています。接続の問題ではありません。ホスティングやレンタルサーバーで起きやすい現象です。直リンクや別の音源をお試しください。",
+  "gui.music_disc_maker.failed.botcheck.tip": "音源側がこの接続を bot と判定し、ログインを求めています。接続の問題ではありません。リクエストの送信元 IP アドレスによって起きるので、サーバーだけでなくシングルプレイでも起こります。直リンクや別の音源をお試しください。",
   "gui.music_disc_maker.hint": "URL を貼って空ディスクを入れる",
   "gui.music_disc_maker.paste": "貼り付け",
   "gui.music_disc_maker.clear": "クリア",

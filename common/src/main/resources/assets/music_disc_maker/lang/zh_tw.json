@@ -14,7 +14,7 @@
   "gui.music_disc_maker.failed.refused": "遭拒絕",
   "gui.music_disc_maker.failed.blocked": "已封鎖",
   "gui.music_disc_maker.failed.botcheck": "需登入",
-  "gui.music_disc_maker.failed.botcheck.tip": "此音源將此伺服器的 IP 判定為機器人並要求登入。這不是連線問題，常見於託管或租用的伺服器。可以嘗試直接連結或換一個音源。",
+  "gui.music_disc_maker.failed.botcheck.tip": "此音源將此連線判定為機器人並要求登入。這不是連線問題，而是取決於請求來源的 IP 位址，因此單人遊戲和伺服器上都可能出現。可以嘗試直接連結或換一個音源。",
   "gui.music_disc_maker.hint": "貼上連結並放入空白唱片",
   "gui.music_disc_maker.paste": "貼上",
   "gui.music_disc_maker.clear": "清除",
