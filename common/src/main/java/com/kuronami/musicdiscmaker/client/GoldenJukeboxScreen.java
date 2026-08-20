@@ -6,6 +6,8 @@ import org.lwjgl.glfw.GLFW;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.client.audio.GoldenJukeboxFailures;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
@@ -41,6 +43,10 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/golden_jukebox.png");
     private static final int TEXT = 0x404040;
     private static final int TIME_TEXT = 0x606060;
+    // 失敗ラベル。制作機 (MusicDiscMakerScreen) と同じバニラ金床「Too Expensive!」の形 —
+    // 同じ概念を 2 つの見え方で出さないため、色も板の取り方もあちらに揃える。
+    private static final int ERROR = 0xFF5050;
+    private static final int ERROR_PLATE = 0x4F000000;
 
     // transport スプライトの uv (TEXTURE 内)。play/pause は 20x20 の丸ボタン、loop は 16x16 のフラット glyph。
     private static final int ICON_PLAY_U = 176;
@@ -83,6 +89,11 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int DIR_Y = RANGE_Y - 1;   // 16x16。下辺を範囲バーに揃える
     private static final int DIR_W = 16;
     private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
+    // 失敗ラベルの行 y。範囲スライダーの下端 (102+15 = 117 行目まで) とインベントリラベル (130) の
+    // 間の空き 13px に、金床型の板 12px (文字 y に対し上-2/下+10) をそのまま置ける唯一の値。
+    // 板は 117〜128 行を占め、129 行が空いてラベルの手前に 1px 残る。既存要素とは重ならない。
+    private static final int FAIL_Y = 117 + 2;      // 119
+    private static final int FAIL_X = 8;            // 左端はスライダー・インベントリラベルと同じ列
     private static final long SEEK_SYNC_TOL_MS = 800L; // シーク後、BE 同期が追いついたと見なす許容
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。
@@ -266,6 +277,31 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             final String total = formatMs(be.trackDurationMs());
             g.drawString(font, total, SEEK_X + SEEK_W - font.width(total), TIME_Y, TIME_TEXT, false);
         }
+
+        renderFailureLabel(g, be);
+    }
+
+    /**
+     * この jukebox が<b>鳴らなかった理由</b>を一言で出す ({@link GoldenJukeboxFailures} が座標ごとに
+     * 覚えているもの)。
+     *
+     * <h2>ここが唯一の出口である理由</h2>
+     * 失敗はストリームを開く client の中でしか分からず ({@link PlaybackFailure} 参照)、以前は
+     * チャットへ流していた。チャットは<b>その jukebox を見ていない全員</b>に流れるので、
+     * ラジオの再接続や複数台の同時再生では読む気を無くす量になる。理由が要るのは
+     * 「鳴らないな」と思って画面を開いた人だけなので、出口をこの 1 行に絞る。
+     * 技術詳細 (分類ラベル・URL・例外) は {@code latest.log} 側が持つ。
+     *
+     * <p>失敗を覚えていない時は<b>何も描かない</b> — 空の帯を常時見せない。
+     */
+    private void renderFailureLabel(GuiGraphics g, GoldenJukeboxBlockEntity be) {
+        final PlaybackFailure failure = GoldenJukeboxFailures.get().latest(be.getBlockPos());
+        if (failure == null) {
+            return;
+        }
+        final Component label = Component.translatable(failure.kind().guiKey());
+        g.fill(FAIL_X - 2, FAIL_Y - 2, FAIL_X + font.width(label) + 2, FAIL_Y + 10, ERROR_PLATE);
+        g.drawString(font, label, FAIL_X, FAIL_Y, ERROR, false);
     }
 
     @Override
