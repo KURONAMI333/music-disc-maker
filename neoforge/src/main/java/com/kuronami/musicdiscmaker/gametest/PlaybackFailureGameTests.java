@@ -1,7 +1,15 @@
 package com.kuronami.musicdiscmaker.gametest;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
@@ -137,6 +145,101 @@ public class PlaybackFailureGameTests {
         helper.assertTrue(PlaybackFailure.streamUnavailable().kind() == Kind.STREAM_UNAVAILABLE,
                 "理由なしの失敗が STREAM_UNAVAILABLE に落ちていない");
         helper.succeed();
+    }
+
+    /**
+     * 全ての分類が、<b>出荷している 14 本すべての翻訳ファイル</b>に GUI 用の一言ラベルを
+     * 持っていること ({@code FailureReasonLangCoverageTest} の {@link Kind} 版)。
+     *
+     * <p><b>なぜ要るか</b>: 分類を 1 つ増やした時にコンパイラが止めてくれるのは
+     * {@link Kind#guiKey()} の網羅 switch だけで、翻訳ファイルは 14 本ある。1 本でも入れ忘れると、その言語の利用者には
+     * <b>生の翻訳キーがそのまま画面に出る</b> (MC は未定義のキーをキー文字列として描く)。
+     *
+     * <p><b>読み方</b>: 翻訳ファイルは {@code common} 側にあり、GameTest は dedicated server の
+     * 実行ディレクトリ ({@code neoforge/run}) から走るので<b>ファイルとして読む</b>。見つからない・数が足りないは
+     * <b>失敗として扱う</b> — 黙って 0 件を検査して緑になると、このテストを足した意味が消える。
+     * ロケールは決め打ちせずディレクトリを走査するので、15 番目の言語を足した時も自動で入る。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void everyKindHasItsGuiLabelInEveryLocale(GameTestHelper helper) {
+        final List<Path> files = langFiles();
+        helper.assertTrue(files.size() >= SHIPPED_LOCALES,
+                "翻訳ファイルが " + files.size() + " 本しか見つからない: " + LANG_DIR);
+        for (final Path file : files) {
+            final String text = read(file);
+            for (final Kind kind : Kind.values()) {
+                helper.assertTrue(text.contains('"' + kind.guiKey() + '"'),
+                        file.getFileName() + " に " + kind + " の GUI ラベルが無い: " + kind.guiKey());
+            }
+        }
+        helper.succeed();
+    }
+
+    /**
+     * GUI ラベルのキーが分類ごとに<b>違う</b>こと。同じキーを共有すると、違う原因が狭い枠の中で
+     * 同じ一言になって切り分けの役に立たなくなる。
+     *
+     * <p>あわせて {@link Kind#STREAM_UNAVAILABLE} が制作機の汎用キー
+     * {@code gui.music_disc_maker.failed} ("取得失敗") に寄っていないことを固定する。あちらは
+     * URL を解決できなかった状態で、こちらは解決できたのに開けなかった状態 = 利用者に言うことが
+     * 違う。名前空間だけを見る検査では、両者を束ねる編集が素通りする。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void everyKindHasItsOwnGuiKey(GameTestHelper helper) {
+        final Set<String> keys = new HashSet<>();
+        for (final Kind kind : Kind.values()) {
+            final String key = kind.guiKey();
+            helper.assertTrue(key != null && key.startsWith("gui.music_disc_maker.failed"),
+                    kind + " の GUI ラベルのキーが規約から外れている: " + key);
+            helper.assertTrue(!"gui.music_disc_maker.failed".equals(key),
+                    kind + " が制作機の汎用キーに寄っている (分類の粒度が消える): " + key);
+            helper.assertTrue(keys.add(key), "GUI ラベルのキーが重複している: " + key);
+        }
+        helper.assertTrue(keys.size() == Kind.values().length, "分類の数とキーの数が合わない");
+        // 制作機側に既訳がある 8 つは、同じ概念に 2 つの訳語を作らないよう同一キーを共有する。
+        helper.assertTrue(Kind.NETWORK.guiKey().equals(FailureReason.CONNECTION_FAILED.guiKey()),
+                "回線の分類が制作機側と別のキーになっている");
+        helper.assertTrue(Kind.BOT_CHECK.guiKey().equals(FailureReason.BOT_CHECK.guiKey()),
+                "bot 判定の分類が制作機側と別のキーになっている");
+        helper.succeed();
+    }
+
+    /** 出荷している翻訳ファイルの数。これを下回ったら、読む場所を間違えたか lang が消えている。 */
+    private static final int SHIPPED_LOCALES = 14;
+
+    private static final String LANG_DIR =
+            "common/src/main/resources/assets/music_disc_maker/lang";
+
+    /** {@code lang} ディレクトリの {@code *.json} を全部。見つからなければ失敗させる。 */
+    private static List<Path> langFiles() {
+        Path here = Path.of("").toAbsolutePath();
+        for (int up = 0; up < 6 && here != null; up++, here = here.getParent()) {
+            final Path dir = here.resolve(LANG_DIR);
+            if (Files.isDirectory(dir)) {
+                try (Stream<Path> found = Files.list(dir)) {
+                    final List<Path> files = new ArrayList<>();
+                    found.filter(path -> path.getFileName().toString().endsWith(".json"))
+                            .sorted()
+                            .forEach(files::add);
+                    return files;
+                } catch (final IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            }
+        }
+        throw new IllegalStateException(
+                "翻訳ファイルの置き場が見つからない (探した起点: "
+                        + Path.of("").toAbsolutePath() + " から親へ 6 段): " + LANG_DIR);
+    }
+
+    private static String read(Path file) {
+        try {
+            return Files.readString(file, StandardCharsets.UTF_8);
+        } catch (final IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     /**
