@@ -50,6 +50,34 @@ public enum FailureReason {
     /** YouTube の bot 判定でログインを要求された (datacenter IP でよく起きる。接続失敗ではない)。 */
     BOT_CHECK;
 
+    /**
+     * 制作機 GUI に出す短いラベルの翻訳キー。
+     *
+     * <p><b>enum 名の機械変換ではない</b>ので、呼び出し側で {@code name().toLowerCase()} を
+     * 書かないこと (存在しないキーを引いて画面に生キーが出る。{@code PlaybackFailure.Kind}
+     * と同じ規律)。
+     *
+     * <p>対応表をここに置いて {@code default} を書かないのは、<b>コンパイラに検出させる</b>ため。
+     * 画面側の switch に置いたままだと、理由を 1 つ増やした時に黙って汎用の「取得失敗」へ落ち、
+     * 何も壊れずに粒度だけが消える。lang への追記漏れは
+     * {@code FailureReasonLangCoverageTest} が見る。
+     *
+     * @return 翻訳キー
+     */
+    public String guiKey() {
+        return switch (this) {
+            case UNKNOWN -> "gui.music_disc_maker.failed";
+            case UNSUPPORTED_URL -> "gui.music_disc_maker.failed.unsupported";
+            case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.failed.private";
+            case REGION_LOCKED -> "gui.music_disc_maker.failed.region";
+            case AGE_RESTRICTED -> "gui.music_disc_maker.failed.age";
+            case CONNECTION_FAILED -> "gui.music_disc_maker.failed.connection";
+            case SOURCE_REFUSED -> "gui.music_disc_maker.failed.refused";
+            case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
+            case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
+        };
+    }
+
     /** NBT / 同期から安全に復元する (未知の名前は UNKNOWN)。 */
     public static FailureReason fromName(String name) {
         if (name == null || name.isBlank()) {

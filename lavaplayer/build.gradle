@@ -58,6 +58,12 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test').configure {
     useJUnitPlatform()
+    // FailureReasonLangCoverageTest は common 側の翻訳ファイルをファイルとして読む。
+    // 入力として宣言しないと、lang を編集しても test が UP-TO-DATE で素通りする
+    // (classpath が変わらないため = 追記漏れを検出するというテストの目的が消える)。
+    inputs.dir(rootProject.file('common/src/main/resources/assets/music_disc_maker/lang'))
+            .withPropertyName('langFiles')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
     testLogging {
         events 'passed', 'failed', 'skipped'
         exceptionFormat = 'full'
