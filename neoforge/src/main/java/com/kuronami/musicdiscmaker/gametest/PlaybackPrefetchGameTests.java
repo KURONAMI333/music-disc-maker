@@ -222,6 +222,42 @@ public class PlaybackPrefetchGameTests {
         helper.succeed();
     }
 
+    /**
+     * 単曲 repeat: 次に鳴る曲が<b>今鳴っているのと同じ URL</b> でも成立すること。
+     *
+     * <p>アルバムと違って単曲の折り返しは「同じ曲をもう一度頭から」なので、温める URL と
+     * 鳴っている URL が一致する。<b>この置き場は URL でなく鍵 (座標) で持つ</b>ので枠は別で、
+     * 温めた分が今鳴っている音源を閉じることは無い (実音の側も
+     * {@code MusicLoaderImpl#beginPlayback} が周回ごとに独立した player を起こす)。
+     *
+     * <p>2 周目の {@code begin} が非 null を返すことまで縛るのは、そこが静かに死ぬから。
+     * {@link PlaybackPrefetch#claim} が枠を手放さない実装に変わると、単曲 repeat は 2 周目以降
+     * まったく先読みされなくなる (＝無音が戻る) のに、他のテストは全部緑のまま通る。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void singleTrackRepeatWarmsTheUrlItIsAlreadyPlaying(GameTestHelper helper) {
+        final AtomicLong clock = new AtomicLong(1_000L);
+        final PlaybackPrefetch<String> prefetch = new PlaybackPrefetch<>(clock::get);
+
+        // 1 周目の終わり際: 折り返し用に「今鳴っているのと同じ URL」を温めて掴む。
+        final FakeSource firstLoop = new FakeSource();
+        prefetch.deliver(prefetch.begin(KEY, URL_A), firstLoop);
+        helper.assertTrue(prefetch.claim(KEY, URL_A, 0L) == firstLoop, "折り返し用に温めた同じ URL が掴めていない");
+
+        // 2 周目の終わり際: 掴んだ直後に、同じ URL の先読みをもう一度始められること。
+        final PlaybackPrefetch.Ticket<String> nextLoop = prefetch.begin(KEY, URL_A);
+        helper.assertTrue(nextLoop != null, "掴んだ後に同じ URL の先読みが始められない (2 周目以降が無音に戻る)");
+        helper.assertTrue(firstLoop.closes == 0, "先読みが今鳴っている音源を閉じている: " + firstLoop.closes);
+
+        final FakeSource secondLoop = new FakeSource();
+        helper.assertTrue(prefetch.deliver(nextLoop, secondLoop), "2 周目の先読みが受け取られていない");
+        helper.assertTrue(firstLoop.closes == 0, "2 周目を温める間に 1 周目の音源が閉じられている: " + firstLoop.closes);
+        helper.assertTrue(prefetch.claim(KEY, URL_A, 0L) == secondLoop, "2 周目の折り返しで先読みが掴めない");
+        helper.assertTrue(firstLoop.closes == 0, "2 周目を掴んだ時に 1 周目の音源が閉じられている: " + firstLoop.closes);
+        helper.succeed();
+    }
+
     /** close 回数を数えるだけのソース。PCM は一切返さない。 */
     private static final class FakeSource implements IAudioSource {
 

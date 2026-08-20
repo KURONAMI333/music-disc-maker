@@ -87,8 +87,9 @@ public final class ClientPlaybackManager {
     }
 
     /**
-     * 次に鳴る曲を先に開いておく。{@link DiscSoundInstance#tick} がアルバム再生中の残り時間を見て
-     * 毎 tick 呼ぶので、重ねない判断は {@link PlaybackPrefetch#begin} に任せる。
+     * 次に鳴る曲を先に開いておく。{@link DiscSoundInstance#tick} が再生中の残り時間を見て毎 tick
+     * 呼ぶので (アルバムの曲送り・単曲 repeat の折り返しの両方)、重ねない判断は
+     * {@link PlaybackPrefetch#begin} に任せる。
      *
      * <p><b>失敗の届け先はここでは差さない。</b> 差すと、まだ鳴らしてもいない曲の失敗がチャットに
      * 出る。理由は {@link PlaybackPrefetch#claim} で掴んだ時に差し、{@code onPlaybackFault} は

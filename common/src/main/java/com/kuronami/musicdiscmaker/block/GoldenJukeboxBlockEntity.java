@@ -341,6 +341,39 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements Container {
     }
 
     /**
+     * この後に必ず鳴ることが今わかっている曲。先読み ({@code PlaybackPrefetch}) が掴む対象で、
+     * client 側 BE からも解決できる (アルバム本体・{@code albumTrack}・{@code repeat} は同期される)。
+     *
+     * <p>アルバムなら次トラック、単曲 repeat なら<b>今鳴っているのと同じ曲</b>。単曲 repeat の
+     * 折り返しは {@link #tickServer} が {@code startPlayback(0L)} で張り直すだけなので、
+     * 「次に鳴る曲」は現在の曲そのものになる。
+     *
+     * <p><b>アルバムの判定を先に置くこと。</b> repeat を先に見ると、アルバム + repeat が
+     * 「同じトラックが次」に化けてアルバム全体のループが 1 曲ループになる
+     * (repeat の意味はアルバムでは全体ループ・単曲では曲内ループで別物)。
+     *
+     * <p>次が無い場合は {@code null}。単曲側の内訳は「repeat していない (曲が終わって止まるだけ
+     * なので先読みは無駄なストリームになる)」「custom disc でない」「ラジオ・尺ゼロ (終わりが
+     * 無いので折り返しが存在しない)」。
+     *
+     * @return 次に鳴る custom disc の track。無ければ {@code null}
+     */
+    @Nullable
+    public CustomTrackData nextPlaybackTrack() {
+        if (albumTrack >= 0) {
+            return nextAlbumTrack();
+        }
+        if (!repeat) {
+            return null;
+        }
+        final CustomTrackData track = currentTrack();
+        if (track == null || track.isEmpty() || track.radio() || track.durationMs() <= 0L) {
+            return null;
+        }
+        return track;
+    }
+
+    /**
      * vanilla / 他 MOD のディスクの {@link JukeboxSong#description()}（例: "C418 - cat"）。
      * custom disc・description を持たないディスク・{@code level==null} では {@code null}。
      * {@code jukebox_song} は同期される動的レジストリなので client 側 BE からも解決できる。

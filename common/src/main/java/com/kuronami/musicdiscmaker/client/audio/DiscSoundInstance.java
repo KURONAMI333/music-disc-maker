@@ -348,7 +348,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
                 setVolumePercent(be.getVolumePercent());
                 setDirectional(be.isDirectional());
                 setRangeBlocks(be.getRangeBlocks());
-                driveAlbumPrefetch(sa.pos(), be);
+                drivePrefetch(sa.pos(), be);
             }
         }
         applyListeningPosition(p);
@@ -358,7 +358,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     /**
-     * アルバムの次トラックの先読みを始める残り時間 (ms)。
+     * 次に鳴る曲の先読みを始める残り時間 (ms)。
      *
      * <p>lavaplayer は {@code provide} されない player を 60 秒で殺す ({@code CLEANUP}) ので、
      * 掴むまでの時間はそれより十分短く固定する。殺された先読みを掴むと {@code read()} が即
@@ -367,19 +367,31 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     private static final long PREFETCH_LEAD_MS = 15_000L;
 
     /**
-     * アルバム再生の終わり際に次トラックを先読みさせる (強化版ジュークボックス限定)。
+     * 再生の終わり際に次に鳴る曲を先読みさせる (強化版ジュークボックス限定)。
+     *
+     * <p>対象は<b>アルバムの曲送りと単曲 repeat の折り返しの両方</b>。どちらも
+     * {@code startPlayback(0L)} で次を張り直すので、client から見た形は同じ「もうすぐ頭から
+     * 鳴り始める曲が判っている」状態になる。単曲 repeat では次の曲が今鳴っているのと同じ URL に
+     * なるが、先読みは {@code apm.createPlayer()} で独立した player を起こす
+     * ({@code MusicLoaderImpl#beginPlayback}) ので、鳴っている再生を奪わない。
      *
      * <p><b>残り時間が 0 以下でも取り消さない。</b> client の {@code currentElapsedMs()} は
      * 尺でクランプされるので、曲の終わり際は残り 0 に張り付く。そこで取り消すと
-     * 次トラックの packet が来る直前に必ず閉じてしまい、先読みが一度も当たらなくなる。
-     * 取り消すのは「一時停止」「アルバムでない」「次が無い」「早すぎ (= 後方シークを含む)」だけ。
+     * 次の曲の packet が来る直前に必ず閉じてしまい、先読みが一度も当たらなくなる。
+     * 取り消すのは「一時停止」「次が無い」「早すぎ (= 後方シークを含む)」だけ。
+     *
+     * <p>第一条件で「アルバムでなく repeat でもない」を切るのは、そこから先が
+     * {@code trackDurationMs()} = component 参照とレジストリ参照まで落ちるため。可聴範囲内の
+     * 全ジュークボックスが 20Hz で通る道なので、先読みが原理的に発火しない普通のディスクは
+     * 一番安い判定で返す。「次が無い」の判定はこの速い道の代わりではなく正しさのゲートなので
+     * 両方残してある。
      *
      * <p>次の曲が変わった場合の閉じ直しは {@link PlaybackPrefetch#begin} が URL で判断するので、
      * ここは毎 tick 素直に呼んでよい。
      */
-    private static void driveAlbumPrefetch(BlockPos pos, GoldenJukeboxBlockEntity be) {
+    private static void drivePrefetch(BlockPos pos, GoldenJukeboxBlockEntity be) {
         final ClientPlaybackManager manager = ClientPlaybackManager.get();
-        if (be.getAlbumTrack() < 0 || be.isPaused()) {
+        if (be.isPaused() || (be.getAlbumTrack() < 0 && !be.isRepeat())) {
             manager.cancelPrefetch(pos);
             return;
         }
@@ -388,7 +400,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             manager.cancelPrefetch(pos);
             return;
         }
-        final CustomTrackData next = be.nextAlbumTrack();
+        final CustomTrackData next = be.nextPlaybackTrack();
         if (next == null) {
             manager.cancelPrefetch(pos);
             return;
