@@ -226,7 +226,7 @@ public final class PocketJukeboxClient {
     private static void onLoaded(int trackIndex, String url, CustomTrackData track, Player carrier,
             int generation, @Nullable IAudioSource resolved, @Nullable PlaybackFailure reported) {
         if (resolved == null) {
-            // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
+            // 無音で終わらせない。理由の分類つきでログに残す (この経路は画面を持たないのでログだけ)。
             PlaybackFailureReport.report(track, reported);
             // 保留を続けると「1 曲目で固まって二度と進まない」になるので、曲送りを AA に返す。
             ADVANCE.giveUp(trackIndex, url);

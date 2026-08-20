@@ -20,19 +20,20 @@ import com.kuronami.musicdiscmaker.network.UrlGuard;
  *
  * <p>ストリームは client ごとに開くので、同じ音源でも<b>片方の client だけ</b>失敗しうる
  * (DNS・回線・ガード判定・同時再生上限はすべてローカル)。だからこそ理由は
- * <b>その client の画面とログの両方</b>に残す必要がある ({@link PlaybackFailureReport})。
+ * <b>その client の画面とログの両方</b>に残す必要がある (画面は {@code GoldenJukeboxScreen}
+ * の一言ラベル、ログは {@link PlaybackFailureReport})。
  *
  * <p>分類はここに閉じてある。{@code Minecraft} を掴まないので headless テストに載る
  * ({@code PlaybackSessions} / {@code PlaybackPositions} と同じ seam の切り方)。
  *
  * @param kind   利用者に見せる粒度の分類
- * @param detail ログ・チャットの角括弧に出す技術詳細 (空文字なら detail 無し)
+ * @param detail ログの角括弧に出す技術詳細 (空文字なら detail 無し)
  */
 public record PlaybackFailure(Kind kind, String detail) {
 
     /** 原因のたどり方の上限 (循環した cause chain で回り続けないための歯止め)。 */
     private static final int MAX_CAUSE_DEPTH = 12;
-    /** チャット 1 行に載せる技術詳細の上限。 */
+    /** ログ 1 行に載せる技術詳細の上限。 */
     private static final int MAX_DETAIL_CHARS = 160;
 
     /** 利用者に見せる粒度の分類。 */
@@ -85,8 +86,9 @@ public record PlaybackFailure(Kind kind, String detail) {
         /**
          * GUI に出す<b>一言</b>のラベルの翻訳キー ({@link FailureReason#guiKey()} と同じ役割・同じ名前空間)。
          *
-         * <p>{@link #translationKey()} と分けてあるのは長さが違うから。あちらはチャット 1 行の文
+         * <p>{@link #translationKey()} と分けてあるのは長さが違うから。あちらは 1 文の説明
          * ({@code 「地域制限のため再生できません」}級) で、こちらは狭い枠に収まる 1〜2 語。
+         * 金ジュークの画面に出るのは<b>こちら</b> ({@code GoldenJukeboxScreen})。
          *
          * <p>制作機側と<b>同じキーを共有する</b> — 制作機が「取得できない」と言う理由と、
          * 金ジュークが「鳴らせない」と言う理由は利用者にとって同じ概念なので、
@@ -264,7 +266,7 @@ public record PlaybackFailure(Kind kind, String detail) {
         return kind.guiKey();
     }
 
-    /** ログ・チャットの角括弧に出す機械可読なラベル (利用者がそのまま報告に貼れる)。 */
+    /** ログの角括弧に出す機械可読なラベル (利用者がそのまま報告に貼れる)。 */
     public String label() {
         return detail == null || detail.isBlank() ? kind.name() : kind.name() + " " + detail;
     }

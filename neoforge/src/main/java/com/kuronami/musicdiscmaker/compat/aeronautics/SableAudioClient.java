@@ -95,7 +95,7 @@ public final class SableAudioClient {
                 // in-flight ガードの解除は成否に関わらず必ず行う (残すと以後の再送が全部黙って無視される)。
                 SLOTS.loadFinished(actorKey, track.url());
                 if (resolved == null) {
-                    // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す (本体の再生経路と同じ出方)。
+                    // 無音で終わらせない。理由の分類つきでログに残す (この経路は画面を持たないのでログだけ)。
                     // 同じ URL はしばらく繋ぎ直さないが、待ちが明ければ自分で戻る (LivePlaybackRegistry)。
                     final PlaybackFailure why = reported == null
                             ? PlaybackFailure.streamUnavailable() : reported;

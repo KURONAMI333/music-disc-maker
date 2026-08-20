@@ -51,7 +51,7 @@ public final class ClientPlaybackManager {
     private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis);
 
     /**
-     * 座標ごとの直近の失敗。チャットへ出したものと同じ失敗をここにも残す。
+     * 座標ごとの直近の失敗。金ジュークの画面がここを読んで一言のラベルを出す。
      *
      * <p><b>今はまだ誰も読まない</b> — 画面への描画は別の作業で足す。ここで先に書き手だけを
      * 作るのは、読み手だけが先に居ると「失敗しているのに画面が空」になるから (v2.3.0 A6 の逆)。
@@ -217,7 +217,7 @@ public final class ClientPlaybackManager {
                 onRadioStreamEnded(key, token); // ロード失敗も 1 回の再接続試行として数える
             } else if (sessions.isLive(key, token)) {
                 sessions.abandon(key, token);
-                // 無音で終わらせない。理由の分類つきでチャットとログの両方に残す
+                // 無音で終わらせない。理由の分類つきで画面のラベルとログの両方に残す
                 // (ストリームは client ごとに開くので、片方の client だけ失敗しうる)。
                 final PlaybackFailure show =
                         failure == null ? PlaybackFailure.streamUnavailable() : failure;
