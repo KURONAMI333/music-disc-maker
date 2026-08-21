@@ -17,10 +17,16 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
  * <ul>
  *   <li>{@code prefetch} — {@link PlaybackPrefetch#claim} が当たったか (hit) 外れたか (miss)</li>
  *   <li>{@code resolve} — 再生要求から PCM ソースが手に入るまで (URL 解決 = ネットワーク)</li>
+ *   <li>{@code prefill} — 4 秒分を裏で引いておくのに要した時間とバイト数
+ *       ({@link LavaPlayerAudioStream#prefill})。これは専用スレッドの時間で、誰も待たない</li>
  *   <li>{@code buffer4s} — MC が最初に引く 4 秒分 ({@code Channel.attachBufferStream} の
  *       {@code pumpBuffers(4)}) を渡し切るまで。<b>これが "Sound engine" スレッドを占有する時間
  *       そのもの</b>で、その間 Render thread から出る全ての音が {@code createHandle().join()} で待つ</li>
  * </ul>
+ *
+ * <p>{@code prefill} と {@code buffer4s} を両方出すのは、<b>費用が消えたのか見えなくなっただけ
+ * なのかを 1 行で判定できるようにするため</b>。裏へ出せていれば {@code buffer4s} だけが 0 に近づき、
+ * {@code prefill} がその値を引き取る。
  *
  * <p>「先読みが効いていない」のか「効いているが別の場所で止まっている」のかは、この 3 つが
  * 揃わないとログから切り分けられない (MDM_DECISIONS D28)。
@@ -43,6 +49,13 @@ public final class PlaybackTiming {
      * 書き込み = ロードスレッド / 読み出し = MC の streaming スレッド。
      */
     private volatile long resolveMs = -1L;
+
+    /** 先読み充填に要した ms。走らせていないなら {@code -1}。書き込み = 充填スレッド。 */
+    private volatile long prefillMs = -1L;
+    /** 先読み充填で引けたバイト数。 */
+    private volatile long prefillBytes;
+    /** 4 秒分を引き切ったか (打ち切り・曲の終端だと {@code false})。 */
+    private volatile boolean prefillComplete;
 
     /** 1 回の切り替わりから 2 行出さないためのガード。 */
     private final AtomicBoolean emitted = new AtomicBoolean();
@@ -71,6 +84,19 @@ public final class PlaybackTiming {
     }
 
     /**
+     * 先読み充填が終わった (専用スレッドから呼ばれる)。
+     *
+     * @param ms       充填に要した ms
+     * @param bytes    引けたバイト数
+     * @param complete 4 秒分を引き切ったなら {@code true}
+     */
+    public void prefilled(long ms, long bytes, boolean complete) {
+        this.prefillMs = ms;
+        this.prefillBytes = bytes;
+        this.prefillComplete = complete;
+    }
+
+    /**
      * MC が最初に引く 4 秒分を渡し切った (もしくはその前に曲が終わった)。ここで 1 行出す。
      *
      * @param bufferMs MC が最初に {@code read} を呼んでからの経過 ms
@@ -80,13 +106,23 @@ public final class PlaybackTiming {
         if (!emitted.compareAndSet(false, true)) {
             return;
         }
-        MusicDiscMaker.LOGGER.info("Track switch [{}] prefetch={} resolve={}ms buffer4s={}ms{} url={}",
+        MusicDiscMaker.LOGGER.info("Track switch [{}] prefetch={} resolve={}ms {} buffer4s={}ms{} url={}",
                 label,
                 prefetchHit ? "hit" : "miss",
                 Math.max(resolveMs, 0L),
+                prefillText(),
                 bufferMs,
                 complete ? "" : " (track ended before the first 4s)",
                 url);
+    }
+
+    /** 先読み充填の結果を 1 語にする。 */
+    private String prefillText() {
+        final long ms = prefillMs;
+        if (ms < 0L) {
+            return "prefill=skipped";
+        }
+        return "prefill=" + ms + "ms/" + prefillBytes + "B" + (prefillComplete ? "" : "(short)");
     }
 
     /** {@code nanoTime} の基準点からの経過 ms。 */

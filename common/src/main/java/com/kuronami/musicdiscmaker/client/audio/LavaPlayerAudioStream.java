@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -78,6 +79,22 @@ public class LavaPlayerAudioStream implements AudioStream {
     private boolean firstBufferReported;
 
     /**
+     * {@link #prefill} が先に引いておいた PCM。使い切ったら {@code null} に戻して手放す。
+     *
+     * <p>書き込み = 充填スレッド ({@link #prefill}) / 読み出し = MC の streaming スレッド。
+     * 両者は {@code CompletableFuture} の完了を挟んで直列なので競合しないが、
+     * 可視性を型で見えるようにするため {@code volatile} にしてある。
+     */
+    @Nullable
+    private volatile byte[] prebuf;
+    /** {@link #prebuf} の有効長。 */
+    private volatile int prebufLen;
+    /** 充填中に終端を見たか。見ていたら {@code source} を引き直さない。 */
+    private volatile boolean prebufferEnded;
+    /** {@link #prebuf} の読み出し位置 (streaming スレッド専用)。 */
+    private int prebufPos;
+
+    /**
      * PCM 段のゲイン (1.0 = 素通し)。{@code SoundEngine#calculateVolume} が OpenAL へ渡す gain を
      * [0,1] にクランプするので、1.0 を超える音量はサンプル値そのものに掛けるしかない。
      * {@link DiscSoundInstance} がスライダーの現在値から算出して押し込む
@@ -131,6 +148,12 @@ public class LavaPlayerAudioStream implements AudioStream {
     private static final int MC_FIRST_BUFFERS = 4;
 
     /**
+     * 先読み充填に確保してよいメモリの上限 (byte)。想定フォーマット (mono/48kHz/16bit) の 4 秒は
+     * 384,000 byte なので通常は当たらない。想定外のフォーマットで巨大な配列を掴まないための蓋。
+     */
+    private static final int MAX_PREBUFFER_BYTES = 2_000_000;
+
+    /**
      * この切り替わりの所要時間の集め先を差す。{@code SoundManager#play} へ渡す前に差すこと
      * (差した後は streaming スレッドしか読まない)。
      *
@@ -138,6 +161,100 @@ public class LavaPlayerAudioStream implements AudioStream {
      */
     void setTiming(@Nullable PlaybackTiming value) {
         this.timing = value;
+    }
+
+    /**
+     * MC が再生開始時に引く 4 秒分を、<b>あらかじめメモリへ引いておく</b>。
+     *
+     * <h2>これが要る理由</h2>
+     * {@code SoundEngine#play} は Render thread で {@code channelAccess.createHandle(...).join()}
+     * を待つ。その待ち行列を捌く "Sound engine" は<b>単一スレッド</b>で、同じスレッドが
+     * {@code Channel.attachBufferStream} → {@code pumpBuffers(4)} を回す。cold なソースだと
+     * ここが 4 秒帰ってこないので、<b>その間に Render thread から出た全ての音 (バニラの足音・
+     * アイテム音を含む) が待たされる</b> = 曲の切り替わりのフリーズ (MDM_DECISIONS D28)。
+     *
+     * <p>ここで先に満たしておけば {@code attachBufferStream} はメモリから即座に埋まり、
+     * 待ち行列は空くのが早い。<b>先読み ({@link PlaybackPrefetch}) の当否とは無関係に効く</b> —
+     * 先読みが縮めるのは read の中の待ち時間だけで、per-switch の直列化そのものは消していない。
+     *
+     * <h2>lavaplayer 側の制約との関係</h2>
+     * ここがやるのは frame buffer を<b>引き抜く</b>ことなので、251 frame (≒5 秒) で満杯になって
+     * デコードスレッドが {@code put()} で止まる状態は、むしろこの充填で解ける。
+     * {@code AudioPlayerLifecycleManager} の 60 秒リーパーが見る {@code lastRequestTime} を
+     * 打つのは {@code startTrack} と {@code provide} だけなので、{@code provide} を通る
+     * この充填はリーパーの時計も同時に叩き直す。どちらに対しても不利に働かない。
+     *
+     * <h2>いつ諦めるか</h2>
+     * 待ち時間の上限を {@code budgetMs} で置く。判定は<b>読み出しと読み出しの間</b>だけで行い、
+     * 走っている {@code source.read} を放り出さない — 放り出すと充填スレッドと streaming
+     * スレッドが同じソースを同時に読むことになり、{@code LavaAudioSource} の {@code leftover}
+     * が壊れる。上限に達した時は引けた分だけを持って戻り、残りは従来どおり
+     * {@code pumpBuffers} が引く (= この変更を入れる前の挙動に落ちるだけで、悪化はしない)。
+     *
+     * <p>再生が始まる時刻は変わらない。従来も {@code pumpBuffers(4)} が終わるまで
+     * {@code channel.play()} は撃たれていないので、鳴り始めまでの実時間は同じ場所で待っている。
+     *
+     * @param budgetMs 充填に使ってよい時間の上限 (ms)
+     */
+    void prefill(long budgetMs) {
+        final int target = (int) Math.min(firstBufferTargetBytes, MAX_PREBUFFER_BYTES);
+        final byte[] buf = new byte[target];
+        final long start = System.nanoTime();
+        final long deadline = start + TimeUnit.MILLISECONDS.toNanos(budgetMs);
+        int len = 0;
+        boolean ended = false;
+        while (len < target && System.nanoTime() < deadline) {
+            final int n = source.read(buf, len, target - len);
+            if (n < 0) {
+                ended = true;
+                break;
+            }
+            if (n == 0) {
+                break; // 取得できず (中断等)。ここで粘っても増えない
+            }
+            len += n;
+        }
+        this.prebuf = len > 0 ? buf : null; // 1 バイトも引けなかったら抱えない
+        this.prebufLen = len;
+        this.prebufferEnded = ended;
+        final PlaybackTiming t = timing;
+        if (t != null) {
+            t.prefilled(PlaybackTiming.msSince(start), len, len >= target);
+        }
+    }
+
+    /**
+     * {@link #prefill} が引いておいた分を {@link #scratch} へ移す。
+     *
+     * @param want 欲しいバイト数
+     * @return 移せたバイト数。持ち合わせが無ければ 0
+     */
+    private int takePrebuffered(int want) {
+        final byte[] pre = prebuf;
+        if (pre == null || prebufPos >= prebufLen) {
+            return 0;
+        }
+        final int n = Math.min(want, prebufLen - prebufPos);
+        System.arraycopy(pre, prebufPos, scratch, 0, n);
+        prebufPos += n;
+        if (prebufPos >= prebufLen) {
+            prebuf = null; // 使い切った。4 秒分 (≒384KB) を抱えたままにしない
+        }
+        return n;
+    }
+
+    /** 終端に達した時の後始末。{@code read} の 2 つの終端経路から呼ぶ。 */
+    private void endOfStream() {
+        noteFirstBuffer(true);
+        // トラック終端 → 空 (もしくは残り) を返すと MC が再生終了とみなす。
+        // ただし「最後まで鳴った」のか「途中で落ちた」のかは read の戻り値では区別が
+        // つかない。落ちていた時だけソースが理由を持っているので、ここで引いて報告する
+        // (ここを見ないと、再生スレッドの中で落ちた失敗は完全な無音のまま終わる)。
+        reportEnd();
+        // ラジオの瞬断もここに来る (lavaplayer が track を終了させる) ので再接続を促す。
+        if (onEnded != null && endedNotified.compareAndSet(false, true)) {
+            onEnded.run();
+        }
     }
 
     /**
@@ -228,18 +345,18 @@ public class LavaPlayerAudioStream implements AudioStream {
         final ByteBuffer buffer = BufferUtils.createByteBuffer(size);
         while (buffer.hasRemaining()) {
             final int want = Math.min(scratch.length, buffer.remaining());
-            final int read = source.read(scratch, 0, want);
-            if (read < 0) {
-                noteFirstBuffer(true);
-                // トラック終端 → 空 (もしくは残り) を返すと MC が再生終了とみなす。
-                // ただし「最後まで鳴った」のか「途中で落ちた」のかは read の戻り値では区別が
-                // つかない。落ちていた時だけソースが理由を持っているので、ここで引いて報告する
-                // (ここを見ないと、再生スレッドの中で落ちた失敗は完全な無音のまま終わる)。
-                reportEnd();
-                // ラジオの瞬断もここに来る (lavaplayer が track を終了させる) ので再接続を促す。
-                if (onEnded != null && endedNotified.compareAndSet(false, true)) {
-                    onEnded.run();
+            int read = takePrebuffered(want);
+            if (read == 0) {
+                if (prebufferEnded) {
+                    // 充填中に終端を見ている。source を引き直すと RetryingAudioSource の
+                    // 理由待ち (graceMs) をもう一度払うだけなので、ここで終わらせる。
+                    endOfStream();
+                    break;
                 }
+                read = source.read(scratch, 0, want);
+            }
+            if (read < 0) {
+                endOfStream();
                 break;
             }
             if (read == 0) {

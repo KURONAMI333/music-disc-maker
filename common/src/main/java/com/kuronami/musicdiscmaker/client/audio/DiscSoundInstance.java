@@ -1,10 +1,13 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import com.kuronami.musicdiscmaker.Config;
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
@@ -28,6 +31,26 @@ import net.minecraft.world.phys.Vec3;
 
 public class DiscSoundInstance extends AbstractTickableSoundInstance
         implements PlaybackVoice, SoundEngineAcceptance.Engine {
+
+    /**
+     * 最初の 4 秒分を "Sound engine" スレッドの外で引くための専用スレッド。曲の切り替わりごとに
+     * 1 本だけ短時間使う (充填が終わればアイドルになり、cached pool が回収する)。
+     */
+    private static final ExecutorService PREBUFFER = Executors.newCachedThreadPool(runnable -> {
+        final Thread thread = new Thread(runnable, "music_disc_maker-prebuffer");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /**
+     * 先読み充填に使ってよい時間の上限 (ms)。{@code LavaAudioSource} が「1 フレームも来ない」で
+     * トラックを諦める上限 ({@code BUFFER_DEADLINE_MS} = 10 秒) に合わせてある。これを超える
+     * ソースは充填を待っても鳴らないので、引けた分だけで先へ進める。
+     *
+     * <p>上限に達しても<b>鳴り始めが遅れるだけで、遅れ幅は従来と同じ</b> — 従来も
+     * {@code pumpBuffers(4)} が終わるまで {@code channel.play()} は撃たれていない。
+     */
+    private static final long PREBUFFER_BUDGET_MS = 10_000L;
 
     private final IAudioSource source;
     /** source を高々一度だけ close するためのガード (requestStop と stream 経由の close の二重解放を防ぐ)。 */
@@ -527,12 +550,46 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
                 || options.getSoundSourceVolume(SoundSource.RECORDS) <= 0.0F;
     }
 
+    /**
+     * MC の sound engine へ渡す PCM ストリームを開栓する。
+     *
+     * <p><b>戻す future はすぐには完了しない。</b> {@code SoundEngine#play} はこの future に
+     * {@code thenAccept} を繋いで {@code attachBufferStream} を "Sound engine" スレッドへ積む。
+     * 完了済みで返すと、そのスレッドが {@code pumpBuffers(4)} で 4 秒分を引き切るまで戻らず、
+     * その間 Render thread から出る全ての音が {@code createHandle().join()} で待つ
+     * (= 曲の切り替わりのフリーズ。MDM_DECISIONS D28)。専用スレッドで
+     * {@link LavaPlayerAudioStream#prefill} を先に済ませてから完了させる。
+     *
+     * <p><b>future は必ず正常完了させる。</b> 完了しないまま (もしくは例外で) 放置すると
+     * {@code thenAccept} が走らず、<b>再生が永久に始まらない</b>。充填が失敗しても引けた分だけ
+     * 持って進み、残りは従来どおり {@code pumpBuffers} が引く。
+     *
+     * @return PCM ストリーム。充填が済んだ時点で完了する
+     */
     public CompletableFuture<AudioStream> getCustomStream() {
         final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded, failureSink);
         s.setPcmGain(computePcmGain());
         s.setTiming(timing);
         this.stream = s;
-        return CompletableFuture.completedFuture(s);
+        final CompletableFuture<AudioStream> ready = new CompletableFuture<>();
+        try {
+            PREBUFFER.execute(() -> {
+                try {
+                    s.prefill(PREBUFFER_BUDGET_MS);
+                } catch (final Throwable t) {
+                    MusicDiscMaker.LOGGER.warn(
+                            "Pre-buffering failed; the sound engine thread will fill the buffers", t);
+                } finally {
+                    ready.complete(s);
+                }
+            });
+        } catch (final Throwable t) {
+            // 充填スレッドを起こせなかった (shutdown 等)。従来の同期経路へそのまま落とす。
+            MusicDiscMaker.LOGGER.warn(
+                    "Could not start pre-buffering; the sound engine thread will fill the buffers", t);
+            ready.complete(s);
+        }
+        return ready;
     }
 
     /**
