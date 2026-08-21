@@ -42,6 +42,10 @@ public final class YoutubeLivePlaybackProbe {
             "https://www.youtube.com/watch?v=Sfz5TpCRSiI",
             "https://www.youtube.com/watch?v=ouLndhBRL4w",
             "https://www.youtube.com/watch?v=dePs7UPp6GQ",
+            // 検索経路 (Spotify のリンクはこれを通る)。iOS 単体では 0 件になるので、
+            // YoutubeSearchClient が効いているかはここで落ちる。
+            "ytsearch:Rick Astley Never Gonna Give You Up",
+            "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
     };
 
     private YoutubeLivePlaybackProbe() {
