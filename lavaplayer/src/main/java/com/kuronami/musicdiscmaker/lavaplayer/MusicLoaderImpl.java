@@ -165,8 +165,18 @@ public class MusicLoaderImpl implements IMusicLoader {
      * {@code AndroidVr} 時代と同じ。他 MOD が繰り返し壊れている「YouTube が player.js を
      * 変えるたびに死ぬ」故障モードへの免疫は保たれている。cipher 依存の client を足すと失う。
      *
-     * <p>検索 ({@code ytsearch:}) もこの client で通る = Spotify 経路 (og タグの曲名を
-     * YouTube 検索で引く) は維持される。
+     * <h2>検索だけ別の client に渡している理由</h2>
+     * <b>iOS は検索の結果を 0 件しか返さない</b> (2026-08-21 実測。同じ問い合わせで
+     * {@code Web} と {@code AndroidVr} は 20 件、{@code Ios} と {@code Music} は 0 件)。
+     * 検索が死ぬと Spotify のリンクが道連れになる — {@code resolveViaSpotify} は og タグの
+     * 曲名を {@code ytsearch:} で引くのが本筋の経路で、ここが空だと代替ソースの別音源に落ちる。
+     *
+     * <p>そこで {@link YoutubeSearchClient} ({@code Web} を検索専用に絞ったもの) を並べる。
+     * <b>これはフォールバックではない</b> — 両者の {@code canHandleRequest} が重ならないので、
+     * どの入力もちょうど 1 つの client にしか行かない (watch URL は iOS だけ、
+     * {@code ytsearch:} は Web だけ)。上に書いた「ロードに成功して再生で死ぬ」害は、
+     * 検索用の client が watch URL を<b>一度も見ない</b>ことで構造から消してある。
+     * 鳴らすのは常に iOS ({@link #openStream} は URL から解決し直す)。
      *
      * <h2>実測 (2026-08-21・この経路そのもので)</h2>
      * {@code YoutubeLivePlaybackProbe} が {@link #resolve} と {@link #openStream} を直接叩き、
@@ -178,10 +188,11 @@ public class MusicLoaderImpl implements IMusicLoader {
     private YoutubeAudioSourceManager registerYoutube() {
         try {
             final YoutubeIosClient client = new YoutubeIosClient();
-            final YoutubeAudioSourceManager manager = new YoutubeAudioSourceManager(client);
+            final YoutubeAudioSourceManager manager =
+                    new YoutubeAudioSourceManager(client, new YoutubeSearchClient());
             apm.registerSourceManager(manager);
-            LOGGER.debug("Registered source manager: {} (client: {} {})", manager.getSourceName(),
-                    client.getIdentifier(), YoutubeIosClient.CLIENT_VERSION);
+            LOGGER.debug("Registered source manager: {} (client: {} {}, search: WEB)",
+                    manager.getSourceName(), client.getIdentifier(), YoutubeIosClient.CLIENT_VERSION);
             return manager;
         } catch (final Throwable t) {
             LOGGER.warn("Failed to register the YouTube source manager", t);

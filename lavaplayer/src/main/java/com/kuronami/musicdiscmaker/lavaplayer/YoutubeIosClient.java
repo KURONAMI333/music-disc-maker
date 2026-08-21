@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.lavaplayer;
 
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpInterface;
 
+import dev.lavalink.youtube.YoutubeAudioSourceManager;
 import dev.lavalink.youtube.clients.ClientConfig;
 import dev.lavalink.youtube.clients.ClientOptions;
 import dev.lavalink.youtube.clients.Ios;
@@ -78,5 +79,21 @@ final class YoutubeIosClient extends Ios {
     @Override
     public String getPlayerParams() {
         return WEB_PLAYER_PARAMS;
+    }
+
+    /**
+     * {@code ytsearch:} は引き受けない。<b>iOS の検索は結果を 0 件しか返さない</b>
+     * (2026-08-21 実測。同じ問い合わせで {@code Web} / {@code AndroidVr} は 20 件)。
+     *
+     * <p>引き受けたまま 0 件を返すと、{@code loadSearch} が
+     * {@code AudioReference.NO_TRACK} という<b>非 null</b> を返すため
+     * {@code YoutubeAudioSourceManager} のループがそこで打ち切られ、
+     * 検索できる client が後ろに居ても試されない。ここで false を返して
+     * {@link YoutubeSearchClient} へ渡す。
+     */
+    @Override
+    public boolean canHandleRequest(String identifier) {
+        return super.canHandleRequest(identifier)
+                && !identifier.startsWith(YoutubeAudioSourceManager.SEARCH_PREFIX);
     }
 }
