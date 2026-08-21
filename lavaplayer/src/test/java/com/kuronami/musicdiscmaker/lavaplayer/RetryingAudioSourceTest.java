@@ -230,6 +230,45 @@ class RetryingAudioSourceTest {
         assertEquals(0, opened.count.get(), "閉じた後に開き直している");
     }
 
+    /**
+     * <b>終端の後も引かれ続けても、理由待ちを払い直さないこと。</b>
+     *
+     * <p>MC は終端を見た後もチャンネルを手放すまで {@code updateStream} → {@code pumpBuffers}
+     * を回し続ける。理由待ち ({@link RetryingAudioSource#DEFAULT_GRACE_MS}) を毎回払うと、
+     * 正常に鳴り終わった曲 (理由は一生来ないので待ちは必ず上限まで走る) の終わりごとに
+     * <b>Sound engine スレッドが数秒止まる</b> = 曲の切り替わりのフリーズ。
+     *
+     * <p>時計を引いた回数で見る。実時間で測ると環境で揺れるし、「払っていない」ことは
+     * 「時計を見ていない」ことで十分に言える。
+     */
+    @Test
+    void theEndOfTheStreamIsResolvedOnlyOnce() {
+        // 理由の付かない正常終了 = awaitFault は毎回上限まで走る形
+        final FakeSource finished = new FakeSource(new byte[] {1, 2, 3, 4}, null, 0L);
+        final AtomicInteger clockReads = new AtomicInteger();
+        final RetryingAudioSource source = new RetryingAudioSource(finished, new Opened(),
+                new FakeYoutubeSession(8), reason -> MusicLoaderImpl.isRetryable(reason, false),
+                1, GRACE_MS, () -> {
+                    clockReads.incrementAndGet();
+                    return System.currentTimeMillis();
+                });
+
+        final byte[] buffer = new byte[16];
+        assertEquals(4, source.read(buffer, 0, buffer.length), "最初の PCM が返っていない");
+        assertEquals(-1, source.read(buffer, 0, buffer.length), "終端を返していない");
+
+        final int afterFirstEnd = clockReads.get();
+        assertTrue(afterFirstEnd > 0, "1 回目の終端で理由待ちが走っていない = テストが何も見ていない");
+
+        for (int i = 0; i < 3; i++) {
+            assertEquals(-1, source.read(buffer, 0, buffer.length), "終端の後に -1 以外を返している");
+        }
+        assertEquals(afterFirstEnd, clockReads.get(),
+                "終端の後の read が理由待ちを払い直している"
+                        + " (MC は終端後もチャンネルを手放すまで引き続けるので、曲の終わりごとに"
+                        + " Sound engine スレッドが上限ぶん止まる)");
+    }
+
     private static RetryingAudioSource wrap(IAudioSource inner, Opened opened,
             YoutubeSession session, int maxRetries) {
         return new RetryingAudioSource(inner, opened, session,
