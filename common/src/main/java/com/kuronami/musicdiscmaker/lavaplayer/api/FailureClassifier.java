@@ -194,7 +194,7 @@ public final class FailureClassifier {
      *
      * <p>それでも「どの client の理由か」までは分からないので、<b>理由を知りたい呼び出し側は
      * client 単位に切ってからここへ渡す</b> ({@code ClientFailureDetails#classify})。
-     * 現行構成は {@code AndroidVr} 単独なので出荷時のリストは常に 1 件。
+     * 現行構成は client 1 本 (iOS) なので出荷時のリストは常に 1 件。
      *
      * @param message 例外のメッセージ ({@code null} 可)
      * @return 分類結果。判別できない失敗は {@link FailureReason#UNKNOWN}

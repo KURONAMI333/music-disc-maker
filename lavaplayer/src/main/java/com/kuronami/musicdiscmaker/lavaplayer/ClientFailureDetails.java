@@ -143,7 +143,7 @@ final class ClientFailureDetails {
      * 対等に扱うと、番号を返した client が先に並ぶだけで後ろの client の年齢制限や非公開が消える
      * = client 単位に切った意味が無くなる。
      *
-     * <p>client 順は youtube-source が試した順そのもの。現行構成は {@code AndroidVr} 単独なので
+     * <p>client 順は youtube-source が試した順そのもの。現行構成は client 1 本 (iOS) なので
      * リストは常に 1 件で、順序の選択そのものは出荷構成では効かない
      * ({@code MusicLoaderImpl#registerYoutube} の javadoc)。
      *

@@ -17,7 +17,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
  * 再生が<b>始まった後</b>に落ちた失敗を、セッションを入れ替えて開き直すことで拾い直すソース。
  *
  * <h2>同期側で拾えない失敗が残る理由</h2>
- * client を {@code AndroidVr} 単独にすると大半の失敗は解決の時点 ({@code loadTrackSync}) に出る
+ * client を 1 本だけにすると大半の失敗は解決の時点 ({@code loadTrackSync}) に出る
  * ので、そちらは {@link SessionRetry} が普通のループで包める。それでも「解決には成功し、
  * 再生スレッドの中で落ちる」経路は残る — この経路には戻り値が無く、呼び出し側はとっくに返っている。
  *
