@@ -71,6 +71,18 @@ tasks.named('test').configure {
     }
 }
 
+// 実回線で YouTube 経路を通す probe。build のゲートには入れない (外の世界が相手なので
+// 回線や YouTube 側の都合で赤くなる) が、client が失効した時に一番先に撃つ道具として置く。
+//   ./gradlew :lavaplayer:youtubeProbe
+//   ./gradlew :lavaplayer:youtubeProbe --args="https://www.youtube.com/watch?v=..."
+tasks.register('youtubeProbe', JavaExec) {
+    group = 'verification'
+    description = 'Resolves YouTube URLs through MusicLoaderImpl and reads the PCM to the end (network required).'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.kuronami.musicdiscmaker.lavaplayer.YoutubeLivePlaybackProbe'
+    systemProperty 'org.slf4j.simpleLogger.defaultLogLevel', 'info'
+}
+
 // impl jar を .jar.packed として出力 (mod scanner 回避)。
 // archiveVersion を空にして版番号を名前から外す。版番号入りだと bump のたびに
 // build/libs に旧版 lavaplayer-x.y.z.jar.packed が残り、隔離 classloader が
