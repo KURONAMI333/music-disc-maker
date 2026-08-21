@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -148,7 +149,7 @@ class RetryingAudioSourceTest {
             opens.incrementAndGet();
             throw new ResolveException(FailureReason.PRIVATE_OR_REMOVED);
         }, session, reason -> MusicLoaderImpl.isRetryable(reason, false), 1, GRACE_MS,
-                System::currentTimeMillis);
+                System::currentTimeMillis, Runnable::run);
         final AtomicReference<PlaybackFault> reported = new AtomicReference<>();
         source.onPlaybackFault(reported::set);
 
@@ -243,7 +244,7 @@ class RetryingAudioSourceTest {
      */
     @Test
     void theEndOfTheStreamIsResolvedOnlyOnce() {
-        // 理由の付かない正常終了 = awaitFault は毎回上限まで走る形
+        // PCM を出したストリームの終端は、理由待ちを Sound engine で行わない。
         final FakeSource finished = new FakeSource(new byte[] {1, 2, 3, 4}, null, 0L);
         final AtomicInteger clockReads = new AtomicInteger();
         final RetryingAudioSource source = new RetryingAudioSource(finished, new Opened(),
@@ -251,14 +252,14 @@ class RetryingAudioSourceTest {
                 1, GRACE_MS, () -> {
                     clockReads.incrementAndGet();
                     return System.currentTimeMillis();
-                });
+                }, command -> fail("PCM 読み取りの終端で理由待ちを実行してはいけない"));
 
         final byte[] buffer = new byte[16];
         assertEquals(4, source.read(buffer, 0, buffer.length), "最初の PCM が返っていない");
         assertEquals(-1, source.read(buffer, 0, buffer.length), "終端を返していない");
 
         final int afterFirstEnd = clockReads.get();
-        assertTrue(afterFirstEnd > 0, "1 回目の終端で理由待ちが走っていない = テストが何も見ていない");
+        assertEquals(0, afterFirstEnd, "終端の read が理由待ちをしてはいけない");
 
         for (int i = 0; i < 3; i++) {
             assertEquals(-1, source.read(buffer, 0, buffer.length), "終端の後に -1 以外を返している");
@@ -269,11 +270,33 @@ class RetryingAudioSourceTest {
                         + " Sound engine スレッドが上限ぶん止まる)");
     }
 
+    @Test
+    void theEndOfTheStreamDoesNotWaitForAReason() {
+        final AtomicInteger clockReads = new AtomicInteger();
+        final RetryingAudioSource source = new RetryingAudioSource(
+                new FakeSource(new byte[] {1, 2, 3, 4}, null, 0L), new Opened(),
+                new FakeYoutubeSession(8), reason -> MusicLoaderImpl.isRetryable(reason, false),
+                1, GRACE_MS, () -> {
+                    clockReads.incrementAndGet();
+                    return System.currentTimeMillis();
+                }, command -> fail("PCM read must not await a terminal reason"));
+
+        final byte[] buffer = new byte[16];
+        assertEquals(4, source.read(buffer, 0, buffer.length));
+        assertEquals(-1, source.read(buffer, 0, buffer.length));
+        assertEquals(0, clockReads.get(), "terminal read must not consult the clock");
+
+        for (int i = 0; i < 3; i++) {
+            assertEquals(-1, source.read(buffer, 0, buffer.length));
+        }
+        assertEquals(0, clockReads.get(), "post-terminal reads must not consult the clock");
+    }
+
     private static RetryingAudioSource wrap(IAudioSource inner, Opened opened,
             YoutubeSession session, int maxRetries) {
         return new RetryingAudioSource(inner, opened, session,
                 reason -> MusicLoaderImpl.isRetryable(reason, false), maxRetries, GRACE_MS,
-                System::currentTimeMillis);
+                System::currentTimeMillis, Runnable::run);
     }
 
     /** 順番に返す開き直し口 (呼ばれた回数を数える)。 */
