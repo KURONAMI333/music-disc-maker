@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -59,6 +60,12 @@ public class LavaPlayerAudioStream implements AudioStream {
      * 何度も呼ばれるので、これが無いと同じ行が 1 曲で 4 回出る (MDM_DECISIONS D28)。
      */
     private final AtomicBoolean endLogged = new AtomicBoolean(false);
+    /** 無音で埋めた合計バイト数 ({@link #pcmBytes} には入れない)。 */
+    private final AtomicLong silenceBytes = new AtomicLong();
+    /** 無音で埋めた回数 (アンダーランの回数)。 */
+    private final AtomicInteger underruns = new AtomicInteger();
+    /** 無音の要約を 1 曲につき 1 行だけにするガード。 */
+    private final AtomicBoolean underrunLogged = new AtomicBoolean(false);
 
     /**
      * この切り替わりの所要時間の集め先 ({@code null} = 計測しない経路)。
@@ -154,6 +161,12 @@ public class LavaPlayerAudioStream implements AudioStream {
     private static final int MAX_PREBUFFER_BYTES = 2_000_000;
 
     /**
+     * 充填中にデータが無かった時に次を試すまでの間隔 (ms)。{@code source.read} は待たずに
+     * {@code 0} を返す設計なので、この刻みが無いと空回りで CPU を焼く。
+     */
+    private static final long IDLE_POLL_MS = 20L;
+
+    /**
      * この切り替わりの所要時間の集め先を差す。{@code SoundManager#play} へ渡す前に差すこと
      * (差した後は streaming スレッドしか読まない)。
      *
@@ -191,6 +204,11 @@ public class LavaPlayerAudioStream implements AudioStream {
      * が壊れる。上限に達した時は引けた分だけを持って戻り、残りは従来どおり
      * {@code pumpBuffers} が引く (= この変更を入れる前の挙動に落ちるだけで、悪化はしない)。
      *
+     * <p><b>{@code 0} で諦めない。</b> ソースはデータが無い時に待たずに {@code 0} を返すので
+     * ({@code LavaAudioSource} の javadoc)、cold なソースの 1 回目はほぼ必ず {@code 0} になる。
+     * そこで打ち切るとここが常に空振りし、4 秒ぶん全部を Sound engine スレッドが引く
+     * = この充填を入れた意味が消える。
+     *
      * <p>再生が始まる時刻は変わらない。従来も {@code pumpBuffers(4)} が終わるまで
      * {@code channel.play()} は撃たれていないので、鳴り始めまでの実時間は同じ場所で待っている。
      *
@@ -210,7 +228,16 @@ public class LavaPlayerAudioStream implements AudioStream {
                 break;
             }
             if (n == 0) {
-                break; // 取得できず (中断等)。ここで粘っても増えない
+                // まだ届いていないだけ。ここは専用スレッドで誰も待っていないので、
+                // 上限まで粘ってよい。粘った分だけ Sound engine スレッドが引く量が減る。
+                // (source.read はデータが無ければ待たずに 0 を返すので、ここで刻む)
+                try {
+                    Thread.sleep(IDLE_POLL_MS);
+                } catch (final InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                continue;
             }
             len += n;
         }
@@ -246,6 +273,7 @@ public class LavaPlayerAudioStream implements AudioStream {
     /** 終端に達した時の後始末。{@code read} の 2 つの終端経路から呼ぶ。 */
     private void endOfStream() {
         noteFirstBuffer(true);
+        reportUnderruns();
         // トラック終端 → 空 (もしくは残り) を返すと MC が再生終了とみなす。
         // ただし「最後まで鳴った」のか「途中で落ちた」のかは read の戻り値では区別が
         // つかない。落ちていた時だけソースが理由を持っているので、ここで引いて報告する
@@ -337,6 +365,21 @@ public class LavaPlayerAudioStream implements AudioStream {
         return format;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p><b>足りない分は無音で埋める。待たない。</b>
+     * この {@code read} を引くのは MC の単一の "Sound engine" スレッドで、同じスレッドが
+     * {@code SoundEngine#play} の {@code createHandle().join()} も捌く。データが届くまで
+     * ここで待つと<b>バニラの効果音も Render thread も道連れで止まる</b>。
+     *
+     * <p>そこでソースが短く返したら (= 今この瞬間に出せる分が尽きたら)、<b>残りを無音で埋めて
+     * 満杯の buffer を返す</b>。アンダーランを無音で埋めるのは音声ストリームの常道であり、
+     * ここでは<b>そうしないと再生そのものが死ぬ</b>という事情もある — 空の buffer を返すと
+     * OpenAL のキューが空になり、ソースが {@code AL_STOPPED} へ落ちる。MC はそれを
+     * 「鳴り終わった」と読んで ({@code SoundEngine#tickNonPaused} の {@code isStopped()})
+     * チャンネルごと捨てるので、曲は途中で無音のまま終わる。
+     */
     @Override
     public ByteBuffer read(int size) {
         if (firstReadNanos == 0L) {
@@ -345,30 +388,72 @@ public class LavaPlayerAudioStream implements AudioStream {
         final ByteBuffer buffer = BufferUtils.createByteBuffer(size);
         while (buffer.hasRemaining()) {
             final int want = Math.min(scratch.length, buffer.remaining());
-            int read = takePrebuffered(want);
-            if (read == 0) {
-                if (prebufferEnded) {
-                    // 充填中に終端を見ている。source を引き直すと RetryingAudioSource の
-                    // 理由待ち (graceMs) をもう一度払うだけなので、ここで終わらせる。
-                    endOfStream();
-                    break;
-                }
-                read = source.read(scratch, 0, want);
+            final int fromPrebuffer = takePrebuffered(want);
+            if (fromPrebuffer > 0) {
+                emit(buffer, fromPrebuffer);
+                continue; // 先読み分は素直に流し切る (尽きたら次の周で source を引く)
             }
+            if (prebufferEnded) {
+                // 充填中に終端を見ている。source を引き直すと RetryingAudioSource の
+                // 理由待ち (graceMs) をもう一度払うだけなので、ここで終わらせる。
+                endOfStream();
+                break;
+            }
+            final int read = source.read(scratch, 0, want);
             if (read < 0) {
                 endOfStream();
                 break;
             }
-            if (read == 0) {
-                break; // 取得できず (中断等) → 持ってる分を返す
+            if (read > 0) {
+                emit(buffer, read);
             }
-            applyGain(scratch, read);
-            buffer.put(scratch, 0, read);
-            pcmBytes.addAndGet(read);
-            noteFirstBuffer(false);
+            if (read < want) {
+                // ソースが短く返した = 今は出せない。待たずに残りを無音で埋めて返す。
+                padWithSilence(buffer);
+                break;
+            }
         }
         buffer.flip();
         return buffer;
+    }
+
+    /** 実データを 1 かたまり buffer へ移す (ゲイン適用と計測を伴う)。 */
+    private void emit(ByteBuffer buffer, int len) {
+        applyGain(scratch, len);
+        buffer.put(scratch, 0, len);
+        pcmBytes.addAndGet(len);
+        noteFirstBuffer(false);
+    }
+
+    /**
+     * buffer の残りを無音 (ゼロ) で埋める。
+     *
+     * <p><b>{@link #pcmBytes} には数えない。</b> あれは「実際に鳴った音」の量で、
+     * {@code reportEnd} が「一音も鳴らずに終わった」を見分けるのに使っている。
+     * 無音を数えると、一度も音の出なかった曲が正常に鳴ったように見える。
+     */
+    private void padWithSilence(ByteBuffer buffer) {
+        final int n = buffer.remaining();
+        if (n <= 0) {
+            return;
+        }
+        for (int i = 0; i < n; i++) {
+            buffer.put((byte) 0);
+        }
+        silenceBytes.addAndGet(n);
+        underruns.incrementAndGet();
+    }
+
+    /**
+     * 無音で埋めた事実を 1 曲につき 1 行だけ残す。終端と close の両方から呼ぶ
+     * (曲の途中でディスクを抜いた場合は終端を通らない)。
+     */
+    private void reportUnderruns() {
+        final long bytes = silenceBytes.get();
+        if (bytes > 0L && underrunLogged.compareAndSet(false, true)) {
+            MusicDiscMaker.LOGGER.info("Filled {} ms of silence across {} buffer underruns"
+                    + " (audio data did not arrive in time)", playedMs(bytes), underruns.get());
+        }
     }
 
     /**
@@ -442,6 +527,7 @@ public class LavaPlayerAudioStream implements AudioStream {
 
     @Override
     public void close() {
+        reportUnderruns();
         source.close();
     }
 }
