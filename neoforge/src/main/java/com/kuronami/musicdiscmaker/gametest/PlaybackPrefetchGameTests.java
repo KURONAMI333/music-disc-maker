@@ -258,6 +258,26 @@ public class PlaybackPrefetchGameTests {
         helper.succeed();
     }
 
+    /**
+     * 折り返しの BE 同期では、古い instance が 1 tick だけ新しい current を読むことがある。
+     * その時に current URL と一致する先読みを捨てると、直後の claim が miss する。
+     */
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    public static void aRestartedTrackKeepsThePrefetchMadeForItsCurrentUrl(GameTestHelper helper) {
+        final AtomicLong clock = new AtomicLong(1_000L);
+        final PlaybackPrefetch<String> prefetch = new PlaybackPrefetch<>(clock::get);
+        final FakeSource warm = new FakeSource();
+
+        helper.assertTrue(prefetch.deliver(prefetch.begin(KEY, URL_A), warm), "先読みを準備できる");
+        prefetch.dropUnlessMatches(KEY, URL_A, URL_A);
+
+        helper.assertTrue(prefetch.claim(KEY, URL_A, 0L) == warm,
+                "折り返し後の current URL と一致する先読みを古い instance が捨てない");
+        helper.assertTrue(warm.closes == 0, "claim した source は閉じない");
+        helper.succeed();
+    }
+
     /** close 回数を数えるだけのソース。PCM は一切返さない。 */
     private static final class FakeSource implements IAudioSource {
 

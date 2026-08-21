@@ -151,6 +151,12 @@ public final class ClientPlaybackManager {
         prefetch.drop(pos.immutable());
     }
 
+    /** BE 同期後にも current / next として有効な先読みだけは残し、無関係な枠を捨てる。 */
+    public void cancelPrefetchUnlessMatches(BlockPos pos, CustomTrackData current, CustomTrackData next) {
+        prefetch.dropUnlessMatches(pos.immutable(), current == null ? null : current.url(),
+                next == null ? null : next.url());
+    }
+
     /**
      * 再生スレッドの中で落ちた失敗の届け先を差す。ロード経路と先読み経路の両方から呼ぶので、
      * <b>片方だけ直る事故を防ぐために 1 箇所に畳んである</b>。
