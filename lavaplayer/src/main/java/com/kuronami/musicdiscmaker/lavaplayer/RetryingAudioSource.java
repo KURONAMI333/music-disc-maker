@@ -31,6 +31,10 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
  * {@code -1} を見た時点では理由がまだ存在しない。だから終端を見たら<b>少しだけ理由の到着を待つ</b>
  * ({@link #graceMs})。待っても来なければ、それは正常に鳴り終わっただけ。
  *
+ * <p><b>この待ちは 1 本のストリームにつき 1 回だけ</b> ({@link #terminated})。MC は終端を見た後も
+ * チャンネルを手放すまで引き続けるので、毎回払うと曲の終わりごとに Sound engine スレッドが
+ * 数秒止まる。
+ *
  * <h2>やり直さない場合</h2>
  * <ul>
  *   <li>既に PCM を 1 バイトでも渡した後 — 途中まで聴こえていた曲を頭から鳴らし直す方が害が大きい</li>
@@ -67,6 +71,17 @@ final class RetryingAudioSource implements IAudioSource {
     private volatile IAudioSource inner;
     private volatile boolean emitted;
     private volatile boolean closed;
+    /**
+     * 終端を確定させた印。<b>一度 {@code -1} を返したら、以後は即座に {@code -1} を返す。</b>
+     *
+     * <p>これが無いと、終端を見た後も MC が引きに来るたびに {@link #awaitFault} を通り、
+     * <b>1 回につき {@link #graceMs} をまるごと払う</b>。正常に鳴り終わった曲には理由が
+     * 一生来ないので、この待ちは毎回上限まで走る。MC は終端後もチャンネルを手放すまで
+     * {@code updateStream} → {@code pumpBuffers} を回し続けるため、<b>曲の終わりごとに
+     * Sound engine スレッドが数秒止まる</b> = 切り替わりのフリーズ
+     * (MDM_DECISIONS D28 の「1 曲につき 4 回・間隔 1.505s」は 1500ms + poll 20ms のこと)。
+     */
+    private volatile boolean terminated;
     private int retriesLeft;
 
     RetryingAudioSource(IAudioSource inner, Opener opener, YoutubeSession session,
@@ -82,6 +97,9 @@ final class RetryingAudioSource implements IAudioSource {
 
     @Override
     public int read(byte[] dst, int off, int len) {
+        if (terminated) {
+            return -1;
+        }
         while (true) {
             final IAudioSource current = inner;
             final int n = current.read(dst, off, len);
@@ -93,23 +111,30 @@ final class RetryingAudioSource implements IAudioSource {
                 return 0;
             }
             if (closed) {
-                return -1;
+                return terminal();
             }
             final PlaybackFault fault = awaitFault(current);
             if (fault == null) {
-                return endedWithoutReason();
+                endedWithoutReason();
+                return terminal();
             }
             if (!canRetry(fault)) {
                 relay.record(fault);
-                return -1;
+                return terminal();
             }
             final PlaybackFault giveUp = reopen(fault);
             if (giveUp != null) {
                 relay.record(giveUp);
-                return -1;
+                return terminal();
             }
             // 開き直せた → ループ先頭から新しいソースを読む (上の層は終端を見ない)
         }
+    }
+
+    /** 終端を確定させて {@code -1} を返す ({@link #terminated} の javadoc)。 */
+    private int terminal() {
+        terminated = true;
+        return -1;
     }
 
     /**
@@ -123,16 +148,13 @@ final class RetryingAudioSource implements IAudioSource {
      * <p>{@link #closed} を見るのは、{@link #awaitFault} が理由の到着を待っている間 (最大
      * {@link #graceMs}) に停止されうるから。その {@code null} は失敗ではなく停止の結果なので、
      * 失敗を捏造しない。
-     *
-     * @return 常に {@code -1} (終端)
      */
-    private int endedWithoutReason() {
+    private void endedWithoutReason() {
         if (emitted || closed) {
-            return -1;
+            return;
         }
         LOGGER.warn("The stream ended without producing any audio and without reporting a reason");
         relay.record(new PlaybackFault(FailureReason.UNKNOWN, "stream ended without audio"));
-        return -1;
     }
 
     /** やり直す価値があるか。 */
