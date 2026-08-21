@@ -43,10 +43,9 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/golden_jukebox.png");
     private static final int TEXT = 0x404040;
     private static final int TIME_TEXT = 0x606060;
-    // 失敗ラベル。制作機 (MusicDiscMakerScreen) と同じバニラ金床「Too Expensive!」の形 —
-    // 同じ概念を 2 つの見え方で出さないため、色も板の取り方もあちらに揃える。
-    private static final int ERROR = 0xFF5050;
-    private static final int ERROR_PLATE = 0x4F000000;
+    // 失敗ラベル。制作機 (MusicDiscMakerScreen) と同じ形に揃える —
+    // 板なし・濃い赤 + shadow (出所: branding/b1-legibility「配置B・色4」)。
+    private static final int ERROR = 0xB02020;
 
     // transport スプライトの uv (TEXTURE 内)。play/pause は 20x20 の丸ボタン、loop は 16x16 のフラット glyph。
     private static final int ICON_PLAY_U = 176;
@@ -300,8 +299,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             return;
         }
         final Component label = Component.translatable(failure.kind().guiKey());
-        g.fill(FAIL_X - 2, FAIL_Y - 2, FAIL_X + font.width(label) + 2, FAIL_Y + 10, ERROR_PLATE);
-        g.drawString(font, label, FAIL_X, FAIL_Y, ERROR, false);
+        g.drawString(font, label, FAIL_X, FAIL_Y, ERROR, true);
     }
 
     @Override
