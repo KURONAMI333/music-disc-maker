@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -14,7 +16,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFaultRelay;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 
 /**
- * 再生が<b>始まった後</b>に落ちた失敗を、セッションを入れ替えて開き直すことで拾い直すソース。
+ * 再生終了を即時に返し、後から push される失敗理由を relay するソース。
  *
  * <h2>同期側で拾えない失敗が残る理由</h2>
  * client を 1 本だけにすると大半の失敗は解決の時点 ({@code loadTrackSync}) に出る
@@ -52,6 +54,13 @@ final class RetryingAudioSource implements IAudioSource {
     static final long DEFAULT_GRACE_MS = 1_500L;
     /** 理由の到着を見に行く間隔。 */
     private static final long POLL_MS = 20L;
+    private static final ThreadFactory FAULT_AWAITER_THREADS = runnable -> {
+        final Thread thread = new Thread(runnable, "music-disc-maker-fault-await");
+        thread.setDaemon(true);
+        return thread;
+    };
+    private static final Executor DEFAULT_FAULT_AWAITER =
+            command -> FAULT_AWAITER_THREADS.newThread(command).start();
 
     /** 開き直し 1 回分。中で解決からやり直す (失敗は {@link ResolveException})。 */
     @FunctionalInterface
@@ -64,6 +73,7 @@ final class RetryingAudioSource implements IAudioSource {
     private final Predicate<FailureReason> retryable;
     private final long graceMs;
     private final LongSupplier clockMs;
+    private final Executor faultAwaiter;
 
     /** 届け先。<b>やり直しても駄目だった時だけ</b>ここへ流す。 */
     private final PlaybackFaultRelay relay = new PlaybackFaultRelay();
@@ -82,10 +92,17 @@ final class RetryingAudioSource implements IAudioSource {
      * (MDM_DECISIONS D28 の「1 曲につき 4 回・間隔 1.505s」は 1500ms + poll 20ms のこと)。
      */
     private volatile boolean terminated;
+    private volatile boolean resolvingEnd;
     private int retriesLeft;
 
     RetryingAudioSource(IAudioSource inner, Opener opener, YoutubeSession session,
             Predicate<FailureReason> retryable, int maxRetries, long graceMs, LongSupplier clockMs) {
+        this(inner, opener, session, retryable, maxRetries, graceMs, clockMs, DEFAULT_FAULT_AWAITER);
+    }
+
+    RetryingAudioSource(IAudioSource inner, Opener opener, YoutubeSession session,
+            Predicate<FailureReason> retryable, int maxRetries, long graceMs, LongSupplier clockMs,
+            Executor faultAwaiter) {
         this.inner = inner;
         this.opener = opener;
         this.session = session;
@@ -93,6 +110,7 @@ final class RetryingAudioSource implements IAudioSource {
         this.retriesLeft = maxRetries;
         this.graceMs = graceMs;
         this.clockMs = clockMs;
+        this.faultAwaiter = faultAwaiter;
     }
 
     @Override
@@ -113,28 +131,50 @@ final class RetryingAudioSource implements IAudioSource {
             if (closed) {
                 return terminal();
             }
-            final PlaybackFault fault = awaitFault(current);
-            if (fault == null) {
-                endedWithoutReason();
+            current.onPlaybackFault(relay::record);
+            if (emitted) {
+                final PlaybackFault immediateFault = current.playbackFault();
+                if (immediateFault != null) {
+                    relay.record(immediateFault);
+                }
                 return terminal();
             }
-            if (!canRetry(fault)) {
-                relay.record(fault);
-                return terminal();
+            if (!resolvingEnd) {
+                resolvingEnd = true;
+                faultAwaiter.execute(() -> resolveSilentEnd(current));
             }
-            final PlaybackFault giveUp = reopen(fault);
-            if (giveUp != null) {
-                relay.record(giveUp);
-                return terminal();
+            if (!terminated && inner != current) {
+                continue;
             }
-            // 開き直せた → ループ先頭から新しいソースを読む (上の層は終端を見ない)
+            return -1;
         }
     }
 
-    /** 終端を確定させて {@code -1} を返す ({@link #terminated} の javadoc)。 */
+    /** 終端を確定させて {@code -1} を返す。 */
     private int terminal() {
         terminated = true;
         return -1;
+    }
+
+    /** 理由待ちと再オープンは Sound engine の外で行う。 */
+    private void resolveSilentEnd(IAudioSource current) {
+        final PlaybackFault fault = awaitFault(current);
+        if (fault != null) {
+            if (!canRetry(fault)) {
+                relay.record(fault);
+                terminated = true;
+            } else {
+                final PlaybackFault giveUp = reopen(fault);
+                if (giveUp != null) {
+                    relay.record(giveUp);
+                    terminated = true;
+                }
+            }
+        } else if (!closed) {
+            endedWithoutReason();
+            terminated = true;
+        }
+        resolvingEnd = false;
     }
 
     /**
@@ -162,12 +202,7 @@ final class RetryingAudioSource implements IAudioSource {
         return !emitted && !closed && retriesLeft > 0 && retryable.test(fault.reason());
     }
 
-    /**
-     * セッションを入れ替えて開き直す。
-     *
-     * @param fault やり直しの引き金になった失敗
-     * @return 開き直せたら {@code null}、諦めるなら届け先へ流すべき失敗
-     */
+    /** セッションを入れ替えて開き直す。 */
     private PlaybackFault reopen(PlaybackFault fault) {
         retriesLeft--;
         final long seen = session.generation();
@@ -182,7 +217,6 @@ final class RetryingAudioSource implements IAudioSource {
             }
             inner = fresh;
             if (closed) {
-                // 開き直している間に停止された。開いたばかりのものを閉じて終わる。
                 closeQuietly(fresh);
                 return fault;
             }
