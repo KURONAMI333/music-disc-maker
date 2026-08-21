@@ -61,9 +61,9 @@ class LavaAudioSourceStarvationTest {
 
     /**
      * 1 回の {@code read} が返るまでに許す上限 (ms)。以前の実装はデータが無いと
-     * 10,000ms 待っていた。40ms の frame 待ちと JIT・GC の揺れを見込んでも十分に低い。
+     * 10,000ms 待っていた。非待機 pull と JIT・GC の揺れを見込んでも十分に低い。
      */
-    private static final long MAX_READ_MS = 1_000L;
+    private static final long MAX_READ_MS = 100L;
 
     /** 実測ループを回す実時間 (ms)。 */
     private static final long PROBE_WINDOW_MS = 3_000L;
