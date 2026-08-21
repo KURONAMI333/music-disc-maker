@@ -53,6 +53,29 @@ public class LavaPlayerAudioStream implements AudioStream {
      * 「途中で切れた」が出る</b>。
      */
     private final AtomicBoolean expectedEnd = new AtomicBoolean(false);
+    /**
+     * 「理由なく終わった」の INFO を 1 曲につき 1 回だけにするガード。{@code read} は終端を見た後も
+     * 何度も呼ばれるので、これが無いと同じ行が 1 曲で 4 回出る (MDM_DECISIONS D28)。
+     */
+    private final AtomicBoolean endLogged = new AtomicBoolean(false);
+
+    /**
+     * この切り替わりの所要時間の集め先 ({@code null} = 計測しない経路)。
+     * 書き込み = {@code SoundEngine#play} を回している Render thread / 読み出し = streaming スレッド。
+     */
+    @Nullable
+    private volatile PlaybackTiming timing;
+
+    /**
+     * MC が再生開始時に引く量 (byte)。{@code Channel.attachBufferStream} は
+     * {@code calculateBufferSize(format, 1)} = 1 秒分を 4 回 ({@code pumpBuffers(4)}) 引く。
+     */
+    private final long firstBufferTargetBytes;
+
+    /** MC が最初に {@code read} を呼んだ時刻 (streaming スレッド専用)。 */
+    private long firstReadNanos;
+    /** 最初の 4 秒分の計測を報告済みか (streaming スレッド専用)。 */
+    private boolean firstBufferReported;
 
     /**
      * PCM 段のゲイン (1.0 = 素通し)。{@code SoundEngine#calculateVolume} が OpenAL へ渡す gain を
@@ -97,6 +120,44 @@ public class LavaPlayerAudioStream implements AudioStream {
         this.format = new AudioFormat(
                 source.sampleRate(), source.bitsPerSample(), source.channels(), true, source.bigEndian());
         this.gainApplicable = source.bitsPerSample() == 16 && !source.bigEndian();
+        this.firstBufferTargetBytes = (long) MC_FIRST_BUFFERS * format.getChannels()
+                * (format.getSampleSizeInBits() / 8) * (long) format.getSampleRate();
+    }
+
+    /**
+     * MC が {@code attachBufferStream} で引く 1 秒バッファの本数 ({@code Channel.pumpBuffers(4)})。
+     * この本数を引き切るまで "Sound engine" スレッドは戻らない。
+     */
+    private static final int MC_FIRST_BUFFERS = 4;
+
+    /**
+     * この切り替わりの所要時間の集め先を差す。{@code SoundManager#play} へ渡す前に差すこと
+     * (差した後は streaming スレッドしか読まない)。
+     *
+     * @param value 集め先 ({@code null} 可)
+     */
+    void setTiming(@Nullable PlaybackTiming value) {
+        this.timing = value;
+    }
+
+    /**
+     * MC が最初に引く 4 秒分を渡し切ったかを見て、1 回だけ計測を報告する。
+     *
+     * @param ended 終端に達したので、届いていなくてもそこで打ち切る
+     */
+    private void noteFirstBuffer(boolean ended) {
+        if (firstBufferReported) {
+            return;
+        }
+        final boolean complete = pcmBytes.get() >= firstBufferTargetBytes;
+        if (!complete && !ended) {
+            return;
+        }
+        firstBufferReported = true;
+        final PlaybackTiming t = timing;
+        if (t != null) {
+            t.buffered(PlaybackTiming.msSince(firstReadNanos), complete);
+        }
     }
 
     /**
@@ -161,11 +222,15 @@ public class LavaPlayerAudioStream implements AudioStream {
 
     @Override
     public ByteBuffer read(int size) {
+        if (firstReadNanos == 0L) {
+            firstReadNanos = System.nanoTime();
+        }
         final ByteBuffer buffer = BufferUtils.createByteBuffer(size);
         while (buffer.hasRemaining()) {
             final int want = Math.min(scratch.length, buffer.remaining());
             final int read = source.read(scratch, 0, want);
             if (read < 0) {
+                noteFirstBuffer(true);
                 // トラック終端 → 空 (もしくは残り) を返すと MC が再生終了とみなす。
                 // ただし「最後まで鳴った」のか「途中で落ちた」のかは read の戻り値では区別が
                 // つかない。落ちていた時だけソースが理由を持っているので、ここで引いて報告する
@@ -183,6 +248,7 @@ public class LavaPlayerAudioStream implements AudioStream {
             applyGain(scratch, read);
             buffer.put(scratch, 0, read);
             pcmBytes.addAndGet(read);
+            noteFirstBuffer(false);
         }
         buffer.flip();
         return buffer;
@@ -216,16 +282,21 @@ public class LavaPlayerAudioStream implements AudioStream {
         if (bytes == 0L) {
             // 開けたのに 1 バイトも鳴らないまま終わった。理由が付いていないので、従来は
             // 「最後まで鳴った」と同じ扱いで完全な無音のまま何も出なかった。
-            MusicDiscMaker.LOGGER.warn(
-                    "The stream ended without producing any audio and without reporting a reason");
+            if (endLogged.compareAndSet(false, true)) {
+                MusicDiscMaker.LOGGER.warn(
+                        "The stream ended without producing any audio and without reporting a reason");
+            }
             report(PlaybackFailure.ofReason(FailureReason.UNKNOWN, "no audio"));
             return;
         }
         // 途中で切れたのか最後まで鳴ったのかは、ここでは曲の尺を知らないので断定できない。
         // 断定できないものをチャットへ出す代わりに、鳴った長さをログへ残す (latest.log を貼れば
         // 「12 秒で終わった」と「3 分 33 秒鳴った」が区別できる)。
-        MusicDiscMaker.LOGGER.info("Stream ended after {} ms of audio with no failure reported",
-                playedMs(bytes));
+        // 終端を見た後も read は呼ばれ続けるので、出すのは 1 曲につき 1 回だけ。
+        if (endLogged.compareAndSet(false, true)) {
+            MusicDiscMaker.LOGGER.info("Stream ended after {} ms of audio with no failure reported",
+                    playedMs(bytes));
+        }
     }
 
     /** 同じストリームから二度報告しない ({@code read} は何度も呼ばれる)。 */

@@ -170,6 +170,13 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     private volatile Consumer<PlaybackFailure> failureSink;
 
     /**
+     * この切り替わりの所要時間の集め先。書き込み = main thread /
+     * 読み出し = {@code SoundEngine#play} を回している Render thread ({@link #getCustomStream()})。
+     */
+    @Nullable
+    private volatile PlaybackTiming timing;
+
+    /**
      * 指向性の設定。生成直後 (play 前) と、client 側 BE 追従によるライブ切替から呼ぶ。
      * モードが変わった時はゲート状態を「聴こえる」に戻し (次の tick で正しく再判定される)、
      * 座標と {@code relative} を新しいモードのものへ即座に入れ替える。ゲインの現在値
@@ -480,6 +487,16 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     /**
+     * この切り替わりの所要時間の集め先を差す。{@link #getCustomStream()} が開栓時にストリームへ
+     * 渡すので、<b>{@code SoundManager#play} より前に差しておくこと</b> (未設定なら計測しない)。
+     *
+     * @param value 集め先 ({@code null} 可)
+     */
+    public void setTiming(@Nullable PlaybackTiming value) {
+        this.timing = value;
+    }
+
+    /**
      * {@inheritDoc}
      *
      * <p>{@code SoundManager#play} は受理しなかったことを戻り値で返さないので、engine 側の
@@ -513,6 +530,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     public CompletableFuture<AudioStream> getCustomStream() {
         final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded, failureSink);
         s.setPcmGain(computePcmGain());
+        s.setTiming(timing);
         this.stream = s;
         return CompletableFuture.completedFuture(s);
     }

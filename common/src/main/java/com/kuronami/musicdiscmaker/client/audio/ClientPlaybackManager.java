@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
@@ -85,13 +86,15 @@ public final class ClientPlaybackManager {
         // 先読みが当たっていれば解決 (ネットワーク) と 4 秒のプリバッファを丸ごと飛ばせる。
         // 外れたら null が返るだけなので、従来の経路がそのまま走る。
         final IAudioSource warm = prefetch.claim(key, track.url(), startOffsetMs);
+        final PlaybackTiming timing = new PlaybackTiming(key.toShortString(), track.url(), warm != null);
         if (warm != null) {
+            timing.resolved();
             attachFaultSink(warm, key, decision.token(), track);
             Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, rangeBlocks,
-                    volumePercent, warm, null, decision.token()));
+                    volumePercent, warm, null, decision.token(), timing));
             return;
         }
-        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token());
+        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing);
     }
 
     /**
@@ -118,12 +121,23 @@ public final class ClientPlaybackManager {
             IAudioSource source = null;
             try {
                 UrlGuard.enforce(track.url());
-                source = LoaderHolder.get().openStreamDetailed(track.url(), 0L).source();
+                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), 0L);
+                source = result.source();
+                if (source == null) {
+                    // 先読みの失敗はチャットへは出さない (まだ鳴らしていない曲なので)。ただし
+                    // 黙って捨てると「先読みが効いていない」を後から切り分けられなくなる。
+                    MusicDiscMaker.LOGGER.warn("Prefetch could not open {} [{}] {}",
+                            track.url(), result.reason(), result.detail());
+                }
             } catch (final Throwable t) {
-                source = null; // 先読みの失敗は黙って捨てる。同じ理由なら本番のロードが報告する
+                source = null;
+                MusicDiscMaker.LOGGER.warn("Prefetch threw while opening {}", track.url(), t);
             }
             if (!prefetch.deliver(ticket, source) && source != null) {
-                source.close(); // 取り消し済み / 期限切れ。抱え主が居ないので必ずここで閉じる
+                // 取り消し済み / 期限切れ。抱え主が居ないので必ずここで閉じる。
+                // 温めたのに使われなかった = 次の切り替わりは miss になるので、理由を 1 行残す。
+                MusicDiscMaker.LOGGER.info("Prefetch discarded (no longer wanted) for {}", track.url());
+                source.close();
             }
         });
     }
@@ -155,7 +169,7 @@ public final class ClientPlaybackManager {
      * 完了時の照合で「もう要らないロード」を捨てられる。
      */
     private void submitLoad(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, long delayMs, int token) {
+            int volumePercent, long delayMs, int token, PlaybackTiming timing) {
         pool.submit(() -> {
             if (delayMs > 0L) {
                 try {
@@ -170,6 +184,7 @@ public final class ClientPlaybackManager {
             }
             IAudioSource source = null;
             PlaybackFailure failure = null;
+            timing.beginResolve();
             try {
                 // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
                 UrlGuard.enforce(track.url());
@@ -186,14 +201,15 @@ public final class ClientPlaybackManager {
             }
             final IAudioSource resolved = source;
             final PlaybackFailure reported = failure;
+            timing.resolved();
             // 失敗の届け先は「ソースを受け取った直後・main thread へ渡す前」に差す。再生スレッドは
             // ここから数百 ms で落ちうるので、play が始まってから差していると取り落とす窓ができる
             // (差した時点で既に壊れていれば relay がその場で流すので、順番はどちらでもよい)。
             if (resolved != null) {
                 attachFaultSink(resolved, key, token, track);
             }
-            Minecraft.getInstance().execute(() -> onLoaded(
-                    key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported, token));
+            Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, rangeBlocks,
+                    volumePercent, resolved, reported, token, timing));
         });
     }
 
@@ -211,7 +227,8 @@ public final class ClientPlaybackManager {
 
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
     private void onLoaded(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, IAudioSource resolved, PlaybackFailure failure, int token) {
+            int volumePercent, IAudioSource resolved, PlaybackFailure failure, int token,
+            PlaybackTiming timing) {
         if (resolved == null) {
             if (track.radio() && sessions.isLive(key, token)) {
                 onRadioStreamEnded(key, token); // ロード失敗も 1 回の再接続試行として数える
@@ -253,6 +270,8 @@ public final class ClientPlaybackManager {
         // ラジオの沈黙も通らない裸の報告を出す。届くのは streaming スレッドなので main thread へ移す。
         instance.setFailureSink(
                 late -> Minecraft.getInstance().execute(() -> lateFailure(key, token, track, late)));
+        // 計測は play より前に差す (開栓は play の内側で起きる)。
+        instance.setTiming(timing);
         // install は聴取モデルの適用も行う (鳴り始めの 1 tick を positional で鳴らさない)。
         // 世代が古ければ受け付けず、同じ座標に残っていた音源は必ず止めてから置き換える。
         if (!sessions.install(key, token, track.url(), startOffsetMs, instance)) {
@@ -301,7 +320,8 @@ public final class ClientPlaybackManager {
                         next.attempt(), PlaybackSessions.MAX_RECONNECT));
                 final PlaybackSessions.Request req = next.request();
                 submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(),
-                        RECONNECT_DELAY_MS, token);
+                        RECONNECT_DELAY_MS, token,
+                        new PlaybackTiming(key.toShortString(), req.track().url(), false));
             }
             case GIVE_UP -> {
                 // 再接続を諦めた = 恒久的にこの音源は鳴らない。数秒で消えるアクションバーではなく
