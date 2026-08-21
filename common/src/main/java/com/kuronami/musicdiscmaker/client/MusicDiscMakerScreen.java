@@ -26,9 +26,10 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private static final ResourceLocation TEXTURE =
             ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/music_disc_maker.png");
     private static final int TEXT = 0x404040;
-    // バニラ金床「Too Expensive!」と同じ形 (色 + 板)。板は文字 y に対し上-2/下+10 の12pxで敷く。
-    private static final int ERROR = 0xFF5050;
-    private static final int ERROR_PLATE = 0x4F000000;
+    // 失敗ラベル: 行の全幅を左寄せで使う (板なし・濃い赤 + shadow)。
+    // 出所: branding/b1-legibility (kura 却下後の候補シート「配置B・色4」)。
+    private static final int ERROR = 0xB02020;
+    private static final int FAILED_TEXT_X = 12; // パネル左右対称の余白8 + 4
 
     private EditBox urlField;
     private boolean urlWasFocused;
@@ -112,11 +113,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             g.drawString(font, fetching, imageWidth - 8 - font.width(fetching), 51, TEXT, false);
         } else if (menu.getBlockEntity().isResolveFailed()) {
             final Component failed = failedMessage(menu.getBlockEntity().getFailureReason());
-            final int textX = imageWidth - 8 - font.width(failed);
-            final int textY = 51;
-            // 板 (取得中スピナーと同じ行を共有するので、失敗時だけ板で区別する)
-            g.fill(textX - 2, textY - 2, imageWidth - 8 + 2, textY + 10, ERROR_PLATE);
-            g.drawString(font, failed, textX, textY, ERROR, false);
+            g.drawString(font, failed, FAILED_TEXT_X, 51, ERROR, true);
         }
     }
 
@@ -152,8 +149,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             return;
         }
         final Component failed = failedMessage(reason);
-        final int right = leftPos + imageWidth - 8;
-        final int left = right - font.width(failed);
+        final int left = leftPos + FAILED_TEXT_X;
+        final int right = left + font.width(failed);
         final int top = topPos + 51;
         if (mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= top + font.lineHeight) {
             g.renderTooltip(font, font.split(tip, 200), mouseX, mouseY);
