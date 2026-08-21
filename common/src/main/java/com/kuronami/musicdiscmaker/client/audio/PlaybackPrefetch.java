@@ -217,6 +217,28 @@ public final class PlaybackPrefetch<K> {
         discard(slots.remove(key));
     }
 
+    /**
+     * この時点でも current / next として妥当な枠だけは残し、それ以外を捨てる。
+     *
+     * <p>曲の切り替わりでは古い {@code DiscSoundInstance} が 1 tick だけ残り得る。BE 同期後の
+     * current track はそのインスタンスが温めた「次の曲」になっているため、単に残り時間だけで
+     * 捨てると、直後の {@link #claim} が自分の枠を見失う。URL が current または next に一致する
+     * 間は枠の期限をそのまま適用して保持する。</p>
+     *
+     * @param key 現在のジュークボックスを表すキー
+     * @param currentUrl 現在鳴っている曲の URL。無ければ {@code null}
+     * @param nextUrl 次に鳴る曲の URL。無ければ {@code null}
+     */
+    public void dropUnlessMatches(K key, @Nullable String currentUrl, @Nullable String nextUrl) {
+        final Slot slot = slots.get(key);
+        if (slot == null || slot.url.equals(currentUrl) || slot.url.equals(nextUrl)) {
+            return;
+        }
+        if (slots.remove(key, slot)) {
+            discard(slot);
+        }
+    }
+
     /** 全ての先読みを捨てる (ワールド退出等)。 */
     public void dropAll() {
         for (final Map.Entry<K, Slot> entry : slots.entrySet()) {

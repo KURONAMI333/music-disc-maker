@@ -426,11 +426,12 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             return;
         }
         final long duration = be.trackDurationMs();
+        final CustomTrackData current = be.currentTrack();
+        final CustomTrackData next = be.nextPlaybackTrack();
         if (duration <= 0L || duration - be.currentElapsedMs() > PREFETCH_LEAD_MS) {
-            manager.cancelPrefetch(pos);
+            manager.cancelPrefetchUnlessMatches(pos, current, next);
             return;
         }
-        final CustomTrackData next = be.nextPlaybackTrack();
         if (next == null) {
             manager.cancelPrefetch(pos);
             return;
