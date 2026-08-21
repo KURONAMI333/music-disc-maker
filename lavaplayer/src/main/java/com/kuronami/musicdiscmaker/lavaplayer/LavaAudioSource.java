@@ -1,7 +1,5 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -50,8 +48,6 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
      * 一瞬のずれだけをここで吸収する。<b>この 40ms が read 1 回の待ち時間の上限</b>
      * (MC の {@code pumpBuffers(4)} 全体でも 4 回 = 160ms が上限)。
      */
-    private static final long PROVIDE_WAIT_MS = 40L;
-
     private final AudioPlayer player;
     /** 餓死判定に使う時計 (test から差し替えるための口)。 */
     private final LongSupplier clockMs;
@@ -181,15 +177,8 @@ class LavaAudioSource implements IAudioSource, AudioEventListener {
                 break;
             }
 
-            AudioFrame frame;
-            try {
-                frame = player.provide(PROVIDE_WAIT_MS, TimeUnit.MILLISECONDS);
-            } catch (final TimeoutException ex) {
-                frame = null; // タイムアウト = この間フレーム無し
-            } catch (final InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                break;
-            }
+            // provide() は待たない (timeout 0)。Sound engine スレッドを掴まないための要。
+            final AudioFrame frame = player.provide();
 
             if (frame == null) {
                 if (player.getPlayingTrack() == null) {
