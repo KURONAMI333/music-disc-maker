@@ -50,6 +50,22 @@ class LavaAudioSourceFaultDeliveryTest {
     private static final long AWAIT_SECONDS = 10L;
 
     /**
+     * 終端 ({@code -1}) が返るまで引き続ける。{@code read} はデータが無い間 {@code 0} を返して
+     * すぐ戻るので、1 回引いただけでは lavaplayer が終端を公開する前かもしれない。
+     *
+     * @return 最後に返った値 (通常 {@code -1})
+     */
+    private static int readUntilTerminal(LavaAudioSource source) {
+        final long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(AWAIT_SECONDS);
+        int n;
+        while ((n = source.read(new byte[8192], 0, 8192)) >= 0
+                && System.currentTimeMillis() < deadline) {
+            // 実データが返ることはない (ExplodingTrack は 1 フレームも作らない)
+        }
+        return n;
+    }
+
+    /**
      * kura の実機 ({@code latest.log} 2026-08-14 22:54) に出た {@code AllClientsFailedException}
      * のメッセージ。youtube-source が各 client の失敗を自分のメッセージへ連結した形。
      */
@@ -91,7 +107,8 @@ class LavaAudioSourceFaultDeliveryTest {
             player.playTrack(new ExplodingTrack(ALL_CLIENTS_FAILED));
 
             // ストリームは終わる。この時点で理由が付いているとは限らない (実機では毎回付いていない)。
-            final int read = source.read(new byte[8192], 0, 8192);
+            // read は待たないので (IAudioSource#read)、終端が公開されるまで 0 が返りうる。
+            final int read = readUntilTerminal(source);
             assertEquals(-1, read, "失敗した再生でストリームが終端を返していない");
 
             assertTrue(arrived.await(AWAIT_SECONDS, TimeUnit.SECONDS),

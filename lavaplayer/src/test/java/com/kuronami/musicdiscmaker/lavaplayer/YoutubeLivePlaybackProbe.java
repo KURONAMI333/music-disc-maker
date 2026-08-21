@@ -101,7 +101,9 @@ public final class YoutubeLivePlaybackProbe {
 
             final byte[] buffer = new byte[64 * 1024];
             int n;
-            while ((n = source.read(buffer, 0, buffer.length)) > 0) {
+            // 0 は「今は届いていない」であって終端ではない (IAudioSource#read)。
+            // -1 が来るまで引き続ける。届かないままなら餓死判定が -1 を返して終わる。
+            while ((n = source.read(buffer, 0, buffer.length)) >= 0) {
                 bytes += n;
             }
             fault = source.playbackFault();

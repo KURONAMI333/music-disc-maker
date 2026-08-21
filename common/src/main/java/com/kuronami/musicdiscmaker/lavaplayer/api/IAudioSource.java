@@ -19,9 +19,14 @@ public interface IAudioSource extends AutoCloseable {
     boolean bigEndian();
 
     /**
-     * PCM を {@code dst[off .. off+len)} に詰める (ブロッキング)。
+     * PCM を {@code dst[off .. off+len)} に詰める。<b>ブロッキングしない。</b>
      *
-     * @return 書き込んだバイト数。トラック終端なら {@code -1}。取得できなければ {@code 0}。
+     * <p>データが無ければ待たずに短く (もしくは {@code 0} で) 返る。MC はこれを単一の
+     * "Sound engine" スレッドから引き、同じスレッドが全ての効果音の再生も捌くので、
+     * ここで待つとゲーム全体が止まる。<b>{@code len} 未満の戻り値は「今この瞬間に出せる分は
+     * ここまで」であって終端ではない</b> — 呼び出し側は残りを無音で埋めるか、後で引き直す。
+     *
+     * @return 書き込んだバイト数。トラック終端なら {@code -1}。今は出せなければ {@code 0}。
      */
     int read(byte[] dst, int off, int len);
 
