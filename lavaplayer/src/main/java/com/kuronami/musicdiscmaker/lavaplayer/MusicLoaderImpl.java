@@ -37,7 +37,6 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
-import dev.lavalink.youtube.clients.AndroidVr;
 
 /**
  * LavaPlayer を使う実装。隔離 classloader 側にロードされ、mod からは {@link IMusicLoader}
@@ -141,27 +140,48 @@ public class MusicLoaderImpl implements IMusicLoader {
     /**
      * YouTube source manager を作って登録し、<b>その参照を返す</b>。
      *
-     * <h2>client を {@code AndroidVr} 単独にしている理由</h2>
-     * 既定の {@code Music / AndroidVr / Web / WebEmbedded} のうち、実際に音を出せるのは
-     * {@code AndroidVr} だけだった (2026-08-14 実測。{@code Web} は解決だけ成功して再生時に
-     * 「No supported audio streams available」で落ち、{@code WebEmbedded} は player 設定エラー、
-     * {@code Music} は watch URL に noMatches)。
+     * <h2>client を 1 本だけにしている理由</h2>
+     * 鳴らない client を並べる害は「無駄」では済まない。youtube-source のフォールバックが
+     * 働くのは<b>ロード段階まで</b>で、どれかが {@code AudioTrack} を返した時点で確定する。
+     * 「ロードには成功するが再生できない」client が前に居ると、<b>失敗が同期側 (解決) を
+     * 素通りして非同期側 (再生スレッド) に回る</b>。戻り値の無い経路に落ちた失敗は再試行を
+     * 書くのが難しく、利用者からは「再生中と出るのに無音」に見える (2026-08-14 実測。
+     * 既定 4 本のうち {@code Web} がこの形で、{@code WebEmbedded} は player 設定エラー、
+     * {@code Music} は watch URL に noMatches だった)。1 本だけなら失敗はほぼ
+     * {@link #loadTrackSync} に出るので、素直に再試行できる。
      *
-     * <p>鳴らない client を並べる害は「無駄」では済まない — {@code Web} が解決に成功してしまうと、
-     * <b>失敗が同期側 (解決) を素通りして非同期側 (再生スレッド) に回る</b>。戻り値の無い経路に
-     * 落ちた失敗は再試行を書くのが難しく、利用者からは「再生中と出るのに無音」に見える。
-     * {@code AndroidVr} 単独なら失敗はほぼ {@link #loadTrackSync} に出るので、素直に再試行できる。
+     * <h2>その 1 本が {@link YoutubeIosClient} である理由</h2>
+     * 長らく {@code AndroidVr} だったが、<b>2026-08-17 に YouTube 側で失効した</b> —
+     * player API が {@code ANDROID_VR: This video requires login.} を返す。版を上げても
+     * 直らない (1.65.10 は player を通すが、ストリームが先頭 256KiB だけ 206 で 1MB 以降 403)。
+     * 回線の評判ではなく<b>クライアント単位の失効</b>で、同一回線・同時刻に iOS は完走した。
      *
-     * <p>検索 ({@code ytsearch:}) も {@code AndroidVr} で通る = Spotify 経路 (og タグの曲名を
+     * <p>{@link YoutubeIosClient} は iOS を {@code 21.32.4} + {@code WEB_PLAYER_PARAMS} で
+     * 名乗る。upstream のリリース 1.18.2 の {@code Ios} は {@code 19.45.4} +
+     * {@code MOBILE_PLAYER_PARAMS} で HTTP 400 になるので、そのままでは使えない
+     * (なぜ snapshot を引かないかはそのクラスの javadoc)。
+     *
+     * <p>{@code requirePlayerScript()} が false = <b>署名暗号 (player.js) を触らない</b>のは
+     * {@code AndroidVr} 時代と同じ。他 MOD が繰り返し壊れている「YouTube が player.js を
+     * 変えるたびに死ぬ」故障モードへの免疫は保たれている。cipher 依存の client を足すと失う。
+     *
+     * <p>検索 ({@code ytsearch:}) もこの client で通る = Spotify 経路 (og タグの曲名を
      * YouTube 検索で引く) は維持される。
+     *
+     * <h2>実測 (2026-08-21・この経路そのもので)</h2>
+     * {@code YoutubeLivePlaybackProbe} が {@link #resolve} と {@link #openStream} を直接叩き、
+     * 復号 PCM を末尾まで読み切って尺と突き合わせている。<b>解決の成功だけでは足りない</b> —
+     * 上記 1.65.10 のように、途中で 403 になる形が実在する。
      *
      * @return 登録できた manager、失敗したら {@code null}
      */
     private YoutubeAudioSourceManager registerYoutube() {
         try {
-            final YoutubeAudioSourceManager manager = new YoutubeAudioSourceManager(new AndroidVr());
+            final YoutubeIosClient client = new YoutubeIosClient();
+            final YoutubeAudioSourceManager manager = new YoutubeAudioSourceManager(client);
             apm.registerSourceManager(manager);
-            LOGGER.debug("Registered source manager: {} (client: ANDROID_VR)", manager.getSourceName());
+            LOGGER.debug("Registered source manager: {} (client: {} {})", manager.getSourceName(),
+                    client.getIdentifier(), YoutubeIosClient.CLIENT_VERSION);
             return manager;
         } catch (final Throwable t) {
             LOGGER.warn("Failed to register the YouTube source manager", t);
@@ -514,7 +534,7 @@ public class MusicLoaderImpl implements IMusicLoader {
     /**
      * 解決済みトラックを希望位置から鳴らし始める ({@code openStream} 系の共通後半)。
      *
-     * <p>YouTube だけは {@link RetryingAudioSource} で包む。{@code AndroidVr} 単独にしても
+     * <p>YouTube だけは {@link RetryingAudioSource} で包む。client を 1 本だけにしても
      * 「解決には成功し、再生スレッドの中で落ちる」経路は残るので、そこでもセッションを
      * 入れ替えて開き直せるようにしておく。他サービスは包まない (入れ替える visitorId が無く、
      * 終端で理由を待つぶんだけ遅くなる)。
