@@ -377,7 +377,11 @@ public final class PlaybackSessions {
     /**
      * ラジオストリームが終端に達した。再接続するか、諦めるかを決める。
      *
-     * <p>直前の再生が {@link #STABLE_MS} 以上続いていたら (瞬断が久しぶりなら) 試行回数をリセットする。
+     * <p>直前の再生が {@link #STABLE_MS} 以上<b>鳴っていたら</b> (瞬断が久しぶりなら) 試行回数を
+     * リセットする。数えるのは {@link #firstAudioMillis} から = <b>実際に音が出ていた時間</b>で、
+     * 登録できた時刻からではない。登録から数えると、一音も出ないまま 15 秒座っていた再生を
+     * 「安定していた」とみなして試行回数を毎回リセットし、<b>永久に再接続を繰り返す</b>。
+     * 一度も鳴っていなければ ({@link #firstAudioMillis} に鍵が無ければ) リセットしない。
      *
      * @param key   jukebox の位置
      * @param token この再生の世代
@@ -391,7 +395,7 @@ public final class PlaybackSessions {
         if (request == null || !request.track().radio()) {
             return new Reconnect(ReconnectKind.NONE, 0, null, null);
         }
-        final long started = registeredMillis.getOrDefault(key, 0L);
+        final long started = firstAudioMillis.getOrDefault(key, 0L);
         if (started > 0L && clockMs.getAsLong() - started >= STABLE_MS) {
             reconnectAttempts.remove(key);
         }
