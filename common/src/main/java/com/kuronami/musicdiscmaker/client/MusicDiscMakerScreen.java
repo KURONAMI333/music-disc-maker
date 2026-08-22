@@ -154,8 +154,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     /**
-     * 失敗ラベルにホバーした時の補足ツールチップ。今は bot 判定 (接続失敗と紛らわしい) だけ、
-     * 「接続の問題ではない」旨を案内する。他の理由はラベルだけで自明なので null。
+     * 失敗の文にホバーした時の補足ツールチップ。今は bot 判定だけに付ける。
+     *
+     * <p>帯に収まる長さの文には「これは接続の問題ではない」「送信元 IP で決まるのでシングル
+     * プレイでも起きる」までは入らない。この 2 つが無いと利用者は回線を疑い続けるので、
+     * ここだけ長い説明への逃げ道を残す。他の理由は帯の文で行動まで言えているので null。
      */
     private static Component failedTooltip(FailureReason reason) {
         if (reason == FailureReason.BOT_CHECK) {
