@@ -118,7 +118,7 @@ public final class ClientPlaybackManager {
         if (ticket == null) {
             return; // 同じ曲を既に抱えている
         }
-        MusicDiscMaker.LOGGER.info("Prefetch fired [{}] url={} remaining={}ms ticket={}",
+        MusicDiscMaker.LOGGER.debug("Prefetch fired [{}] url={} remaining={}ms ticket={}",
                 pos.toShortString(), track.url(), remainingMs, ticket.id());
         pool.submit(() -> {
             IAudioSource source = null;
@@ -139,7 +139,7 @@ public final class ClientPlaybackManager {
             if (!prefetch.deliver(ticket, source) && source != null) {
                 // 取り消し済み / 期限切れ。抱え主が居ないので必ずここで閉じる。
                 // 温めたのに使われなかった = 次の切り替わりは miss になるので、理由を 1 行残す。
-                MusicDiscMaker.LOGGER.info("Prefetch discarded (no longer wanted) for {}", track.url());
+                MusicDiscMaker.LOGGER.debug("Prefetch discarded (no longer wanted) for {}", track.url());
                 source.close();
             }
         });
@@ -161,7 +161,11 @@ public final class ClientPlaybackManager {
     }
 
     private void logPrefetchEvent(String action, BlockPos key, String url, long id, String detail) {
-        MusicDiscMaker.LOGGER.info("Prefetch {} [{}] url={} ticket={} {}", action, key.toShortString(), url, id, detail);
+        if ("open-failed".equals(action)) {
+            MusicDiscMaker.LOGGER.warn("Prefetch {} [{}] url={} ticket={} {}", action, key.toShortString(), url, id, detail);
+            return;
+        }
+        MusicDiscMaker.LOGGER.debug("Prefetch {} [{}] url={} ticket={} {}", action, key.toShortString(), url, id, detail);
     }
 
     /**
