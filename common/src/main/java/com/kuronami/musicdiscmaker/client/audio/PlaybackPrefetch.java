@@ -173,6 +173,17 @@ public final class PlaybackPrefetch<K> {
      * <p>受け取れなかった場合 ({@code false}) は<b>呼び出し側がそのソースを閉じること</b>。
      * 取り消し済み・期限切れ・別の URL に差し替え済みのどれかで、ここで抱えると漏れる。
      *
+     * <p><b>{@code source != null} の代入は {@link Map#computeIfPresent} で map への代入と
+     * 同じ操作に結び付けてある</b> (Sol のリリース前レビュー・2026-08-22)。この呼び出しはロード
+     * スレッドから来る一方、{@link #claim} / {@link #drop} / {@link #sweep} は main thread /
+     * リーパーから同じ {@code key} を触る。{@code slots.get} で読んでから別操作で書く二段構えだと、
+     * 読んだ直後・書く前に {@code claim}/{@code drop} が枠を map から外しても検査は素通りしてしまい、
+     * <b>外れた枠 (もう誰も見ない {@code Slot}) へ {@code source} を代入して {@code true} を返す</b>
+     * (呼び出し側は「渡せた」と誤解して閉じない) → HTTP 接続・LavaPlayer・バッファが回収されない。
+     * {@code computeIfPresent} は「map 上に現に存在する値」に対してだけ実行され、しかも同じ
+     * {@code key} への {@code remove}/{@code compute} 系と同じロックを取り合うので、検査と代入の
+     * 間に外から枠が消えることが原理的に起きない。
+     *
      * @param ticket {@link #begin} が発行した引換券
      * @param source 開けたソース。開けなかったなら {@code null} (枠だけ解放する)
      * @return 受け取ったなら {@code true}
@@ -188,7 +199,20 @@ public final class PlaybackPrefetch<K> {
             event("open-failed", ticket.key(), slot, "source=null");
             return false;
         }
-        slot.source = source;
+        final boolean[] accepted = new boolean[1];
+        slots.computeIfPresent(ticket.key(), (k, current) -> {
+            // current が今も slot 本人であること (claim/drop/sweep に外されていないこと) を、
+            // 代入する権利の検査そのものに含める。別の枠 (曲差し替え後の新しい Slot) が
+            // 既に居るなら current != slot なので触らずそのまま返す。
+            if (current == slot && current.id == ticket.id() && current.source == null) {
+                current.source = source;
+                accepted[0] = true;
+            }
+            return current;
+        });
+        if (!accepted[0]) {
+            return false; // 代入する前に claim/drop/sweep が枠を外した : 呼び出し側が close する
+        }
         event("source-ready", ticket.key(), slot, "");
         return true;
     }
