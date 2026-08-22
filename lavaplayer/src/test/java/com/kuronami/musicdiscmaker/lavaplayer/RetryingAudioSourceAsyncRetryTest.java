@@ -25,7 +25,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
  *
  * <h2>同期 executor では原理的に再現しない</h2>
  * {@link RetryingAudioSourceTest} は理由待ちの executor に {@code Runnable::run} を渡している。
- * すると {@code read} が {@code resolvingEnd} を立てた直後にやり直しがその場で完走し、
+ * すると {@code read} が飛行中の印を上げた直後にやり直しがその場で完走し、
  * 続く {@code inner != current} の判定が必ず真になる = <b>「やり直しが飛行中のまま終端を返す」
  * という本番の窓が一度も開かない</b>。実機の届け先は専用スレッド
  * ({@code music-disc-maker-fault-await}) なので、この窓こそが常態。
