@@ -88,6 +88,17 @@ public class LavaPlayerAudioStream implements AudioStream {
     private volatile PlaybackTiming timing;
 
     /**
+     * <b>最初の実 PCM が渡った</b>ことの届け先 ({@code null} = 誰も見ていない)。
+     * 書き込み = {@code SoundEngine#play} を回している Render thread / 呼び出し = streaming スレッド。
+     *
+     * <p>「登録できた」を鳴り始めと読んだ表示を直すための口。実際に鳴ったかどうかを知っているのは
+     * このクラスだけで、{@code SoundManager#play} の戻り値からは分からない。
+     * 呼ばれるのは streaming スレッドなので、受け手は重い処理を main thread へ移すこと。
+     */
+    @Nullable
+    private volatile Runnable onFirstAudio;
+
+    /**
      * MC が再生開始時に引く量 (byte)。{@code Channel.attachBufferStream} は
      * {@code calculateBufferSize(format, 1)} = 1 秒分を 4 回 ({@code pumpBuffers(4)}) 引く。
      */
@@ -187,6 +198,19 @@ public class LavaPlayerAudioStream implements AudioStream {
      */
     void setTiming(@Nullable PlaybackTiming value) {
         this.timing = value;
+    }
+
+    /**
+     * 最初の実 PCM が渡った時の届け先を差す。{@code SoundManager#play} へ渡す前に差すこと
+     * (差した後は streaming スレッドしか読まない)。
+     *
+     * <p>呼ばれるのは<b>1 ストリームにつき 1 回だけ</b>で、埋めた無音では呼ばれない
+     * ({@link #noteFirstAudio} と同じ 1 回性のガードの内側で打つ)。
+     *
+     * @param sink 届け先 ({@code null} 可)
+     */
+    void setFirstAudioSink(@Nullable Runnable sink) {
+        this.onFirstAudio = sink;
     }
 
     /**
@@ -445,6 +469,9 @@ public class LavaPlayerAudioStream implements AudioStream {
      * <p>{@code SoundManager#play} が返ったことと、音が出始めたことは別の事実
      * ({@code play} はインスタンスを登録するだけで、ストリームの future は未完了のまま返る)。
      * この点だけが後者を知っている。
+     *
+     * <p>計測 ({@link PlaybackTiming}) と表示の届け先 ({@link #setFirstAudioSink}) の<b>両方を
+     * ここから打つ</b>。呼び出し口を増やすと「鳴り始めた」の定義が場所ごとに食い違う。
      */
     private void noteFirstAudio() {
         if (!firstAudioNoted.compareAndSet(false, true)) {
@@ -453,6 +480,10 @@ public class LavaPlayerAudioStream implements AudioStream {
         final PlaybackTiming t = timing;
         if (t != null) {
             t.firstAudio(PlaybackTiming.msSince(openedNanos));
+        }
+        final Runnable sink = onFirstAudio;
+        if (sink != null) {
+            sink.run();
         }
     }
 
