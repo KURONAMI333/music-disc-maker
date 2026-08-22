@@ -7,7 +7,11 @@
     "authors": [
         "${mod_author}"
     ],
-    "contact": {},
+    "contact": {
+        "homepage": "https://modrinth.com/mod/music-disc-maker",
+        "issues": "https://github.com/KURONAMI333/music-disc-maker/issues",
+        "sources": "https://github.com/KURONAMI333/music-disc-maker"
+    },
     "license": "${license}",
     "icon": "${mod_id}.png",
     "environment": "*",
