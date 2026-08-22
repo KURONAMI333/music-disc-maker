@@ -42,6 +42,34 @@ public final class PlaybackSessions {
     public static final long STABLE_MS = 15_000L;
 
     /**
+     * 登録から<b>最初の実 PCM</b> が来るまでに待つ上限 (ms)。超えたら鳴らないものとして畳む
+     * ({@link #firstAudioOverdue})。
+     *
+     * <h2>なぜ 30 秒なのか (帯とその算術)</h2>
+     * 下限は<b>健全なソースでも実 PCM が出ない時間</b>の総和で決まる:
+     *
+     * <ul>
+     *   <li>{@code DiscSoundInstance.PREBUFFER_BUDGET_MS} = 10 秒。この間 future は完了せず、
+     *       MC は {@code read} を一度も呼ばない ({@code LavaAudioSource.STARVE_DEADLINE_MS} =
+     *       10 秒に合わせてある)</li>
+     *   <li>{@code RetryingAudioSource} のやり直しが飛行中の 11.5 秒
+     *       ({@code DEFAULT_GRACE_MS} = 1.5 秒 + {@code MusicLoaderImpl.REOPEN_TIMEOUT_MS} =
+     *       10 秒)。{@code REOPEN_RETRIES} = 1 なので<b>1 回だけ</b>積まれる</li>
+     * </ul>
+     *
+     * 積み上げた最悪の健全経路が 21.5 秒。上限は lavaplayer の
+     * {@code AudioPlayerLifecycleManager} が {@code provide} されない player を殺す 60 秒で、
+     * ここを超えると理由を出す前に player が消える。
+     *
+     * <p>21.5 秒に約 1.4 倍の余裕を取って 30 秒に置いた。<b>短く取ることだけが現状より悪化する
+     * 経路</b>なので (健全な再生を失敗側へ倒す)、迷ったら長い方へ寄せてある。
+     *
+     * <p><b>実測はまだ無い。</b> 実際の {@code firstpcm=} は {@link PlaybackTiming} が切り替わり
+     * 1 回につき 1 行出すので、実機のログが溜まったら見直す。
+     */
+    public static final long FIRST_AUDIO_DEADLINE_MS = 30_000L;
+
+    /**
      * 同じ曲の再生要求が「現在の推定再生位置」からこれ以上離れていれば本物のシーク (頭出し) とみなす。
      * chunk 再入の再送は server 側が現在の経過 ms を載せて来るので推定位置とほぼ一致し、dedup される。
      */
@@ -94,7 +122,24 @@ public final class PlaybackSessions {
     private final Map<BlockPos, Request> requests = new ConcurrentHashMap<>();
     private final Map<BlockPos, Boolean> directionals = new ConcurrentHashMap<>();
     private final Map<BlockPos, Integer> reconnectAttempts = new ConcurrentHashMap<>();
-    private final Map<BlockPos, Long> playStartMillis = new ConcurrentHashMap<>();
+    /**
+     * 登録できた時刻 (壁時計)。<b>推定再生位置の起点</b>で、{@link #isSeekRequest} だけが読む。
+     *
+     * <p>server が送ってくる {@code requestedOffsetMs} は壁時計基準の経過 ms なので、
+     * こちらの起点を実 PCM へ寄せると<b>無音の総量ぶん推定が後退</b>し、
+     * {@link #SEEK_TOLERANCE_MS} を超えた瞬間に chunk 再入の再送を本物のシークと
+     * 誤判定して鳴らし直す。<b>意味を変えないこと。</b>
+     */
+    private final Map<BlockPos, Long> registeredMillis = new ConcurrentHashMap<>();
+    /**
+     * <b>最初の実 PCM</b> が音声エンジンへ渡った時刻。まだなら鍵ごと無い。
+     *
+     * <p>{@code SoundManager#play} はインスタンスを登録するだけで音声ストリームの future は
+     * 未完了のまま返るので、{@link #registeredMillis} は「鳴っていた時間」の起点としては早すぎる。
+     * ラジオの安定判定 ({@link #STABLE_MS}) と鳴らない再生の期限 ({@link #FIRST_AUDIO_DEADLINE_MS})
+     * はこちらを読む。判別点は {@link LavaPlayerAudioStream#emit} の 1 箇所だけ。
+     */
+    private final Map<BlockPos, Long> firstAudioMillis = new ConcurrentHashMap<>();
     private final Map<BlockPos, Long> loadOffsetMs = new ConcurrentHashMap<>();
     /**
      * ラジオで拾った失敗の保留。ラジオにとって音が途切れることは再接続が引き受ける想定内の状態
@@ -213,7 +258,9 @@ public final class PlaybackSessions {
             previous.stopAndRelease();
         }
         playingUrl.put(key, url);
-        playStartMillis.put(key, clockMs.getAsLong());
+        registeredMillis.put(key, clockMs.getAsLong());
+        // 前の世代 (ラジオの再接続は同じ世代を持ち回る) の「鳴り始めた時刻」を持ち越さない。
+        firstAudioMillis.remove(key);
         loadOffsetMs.put(key, startOffsetMs);
         return true;
     }
@@ -288,6 +335,46 @@ public final class PlaybackSessions {
     }
 
     /**
+     * <b>最初の実 PCM が音声エンジンへ渡った</b> = 本当に鳴り始めた。
+     *
+     * <p>{@code SoundManager#play} が受理したことと音が出始めたことは別の事実で、前者は
+     * {@link #engineAccepted}、後者がここ。判別点は {@link LavaPlayerAudioStream#emit} の 1 箇所
+     * だけで、埋めた無音は数えない。
+     *
+     * <p>1 世代につき 1 回しか通さない。世代が進んだ後に届いた通知を通すと、差し替えられた
+     * 前の曲が新しい曲の "Now Playing" を上書きする ({@link PlaybackGenerations} が防いでいる
+     * 事故の表示版)。
+     *
+     * @param key   jukebox の位置
+     * @param token この再生の世代
+     * @return この世代で初めての実 PCM なら {@code true} (呼び出し側は "Now Playing" を出してよい)
+     */
+    public boolean noteFirstAudio(BlockPos key, int token) {
+        if (!isLive(key, token)) {
+            return false;
+        }
+        return firstAudioMillis.putIfAbsent(key, clockMs.getAsLong()) == null;
+    }
+
+    /**
+     * 登録から {@link #FIRST_AUDIO_DEADLINE_MS} 経っても実 PCM が一度も渡っていないか。
+     *
+     * <p>これが無いと、ストリームの future が完了しないまま黙って座り続ける再生を
+     * <b>永久に待つ</b>ことになる (画面には何も出ず、音も出ない)。
+     *
+     * @param key   jukebox の位置
+     * @param token この再生の世代
+     * @return 期限切れなら {@code true}。停止済み・世代違い・既に鳴っているなら {@code false}
+     */
+    public boolean firstAudioOverdue(BlockPos key, int token) {
+        if (!isLive(key, token) || firstAudioMillis.containsKey(key)) {
+            return false;
+        }
+        final Long registered = registeredMillis.get(key);
+        return registered != null && clockMs.getAsLong() - registered >= FIRST_AUDIO_DEADLINE_MS;
+    }
+
+    /**
      * ラジオストリームが終端に達した。再接続するか、諦めるかを決める。
      *
      * <p>直前の再生が {@link #STABLE_MS} 以上続いていたら (瞬断が久しぶりなら) 試行回数をリセットする。
@@ -304,7 +391,7 @@ public final class PlaybackSessions {
         if (request == null || !request.track().radio()) {
             return new Reconnect(ReconnectKind.NONE, 0, null, null);
         }
-        final long started = playStartMillis.getOrDefault(key, 0L);
+        final long started = registeredMillis.getOrDefault(key, 0L);
         if (started > 0L && clockMs.getAsLong() - started >= STABLE_MS) {
             reconnectAttempts.remove(key);
         }
@@ -313,7 +400,8 @@ public final class PlaybackSessions {
             ended.stopAndRelease();
         }
         playingUrl.remove(key);
-        playStartMillis.remove(key);
+        registeredMillis.remove(key);
+        firstAudioMillis.remove(key);
         loadOffsetMs.remove(key);
 
         final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
@@ -337,7 +425,8 @@ public final class PlaybackSessions {
         requests.remove(key);
         directionals.remove(key);
         reconnectAttempts.remove(key);
-        playStartMillis.remove(key);
+        registeredMillis.remove(key);
+        firstAudioMillis.remove(key);
         loadOffsetMs.remove(key);
         pendingFailure.remove(key);
         notices.forget(key);
@@ -356,7 +445,8 @@ public final class PlaybackSessions {
         requests.clear();
         directionals.clear();
         reconnectAttempts.clear();
-        playStartMillis.clear();
+        registeredMillis.clear();
+        firstAudioMillis.clear();
         loadOffsetMs.clear();
         pendingFailure.clear();
         notices.forgetAll();
@@ -370,7 +460,7 @@ public final class PlaybackSessions {
      * 確実に通る。
      */
     private boolean isSeekRequest(BlockPos key, long requestedOffsetMs) {
-        final Long started = playStartMillis.get(key);
+        final Long started = registeredMillis.get(key);
         final Long loaded = loadOffsetMs.get(key);
         if (started == null || loaded == null) {
             return false; // 位置不明 → 従来通り dedup (再ロードしない)
