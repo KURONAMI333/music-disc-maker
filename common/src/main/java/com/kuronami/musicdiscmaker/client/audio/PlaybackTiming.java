@@ -19,6 +19,9 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
  *   <li>{@code resolve} — 再生要求から PCM ソースが手に入るまで (URL 解決 = ネットワーク)</li>
  *   <li>{@code prefill} — 4 秒分を裏で引いておくのに要した時間とバイト数
  *       ({@link LavaPlayerAudioStream#prefill})。これは専用スレッドの時間で、誰も待たない</li>
+ *   <li>{@code firstpcm} — 開栓から<b>最初の実 PCM</b> が MC へ渡るまで。{@code none} は
+ *       一度も実データが渡らないまま終わったという意味で、<b>登録の成否では区別が付かない</b>
+ *       (「登録できた」= 鳴り始めた、ではない)</li>
  *   <li>{@code buffer4s} — MC が最初に引く 4 秒分 ({@code Channel.attachBufferStream} の
  *       {@code pumpBuffers(4)}) を渡し切るまで。<b>これが "Sound engine" スレッドを占有する時間
  *       そのもの</b>で、その間 Render thread から出る全ての音が {@code createHandle().join()} で待つ</li>
@@ -49,6 +52,17 @@ public final class PlaybackTiming {
      * 書き込み = ロードスレッド / 読み出し = MC の streaming スレッド。
      */
     private volatile long resolveMs = -1L;
+
+    /**
+     * ストリームを開栓してから<b>最初の実 PCM</b> が MC の buffer へ渡るまでの ms。
+     * まだ渡っていないなら {@code -1}。書き込み = streaming スレッド。
+     *
+     * <p>「登録できた」と「鳴り始めた」を分けて見るための値。{@code SoundManager#play} は
+     * インスタンスを登録するだけで、音声ストリームの future は未完了のまま返るので、
+     * <b>登録の成否からは音が出たかどうか分からない</b>。無音パディングは数えない
+     * ({@link LavaPlayerAudioStream#emit} だけが打つ)。
+     */
+    private volatile long firstAudioMs = -1L;
 
     /** 先読み充填に要した ms。走らせていないなら {@code -1}。書き込み = 充填スレッド。 */
     private volatile long prefillMs = -1L;
@@ -84,6 +98,17 @@ public final class PlaybackTiming {
     }
 
     /**
+     * 最初の実 PCM が MC の buffer へ渡った (streaming スレッドから呼ばれる)。最初の 1 回だけを採る。
+     *
+     * @param ms ストリームを開栓してからの経過 ms
+     */
+    public void firstAudio(long ms) {
+        if (firstAudioMs < 0L) {
+            firstAudioMs = ms;
+        }
+    }
+
+    /**
      * 先読み充填が終わった (専用スレッドから呼ばれる)。
      *
      * @param ms       充填に要した ms
@@ -106,14 +131,25 @@ public final class PlaybackTiming {
         if (!emitted.compareAndSet(false, true)) {
             return;
         }
-        MusicDiscMaker.LOGGER.info("Track switch [{}] prefetch={} resolve={}ms {} buffer4s={}ms{} url={}",
+        MusicDiscMaker.LOGGER.info(
+                "Track switch [{}] prefetch={} resolve={}ms {} firstpcm={} buffer4s={}ms{} url={}",
                 label,
                 prefetchHit ? "hit" : "miss",
                 Math.max(resolveMs, 0L),
                 prefillText(),
+                firstAudioText(),
                 bufferMs,
                 complete ? "" : " (track ended before the first 4s)",
                 url);
+    }
+
+    /**
+     * 最初の実 PCM までの時間を 1 語にする。{@code none} = 一度も実データが渡らないまま終わった
+     * (登録は成功しているので、この行が無いと「鳴った」と区別が付かない)。
+     */
+    private String firstAudioText() {
+        final long ms = firstAudioMs;
+        return ms < 0L ? "none" : ms + "ms";
     }
 
     /** 先読み充填の結果を 1 語にする。 */

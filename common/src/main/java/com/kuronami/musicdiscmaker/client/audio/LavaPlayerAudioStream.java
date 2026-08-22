@@ -66,6 +66,19 @@ public class LavaPlayerAudioStream implements AudioStream {
     private final AtomicInteger underruns = new AtomicInteger();
     /** 無音の要約を 1 曲につき 1 行だけにするガード。 */
     private final AtomicBoolean underrunLogged = new AtomicBoolean(false);
+    /**
+     * 最初の実 PCM を通知したか。{@link #emit} が 1 回だけ打つ。
+     *
+     * <p><b>ここが「無音パディングでない PCM」の唯一の判別点。</b> 判別器を 2 つ持つと、
+     * 「鳴り始めた」の定義が場所ごとに食い違う。{@link #emit} はソース (もしくは先読み分) から
+     * 来た実データだけを通し、埋めた無音は {@link #padWithSilence} が別に数える。
+     */
+    private final AtomicBoolean firstAudioNoted = new AtomicBoolean(false);
+    /**
+     * ストリームを開栓した時刻。{@code SoundManager#play} が {@code getCustomStream} を呼んだ
+     * 瞬間で、<b>「登録した」の起点</b>。ここから最初の実 PCM までが {@code firstpcm}。
+     */
+    private final long openedNanos = System.nanoTime();
 
     /**
      * この切り替わりの所要時間の集め先 ({@code null} = 計測しない経路)。
@@ -422,7 +435,25 @@ public class LavaPlayerAudioStream implements AudioStream {
         applyGain(scratch, len);
         buffer.put(scratch, 0, len);
         pcmBytes.addAndGet(len);
+        noteFirstAudio();
         noteFirstBuffer(false);
+    }
+
+    /**
+     * <b>最初の実 PCM が音声エンジンへ渡った</b>ことを 1 回だけ記録する。
+     *
+     * <p>{@code SoundManager#play} が返ったことと、音が出始めたことは別の事実
+     * ({@code play} はインスタンスを登録するだけで、ストリームの future は未完了のまま返る)。
+     * この点だけが後者を知っている。
+     */
+    private void noteFirstAudio() {
+        if (!firstAudioNoted.compareAndSet(false, true)) {
+            return;
+        }
+        final PlaybackTiming t = timing;
+        if (t != null) {
+            t.firstAudio(PlaybackTiming.msSince(openedNanos));
+        }
     }
 
     /**
