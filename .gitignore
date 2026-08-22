@@ -26,3 +26,6 @@ runs
 # 第三者API研究用の逆コンパイル class scratch (Sophisticated Backpacks Core 等)。commit しない
 scoff/
 scchk*/
+
+# gradle test の副産物
+logs/
