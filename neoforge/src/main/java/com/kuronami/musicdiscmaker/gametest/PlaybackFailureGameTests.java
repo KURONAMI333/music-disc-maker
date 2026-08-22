@@ -150,7 +150,7 @@ public class PlaybackFailureGameTests {
     }
 
     /**
-     * 全ての分類が、<b>出荷している 14 本すべての翻訳ファイル</b>に GUI 用の一言ラベルを
+     * 全ての分類が、<b>出荷している 14 本すべての翻訳ファイル</b>に GUI 用の文を
      * 持っていること ({@code FailureReasonLangCoverageTest} の {@link Kind} 版)。
      *
      * <p><b>なぜ要るか</b>: 分類を 1 つ増やした時にコンパイラが止めてくれるのは

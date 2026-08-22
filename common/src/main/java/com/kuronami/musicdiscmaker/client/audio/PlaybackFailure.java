@@ -21,7 +21,7 @@ import com.kuronami.musicdiscmaker.network.UrlGuard;
  * <p>ストリームは client ごとに開くので、同じ音源でも<b>片方の client だけ</b>失敗しうる
  * (DNS・回線・ガード判定・同時再生上限はすべてローカル)。だからこそ理由は
  * <b>その client の画面とログの両方</b>に残す必要がある (画面は {@code GoldenJukeboxScreen}
- * の一言ラベル、ログは {@link PlaybackFailureReport})。
+ * の短い文、ログは {@link PlaybackFailureReport})。
  *
  * <p>分類はここに閉じてある。{@code Minecraft} を掴まないので headless テストに載る
  * ({@code PlaybackSessions} / {@code PlaybackPositions} と同じ seam の切り方)。
@@ -268,7 +268,7 @@ public record PlaybackFailure(Kind kind, String detail) {
         return kind.translationKey();
     }
 
-    /** GUI に出す一言のラベルの翻訳キー ({@link Kind#guiKey()})。 */
+    /** GUI に出す短い文の翻訳キー ({@link Kind#guiKey()})。 */
     public String guiKey() {
         return kind.guiKey();
     }

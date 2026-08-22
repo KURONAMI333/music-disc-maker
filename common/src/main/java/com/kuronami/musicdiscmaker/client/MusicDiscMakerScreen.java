@@ -34,8 +34,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private static final int ERROR = 0xB02020;
     private static final int FAILED_TEXT_X = 12; // パネル左右対称の余白8 + 4
     // 失敗の文の帯。スロット枠の下端 (63) から 4px 空けて始まり、末尾 (77+8 = 84) の 3px 下から
-    // 持ち物ラベルが始まる。一言ラベルだった頃はスロット行と同じ y=51 に置いていたが、
-    // 文は行の全幅を使うので入出力スロット (x=62 / 114) に重なる。帯ごと下へ降ろす。
+    // 持ち物ラベルが始まる。スロット行と同じ高さには置けない — 文は行の全幅を使うので、
+    // 入出力スロット (x=62 / 114) に重なる。
     private static final int FAILED_TEXT_Y = 68;
     private static final int FAILED_TEXT_W = 180; // 折り返し幅 (12 → imageWidth 200 - 右余白 8)
     /**
