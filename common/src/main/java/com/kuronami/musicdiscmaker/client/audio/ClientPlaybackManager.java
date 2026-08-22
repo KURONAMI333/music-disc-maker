@@ -49,7 +49,8 @@ public final class ClientPlaybackManager {
     private final PlaybackSessions sessions = new PlaybackSessions(System::currentTimeMillis);
 
     /** 次に鳴る曲の先読み置き場 (アルバムの曲間の無音対策)。 */
-    private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis);
+    private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis,
+            this::logPrefetchEvent);
 
     /**
      * 座標ごとの直近の失敗。金ジュークの画面がここを読んで一言のラベルを出す。
@@ -109,7 +110,7 @@ public final class ClientPlaybackManager {
      * @param pos   ジュークボックスの位置
      * @param track 次に鳴る曲
      */
-    public void prefetchNext(BlockPos pos, CustomTrackData track) {
+    public void prefetchNext(BlockPos pos, CustomTrackData track, long remainingMs) {
         if (track == null || track.isEmpty() || track.radio() || track.durationMs() <= 0L) {
             return; // ラジオ・尺ゼロは先読みしない (終わらない / 掴む先が無い)
         }
@@ -117,6 +118,8 @@ public final class ClientPlaybackManager {
         if (ticket == null) {
             return; // 同じ曲を既に抱えている
         }
+        MusicDiscMaker.LOGGER.info("Prefetch fired [{}] url={} remaining={}ms ticket={}",
+                pos.toShortString(), track.url(), remainingMs, ticket.id());
         pool.submit(() -> {
             IAudioSource source = null;
             try {
@@ -147,14 +150,18 @@ public final class ClientPlaybackManager {
      *
      * @param pos ジュークボックスの位置
      */
-    public void cancelPrefetch(BlockPos pos) {
-        prefetch.drop(pos.immutable());
+    public void cancelPrefetch(BlockPos pos, String reason) {
+        prefetch.drop(pos.immutable(), reason);
     }
 
     /** BE 同期後にも current / next として有効な先読みだけは残し、無関係な枠を捨てる。 */
-    public void cancelPrefetchUnlessMatches(BlockPos pos, CustomTrackData current, CustomTrackData next) {
+    public void cancelPrefetchUnlessMatches(BlockPos pos, CustomTrackData current, CustomTrackData next, String reason) {
         prefetch.dropUnlessMatches(pos.immutable(), current == null ? null : current.url(),
-                next == null ? null : next.url());
+                next == null ? null : next.url(), reason);
+    }
+
+    private void logPrefetchEvent(String action, BlockPos key, String url, long id, String detail) {
+        MusicDiscMaker.LOGGER.info("Prefetch {} [{}] url={} ticket={} {}", action, key.toShortString(), url, id, detail);
     }
 
     /**
@@ -372,14 +379,14 @@ public final class ClientPlaybackManager {
      */
     public void stopPlayback(BlockPos pos) {
         final BlockPos key = pos.immutable();
-        prefetch.drop(key); // 停止・ディスク交換・ブロック撤去。抱えたまま放置すると 60 秒で殺される
+        prefetch.drop(key, "stopPlayback: server-stop-or-disc-change");
         sessions.stop(key);
         failures.clear(key);
     }
 
     /** 全ての再生を止める (ワールド離脱)。失敗の記憶も持ち越さない。 */
     public void stopAll() {
-        prefetch.dropAll();
+        prefetch.dropAll("stopAll: world-exit");
         sessions.stopAll();
         failures.clearAll();
     }
