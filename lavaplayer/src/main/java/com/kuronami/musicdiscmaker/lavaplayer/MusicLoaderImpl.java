@@ -559,7 +559,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         return new RetryingAudioSource(source,
                 () -> beginPlayback(loadOnce(target, REOPEN_TIMEOUT_MS), startMs),
                 session, reason -> isRetryable(reason, isSearch(target)),
-                REOPEN_RETRIES, RetryingAudioSource.DEFAULT_GRACE_MS, System::currentTimeMillis);
+                REOPEN_RETRIES, RetryingAudioSource.DEFAULT_GRACE_MS);
     }
 
     /** player を作ってトラックを流し始める (包む前の素のソース)。 */
