@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.3.0
+## 2.2.2
 - **Fixed YouTube playback after YouTube changed the connection it accepts.** Tracks that suddenly would not play now use a different YouTube connection and play again. Spotify links also keep their own search path, so they no longer turn into audio from a different source.
 - **Fixed the whole game freezing when a track changed.** Track changes could hold up all sound and game activity while music finished, started, or waited for audio. Those waits no longer block the game.
 - **When YouTube refuses a track, the disc can now be made from SoundCloud or Bandcamp instead.** Music Disc Maker checks the length so a different recording, shortened version, or preview is not used, and shows the chosen source in the disc tooltip so everyone hears the same audio.
