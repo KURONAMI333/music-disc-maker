@@ -123,6 +123,11 @@ final class RetryingAudioSource implements IAudioSource {
      * 立っている」「{@link #inner} が入れ替わっている」「{@link #closed} である」のいずれかが
      * 成立しており、長さは {@link #graceMs} + 開き直し 1 回 ({@code MusicLoaderImpl} の
      * {@code REOPEN_TIMEOUT_MS} = 10 秒) で頭打ちになる。
+     *
+     * <p><b>「必ず」はコード上の保証として書いてある</b> — 印を下ろすのは {@code finally}、
+     * 投げる先が受け取らなかった場合は {@link #read} がその場で終端に倒す。正常系だけで
+     * 下ろしていた頃は、途中で例外が抜けると立ったまま残った。上限が実時間で頭打ちになるのも
+     * 経過時間を単調時計から取るからで、壁時計だと時刻調整で遠のく ({@link #MONOTONIC_MS})。
      */
     private volatile boolean resolvingEnd;
     private int retriesLeft;
@@ -183,7 +188,16 @@ final class RetryingAudioSource implements IAudioSource {
             }
             if (!resolvingEnd) {
                 resolvingEnd = true;
-                faultAwaiter.execute(() -> resolveSilentEnd(current));
+                try {
+                    faultAwaiter.execute(() -> resolveSilentEnd(current));
+                } catch (final Throwable t) {
+                    // 投げる先が受け取らなかった (飽和・シャットダウン)。飛行中の印を立てたままに
+                    // すると read は 0 を返し続け、MC は終端を受け取れない = source と channel を
+                    // 掴んだまま二度と手放されない。決着が付かないなら終端に倒す。
+                    resolvingEnd = false;
+                    LOGGER.warn("Could not hand the end of the stream to the fault awaiter", t);
+                    return terminal();
+                }
             }
             if (!terminated && inner != current) {
                 continue;
@@ -201,25 +215,42 @@ final class RetryingAudioSource implements IAudioSource {
         return -1;
     }
 
-    /** 理由待ちと再オープンは Sound engine の外で行う。 */
+    /**
+     * 理由待ちと再オープンは Sound engine の外で行う。
+     *
+     * <p><b>どう抜けても飛行中の印を下ろす</b> ({@code finally})。ここを正常系だけで下ろしていた
+     * ので、届け先 (sink) の例外が {@code relay.record} から返ってくると
+     * {@code resolvingEnd=true} / {@code terminated=false} / {@link #inner} 未交換のまま残り、
+     * 後続の {@link #read} が永久に {@code 0} を返し続けた。
+     *
+     * <p>例外を飲んだ時は<b>終端に倒す</b>。決着が付かないまま {@code 0} を返し続けるより、
+     * 音源と channel を手放させる方が害が小さい。届け先が投げた場合は理由が利用者へ届かないが、
+     * 壊れているのは届け先の側で、こちらが握り潰したわけではない。
+     */
     private void resolveSilentEnd(IAudioSource current) {
-        final PlaybackFault fault = awaitFault(current);
-        if (fault != null) {
-            if (!canRetry(fault)) {
-                relay.record(fault);
-                terminated = true;
-            } else {
-                final PlaybackFault giveUp = reopen(fault);
-                if (giveUp != null) {
-                    relay.record(giveUp);
+        try {
+            final PlaybackFault fault = awaitFault(current);
+            if (fault != null) {
+                if (!canRetry(fault)) {
+                    relay.record(fault);
                     terminated = true;
+                } else {
+                    final PlaybackFault giveUp = reopen(fault);
+                    if (giveUp != null) {
+                        relay.record(giveUp);
+                        terminated = true;
+                    }
                 }
+            } else if (!closed) {
+                endedWithoutReason();
+                terminated = true;
             }
-        } else if (!closed) {
-            endedWithoutReason();
+        } catch (final Throwable t) {
+            LOGGER.warn("Failed to settle the end of the stream", t);
             terminated = true;
+        } finally {
+            resolvingEnd = false;
         }
-        resolvingEnd = false;
     }
 
     /**
