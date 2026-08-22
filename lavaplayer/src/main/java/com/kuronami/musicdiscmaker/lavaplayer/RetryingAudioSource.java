@@ -6,6 +6,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -63,7 +65,7 @@ final class RetryingAudioSource implements IAudioSource {
      * 持たない (基準点は JVM ごとに任意)。
      *
      * <p>壁時計で測ると、OS の時刻が後方修正された瞬間に {@link #awaitFault} の上限が遠のき、
-     * 理由待ちが {@link #graceMs} を大きく超えて居座る。その間 {@link #resolvingEnd} が立ったまま
+     * 理由待ちが {@link #graceMs} を大きく超えて居座る。その間 {@link #resolversInFlight} が残ったまま
      * なので {@link #read} は {@code 0} を返し続け、<b>「1.5 秒 + 開き直し 1 回で必ず閉じる」という
      * この窓の前提が成立しなくなる</b>。
      */
@@ -116,7 +118,7 @@ final class RetryingAudioSource implements IAudioSource {
      *
      * <p>{@link #read} は「投げるか」を先に決め、「{@link #inner} が入れ替わっていないか」を
      * その後で見る。この順番のままだと、<b>read が古いソースを掴んでいる間に先行のやり直しが
-     * 入れ替え ({@link #reopen}) と後始末 ({@code resolvingEnd=false}) を済ませた</b>時に、
+     * 入れ替え ({@link #reopen}) と後始末 (飛行中の印を下ろす) を済ませた</b>時に、
      * <b>古いソース宛ての 2 本目</b>が飛ぶ。2 本目は {@code retriesLeft} を使い切った状態で
      * 古い失敗を拾うので「やり直せない」と判定し {@link #terminated} を立てる —
      * 健全なソースが {@link #inner} に入っているのに、次の {@link #read} は {@code -1} を返す。
@@ -154,11 +156,31 @@ final class RetryingAudioSource implements IAudioSource {
      */
     private volatile boolean terminated;
     /**
-     * 理由待ちと開き直しが飛行中の印。<b>立っている間は終端を返さない</b> ({@code 0} を返す)。
+     * 飛行中の理由待ちの<b>本数</b>。<b>1 本でも残っている間は終端を返さない</b>
+     * ({@code 0} を返す)。
      *
-     * <p><b>投げるかどうかを決めるのはこの印ではない</b> ({@link #resolverDispatchedFor})。
+     * <h2>なぜ boolean では足りないか</h2>
+     * <b>やり直しは世代をまたいで重なる</b>。世代 N のやり直しが {@link #inner} を N+1 へ
+     * 入れ替えると、{@link #read} はその N+1 を見て<b>もう 1 本</b>投げる
+     * ({@link #resolverDispatchedFor} はソース単位の 1 回性なので、これは正しく通る)。
+     * この瞬間、N はまだ {@code finally} に入っていない。
+     *
+     * <p>印が boolean だと、<b>N の後始末が N+1 の立てた印を下ろす</b> — 自分が下ろすべき
+     * でない印を下ろす。{@link #read} は「飛行中ではない」と読んで {@code 0} ではなく終端へ
+     * 倒れ、N+1 の理由が {@link #relay} へ届く前に {@code -1} が呼び出し側へ出る。
+     * <b>分類のついた理由を出せたはずの場面で {@code UNKNOWN / no audio} になる</b> =
+     * この窓が塞ごうとしている症状そのもの。
+     *
+     * <p>本数なら、下ろす主体と下ろされる印が 1 対 1 で結び付く。<b>どのやり直しも自分が
+     * 増やしたぶんしか減らさない</b> — 増やすのは投入 1 回につき 1 だけ ({@link #read}) で、
+     * その 1 を握った {@link InFlight} を持つのはそのやり直しだけ、しかも
+     * {@link InFlight#lower()} は CAS で<b>生涯 1 回しか通らない</b>。「飛行中か」は
+     * {@code > 0} で見る。
+     *
+     * <p><b>投げるかどうかを決めるのはこの数ではない</b> ({@link #resolverDispatchedFor})。
      * これは「今この {@link #inner} の決着が付いていない」を {@link #read} の戻り値
-     * ({@code 0} か {@code -1} か) へ翻訳するためだけに持つ。
+     * ({@code 0} か {@code -1} か) へ翻訳するためだけに持つ。<b>2 つは役割が違うので両方要る</b> —
+     * 片方は投入の 1 回性 (ソース単位・取り除かない)、片方は決着の有無 (世代をまたいで増減する)。
      *
      * <p>{@link #resolveSilentEnd} は Sound engine の外で走るので、投げた時点では結果が無い。
      * そこで {@code -1} を返すと、呼び出し元は<b>やり直しの結果を見る前に終端を確定させる</b> —
@@ -181,8 +203,29 @@ final class RetryingAudioSource implements IAudioSource {
      * 下ろしていた頃は、途中で例外が抜けると立ったまま残った。上限が実時間で頭打ちになるのも
      * 経過時間を単調時計から取るからで、壁時計だと時刻調整で遠のく ({@link #MONOTONIC_MS})。
      */
-    private volatile boolean resolvingEnd;
+    private final AtomicInteger resolversInFlight = new AtomicInteger();
     private int retriesLeft;
+
+    /**
+     * 飛行中 1 本ぶんの持ち分。<b>握った者だけが、1 回だけ下ろせる</b>。
+     *
+     * <p>投入のたびに新しく作られ、そのやり直しと一緒に飛ぶ。{@link #lower()} は CAS で
+     * 通れるのが生涯 1 回だけなので、<b>二重に下ろしても数は 1 しか減らない</b> —
+     * {@code faultAwaiter.execute} が「やり直しを走らせてから」例外を投げるような
+     * 相手 (同期 executor 等) でも、下がるのは自分の 1 本ぶんだけで、他の世代の飛行が
+     * 巻き添えで消えることがない。
+     */
+    private final class InFlight {
+
+        private final AtomicBoolean lowered = new AtomicBoolean();
+
+        /** 自分の 1 本ぶんを下ろす。2 回目以降は何もしない。 */
+        void lower() {
+            if (lowered.compareAndSet(false, true)) {
+                resolversInFlight.decrementAndGet();
+            }
+        }
+    }
 
     /**
      * 本番の入口。<b>時計を受け取らない</b> — 経過時間は必ず {@link #MONOTONIC_MS} から取る。
@@ -252,14 +295,15 @@ final class RetryingAudioSource implements IAudioSource {
                 return terminal();
             }
             if (resolverDispatchedFor.add(current)) {
-                resolvingEnd = true;
+                final InFlight mark = new InFlight();
+                resolversInFlight.incrementAndGet();
                 try {
-                    faultAwaiter.execute(() -> resolveSilentEnd(current));
+                    faultAwaiter.execute(() -> resolveSilentEnd(current, mark));
                 } catch (final Throwable t) {
                     // 投げる先が受け取らなかった (飽和・シャットダウン)。飛行中の印を立てたままに
                     // すると read は 0 を返し続け、MC は終端を受け取れない = source と channel を
                     // 掴んだまま二度と手放されない。決着が付かないなら終端に倒す。
-                    resolvingEnd = false;
+                    mark.lower();
                     LOGGER.warn("Could not hand the end of the stream to the fault awaiter", t);
                     return terminal();
                 }
@@ -267,7 +311,7 @@ final class RetryingAudioSource implements IAudioSource {
             if (!terminated && inner != current) {
                 continue;
             }
-            if (!terminated && resolvingEnd) {
+            if (!terminated && resolversInFlight.get() > 0) {
                 return 0; // やり直しが飛行中。終端はまだ確定していない
             }
             return -1;
@@ -285,14 +329,14 @@ final class RetryingAudioSource implements IAudioSource {
      *
      * <p><b>どう抜けても飛行中の印を下ろす</b> ({@code finally})。ここを正常系だけで下ろしていた
      * ので、届け先 (sink) の例外が {@code relay.record} から返ってくると
-     * {@code resolvingEnd=true} / {@code terminated=false} / {@link #inner} 未交換のまま残り、
+     * 飛行中の印が立ったまま / {@code terminated=false} / {@link #inner} 未交換のまま残り、
      * 後続の {@link #read} が永久に {@code 0} を返し続けた。
      *
      * <p>例外を飲んだ時は<b>終端に倒す</b>。決着が付かないまま {@code 0} を返し続けるより、
      * 音源と channel を手放させる方が害が小さい。届け先が投げた場合は理由が利用者へ届かないが、
      * 壊れているのは届け先の側で、こちらが握り潰したわけではない。
      */
-    private void resolveSilentEnd(IAudioSource current) {
+    private void resolveSilentEnd(IAudioSource current, InFlight mark) {
         try {
             final PlaybackFault fault = awaitFault(current);
             if (fault != null) {
@@ -314,7 +358,7 @@ final class RetryingAudioSource implements IAudioSource {
             LOGGER.warn("Failed to settle the end of the stream", t);
             terminated = true;
         } finally {
-            resolvingEnd = false;
+            mark.lower(); // 下ろすのは自分の 1 本ぶんだけ (他の世代の飛行には触れない)
         }
     }
 
