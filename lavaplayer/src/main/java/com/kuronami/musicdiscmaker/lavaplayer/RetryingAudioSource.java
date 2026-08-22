@@ -92,6 +92,25 @@ final class RetryingAudioSource implements IAudioSource {
      * (MDM_DECISIONS D28 の「1 曲につき 4 回・間隔 1.505s」は 1500ms + poll 20ms のこと)。
      */
     private volatile boolean terminated;
+    /**
+     * 理由待ちと開き直しが飛行中の印。<b>立っている間は終端を返さない</b> ({@code 0} を返す)。
+     *
+     * <p>{@link #resolveSilentEnd} は Sound engine の外で走るので、投げた時点では結果が無い。
+     * そこで {@code -1} を返すと、呼び出し元は<b>やり直しの結果を見る前に終端を確定させる</b> —
+     * {@code LavaPlayerAudioStream#prefill} は {@code prebufferEnded} を立て、開き直しが成功して
+     * {@link #inner} が健全なソースに入れ替わっても二度と読まれない。届いた理由も
+     * {@code reportEnd} には間に合わず、分類の消えた {@code UNKNOWN / no audio} だけが残る。
+     *
+     * <p>{@code 0} は「今この瞬間に出せる分が無い」であって終端ではない
+     * ({@code LavaAudioSource} と同じ約束)。上の層はこれを待たずに扱える —
+     * {@code prefill} は刻んで粘り、{@code LavaPlayerAudioStream#read} は残りを無音で埋めて返す。
+     * <b>音声スレッドを掴まないまま、決着だけを待てる。</b>
+     *
+     * <p>この窓は必ず閉じる。{@link #resolveSilentEnd} を抜けた時点で「{@link #terminated} が
+     * 立っている」「{@link #inner} が入れ替わっている」「{@link #closed} である」のいずれかが
+     * 成立しており、長さは {@link #graceMs} + 開き直し 1 回 ({@code MusicLoaderImpl} の
+     * {@code REOPEN_TIMEOUT_MS} = 10 秒) で頭打ちになる。
+     */
     private volatile boolean resolvingEnd;
     private int retriesLeft;
 
@@ -145,6 +164,9 @@ final class RetryingAudioSource implements IAudioSource {
             }
             if (!terminated && inner != current) {
                 continue;
+            }
+            if (!terminated && resolvingEnd) {
+                return 0; // やり直しが飛行中。終端はまだ確定していない
             }
             return -1;
         }
