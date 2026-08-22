@@ -90,6 +90,23 @@ final class RetryingAudioSource implements IAudioSource {
     /** 経過時間 (ms)。<b>単調時計</b>から取る (壁時計を渡さないこと。理由は {@link #MONOTONIC_MS})。 */
     private final LongSupplier monotonicMs;
     private final Executor faultAwaiter;
+    /**
+     * {@link #inner} を入れ替えた<b>直後</b>に呼ばれる。<b>本番では何もしない</b>
+     * ({@code () -> { }})。
+     *
+     * <h2>なぜ製品コードに口を開けるか</h2>
+     * 入れ替えから {@link #resolveSilentEnd} の {@code finally} までの間、この class は
+     * <b>外の code を一切呼ばない</b> — {@code session} も {@code opener} も
+     * {@code closeQuietly} も入れ替えより前に済んでおり、後ろに残るのは {@code closed} の
+     * 読み出しと log だけ。つまり「世代 N が入れ替えを済ませ、まだ {@code finally} に
+     * 入っていない」という状態を<b>外から作る手がかりが存在しない</b>。
+     *
+     * <p>この窓こそが世代をまたいだ取り違えの起きる場所なので、そこを踏めない test は
+     * 実時間頼みになる。{@code monotonicMs} / {@code faultAwaiter} と同じく、
+     * <b>差せる口を 1 つ開けて並びを掛け金で固定する</b>。
+     * 固定している test は {@code RetryingAudioSourceOverlappingResolverTest}。
+     */
+    private final Runnable afterReopen;
 
     /** 届け先。<b>やり直しても駄目だった時だけ</b>ここへ流す。 */
     private final PlaybackFaultRelay relay = new PlaybackFaultRelay();
@@ -185,6 +202,19 @@ final class RetryingAudioSource implements IAudioSource {
     RetryingAudioSource(IAudioSource inner, Opener opener, YoutubeSession session,
             Predicate<FailureReason> retryable, int maxRetries, long graceMs,
             LongSupplier monotonicMs, Executor faultAwaiter) {
+        this(inner, opener, session, retryable, maxRetries, graceMs, monotonicMs, faultAwaiter,
+                () -> { });
+    }
+
+    /**
+     * テスト用。入れ替えの直後で止められるように、開き直しの後始末に差し込む口を持つ。
+     *
+     * @param afterReopen {@link #inner} を入れ替えた直後に呼ばれる。詳細は {@link #afterReopen}
+     */
+    RetryingAudioSource(IAudioSource inner, Opener opener, YoutubeSession session,
+            Predicate<FailureReason> retryable, int maxRetries, long graceMs,
+            LongSupplier monotonicMs, Executor faultAwaiter, Runnable afterReopen) {
+        this.afterReopen = afterReopen;
         this.inner = inner;
         this.opener = opener;
         this.session = session;
@@ -327,6 +357,7 @@ final class RetryingAudioSource implements IAudioSource {
                 return fault;
             }
             inner = fresh;
+            afterReopen.run(); // 本番では何もしない (test が並びを固定する口。{@link #afterReopen})
             if (closed) {
                 closeQuietly(fresh);
                 return fault;
