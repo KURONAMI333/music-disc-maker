@@ -5,7 +5,7 @@
   "gui.music_disc_maker.title": "音乐唱片制作机",
   "gui.music_disc_maker.url_placeholder": "在此粘贴链接…",
   "gui.music_disc_maker.fetching": "获取中…",
-  "gui.music_disc_maker.failed": "失败",
+  "gui.music_disc_maker.failed": "无法播放这段音频。",
   "gui.music_disc_maker.failed.unsupported": "不支持该链接。请用 YouTube 或音频直链。",
   "gui.music_disc_maker.failed.private": "视频为私享或已删除，也没有找到替代。请换一个链接。",
   "gui.music_disc_maker.failed.region": "在你所在的地区被封锁，也没有找到替代。请换一个链接。",

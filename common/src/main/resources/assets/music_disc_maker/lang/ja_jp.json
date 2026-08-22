@@ -5,7 +5,7 @@
   "gui.music_disc_maker.title": "音楽ディスク製作機",
   "gui.music_disc_maker.url_placeholder": "URL を貼り付け...",
   "gui.music_disc_maker.fetching": "取得中…",
-  "gui.music_disc_maker.failed": "取得失敗",
+  "gui.music_disc_maker.failed": "この曲を再生できませんでした。",
   "gui.music_disc_maker.failed.unsupported": "非対応のリンクです。YouTubeか音声の直リンクをお試しください。",
   "gui.music_disc_maker.failed.private": "動画が非公開か削除済みで、代わりも見つかりません。別のリンクをお試しください。",
   "gui.music_disc_maker.failed.region": "お住まいの地域で遮断され、代わりも見つかりません。別のリンクをお試しください。",

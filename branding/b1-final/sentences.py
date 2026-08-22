@@ -23,10 +23,10 @@ KEYS = [
 S = {}
 
 S["en_us"] = {
-    "botcheck": "YouTube blocked this one and no copy was found. Try another link.",
-    "private": "Video is private or gone, and no copy was found. Try another link.",
-    "region": "Blocked in your region, and no copy was found. Try another link.",
-    "age": "Age restricted, and no copy was found. Try another link.",
+    "botcheck": "YouTube blocked this one and no copy found. Try another.",
+    "private": "Video is private or gone, and no copy found. Try another.",
+    "region": "Blocked in your region, and no copy found. Try another.",
+    "age": "Age restricted, and no copy found. Try another.",
     "refused": "The source refused this track. Try another link.",
     "connection": "Could not reach the source. Check your connection.",
     "unsupported": "Link not supported. Try a YouTube or direct audio link.",
@@ -51,9 +51,9 @@ S["ja_jp"] = {
 }
 
 S["de_de"] = {
-    "botcheck": "Von YouTube gesperrt, keine Kopie. Probiere einen anderen Link.",
-    "private": "Video ist privat oder weg, keine Kopie. Probiere einen anderen Link.",
-    "region": "In deiner Region gesperrt, keine Kopie. Probiere einen anderen Link.",
+    "botcheck": "Von YouTube gesperrt, keine Kopie. Probiere einen anderen.",
+    "private": "Video ist privat oder weg, keine Kopie. Probiere einen anderen.",
+    "region": "Regional gesperrt, keine Kopie. Probiere einen anderen.",
     "age": "Altersbeschränkt, keine Kopie. Probiere einen anderen Link.",
     "refused": "Die Quelle hat den Titel abgelehnt. Probiere einen anderen Link.",
     "connection": "Quelle nicht erreichbar. Prüfe deine Verbindung.",
@@ -66,7 +66,7 @@ S["de_de"] = {
 
 S["es_es"] = {
     "botcheck": "YouTube lo ha bloqueado y no hay copia. Prueba otro enlace.",
-    "private": "El vídeo es privado o no existe y no hay copia. Prueba otro enlace.",
+    "private": "Vídeo privado o inexistente y sin copia. Prueba otro enlace.",
     "region": "Bloqueado en tu región y no hay copia. Prueba otro enlace.",
     "age": "Tiene restricción de edad y no hay copia. Prueba otro enlace.",
     "refused": "La fuente rechazó esta pista. Prueba otro enlace.",
@@ -81,7 +81,7 @@ S["es_es"] = {
 S["fr_fr"] = {
     "botcheck": "Bloqué par YouTube, aucune copie. Essayez un autre lien.",
     "private": "Vidéo privée ou supprimée, aucune copie. Essayez un autre lien.",
-    "region": "Bloquée dans votre région, aucune copie. Essayez un autre lien.",
+    "region": "Région bloquée, aucune copie. Essayez un autre lien.",
     "age": "Limite d'âge, aucune copie. Essayez un autre lien.",
     "refused": "La source a refusé cette piste. Essayez un autre lien.",
     "connection": "Source injoignable. Vérifiez votre connexion.",
@@ -93,9 +93,9 @@ S["fr_fr"] = {
 }
 
 S["it_it"] = {
-    "botcheck": "Bloccato da YouTube e nessuna copia trovata. Prova un altro link.",
-    "private": "Il video è privato o rimosso e non c'è copia. Prova un altro link.",
-    "region": "Bloccato nella tua regione e non c'è copia. Prova un altro link.",
+    "botcheck": "Bloccato da YouTube, nessuna copia. Prova un altro link.",
+    "private": "Video privato o rimosso, senza copia. Prova un altro link.",
+    "region": "Bloccato nella regione, senza copia. Prova un altro link.",
     "age": "Ha restrizioni di età e non c'è copia. Prova un altro link.",
     "refused": "La sorgente ha rifiutato questa traccia. Prova un altro link.",
     "connection": "Sorgente irraggiungibile. Controlla la connessione.",
@@ -108,7 +108,7 @@ S["it_it"] = {
 
 S["ko_kr"] = {
     "botcheck": "YouTube가 차단했고 대체 음원도 없습니다. 다른 링크를 사용해 보세요.",
-    "private": "동영상이 비공개이거나 삭제됐고 대체 음원도 없습니다. 다른 링크를 사용해 보세요.",
+    "private": "동영상이 비공개·삭제됐고 대체 음원도 없습니다. 다른 링크를 사용해 보세요.",
     "region": "현재 지역에서 차단됐고 대체 음원도 없습니다. 다른 링크를 사용해 보세요.",
     "age": "연령 제한이 있고 대체 음원도 없습니다. 다른 링크를 사용해 보세요.",
     "refused": "음원이 이 트랙을 거부했습니다. 다른 링크를 사용해 보세요.",
@@ -121,9 +121,9 @@ S["ko_kr"] = {
 }
 
 S["nl_nl"] = {
-    "botcheck": "Door YouTube geblokkeerd, geen kopie. Probeer een andere link.",
+    "botcheck": "YouTube blokkeerde dit, geen kopie. Probeer een andere link.",
     "private": "Video is privé of weg, geen kopie. Probeer een andere link.",
-    "region": "Geblokkeerd in jouw regio, geen kopie. Probeer een andere link.",
+    "region": "Regionaal geblokkeerd, geen kopie. Probeer een andere.",
     "age": "Leeftijdsgrens, geen kopie. Probeer een andere link.",
     "refused": "De bron weigerde dit nummer. Probeer een andere link.",
     "connection": "Bron niet bereikbaar. Controleer je verbinding.",
@@ -164,9 +164,9 @@ S["pt_br"] = {
 
 S["ru_ru"] = {
     "botcheck": "YouTube заблокировал, замены нет. Нужна другая ссылка.",
-    "private": "Видео скрыто или удалено, замены нет. Нужна другая ссылка.",
-    "region": "Недоступно в вашем регионе, замены нет. Нужна другая ссылка.",
-    "age": "Возрастное ограничение, замены нет. Нужна другая ссылка.",
+    "private": "Скрыто или удалено, замены нет. Нужна другая ссылка.",
+    "region": "Недоступно в регионе, замены нет. Нужна другая ссылка.",
+    "age": "Возрастной ценз, замены нет. Нужна другая ссылка.",
     "refused": "Источник отказал в этом треке. Нужна другая ссылка.",
     "connection": "Не удалось связаться с источником. Проверьте сеть.",
     "unsupported": "Ссылка не поддерживается. Нужен YouTube или прямая ссылка.",
@@ -178,8 +178,8 @@ S["ru_ru"] = {
 
 S["uk_ua"] = {
     "botcheck": "YouTube заблокував, заміни немає. Інше посилання?",
-    "private": "Відео приховане або видалене, заміни немає. Інше посилання?",
-    "region": "Недоступне у вашому регіоні, заміни немає. Інше посилання?",
+    "private": "Приховане або видалене, заміни нема. Інше посилання?",
+    "region": "Недоступне в регіоні, заміни немає. Інше посилання?",
     "age": "Вікове обмеження, заміни немає. Інше посилання?",
     "refused": "Джерело відмовило в цьому треку. Інше посилання?",
     "connection": "Не вдалося зв'язатися з джерелом. Перевірте з'єднання.",
