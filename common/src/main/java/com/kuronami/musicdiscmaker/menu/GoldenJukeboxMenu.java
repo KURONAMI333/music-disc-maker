@@ -32,7 +32,7 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
         this.blockEntity = blockEntity;
 
         // スロット座標は branding/gen_golden_jukebox_gui.py (レイアウトの正本) の
-        // addSlot 値と一致させる。バニラ標準式 (imageHeight=224 → row0=142, hotbar=200)
+        // addSlot 値と一致させる。バニラ標準式 (imageHeight=242 → row0=160, hotbar=218)
         // でテクスチャのスロット枠 (frame = addSlot-1 の 18x18) と 1px 単位で整合する。
 
         // ディスクスロット (再生可能ディスクのみ)
@@ -41,12 +41,12 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
         // プレイヤーインベントリ 3 行
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 142 + row * 18));
+                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 160 + row * 18));
             }
         }
         // ホットバー
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 8 + col * 18, 200));
+            addSlot(new Slot(playerInventory, col, 8 + col * 18, 218));
         }
     }
 

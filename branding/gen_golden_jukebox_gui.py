@@ -13,14 +13,14 @@ import os
 from PIL import Image, ImageDraw
 
 # ── レイアウト正本 (panel-local, leftPos/topPos 相対) ─────────────────────
-W, H = 176, 224                    # imageWidth / imageHeight
+W, H = 176, 242                    # imageWidth / imageHeight
 SHEET = 256                        # blit sheet size
 
 # スロット (addSlot 座標 = アイテム左上 16x16。枠は addSlot-1 の 18x18)
 DISC = (8, 18)                     # ディスクスロット
-INV_X, INV_Y0 = 8, 142            # プレイヤーインベントリ 3 行の起点 (row0)
-HOT_Y = 200                        # ホットバー
-INV_LABEL = (8, 130)              # "Inventory" ラベル (= H-94)
+INV_X, INV_Y0 = 8, 160            # プレイヤーインベントリ 3 行の起点 (row0 = H-82)
+HOT_Y = 218                        # ホットバー (= H-24)
+INV_LABEL = (8, 148)              # "Inventory" ラベル (= H-94)
 
 # transport (メインコントロール列)。囲み枠は持たない (kura 高評価の前デザイン = 素の配置)。
 PLAY = (8, 46, 20, 20)            # 再生/一時停止 (center y=56)
@@ -32,6 +32,10 @@ TIME_Y = 68                        # 経過/総時間
 VOL = (8, 84, 160, 15)            # 音量
 RANGE = (8, 102, 140, 15)         # 可聴範囲 (右端に指向性トグルを置くぶん短い)
 DIRECTIONAL = (152, 101, 16, 16)  # 指向性トグル (範囲バーの横・下辺を範囲バーに揃える)
+
+# 失敗の文の帯 (テクスチャは描かない = 素の板の上に赤字を重ねる)。3 行ぶんを常時空ける。
+# 行数の根拠は出荷 14 ロケールの実測 (branding/b1-final/sweep.py)。ここを増減したら H も動く。
+FAIL = (8, 119, 160, 3)           # x, 1 行目 y, 折り返し幅, 行数 (行送り 9)
 
 # ヘッダ テキスト (ディスクスロット右・2 行)
 TEXT_X = 32

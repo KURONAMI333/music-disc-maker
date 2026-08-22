@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.client;
 
+import java.util.List;
+
 import org.lwjgl.glfw.GLFW;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
@@ -15,6 +17,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Inventory;
 
 /**
@@ -30,6 +33,17 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     // 出所: branding/b1-legibility (kura 却下後の候補シート「配置B・色4」)。
     private static final int ERROR = 0xB02020;
     private static final int FAILED_TEXT_X = 12; // パネル左右対称の余白8 + 4
+    // 失敗の文の帯。スロット枠の下端 (63) から 4px 空けて始まり、末尾 (77+8 = 84) の 3px 下から
+    // 持ち物ラベルが始まる。一言ラベルだった頃はスロット行と同じ y=51 に置いていたが、
+    // 文は行の全幅を使うので入出力スロット (x=62 / 114) に重なる。帯ごと下へ降ろす。
+    private static final int FAILED_TEXT_Y = 68;
+    private static final int FAILED_TEXT_W = 180; // 折り返し幅 (12 → imageWidth 200 - 右余白 8)
+    /**
+     * 帯に常時確保する行数。パネル高さ ({@code imageHeight}) はこれで決まるので、
+     * <b>文を書き換えたら実測し直す</b>。制作機に届くのは {@link FailureReason} の 9 種だけで、
+     * 出荷している 14 ロケールとも幅 180 では 2 行に収まる (実測 {@code branding/b1-final/sweep.py})。
+     */
+    private static final int FAILED_LINES = 2;
 
     private EditBox urlField;
     private boolean urlWasFocused;
@@ -38,9 +52,12 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     public MusicDiscMakerScreen(MusicDiscMakerMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = 200;
-        this.imageHeight = 166;
+        // 失敗の帯が FAILED_LINES 行 (68 / 77 行目) を占めるぶん、下半分が 16px 下がる。
+        // 持ち物ラベルはバニラ標準式 (H-94)、在庫スロットとホットバーはこの画面が元から持って
+        // いる間隔のまま +16 する (MusicDiscMakerMenu 側の addSlot と必ず一致させる)。
+        this.imageHeight = 182;
         this.inventoryLabelX = 19;
-        this.inventoryLabelY = 72;
+        this.inventoryLabelY = this.imageHeight - 94; // 88
     }
 
     @Override
@@ -112,13 +129,22 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                     .copy().append(" " + spin);
             g.drawString(font, fetching, imageWidth - 8 - font.width(fetching), 51, TEXT, false);
         } else if (menu.getBlockEntity().isResolveFailed()) {
-            final Component failed = failedMessage(menu.getBlockEntity().getFailureReason());
-            g.drawString(font, failed, FAILED_TEXT_X, 51, ERROR, true);
+            // 確保してある行数を超えた分は描かない (はみ出して持ち物ラベルに重ねない)。
+            final List<FormattedCharSequence> lines = failedLines(menu.getBlockEntity().getFailureReason());
+            for (int i = 0; i < Math.min(lines.size(), FAILED_LINES); i++) {
+                g.drawString(font, lines.get(i), FAILED_TEXT_X,
+                        FAILED_TEXT_Y + i * font.lineHeight, ERROR, true);
+            }
         }
     }
 
+    /** 失敗の文を帯の幅で折り返したもの。描画とホバー判定で同じものを使う。 */
+    private List<FormattedCharSequence> failedLines(FailureReason reason) {
+        return font.split(failedMessage(reason), FAILED_TEXT_W);
+    }
+
     /**
-     * 失敗理由に対応する翻訳キーの短いメッセージ。未知は汎用の「取得失敗」。
+     * 失敗理由に対応する翻訳キーの文。未知は汎用の「取得失敗」。
      *
      * <p>対応表は {@link FailureReason#guiKey()} が持つ。ここに switch を戻さないこと —
      * 画面側に置くと {@code default} が要り、理由を 1 つ増やした時に黙って汎用の文面へ落ちる。
@@ -138,7 +164,12 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         return null;
     }
 
-    /** 失敗ラベルの上にマウスがあれば補足ツールチップを描く (screen 座標で判定)。 */
+    /**
+     * 失敗の文の上にマウスがあれば補足ツールチップを描く (screen 座標で判定)。
+     *
+     * <p>判定の矩形は<b>折り返した実物</b>から取る — 1 行ぶんの幅と高さで見ていると、
+     * 2 行に折り返した時に下の行がホバーに反応しない (かつ 1 行目の右側の空白が反応する)。
+     */
     private void renderFailedTooltip(GuiGraphics g, int mouseX, int mouseY) {
         if (!menu.getBlockEntity().isResolveFailed()) {
             return;
@@ -148,11 +179,17 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         if (tip == null) {
             return;
         }
-        final Component failed = failedMessage(reason);
+        final List<FormattedCharSequence> lines = failedLines(reason);
+        final int shown = Math.min(lines.size(), FAILED_LINES);
+        int width = 0;
+        for (int i = 0; i < shown; i++) {
+            width = Math.max(width, font.width(lines.get(i)));
+        }
         final int left = leftPos + FAILED_TEXT_X;
-        final int right = left + font.width(failed);
-        final int top = topPos + 51;
-        if (mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= top + font.lineHeight) {
+        final int top = topPos + FAILED_TEXT_Y;
+        // 最終行だけは行送り (9) でなく文字の高さ (8) までを当たり判定にする。
+        final int height = (shown - 1) * font.lineHeight + 8;
+        if (mouseX >= left && mouseX <= left + width && mouseY >= top && mouseY <= top + height) {
             g.renderTooltip(font, font.split(tip, 200), mouseX, mouseY);
         }
     }
