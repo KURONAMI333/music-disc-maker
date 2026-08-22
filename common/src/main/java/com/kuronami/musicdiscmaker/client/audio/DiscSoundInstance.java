@@ -200,6 +200,14 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     private volatile PlaybackTiming timing;
 
     /**
+     * <b>最初の実 PCM が渡った</b>ことの届け先。書き込み = main thread /
+     * 読み出し = {@code SoundEngine#play} を回している Render thread ({@link #getCustomStream()})。
+     * 実際に呼ばれるのは streaming スレッドなので、受け手は main thread へ移すこと。
+     */
+    @Nullable
+    private volatile Runnable firstAudioSink;
+
+    /**
      * 指向性の設定。生成直後 (play 前) と、client 側 BE 追従によるライブ切替から呼ぶ。
      * モードが変わった時はゲート状態を「聴こえる」に戻し (次の tick で正しく再判定される)、
      * 座標と {@code relative} を新しいモードのものへ即座に入れ替える。ゲインの現在値
@@ -561,6 +569,19 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     /**
+     * 最初の実 PCM が渡った時の届け先を差す。{@link #getCustomStream()} が開栓時にストリームへ
+     * 渡すので、<b>{@code SoundManager#play} より前に差しておくこと</b>。
+     *
+     * <p>呼ばれるのは streaming スレッドで、<b>1 回だけ</b>。「登録できた」ではなく
+     * 「本当に鳴り始めた」を知りたい側 ({@code Now Playing} の表示) のための口。
+     *
+     * @param sink 届け先 ({@code null} 可)
+     */
+    public void setFirstAudioSink(@Nullable Runnable sink) {
+        this.firstAudioSink = sink;
+    }
+
+    /**
      * {@inheritDoc}
      *
      * <p>{@code SoundManager#play} は受理しなかったことを戻り値で返さないので、engine 側の
@@ -611,6 +632,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded, failureSink);
         s.setPcmGain(computePcmGain());
         s.setTiming(timing);
+        s.setFirstAudioSink(firstAudioSink);
         this.stream = s;
         final CompletableFuture<AudioStream> ready = new CompletableFuture<>();
         try {

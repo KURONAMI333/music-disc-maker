@@ -45,8 +45,7 @@ public final class PlaybackSessions {
      * 登録から<b>最初の実 PCM</b> が来るまでに待つ上限 (ms)。超えたら鳴らないものとして畳む
      * ({@link #firstAudioOverdue})。
      *
-     * <h2>なぜ 30 秒なのか (帯とその算術)</h2>
-     * 下限は<b>健全なソースでも実 PCM が出ない時間</b>の総和で決まる:
+     * <p><b>なぜ 30 秒なのか。</b> 下限は<b>健全なソースでも実 PCM が出ない時間</b>の総和で決まる:
      *
      * <ul>
      *   <li>{@code DiscSoundInstance.PREBUFFER_BUDGET_MS} = 10 秒。この間 future は完了せず、
