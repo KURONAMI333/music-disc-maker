@@ -1,7 +1,9 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
@@ -289,14 +291,19 @@ public final class ClientPlaybackManager {
                 late -> Minecraft.getInstance().execute(() -> lateFailure(key, token, track, late)));
         // 計測は play より前に差す (開栓は play の内側で起きる)。
         instance.setTiming(timing);
+        // "Now Playing" は登録できた時点ではなく、最初の実 PCM が音声エンジンへ渡った時点で出す。
+        // 差すのも play より前 (開栓は play の内側)。届くのは streaming スレッドなので main thread へ移す。
+        final String desc = nowPlayingText(track);
+        instance.setFirstAudioSink(
+                () -> Minecraft.getInstance().execute(() -> onFirstAudio(key, token, desc)));
         // install は聴取モデルの適用も行う (鳴り始めの 1 tick を positional で鳴らさない)。
         // 世代が古ければ受け付けず、同じ座標に残っていた音源は必ず止めてから置き換える。
         if (!sessions.install(key, token, track.url(), startOffsetMs, instance)) {
             instance.requestStop();
             return;
         }
-        // play は受理しなかったことを戻り値で返さない。見ずに進むと、鳴っていないのに
-        // "Now Playing" が出て、同じ URL の再通知も既存 session に弾かれる = 停止まで無音が固定される。
+        // play は受理しなかったことを戻り値で返さない。見ずに進むと、捨てられた再生を鳴っている
+        // ものとして扱い、同じ URL の再通知も既存 session に弾かれる = 停止まで無音が固定される。
         // 出すかどうかは PlaybackSessions が決める。engine の拒否は直るまで何度でも同じ理由で
         // 起きるので、毎回出すと今度はノイズになる (同じ理由は鳴り始めるまで 1 回だけ)。
         if (!SoundEngineAcceptance.start(instance, instance, rejected -> {
@@ -308,18 +315,78 @@ public final class ClientPlaybackManager {
         })) {
             return;
         }
-        sessions.engineAccepted(key); // 実際に鳴り始めた。拒否の記憶を捨てる唯一の点
-        // 直近の失敗の記憶もここで捨てる。install (ロードが間に合った) では捨てない —
-        // engine の受理はその後なので、install で捨てると鳴っていないのにラベルだけ消える
-        // (MDM_DECISIONS D10 が名指しで警告している取り違え)。
+        sessions.engineAccepted(key); // engine が受理した。拒否の記憶を捨てる唯一の点
+        // 直近の失敗の記憶はここで捨てる。<b>実 PCM を待たない</b> — 待つと、登録から最初の音までの
+        // 窓の間ずっと<b>前の曲の失敗ラベルが金ジュークの画面に残って見える</b>。新しい曲が結局
+        // 鳴らなければ、下の期限切れで改めて失敗が出る。
+        // install (ロードが間に合った) では捨てない — engine の受理はその後なので、install で
+        // 捨てると engine に弾かれてもラベルだけ消える (MDM_DECISIONS D10 が名指しで警告している取り違え)。
         failures.clear(key);
-        // vanilla disc と同じ "Now Playing: ..." overlay を出す
-        final String desc = (track.author() != null && !track.author().isBlank())
+        // 鳴らないまま座り続ける再生を永久に待たない。期限は PlaybackSessions が持つ。
+        armFirstAudioDeadline(key, token, track);
+    }
+
+    /** vanilla disc と同じ "Now Playing: ..." overlay に出す文字列。 */
+    private static String nowPlayingText(CustomTrackData track) {
+        return (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
                 : track.title();
+    }
+
+    /**
+     * 最初の実 PCM が音声エンジンへ渡った (main thread)。<b>ここが "Now Playing" を出す唯一の点。</b>
+     *
+     * <p>{@code SoundManager#play} はインスタンスを登録するだけで音声ストリームの future は
+     * 未完了のまま返るので、受理された時点で出すと<b>まだ一音も出ていないのに「再生中」</b>になる。
+     * 世代の照合は {@link PlaybackSessions#noteFirstAudio} が持つ (差し替えられた前の曲が
+     * 新しい曲の表示を上書きしないため)。
+     */
+    private void onFirstAudio(BlockPos key, int token, String desc) {
+        if (!sessions.noteFirstAudio(key, token)) {
+            return; // 停止済み / 世代違い / 2 回目
+        }
         if (desc != null && !desc.isBlank()) {
             Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
         }
+    }
+
+    /**
+     * 「最初の実 PCM が来ないまま座り続ける」再生に期限を置く。
+     *
+     * <p>{@code SoundManager#play} が受理しても、ストリームの future が完了しなければ MC は
+     * {@code read} を一度も呼ばない = <b>画面にも何も出ず、音も出ず、誰も終わらせない</b>。
+     * 期限の値と根拠は {@link PlaybackSessions#FIRST_AUDIO_DEADLINE_MS}。
+     *
+     * <p>期限そのものは専用スレッドを起こさずに寝かせる ({@code delayedExecutor} は共有の
+     * daemon scheduler)。起きた後は必ず main thread へ移してから判定する。
+     */
+    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+        CompletableFuture.delayedExecutor(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, TimeUnit.MILLISECONDS)
+                .execute(() -> Minecraft.getInstance()
+                        .execute(() -> onFirstAudioDeadline(key, token, track)));
+    }
+
+    /**
+     * 期限が来た (main thread)。まだ一音も鳴っていなければ畳む。
+     *
+     * <p>ラジオは<b>失敗をその場でラベルにしない</b> — 瞬断は再接続が引き受ける想定内の状態で、
+     * 試行中の jukebox はラベルを持たない約束になっている ({@link PlaybackSessions} の
+     * {@code pendingFailure})。だから「この試行は駄目だった」として終端と同じ経路へ流す。
+     */
+    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+        if (!sessions.firstAudioOverdue(key, token)) {
+            return; // 鳴り始めた / 停止済み / 差し替え済み
+        }
+        MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
+                PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.url());
+        if (track.radio()) {
+            onRadioStreamEnded(key, token);
+            return;
+        }
+        sessions.stop(key); // 音源とチャンネルを手放す (畳まないと席を掴んだまま黙り続ける)
+        final PlaybackFailure show = PlaybackFailure.streamUnavailable();
+        failures.record(key, show);
+        PlaybackFailureReport.report(track, show);
     }
 
     /**
