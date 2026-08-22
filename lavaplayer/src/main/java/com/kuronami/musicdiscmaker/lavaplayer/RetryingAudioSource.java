@@ -1,5 +1,8 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -91,6 +94,34 @@ final class RetryingAudioSource implements IAudioSource {
     /** 届け先。<b>やり直しても駄目だった時だけ</b>ここへ流す。 */
     private final PlaybackFaultRelay relay = new PlaybackFaultRelay();
 
+    /**
+     * 既にやり直しを投げたソース。<b>1 つのソースにつき、やり直しは一生に 1 本だけ</b>。
+     *
+     * <p>{@link #read} は「投げるか」を先に決め、「{@link #inner} が入れ替わっていないか」を
+     * その後で見る。この順番のままだと、<b>read が古いソースを掴んでいる間に先行のやり直しが
+     * 入れ替え ({@link #reopen}) と後始末 ({@code resolvingEnd=false}) を済ませた</b>時に、
+     * <b>古いソース宛ての 2 本目</b>が飛ぶ。2 本目は {@code retriesLeft} を使い切った状態で
+     * 古い失敗を拾うので「やり直せない」と判定し {@link #terminated} を立てる —
+     * 健全なソースが {@link #inner} に入っているのに、次の {@link #read} は {@code -1} を返す。
+     * <b>やり直しは成功したのに無音のまま終わる</b>ように見える。
+     *
+     * <p>確認の順番を入れ替えるだけでは<b>窓は縮むだけで閉じない</b> — 「入れ替わっていない」と
+     * 見てから投げるまでの間にも入れ替えは起こりうる。そこで<b>投入そのものを原子的な 1 回性の
+     * 判定にする</b>。{@code add} は同期化された集合への追加で、<b>取り除くことは一度も無い</b>
+     * ので、あるソースに対して真を返せるのは (何本のスレッドがどう割り込んでも) 生涯 1 回だけ。
+     * 「読む → 判定する → 投げる」が 1 つの原子操作に畳まれており、間に別スレッドが
+     * {@link #inner} を入れ替える隙が<b>存在しない</b>。
+     *
+     * <p><b>ソース単位であってストリーム単位ではない</b>のが要点。開き直した先が改めて
+     * 落ちた時は、その新しいソースに対するやり直しが (上限が残っていれば) 普通に飛ぶ。
+     *
+     * <p>同一性 ({@code ==}) で持つ。中身の等価性ではなく<b>そのインスタンスに投げたか</b>が
+     * 問いなので、{@code equals} を上書きしたソースが来ても判定がぶれない。抱える数は
+     * 最初の 1 本 + やり直しの上限 (本番は {@code REOPEN_RETRIES} = 1) で頭打ちになる。
+     */
+    private final Set<IAudioSource> resolverDispatchedFor =
+            Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+
     private volatile IAudioSource inner;
     private volatile boolean emitted;
     private volatile boolean closed;
@@ -107,6 +138,10 @@ final class RetryingAudioSource implements IAudioSource {
     private volatile boolean terminated;
     /**
      * 理由待ちと開き直しが飛行中の印。<b>立っている間は終端を返さない</b> ({@code 0} を返す)。
+     *
+     * <p><b>投げるかどうかを決めるのはこの印ではない</b> ({@link #resolverDispatchedFor})。
+     * これは「今この {@link #inner} の決着が付いていない」を {@link #read} の戻り値
+     * ({@code 0} か {@code -1} か) へ翻訳するためだけに持つ。
      *
      * <p>{@link #resolveSilentEnd} は Sound engine の外で走るので、投げた時点では結果が無い。
      * そこで {@code -1} を返すと、呼び出し元は<b>やり直しの結果を見る前に終端を確定させる</b> —
@@ -186,7 +221,7 @@ final class RetryingAudioSource implements IAudioSource {
                 }
                 return terminal();
             }
-            if (!resolvingEnd) {
+            if (resolverDispatchedFor.add(current)) {
                 resolvingEnd = true;
                 try {
                     faultAwaiter.execute(() -> resolveSilentEnd(current));
