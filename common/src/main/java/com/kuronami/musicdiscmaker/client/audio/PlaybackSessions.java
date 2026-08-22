@@ -211,8 +211,11 @@ public final class PlaybackSessions {
      *                    {@link #FIRST_AUDIO_DEADLINE_MS} はこちらを読む
      */
     public PlaybackSessions(LongSupplier clockMs, LongSupplier monotonicMs) {
-        this.clockMs = clockMs;
-        this.monotonicMs = monotonicMs;
+        // null をここで弾くのは、静かに通すと最初の install() まで発覚しないため。
+        // 呼び出し側が static final を INSTANCE より後ろに宣言していると、構築時点では
+        // まだ代入されておらず null が渡る (2026-08-23 実機で再生が丸ごと不能になった)。
+        this.clockMs = java.util.Objects.requireNonNull(clockMs, "clockMs");
+        this.monotonicMs = java.util.Objects.requireNonNull(monotonicMs, "monotonicMs");
     }
 
     /**
