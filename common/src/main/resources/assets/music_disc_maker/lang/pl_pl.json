@@ -5,7 +5,7 @@
   "gui.music_disc_maker.title": "Wytwórnia płyt",
   "gui.music_disc_maker.url_placeholder": "Wklej tutaj URL…",
   "gui.music_disc_maker.fetching": "Ładowanie…",
-  "gui.music_disc_maker.failed": "Błąd",
+  "gui.music_disc_maker.failed": "Nie można odtworzyć tego utworu.",
   "gui.music_disc_maker.failed.unsupported": "Link nieobsługiwany. Użyj YouTube lub linku audio.",
   "gui.music_disc_maker.failed.private": "Film jest prywatny lub usunięty, brak kopii. Spróbuj innego linku.",
   "gui.music_disc_maker.failed.region": "Zablokowane w Twoim regionie, brak kopii. Spróbuj innego linku.",

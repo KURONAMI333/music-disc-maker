@@ -5,7 +5,7 @@
   "gui.music_disc_maker.title": "Fabricante de discos",
   "gui.music_disc_maker.url_placeholder": "Cole uma URL aqui…",
   "gui.music_disc_maker.fetching": "Carregando…",
-  "gui.music_disc_maker.failed": "Falhou",
+  "gui.music_disc_maker.failed": "Não foi possível tocar esta faixa.",
   "gui.music_disc_maker.failed.unsupported": "Link não compatível. Use o YouTube ou um link de áudio direto.",
   "gui.music_disc_maker.failed.private": "O vídeo é privado ou sumiu e não há cópia. Tente outro link.",
   "gui.music_disc_maker.failed.region": "Bloqueado na sua região e não há cópia. Tente outro link.",

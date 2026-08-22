@@ -5,7 +5,7 @@
   "gui.music_disc_maker.title": "音樂唱片製作機",
   "gui.music_disc_maker.url_placeholder": "在此貼上連結…",
   "gui.music_disc_maker.fetching": "擷取中…",
-  "gui.music_disc_maker.failed": "失敗",
+  "gui.music_disc_maker.failed": "無法播放這段音訊。",
   "gui.music_disc_maker.failed.unsupported": "不支援此連結。請用 YouTube 或音訊直連。",
   "gui.music_disc_maker.failed.private": "影片為私人或已刪除，也沒有找到替代。請換一個連結。",
   "gui.music_disc_maker.failed.region": "在你所在的地區被封鎖，也沒有找到替代。請換一個連結。",
