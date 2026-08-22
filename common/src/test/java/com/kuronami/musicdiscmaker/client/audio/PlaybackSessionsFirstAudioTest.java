@@ -31,7 +31,7 @@ import net.minecraft.core.BlockPos;
  * 壁時計基準なので、推定を実 PCM 基準へ寄せると無音の総量ぶん後退し、
  * {@code SEEK_TOLERANCE_MS} (1200ms) を超えた瞬間に chunk 再入の再送を本物のシークと
  * 誤判定して鳴らし直す。だから起点は 2 つに割った
- * ({@code registeredMillis} と {@code firstAudioMillis})。
+ * ({@code registeredMillis} と {@code firstAudioMonotonicMs})。
  */
 class PlaybackSessionsFirstAudioTest {
 
