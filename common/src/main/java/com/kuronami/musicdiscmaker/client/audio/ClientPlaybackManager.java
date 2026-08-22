@@ -389,14 +389,47 @@ public final class ClientPlaybackManager {
         }
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
                 PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.url());
-        if (track.radio()) {
+        if (releaseOnFirstAudioDeadline(sessions, prefetch, key, track.radio())) {
             onRadioStreamEnded(key, token);
             return;
         }
-        sessions.stop(key); // 音源とチャンネルを手放す (畳まないと席を掴んだまま黙り続ける)
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
         failures.record(key, show);
         PlaybackFailureReport.report(track, show);
+    }
+
+    /**
+     * 期限切れでこの座標が掴んでいるものを手放す。
+     *
+     * <p><b>掴んでいるのは今鳴っているはずの音源と channel だけではない。</b> 実 PCM が来なくても
+     * {@link DiscSoundInstance#tick} は残り時間を見て次の曲を先読みするので、期限が発火した時点で
+     * 先読みの枠とその中で開いたソース (HTTP 接続 1 本 + LavaPlayer + 約 1MB のバッファ) が
+     * 残っている。{@link PlaybackPrefetch#EXPIRY_MS} の掃除は常駐タイマーではなく後続の
+     * {@code begin}/{@code deliver} が走るついでなので、放っておくと<b>次の再生が来るまで
+     * 誰も閉じない</b>。通常停止 ({@link #stopPlayback}) が対で呼んでいる解放が、この経路にだけ
+     * 抜けていた。
+     *
+     * <p>先読みの解放は<b>経路で書き分けない</b>。ラジオは {@link #prefetchNext} が弾くので枠を
+     * 持たず実質 no-op になるが、「持たないはず」を根拠にした省略が、まさに今回の抜けと同じ形。
+     *
+     * <p><b>{@link PlaybackSessions#stop} 側に寄せてはいけない</b> — {@code stop} は
+     * {@link PlaybackSessions#start} が新しい世代を起こす前にも通るので、そちらで先読みを捨てると
+     * アルバムの曲送りが毎回 {@link PlaybackPrefetch#claim} を空振りする (先読みそのものが死ぬ)。
+     *
+     * <p>{@code Minecraft} を触らないので headless テストに載る。ここだけ切り出してあるのは、
+     * 呼び出し元 ({@link #onFirstAudioDeadline}) が失敗の表示まで持っていて JUnit に載らないから。
+     *
+     * @param radio ラジオなら {@code true} (音源は畳まず、終端と同じ再接続経路へ流す)
+     * @return 再接続経路へ流すなら {@code true}
+     */
+    static boolean releaseOnFirstAudioDeadline(PlaybackSessions sessions,
+            PlaybackPrefetch<BlockPos> prefetch, BlockPos key, boolean radio) {
+        prefetch.drop(key, "first-audio-deadline");
+        if (radio) {
+            return true;
+        }
+        sessions.stop(key); // 音源とチャンネルを手放す (畳まないと席を掴んだまま黙り続ける)
+        return false;
     }
 
     /**
