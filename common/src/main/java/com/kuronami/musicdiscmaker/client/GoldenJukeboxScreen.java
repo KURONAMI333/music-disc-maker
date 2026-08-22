@@ -90,8 +90,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int DIR_Y = RANGE_Y - 1;   // 16x16。下辺を範囲バーに揃える
     private static final int DIR_W = 16;
     private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
-    // 失敗の文の帯。1 行目 y は範囲スライダーの下端 (102+15 = 116 行目まで) から 2px 空けた位置で、
-    // 一言ラベルだった頃から動かしていない (上半分の見た目を変えないため)。
+    // 失敗の文の帯。1 行目 y は範囲スライダーの下端 (102+15 = 116 行目まで) から 2px 下。
+    // ここより上は kura が合格と裁定した面なので、行数が増えても上へは伸ばさない。
     private static final int FAIL_Y = 117 + 2;      // 119
     private static final int FAIL_X = 8;            // 左端はスライダー・インベントリラベルと同じ列
     private static final int FAIL_W = 160;          // 折り返し幅 (imageWidth 176 - 左右余白 8)
@@ -296,7 +296,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     }
 
     /**
-     * この jukebox が<b>鳴らなかった理由</b>を一言で出す ({@link GoldenJukeboxFailures} が座標ごとに
+     * この jukebox が<b>鳴らなかった理由</b>を短い文で出す ({@link GoldenJukeboxFailures} が座標ごとに
      * 覚えているもの)。
      *
      * <h2>ここが唯一の出口である理由</h2>
