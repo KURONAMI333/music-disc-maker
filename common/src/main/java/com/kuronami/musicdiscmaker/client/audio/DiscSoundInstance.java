@@ -476,7 +476,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             return;
         }
         lastPrefetchSkipReason = reason;
-        MusicDiscMaker.LOGGER.info("Prefetch not-fired [{}] reason={} {}", pos.toShortString(), reason, detail);
+        MusicDiscMaker.LOGGER.debug("Prefetch not-fired [{}] reason={} {}", pos.toShortString(), reason, detail);
     }
 
     /**
