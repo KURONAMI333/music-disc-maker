@@ -42,6 +42,15 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
  */
 public final class PlaybackPrefetch<K> {
 
+    /** 先読みの寿命を観測するフック。通常の動作では何もしない。 */
+    public interface Observer<K> {
+
+        void onEvent(String action, K key, String url, long id, String detail);
+    }
+
+    private static final Observer<Object> NO_OP_OBSERVER = (action, key, url, id, detail) -> {
+    };
+
     /**
      * 先読みを抱えていられる上限 (ms)。60 秒リーパーに殺される前に必ず手放すための値で、
      * 掴む側の lead time (15 秒程度) の倍を取ってある。
@@ -100,12 +109,23 @@ public final class PlaybackPrefetch<K> {
     private final Map<K, Slot> slots = new ConcurrentHashMap<>();
     private final AtomicLong ids = new AtomicLong();
     private final LongSupplier clockMs;
+    private final Observer<K> observer;
 
     /**
      * @param clockMs 現在時刻 (ms)。テストは実時間を待たずに期限切れを作るために差し替える
      */
     public PlaybackPrefetch(LongSupplier clockMs) {
+        this(clockMs, noOpObserver());
+    }
+
+    public PlaybackPrefetch(LongSupplier clockMs, Observer<K> observer) {
         this.clockMs = clockMs;
+        this.observer = observer;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <K> Observer<K> noOpObserver() {
+        return (Observer<K>) NO_OP_OBSERVER;
     }
 
     /**
@@ -132,13 +152,18 @@ public final class PlaybackPrefetch<K> {
             if (existing.url.equals(url)) {
                 return null; // 同じ曲を既に抱えている (ロード中でも完了済みでも重ねない)
             }
-            discard(slots.remove(key)); // 次に鳴る曲が変わった (枠の再利用なので上限には当たらない)
+            final Slot replaced = slots.remove(key);
+            if (replaced != null) {
+                event("cancelled", key, replaced, "next-url-changed");
+            }
+            discard(replaced); // 次に鳴る曲が変わった (枠の再利用なので上限には当たらない)
         } else if (slots.size() >= MAX_CONCURRENT_PREFETCH) {
             return null; // 上限に達しているので新規の先読みを始めない (miss 扱い = 従来どおりロードが走る)
         }
         final long now = clockMs.getAsLong();
         final Slot slot = new Slot(url, ids.incrementAndGet(), now + EXPIRY_MS);
         slots.put(key, slot);
+        event("slot-created", key, slot, "deadline=" + slot.deadlineMs);
         return new Ticket<>(key, url, slot.id);
     }
 
@@ -160,9 +185,11 @@ public final class PlaybackPrefetch<K> {
         }
         if (source == null) {
             slots.remove(ticket.key(), slot); // 先読みの失敗は黙って枠を空ける (報告は本番のロードが出す)
+            event("open-failed", ticket.key(), slot, "source=null");
             return false;
         }
         slot.source = source;
+        event("source-ready", ticket.key(), slot, "");
         return true;
     }
 
@@ -195,15 +222,20 @@ public final class PlaybackPrefetch<K> {
     public IAudioSource claim(K key, String url, long startOffsetMs) {
         final Slot slot = slots.remove(key);
         if (slot == null) {
+            event("claim-miss", key, url, 0L, "slot=empty offset=" + startOffsetMs);
             return null;
         }
         if (slot.source == null) {
+            event("claim-miss", key, url, slot.id, "slot=in-flight url=" + slot.url + " offset=" + startOffsetMs);
             return null; // まだロード中 = キャッシュミス。届いた分は deliver が捨てる
         }
         if (startOffsetMs != 0L || !slot.url.equals(url) || clockMs.getAsLong() >= slot.deadlineMs) {
+            event("claim-miss", key, url, slot.id,
+                    "slot=ready url=" + slot.url + " offset=" + startOffsetMs);
             slot.source.close();
             return null;
         }
+        event("claim-hit", key, url, slot.id, "");
         return slot.source;
     }
 
@@ -214,7 +246,15 @@ public final class PlaybackPrefetch<K> {
      * @param key 音源をまとめる鍵
      */
     public void drop(K key) {
-        discard(slots.remove(key));
+        drop(key, "unspecified");
+    }
+
+    public void drop(K key, String reason) {
+        final Slot slot = slots.remove(key);
+        if (slot != null) {
+            event("cancelled", key, slot, reason);
+            discard(slot);
+        }
     }
 
     /**
@@ -230,20 +270,30 @@ public final class PlaybackPrefetch<K> {
      * @param nextUrl 次に鳴る曲の URL。無ければ {@code null}
      */
     public void dropUnlessMatches(K key, @Nullable String currentUrl, @Nullable String nextUrl) {
+        dropUnlessMatches(key, currentUrl, nextUrl, "no-longer-current-or-next");
+    }
+
+    public void dropUnlessMatches(K key, @Nullable String currentUrl, @Nullable String nextUrl, String reason) {
         final Slot slot = slots.get(key);
         if (slot == null || slot.url.equals(currentUrl) || slot.url.equals(nextUrl)) {
             return;
         }
         if (slots.remove(key, slot)) {
+            event("cancelled", key, slot, reason);
             discard(slot);
         }
     }
 
     /** 全ての先読みを捨てる (ワールド退出等)。 */
     public void dropAll() {
+        dropAll("all-stopped");
+    }
+
+    public void dropAll(String reason) {
         for (final Map.Entry<K, Slot> entry : slots.entrySet()) {
             final Slot slot = entry.getValue();
             if (slots.remove(entry.getKey(), slot)) {
+                event("cancelled", entry.getKey(), slot, reason);
                 discard(slot);
             }
         }
@@ -270,6 +320,7 @@ public final class PlaybackPrefetch<K> {
         for (final Map.Entry<K, Slot> entry : slots.entrySet()) {
             final Slot slot = entry.getValue();
             if (now >= slot.deadlineMs && slots.remove(entry.getKey(), slot)) {
+                event("expired", entry.getKey(), slot, "deadline=" + slot.deadlineMs);
                 discard(slot);
             }
         }
@@ -280,5 +331,13 @@ public final class PlaybackPrefetch<K> {
         if (slot != null && slot.source != null) {
             slot.source.close();
         }
+    }
+
+    private void event(String action, K key, Slot slot, String detail) {
+        event(action, key, slot.url, slot.id, detail);
+    }
+
+    private void event(String action, K key, String url, long id, String detail) {
+        observer.onEvent(action, key, url, id, detail);
     }
 }

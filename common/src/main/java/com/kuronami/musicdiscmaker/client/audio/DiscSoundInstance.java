@@ -359,7 +359,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             // ここは server の停止 packet を待たずに自分で止まる経路 (ブロック撤去等) なので、
             // 先読みの取り消しも自分でやる。放置すると 60 秒リーパーに殺されるまで居座る。
             if (anchor instanceof StaticAnchor sa) {
-                ClientPlaybackManager.get().cancelPrefetch(sa.pos());
+                ClientPlaybackManager.get().cancelPrefetch(sa.pos(), "tick: anchor-invalid");
             }
             markExpectedEnd(); // 撤去による停止。この後の終端を「途中で切れた」と報告しない
             stop();
@@ -396,6 +396,10 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
      */
     private static final long PREFETCH_LEAD_MS = 15_000L;
 
+    /** 同じ不発理由を毎 tick 出さないため、この音源 instance ごとに直前の状態だけ覚える。 */
+    @Nullable
+    private String lastPrefetchSkipReason;
+
     /**
      * 再生の終わり際に次に鳴る曲を先読みさせる (強化版ジュークボックス限定)。
      *
@@ -419,24 +423,60 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
      * <p>次の曲が変わった場合の閉じ直しは {@link PlaybackPrefetch#begin} が URL で判断するので、
      * ここは毎 tick 素直に呼んでよい。
      */
-    private static void drivePrefetch(BlockPos pos, GoldenJukeboxBlockEntity be) {
+    private void drivePrefetch(BlockPos pos, GoldenJukeboxBlockEntity be) {
         final ClientPlaybackManager manager = ClientPlaybackManager.get();
-        if (be.isPaused() || (be.getAlbumTrack() < 0 && !be.isRepeat())) {
-            manager.cancelPrefetch(pos);
+        if (be.isPaused()) {
+            notePrefetchSkipped(pos, "paused", "");
+            manager.cancelPrefetch(pos, "drivePrefetch: paused");
+            return;
+        }
+        if (be.getAlbumTrack() < 0 && !be.isRepeat()) {
+            notePrefetchSkipped(pos, "not-album-and-repeat-off", "");
+            manager.cancelPrefetch(pos, "drivePrefetch: not-album-and-repeat-off");
             return;
         }
         final long duration = be.trackDurationMs();
         final CustomTrackData current = be.currentTrack();
         final CustomTrackData next = be.nextPlaybackTrack();
-        if (duration <= 0L || duration - be.currentElapsedMs() > PREFETCH_LEAD_MS) {
-            manager.cancelPrefetchUnlessMatches(pos, current, next);
+        final long remainingMs = duration - be.currentElapsedMs();
+        if (duration <= 0L) {
+            notePrefetchSkipped(pos, "duration-zero", "");
+            manager.cancelPrefetchUnlessMatches(pos, current, next, "drivePrefetch: duration-zero");
+            return;
+        }
+        if (remainingMs > PREFETCH_LEAD_MS) {
+            notePrefetchSkipped(pos, "remaining-over-lead",
+                    "remaining=" + remainingMs + "ms lead=" + PREFETCH_LEAD_MS + "ms");
+            manager.cancelPrefetchUnlessMatches(pos, current, next, "drivePrefetch: remaining-before-lead");
             return;
         }
         if (next == null) {
-            manager.cancelPrefetch(pos);
+            notePrefetchSkipped(pos, "next-track-missing", "");
+            manager.cancelPrefetch(pos, "drivePrefetch: next-track-missing");
             return;
         }
-        manager.prefetchNext(pos, next);
+        if (next.isEmpty()) {
+            notePrefetchSkipped(pos, "next-track-empty", "");
+            return;
+        }
+        if (next.radio()) {
+            notePrefetchSkipped(pos, "next-track-radio", "");
+            return;
+        }
+        if (next.durationMs() <= 0L) {
+            notePrefetchSkipped(pos, "next-track-duration-zero", "");
+            return;
+        }
+        lastPrefetchSkipReason = null;
+        manager.prefetchNext(pos, next, remainingMs);
+    }
+
+    private void notePrefetchSkipped(BlockPos pos, String reason, String detail) {
+        if (reason.equals(lastPrefetchSkipReason)) {
+            return;
+        }
+        lastPrefetchSkipReason = reason;
+        MusicDiscMaker.LOGGER.info("Prefetch not-fired [{}] reason={} {}", pos.toShortString(), reason, detail);
     }
 
     /**
