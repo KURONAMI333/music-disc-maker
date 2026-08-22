@@ -2,6 +2,7 @@ package com.kuronami.musicdiscmaker.lavaplayer;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -54,6 +55,17 @@ final class RetryingAudioSource implements IAudioSource {
     static final long DEFAULT_GRACE_MS = 1_500L;
     /** 理由の到着を見に行く間隔。 */
     private static final long POLL_MS = 20L;
+    /**
+     * 経過時間 (ms) の既定の出どころ。<b>単調時計であること</b>が要点で、絶対時刻としては意味を
+     * 持たない (基準点は JVM ごとに任意)。
+     *
+     * <p>壁時計で測ると、OS の時刻が後方修正された瞬間に {@link #awaitFault} の上限が遠のき、
+     * 理由待ちが {@link #graceMs} を大きく超えて居座る。その間 {@link #resolvingEnd} が立ったまま
+     * なので {@link #read} は {@code 0} を返し続け、<b>「1.5 秒 + 開き直し 1 回で必ず閉じる」という
+     * この窓の前提が成立しなくなる</b>。
+     */
+    private static final LongSupplier MONOTONIC_MS =
+            () -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
     private static final ThreadFactory FAULT_AWAITER_THREADS = runnable -> {
         final Thread thread = new Thread(runnable, "music-disc-maker-fault-await");
         thread.setDaemon(true);
@@ -72,7 +84,8 @@ final class RetryingAudioSource implements IAudioSource {
     private final YoutubeSession session;
     private final Predicate<FailureReason> retryable;
     private final long graceMs;
-    private final LongSupplier clockMs;
+    /** 経過時間 (ms)。<b>単調時計</b>から取る (壁時計を渡さないこと。理由は {@link #MONOTONIC_MS})。 */
+    private final LongSupplier monotonicMs;
     private final Executor faultAwaiter;
 
     /** 届け先。<b>やり直しても駄目だった時だけ</b>ここへ流す。 */
@@ -114,21 +127,31 @@ final class RetryingAudioSource implements IAudioSource {
     private volatile boolean resolvingEnd;
     private int retriesLeft;
 
+    /**
+     * 本番の入口。<b>時計を受け取らない</b> — 経過時間は必ず {@link #MONOTONIC_MS} から取る。
+     * 壁時計を渡せる口を残すと、OS の時刻調整で理由待ちが閉じなくなる経路が復活する。
+     */
     RetryingAudioSource(IAudioSource inner, Opener opener, YoutubeSession session,
-            Predicate<FailureReason> retryable, int maxRetries, long graceMs, LongSupplier clockMs) {
-        this(inner, opener, session, retryable, maxRetries, graceMs, clockMs, DEFAULT_FAULT_AWAITER);
+            Predicate<FailureReason> retryable, int maxRetries, long graceMs) {
+        this(inner, opener, session, retryable, maxRetries, graceMs, MONOTONIC_MS,
+                DEFAULT_FAULT_AWAITER);
     }
 
+    /**
+     * テスト用。実時間を待たずに理由待ちの上限を作れるように、経過時間の出どころを差せる。
+     *
+     * @param monotonicMs 経過時間 (ms)。<b>単調に進むものを渡すこと</b>
+     */
     RetryingAudioSource(IAudioSource inner, Opener opener, YoutubeSession session,
-            Predicate<FailureReason> retryable, int maxRetries, long graceMs, LongSupplier clockMs,
-            Executor faultAwaiter) {
+            Predicate<FailureReason> retryable, int maxRetries, long graceMs,
+            LongSupplier monotonicMs, Executor faultAwaiter) {
         this.inner = inner;
         this.opener = opener;
         this.session = session;
         this.retryable = retryable;
         this.retriesLeft = maxRetries;
         this.graceMs = graceMs;
-        this.clockMs = clockMs;
+        this.monotonicMs = monotonicMs;
         this.faultAwaiter = faultAwaiter;
     }
 
@@ -254,13 +277,13 @@ final class RetryingAudioSource implements IAudioSource {
 
     /** 理由が確定するのを少しだけ待つ (終端の方が先に来るため)。 */
     private PlaybackFault awaitFault(IAudioSource current) {
-        final long deadline = clockMs.getAsLong() + graceMs;
+        final long deadline = monotonicMs.getAsLong() + graceMs;
         while (true) {
             final PlaybackFault fault = current.playbackFault();
             if (fault != null) {
                 return fault;
             }
-            if (closed || clockMs.getAsLong() >= deadline) {
+            if (closed || monotonicMs.getAsLong() >= deadline) {
                 return null;
             }
             try {
