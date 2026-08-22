@@ -41,7 +41,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
  *   <li>古いソースの {@code read} <b>2 回目</b>が、その中で理由を可視化し
  *       ({@code faultVisible})、<b>先行のやり直しが完走するまで戻らない</b>
  *       ({@code resolverSettled})。これで「read が古いソースを掴んだまま、入れ替えと
- *       {@code resolvingEnd=false} が済む」が実時間に依らず必ず成立する</li>
+ *       飛行中の印を下ろす」が実時間に依らず必ず成立する</li>
  *   <li>やり直しの完走は executor を包んで数える — {@code command.run()} が返った後に
  *       掛け金を下ろすので、{@code finally} の後始末まで含めて済んでいる</li>
  *   <li>2 本目が飛んだかどうかは、単一スレッドの executor へ空の仕事を投げて
@@ -173,7 +173,7 @@ class RetryingAudioSourceStaleResolverTest {
      * 一音も出さずに終わるソース。<b>2 回目の {@code read} で並びを固定する</b> —
      * 理由を見せて先行のやり直しを進ませ、それが完走するまで戻らない。
      *
-     * <p>戻った時点で {@code inner} は新しいソースに入れ替わり、{@code resolvingEnd} も
+     * <p>戻った時点で {@code inner} は新しいソースに入れ替わり、飛行中の印も
      * 下りている。包む側はまだ<b>古いこのソースを {@code current} として掴んでいる</b>。
      */
     private static final class StallingSource implements IAudioSource {

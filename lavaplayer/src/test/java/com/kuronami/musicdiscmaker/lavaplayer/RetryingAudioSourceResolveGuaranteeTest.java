@@ -15,15 +15,15 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 
 /**
- * Sol のリリース前<b>再</b>レビュー ③ の固定 — {@code resolvingEnd} は<b>どう抜けても</b>下ろすこと。
+ * Sol のリリース前<b>再</b>レビュー ③ の固定 — 飛行中の印は<b>どう抜けても</b>下ろすこと。
  *
  * <h2>立ったまま残ると何が起きるか</h2>
- * {@code resolvingEnd} は「理由待ちと開き直しが飛行中」の印で、立っている間 {@code read} は
+ * {@code resolversInFlight} は「理由待ちと開き直しが飛行中」の本数で、残っている間 {@code read} は
  * {@code 0} (= 今この瞬間に出せる分が無い) を返す。決着が付けば {@code terminated} か
  * {@code inner} の入れ替えか {@code closed} のどれかが成立して窓が閉じる、というのが約束だった。
  *
  * <p>ところが下ろす代入は<b>正常に末尾まで到達した場合だけ</b>実行されていた。途中で例外が
- * 抜けると {@code resolvingEnd=true} / {@code terminated=false} / {@code inner} 未交換のまま残り、
+ * 抜けると飛行中の印が残ったまま / {@code terminated=false} / {@code inner} 未交換のまま残り、
  * <b>後続の read が永久に {@code 0} を返し続ける</b> — MC は終端を受け取れないので、その音源は
  * source と channel を掴んだまま二度と手放されない。
  *
@@ -121,7 +121,7 @@ class RetryingAudioSourceResolveGuaranteeTest {
     /**
      * 抜け道 1 — 理由待ちを投げる先が受け取らなかった場合。
      *
-     * <p>{@code execute} が同期例外を投げると、{@code resolvingEnd} は立てた直後に置き去りになる。
+     * <p>{@code execute} が同期例外を投げると、飛行中の印は上げた直後に置き去りになる。
      * 以後 {@code read} は永久に {@code 0} を返し、MC は終端を受け取れない。
      */
     @Test
@@ -134,7 +134,7 @@ class RetryingAudioSourceResolveGuaranteeTest {
         final int after = readQuietly(source);
 
         assertNotEquals(0, after, "理由待ちを投げられなかった後、read が 0 を返し続けている"
-                + " (resolvingEnd が立ったまま = 終端に到達できない)");
+                + " (飛行中の印が残ったまま = 終端に到達できない)");
         assertEquals(-1, after, "決着が付かないなら終端に倒すこと");
         for (int i = 0; i < 3; i++) {
             assertEquals(-1, readQuietly(source), "終端の後に -1 以外を返している");
@@ -145,7 +145,7 @@ class RetryingAudioSourceResolveGuaranteeTest {
      * 抜け道 2 — 届け先 (sink) が例外を投げた場合。
      *
      * <p>{@code relay.record()} は届け先をその場で呼ぶので、届け先が投げると
-     * {@code resolveSilentEnd} は {@code terminated=true} にも {@code resolvingEnd=false} にも
+     * {@code resolveSilentEnd} は {@code terminated=true} にも飛行中の印を下ろす側にも
      * 到達しないまま抜ける。壊れているのは届け先であって、そのせいで音源が席を掴んだまま
      * 残ってよい理由は無い。
      */
@@ -160,7 +160,7 @@ class RetryingAudioSourceResolveGuaranteeTest {
         final int after = readQuietly(source);
 
         assertNotEquals(0, after, "届け先が投げた後、read が 0 を返し続けている"
-                + " (resolvingEnd が立ったまま = 終端に到達できない)");
+                + " (飛行中の印が残ったまま = 終端に到達できない)");
         assertEquals(-1, after, "届け先が壊れていても終端には到達すること");
         for (int i = 0; i < 3; i++) {
             assertEquals(-1, readQuietly(source), "終端の後に -1 以外を返している");
