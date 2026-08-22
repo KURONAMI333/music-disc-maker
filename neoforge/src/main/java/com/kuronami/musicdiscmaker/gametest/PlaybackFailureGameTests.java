@@ -179,17 +179,24 @@ public class PlaybackFailureGameTests {
     }
 
     /**
-     * GUI ラベルのキーが分類ごとに<b>違う</b>こと。同じキーを共有すると、違う原因が狭い枠の中で
-     * 同じ一言になって切り分けの役に立たなくなる。
+     * GUI に出す文のキーが分類ごとに<b>違う</b>こと。ただし<b>利用者に打つ手が無い 3 つ</b>
+     * ({@link Kind#STREAM_UNAVAILABLE} / {@link Kind#OPEN_ERROR} / {@link Kind#SOUND_ENGINE}) は
+     * 1 つのキーを共有する。この 3 つを書き分けても利用者が取れる行動は同じで 1 つも無いので、
+     * 言い分けは切り分けの役に立たず、狭い帯を 3 通りの文で埋めるだけになる。
      *
-     * <p>あわせて {@link Kind#STREAM_UNAVAILABLE} が制作機の汎用キー
-     * {@code gui.music_disc_maker.failed} ("取得失敗") に寄っていないことを固定する。あちらは
-     * URL を解決できなかった状態で、こちらは解決できたのに開けなかった状態 = 利用者に言うことが
-     * 違う。名前空間だけを見る検査では、両者を束ねる編集が素通りする。
+     * <p>「3 つだけ共有・他は全部別」を名指しで固定するのは、<b>うっかりの集約を素通りさせない</b>
+     * ため。単に重複を許すと、地域制限と年齢制限が同じ文に寄るような編集が黙って通る。
+     *
+     * <p>あわせて共有キーが制作機の汎用キー {@code gui.music_disc_maker.failed} ("取得失敗") に
+     * 寄っていないことを固定する。あちらは URL を解決できなかった状態で、こちらは解決できたのに
+     * 鳴らせなかった状態 = 利用者に言うことが違う。名前空間だけを見る検査では、両者を束ねる
+     * 編集が素通りする。
      */
     @PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     public static void everyKindHasItsOwnGuiKey(GameTestHelper helper) {
+        final Set<Kind> shared = Set.of(Kind.STREAM_UNAVAILABLE, Kind.OPEN_ERROR, Kind.SOUND_ENGINE);
+        final String sharedKey = Kind.STREAM_UNAVAILABLE.guiKey();
         final Set<String> keys = new HashSet<>();
         for (final Kind kind : Kind.values()) {
             final String key = kind.guiKey();
@@ -197,9 +204,18 @@ public class PlaybackFailureGameTests {
                     kind + " の GUI ラベルのキーが規約から外れている: " + key);
             helper.assertTrue(!"gui.music_disc_maker.failed".equals(key),
                     kind + " が制作機の汎用キーに寄っている (分類の粒度が消える): " + key);
+            if (shared.contains(kind)) {
+                helper.assertTrue(sharedKey.equals(key),
+                        kind + " が手の無い 3 つの共有キーから外れている: " + key);
+                continue;
+            }
+            helper.assertTrue(!sharedKey.equals(key),
+                    kind + " が手の無い 3 つの共有キーに寄っている (利用者の打つ手が消える): " + key);
             helper.assertTrue(keys.add(key), "GUI ラベルのキーが重複している: " + key);
         }
-        helper.assertTrue(keys.size() == Kind.values().length, "分類の数とキーの数が合わない");
+        keys.add(sharedKey);
+        helper.assertTrue(keys.size() == Kind.values().length - shared.size() + 1,
+                "分類の数とキーの数が合わない");
         // 制作機側に既訳がある 8 つは、同じ概念に 2 つの訳語を作らないよう同一キーを共有する。
         helper.assertTrue(Kind.NETWORK.guiKey().equals(FailureReason.CONNECTION_FAILED.guiKey()),
                 "回線の分類が制作機側と別のキーになっている");

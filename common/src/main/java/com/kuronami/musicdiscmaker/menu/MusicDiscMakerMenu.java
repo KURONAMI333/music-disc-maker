@@ -35,12 +35,12 @@ public class MusicDiscMakerMenu extends AbstractContainerMenu {
         // プレイヤーインベントリ 3 行 (200幅パネルで中央寄せ: x=19)
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 19 + col * 18, 82 + row * 18));
+                addSlot(new Slot(playerInventory, col + row * 9 + 9, 19 + col * 18, 98 + row * 18));
             }
         }
         // ホットバー
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 19 + col * 18, 140));
+            addSlot(new Slot(playerInventory, col, 19 + col * 18, 156));
         }
     }
 

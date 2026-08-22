@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client;
 
+import java.util.List;
 import java.util.function.IntConsumer;
 
 import org.lwjgl.glfw.GLFW;
@@ -26,6 +27,7 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 
@@ -88,11 +90,21 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int DIR_Y = RANGE_Y - 1;   // 16x16。下辺を範囲バーに揃える
     private static final int DIR_W = 16;
     private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
-    // 失敗ラベルの行 y。範囲スライダーの下端 (102+15 = 117 行目まで) とインベントリラベル (130) の
-    // 間の空き 13px に、金床型の板 12px (文字 y に対し上-2/下+10) をそのまま置ける唯一の値。
-    // 板は 117〜128 行を占め、129 行が空いてラベルの手前に 1px 残る。既存要素とは重ならない。
+    // 失敗の文の帯。1 行目 y は範囲スライダーの下端 (102+15 = 116 行目まで) から 2px 空けた位置で、
+    // 一言ラベルだった頃から動かしていない (上半分の見た目を変えないため)。
     private static final int FAIL_Y = 117 + 2;      // 119
     private static final int FAIL_X = 8;            // 左端はスライダー・インベントリラベルと同じ列
+    private static final int FAIL_W = 160;          // 折り返し幅 (imageWidth 176 - 左右余白 8)
+    /**
+     * 帯に常時確保する行数。パネル高さ ({@code imageHeight}) はこれで決まるので、
+     * <b>文を書き換えたら実測し直す</b> — 出荷している 14 ロケールの中で 1 本でもこれを超えると、
+     * はみ出した行がインベントリのラベルに重なる。
+     *
+     * <p>3 行なのは英語が 3 行だから ({@code "…and no copy was found. Try another link."} 系の 3 文が
+     * 幅 160 で 3 行になる)。実測は {@code branding/b1-final/sweep.py} (vanilla の ascii.png 実測幅 +
+     * {@code StringSplitter.LineBreakFinder} 相当の折り返し)。
+     */
+    private static final int FAIL_LINES = 3;
     private static final long SEEK_SYNC_TOL_MS = 800L; // シーク後、BE 同期が追いついたと見なす許容
 
     // 現在値 (BE から init で初期化、widget 操作で更新)。
@@ -109,9 +121,12 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     public GoldenJukeboxScreen(GoldenJukeboxMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = 176;
-        this.imageHeight = 224;
+        // 失敗の帯が FAIL_LINES 行 (119 / 128 / 137 行目) を占め、末尾 144 の 3px 下から
+        // インベントリラベルが始まる。以下 3 つはバニラ標準式のまま (H-94 / H-82 / H-24)。
+        // 在庫スロットとホットバーは GoldenJukeboxMenu 側の addSlot と必ず一致させる。
+        this.imageHeight = 242;
         this.inventoryLabelX = 8;
-        this.inventoryLabelY = 130;
+        this.inventoryLabelY = this.imageHeight - 94; // 148
     }
 
     @Override
@@ -292,14 +307,22 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
      * 技術詳細 (分類ラベル・URL・例外) は {@code latest.log} 側が持つ。
      *
      * <p>失敗を覚えていない時は<b>何も描かない</b> — 空の帯を常時見せない。
+     *
+     * <p>文は幅 {@link #FAIL_W} で折り返す。行数は言語で変わるので、確保してある
+     * {@link #FAIL_LINES} 行を<b>超えた分は描かない</b> — はみ出す代わりにインベントリの
+     * ラベルへ重なるより、最後の 1 行が欠けるほうが画面として壊れない (超える文が出た時点で
+     * 直すべきは文か高さなので、{@code sweep.py} の実測を通す)。
      */
     private void renderFailureLabel(GuiGraphics g, GoldenJukeboxBlockEntity be) {
         final PlaybackFailure failure = GoldenJukeboxFailures.get().latest(be.getBlockPos());
         if (failure == null) {
             return;
         }
-        final Component label = Component.translatable(failure.kind().guiKey());
-        g.drawString(font, label, FAIL_X, FAIL_Y, ERROR, true);
+        final Component sentence = Component.translatable(failure.kind().guiKey());
+        final List<FormattedCharSequence> lines = font.split(sentence, FAIL_W);
+        for (int i = 0; i < Math.min(lines.size(), FAIL_LINES); i++) {
+            g.drawString(font, lines.get(i), FAIL_X, FAIL_Y + i * font.lineHeight, ERROR, true);
+        }
     }
 
     @Override

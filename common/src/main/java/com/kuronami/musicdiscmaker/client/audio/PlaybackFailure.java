@@ -84,20 +84,27 @@ public record PlaybackFailure(Kind kind, String detail) {
         }
 
         /**
-         * GUI に出す<b>一言</b>のラベルの翻訳キー ({@link FailureReason#guiKey()} と同じ役割・同じ名前空間)。
+         * GUI に出す<b>短い文</b>の翻訳キー ({@link FailureReason#guiKey()} と同じ役割・同じ名前空間)。
          *
-         * <p>{@link #translationKey()} と分けてあるのは長さが違うから。あちらは 1 文の説明
-         * ({@code 「地域制限のため再生できません」}級) で、こちらは狭い枠に収まる 1〜2 語。
+         * <p>{@link #translationKey()} と分けてあるのは宛先が違うから。あちらはログとチャットに
+         * 出る技術寄りの 1 文で、こちらは画面の帯に折り返して収まる利用者向けの文。
          * 金ジュークの画面に出るのは<b>こちら</b> ({@code GoldenJukeboxScreen})。
          *
          * <p>制作機側と<b>同じキーを共有する</b> — 制作機が「取得できない」と言う理由と、
          * 金ジュークが「鳴らせない」と言う理由は利用者にとって同じ概念なので、
          * 訳語を 2 つ作ると同じ状態が画面ごとに違う言葉で出る。共有できるのは
-         * {@link FailureReason} 側に既訳がある 8 つで、残り 5 つはここで新しく足したキー。
+         * {@link FailureReason} 側に既訳がある 8 つ。
+         *
+         * <p><b>手の打ちようが無い 3 つ</b> ({@link #STREAM_UNAVAILABLE} / {@link #OPEN_ERROR} /
+         * {@link #SOUND_ENGINE}) は 1 つのキーに集約する。分類を分けて持つ意味はログ側にあり
+         * ({@link #translationKey()} は 13 種のまま)、画面に「音源なし」「再生エラー」
+         * 「再生拒否」と書き分けても<b>利用者が取れる行動は同じで 1 つも無い</b>。
+         * 言い分けは切り分けの役に立たず、狭い帯を 3 通りの文で埋めるだけになる。
          *
          * <p>対応表をここに置いて {@code default} を書かないのは {@link FailureReason#guiKey()}
          * と同じ理由 — 分類を 1 つ増やした時に<b>コンパイラに検出させる</b>ため。lang への
-         * 追記漏れは {@code PlaybackFailureGameTests#everyKindHasItsGuiLabelInEveryLocale} が見る。
+         * 追記漏れは {@code PlaybackFailureGameTests#everyKindHasItsGuiLabelInEveryLocale} が、
+         * 集約してよい 3 つとそれ以外の区別は {@code everyKindHasItsOwnGuiKey} が見る。
          *
          * @return 翻訳キー
          */
@@ -113,13 +120,13 @@ public record PlaybackFailure(Kind kind, String detail) {
                 case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
                 case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
                 // 再生時にしか起きないもの (制作機は URL を解決するだけなので相当する語が無い)。
-                // STREAM_UNAVAILABLE は制作機の汎用キー gui.music_disc_maker.failed ("取得失敗")
-                // に寄せない — 解決は成功していて開けなかった状態なので、言うことが違う。
-                case STREAM_UNAVAILABLE -> "gui.music_disc_maker.failed.stream";
-                case OPEN_ERROR -> "gui.music_disc_maker.failed.error";
                 case CONCURRENT_LIMIT -> "gui.music_disc_maker.failed.limit";
-                case SOUND_ENGINE -> "gui.music_disc_maker.failed.soundengine";
                 case MUTED -> "gui.music_disc_maker.failed.muted";
+                // 利用者に打つ手が無い 3 つ。制作機の汎用キー gui.music_disc_maker.failed
+                // ("取得失敗") には寄せない — あちらは URL を解決できなかった状態で、
+                // こちらは解決できたのに鳴らせなかった状態なので、言うことが違う。
+                case STREAM_UNAVAILABLE, OPEN_ERROR, SOUND_ENGINE ->
+                        "gui.music_disc_maker.failed.generic";
             };
         }
     }
