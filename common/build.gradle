@@ -14,6 +14,11 @@ neoForge {
         minecraftVersion = parchment_minecraft
         mappingsVersion = parchment_version
     }
+    // JUnit 層から MC のクラス (BlockPos / AudioStream 等) を引けるようにする。これが無いと
+    // test の compile classpath に MC が載らず、PlaybackSessions も LavaPlayerAudioStream も
+    // 参照した時点で compile error になる = 実物を回すテストが原理的に書けない。
+    // 足すのは test source set だけで、production の compile/runtime には何も増えない。
+    addModdingDependenciesTo sourceSets.test
 }
 
 dependencies {
@@ -22,8 +27,10 @@ dependencies {
     compileOnly group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
     annotationProcessor group: 'io.github.llamalad7', name: 'mixinextras-common', version: '0.3.5'
 
-    // MC/NeoForge を引かないプレーンな java クラス (PlaybackPrefetch 等) だけを狙う JUnit 層。
-    // lavaplayer サブプロジェクトと同じ版で揃える。
+    // JUnit 層。lavaplayer サブプロジェクトと同じ版で揃える。MC を引くクラス
+    // (PlaybackSessions / LavaPlayerAudioStream) も対象で、classpath は上の
+    // addModdingDependenciesTo が通してある。Minecraft.getInstance() を掴む経路
+    // (ClientPlaybackManager) だけは headless で回らないので、判断はそこから出しておくこと。
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
