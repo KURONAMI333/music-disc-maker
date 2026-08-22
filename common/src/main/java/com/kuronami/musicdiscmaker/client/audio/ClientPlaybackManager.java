@@ -39,6 +39,17 @@ import net.minecraft.network.chat.Component;
  */
 public final class ClientPlaybackManager {
 
+    /**
+     * 経過時間 (ms) を単調時計から取る。<b>OS の時刻調整で飛ばない</b>のが要点で、絶対時刻としては
+     * 意味を持たない (基準点は JVM ごとに任意)。
+     *
+     * <p><b>{@link #INSTANCE} より前に宣言すること。</b>static 初期化子はソース順に走るので、
+     * 後ろに置くと INSTANCE の構築時点では null で、{@link PlaybackSessions} が単調時計を
+     * 引いた瞬間に NPE で落ちる (2026-08-23 実機で再生が丸ごと不能になった)。
+     */
+    private static final java.util.function.LongSupplier MONOTONIC_MS =
+            () -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
+
     private static final ClientPlaybackManager INSTANCE = new ClientPlaybackManager();
 
     /** 再接続を試みる前に置く間隔 (ms)。icecast の瞬断復帰を待つ。 */
@@ -47,13 +58,6 @@ public final class ClientPlaybackManager {
     public static ClientPlaybackManager get() {
         return INSTANCE;
     }
-
-    /**
-     * 経過時間 (ms) を単調時計から取る。<b>OS の時刻調整で飛ばない</b>のが要点で、絶対時刻としては
-     * 意味を持たない (基準点は JVM ごとに任意)。
-     */
-    private static final java.util.function.LongSupplier MONOTONIC_MS =
-            () -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
 
     // 壁時計は server が送ってくる経過 ms との突き合わせにだけ使う。「どれだけ鳴っていたか」
     // 「期限を過ぎたか」は単調時計から数える (理由は PlaybackSessions の javadoc)。
