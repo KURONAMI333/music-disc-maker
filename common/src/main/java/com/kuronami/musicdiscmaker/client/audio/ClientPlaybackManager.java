@@ -48,7 +48,17 @@ public final class ClientPlaybackManager {
         return INSTANCE;
     }
 
-    private final PlaybackSessions sessions = new PlaybackSessions(System::currentTimeMillis);
+    /**
+     * 経過時間 (ms) を単調時計から取る。<b>OS の時刻調整で飛ばない</b>のが要点で、絶対時刻としては
+     * 意味を持たない (基準点は JVM ごとに任意)。
+     */
+    private static final java.util.function.LongSupplier MONOTONIC_MS =
+            () -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
+
+    // 壁時計は server が送ってくる経過 ms との突き合わせにだけ使う。「どれだけ鳴っていたか」
+    // 「期限を過ぎたか」は単調時計から数える (理由は PlaybackSessions の javadoc)。
+    private final PlaybackSessions sessions =
+            new PlaybackSessions(System::currentTimeMillis, MONOTONIC_MS);
 
     /** 次に鳴る曲の先読み置き場 (アルバムの曲間の無音対策)。 */
     private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis,

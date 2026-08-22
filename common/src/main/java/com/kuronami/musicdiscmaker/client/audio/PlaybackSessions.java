@@ -31,8 +31,26 @@ import net.minecraft.core.BlockPos;
  * 再生要求のたびに世代を進め、ロードは開始時点の世代を持ち回り、完了時に一致しなければ捨てる。
  * <b>座標だけで答える口はこのクラスに 1 つも残っていない</b> — 残すと 2 つの正本が食い違う。
  *
- * <p>時計は差し替え可能 ({@link LongSupplier})。ラジオの「安定していたか」判定を実時間の待ちなしで
- * テストするため。
+ * <h2>時計は 2 つある — 混ぜない</h2>
+ * <ul>
+ *   <li><b>経過時間</b> ({@code monotonicMs}) — 「どれだけ鳴っていたか」「期限を過ぎたか」。
+ *       OS の時刻調整で飛ばない単調時計から取る。{@link #STABLE_MS} と
+ *       {@link #FIRST_AUDIO_DEADLINE_MS} はこちらだけを読む</li>
+ *   <li><b>壁時計</b> ({@code clockMs}) — server が送ってくる {@code requestedOffsetMs} と
+ *       突き合わせる推定再生位置。{@link #isSeekRequest} <b>だけ</b>が読む</li>
+ * </ul>
+ *
+ * <p>混ぜると壊れ方が 2 通り出る。<b>壁時計で経過を測る</b>と、OS の時刻が後方修正された瞬間に
+ * 「30 秒経った」が偽になる。期限の delayed task は予定どおり<b>一度だけ</b>起きて再アームされない
+ * ので、future が未完了・PCM 無しの再生が source と channel を掴んだまま残る (前方修正なら逆に
+ * 短時間で「安定していた」に化ける)。<b>推定再生位置を単調時計へ寄せる</b>と、今度は突き合わせる
+ * 相手 (壁時計基準の {@code requestedOffsetMs}) と基準がずれ、chunk 再入の再送を本物のシークと
+ * 誤判定して鳴らし直す。
+ *
+ * <p>期限の待ち合わせ自体 ({@code CompletableFuture.delayedExecutor}) は元から {@code nanoTime}
+ * 基準で、時刻調整では動かない。ずれていたのは<b>起きた後の判定だけ</b>だった。
+ *
+ * <p>どちらも差し替え可能 ({@link LongSupplier})。テストは 2 つを別々に動かせる。
  */
 public final class PlaybackSessions {
 
@@ -131,14 +149,25 @@ public final class PlaybackSessions {
      */
     private final Map<BlockPos, Long> registeredMillis = new ConcurrentHashMap<>();
     /**
-     * <b>最初の実 PCM</b> が音声エンジンへ渡った時刻。まだなら鍵ごと無い。
+     * 登録できた時刻 (<b>単調時計</b>)。{@link #FIRST_AUDIO_DEADLINE_MS} の期限判定だけが読む。
+     *
+     * <p>{@link #registeredMillis} と同じ瞬間を指すが時計が違う。あちらは server の壁時計と
+     * 突き合わせるためのもので、OS の時刻調整で飛ぶ。期限は<b>実時間で何秒経ったか</b>の話なので
+     * 飛ばない方から取る。
+     */
+    private final Map<BlockPos, Long> registeredMonotonicMs = new ConcurrentHashMap<>();
+    /**
+     * <b>最初の実 PCM</b> が音声エンジンへ渡った時刻 (<b>単調時計</b>)。まだなら鍵ごと無い。
      *
      * <p>{@code SoundManager#play} はインスタンスを登録するだけで音声ストリームの future は
      * 未完了のまま返るので、{@link #registeredMillis} は「鳴っていた時間」の起点としては早すぎる。
-     * ラジオの安定判定 ({@link #STABLE_MS}) と鳴らない再生の期限 ({@link #FIRST_AUDIO_DEADLINE_MS})
-     * はこちらを読む。判別点は {@link LavaPlayerAudioStream#emit} の 1 箇所だけ。
+     * ラジオの安定判定 ({@link #STABLE_MS}) はこちらから数える。判別点は
+     * {@link LavaPlayerAudioStream#emit} の 1 箇所だけ。
+     *
+     * <p>鍵が<b>有るかどうか</b>も答えとして使う (期限判定の「一度でも鳴ったか」)。値は経過時間の
+     * 起点にしか使わないので、単調時計の値が負でも構わない — <b>0 を「無い」の代わりに使わないこと</b>。
      */
-    private final Map<BlockPos, Long> firstAudioMillis = new ConcurrentHashMap<>();
+    private final Map<BlockPos, Long> firstAudioMonotonicMs = new ConcurrentHashMap<>();
     private final Map<BlockPos, Long> loadOffsetMs = new ConcurrentHashMap<>();
     /**
      * ラジオで拾った失敗の保留。ラジオにとって音が途切れることは再接続が引き受ける想定内の状態
@@ -165,12 +194,25 @@ public final class PlaybackSessions {
     private final PlaybackFailureNotices startNotices = new PlaybackFailureNotices();
 
     private final LongSupplier clockMs;
+    private final LongSupplier monotonicMs;
 
     /**
+     * テスト用。壁時計と単調時計を同じ供給元に束ねる (時刻調整を再現しないテストはこちらでよい)。
+     *
      * @param clockMs 現在時刻 (ms)。テストは実時間を待たずに進めるために差し替える
      */
     public PlaybackSessions(LongSupplier clockMs) {
+        this(clockMs, clockMs);
+    }
+
+    /**
+     * @param clockMs     壁時計 (ms)。{@link #isSeekRequest} の推定再生位置だけが読む
+     * @param monotonicMs 単調に進む経過時間 (ms)。{@link #STABLE_MS} と
+     *                    {@link #FIRST_AUDIO_DEADLINE_MS} はこちらを読む
+     */
+    public PlaybackSessions(LongSupplier clockMs, LongSupplier monotonicMs) {
         this.clockMs = clockMs;
+        this.monotonicMs = monotonicMs;
     }
 
     /**
@@ -258,8 +300,9 @@ public final class PlaybackSessions {
         }
         playingUrl.put(key, url);
         registeredMillis.put(key, clockMs.getAsLong());
+        registeredMonotonicMs.put(key, monotonicMs.getAsLong());
         // 前の世代 (ラジオの再接続は同じ世代を持ち回る) の「鳴り始めた時刻」を持ち越さない。
-        firstAudioMillis.remove(key);
+        firstAudioMonotonicMs.remove(key);
         loadOffsetMs.put(key, startOffsetMs);
         return true;
     }
@@ -352,7 +395,7 @@ public final class PlaybackSessions {
         if (!isLive(key, token)) {
             return false;
         }
-        return firstAudioMillis.putIfAbsent(key, clockMs.getAsLong()) == null;
+        return firstAudioMonotonicMs.putIfAbsent(key, monotonicMs.getAsLong()) == null;
     }
 
     /**
@@ -366,21 +409,24 @@ public final class PlaybackSessions {
      * @return 期限切れなら {@code true}。停止済み・世代違い・既に鳴っているなら {@code false}
      */
     public boolean firstAudioOverdue(BlockPos key, int token) {
-        if (!isLive(key, token) || firstAudioMillis.containsKey(key)) {
+        if (!isLive(key, token) || firstAudioMonotonicMs.containsKey(key)) {
             return false;
         }
-        final Long registered = registeredMillis.get(key);
-        return registered != null && clockMs.getAsLong() - registered >= FIRST_AUDIO_DEADLINE_MS;
+        final Long registered = registeredMonotonicMs.get(key);
+        return registered != null && monotonicMs.getAsLong() - registered >= FIRST_AUDIO_DEADLINE_MS;
     }
 
     /**
      * ラジオストリームが終端に達した。再接続するか、諦めるかを決める。
      *
      * <p>直前の再生が {@link #STABLE_MS} 以上<b>鳴っていたら</b> (瞬断が久しぶりなら) 試行回数を
-     * リセットする。数えるのは {@link #firstAudioMillis} から = <b>実際に音が出ていた時間</b>で、
+     * リセットする。数えるのは {@link #firstAudioMonotonicMs} から = <b>実際に音が出ていた時間</b>で、
      * 登録できた時刻からではない。登録から数えると、一音も出ないまま 15 秒座っていた再生を
      * 「安定していた」とみなして試行回数を毎回リセットし、<b>永久に再接続を繰り返す</b>。
-     * 一度も鳴っていなければ ({@link #firstAudioMillis} に鍵が無ければ) リセットしない。
+     * 一度も鳴っていなければ ({@link #firstAudioMonotonicMs} に鍵が無ければ) リセットしない。
+     *
+     * <p>数えるのは<b>単調時計</b>で。壁時計だと OS の時刻が前方修正された瞬間に、数秒しか
+     * 鳴っていない再生が「安定していた」に化けて試行回数が毎回リセットされる。
      *
      * @param key   jukebox の位置
      * @param token この再生の世代
@@ -394,8 +440,8 @@ public final class PlaybackSessions {
         if (request == null || !request.track().radio()) {
             return new Reconnect(ReconnectKind.NONE, 0, null, null);
         }
-        final long started = firstAudioMillis.getOrDefault(key, 0L);
-        if (started > 0L && clockMs.getAsLong() - started >= STABLE_MS) {
+        final Long started = firstAudioMonotonicMs.get(key);
+        if (started != null && monotonicMs.getAsLong() - started >= STABLE_MS) {
             reconnectAttempts.remove(key);
         }
         final PlaybackVoice ended = active.remove(key);
@@ -404,7 +450,8 @@ public final class PlaybackSessions {
         }
         playingUrl.remove(key);
         registeredMillis.remove(key);
-        firstAudioMillis.remove(key);
+        registeredMonotonicMs.remove(key);
+        firstAudioMonotonicMs.remove(key);
         loadOffsetMs.remove(key);
 
         final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
@@ -429,7 +476,8 @@ public final class PlaybackSessions {
         directionals.remove(key);
         reconnectAttempts.remove(key);
         registeredMillis.remove(key);
-        firstAudioMillis.remove(key);
+        registeredMonotonicMs.remove(key);
+        firstAudioMonotonicMs.remove(key);
         loadOffsetMs.remove(key);
         pendingFailure.remove(key);
         notices.forget(key);
@@ -449,7 +497,8 @@ public final class PlaybackSessions {
         directionals.clear();
         reconnectAttempts.clear();
         registeredMillis.clear();
-        firstAudioMillis.clear();
+        registeredMonotonicMs.clear();
+        firstAudioMonotonicMs.clear();
         loadOffsetMs.clear();
         pendingFailure.clear();
         notices.forgetAll();
