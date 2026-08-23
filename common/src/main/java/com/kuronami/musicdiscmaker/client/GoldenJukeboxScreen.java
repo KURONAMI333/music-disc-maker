@@ -321,7 +321,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         final Component sentence = Component.translatable(failure.kind().guiKey());
         final List<FormattedCharSequence> lines = font.split(sentence, FAIL_W);
         for (int i = 0; i < Math.min(lines.size(), FAIL_LINES); i++) {
-            g.drawString(font, lines.get(i), FAIL_X, FAIL_Y + i * font.lineHeight, ERROR, true);
+            g.drawString(font, lines.get(i), FAIL_X, FAIL_Y + i * font.lineHeight, ERROR, false);
         }
     }
 

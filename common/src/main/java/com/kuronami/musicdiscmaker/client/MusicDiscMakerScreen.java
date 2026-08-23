@@ -133,7 +133,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             final List<FormattedCharSequence> lines = failedLines(menu.getBlockEntity().getFailureReason());
             for (int i = 0; i < Math.min(lines.size(), FAILED_LINES); i++) {
                 g.drawString(font, lines.get(i), FAILED_TEXT_X,
-                        FAILED_TEXT_Y + i * font.lineHeight, ERROR, true);
+                        FAILED_TEXT_Y + i * font.lineHeight, ERROR, false);
             }
         }
     }
