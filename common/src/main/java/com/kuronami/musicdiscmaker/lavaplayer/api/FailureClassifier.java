@@ -38,6 +38,21 @@ public final class FailureClassifier {
      */
     private static final int STATUS_GAP_LIMIT = 40;
 
+    /**
+     * 試聴版だけの曲を弾いた時に MDM 自身が立てる目印。<b>lavaplayer の文面ではない</b> —
+     * ライブラリの試聴版フィルタは弾いた曲を戻り値 {@code null} で表すだけで、そのまま流すと
+     * {@code noMatches} = {@link FailureReason#UNSUPPORTED_URL} に化ける
+     * ({@code MusicLoaderImpl.PreviewAwareSoundCloud} がここで例外に変える)。
+     *
+     * <p>ここに置くのは、投げる側と読む側を<b>同じ 1 つの定数</b>に縛るため。文面を片方だけ
+     * 直すと分類が黙って {@link FailureReason#UNKNOWN} へ落ちる。
+     *
+     * <p>この文字列は<b>利用者には出ない</b> (画面に出るのは lang の訳文)。ログには出るので、
+     * 報告に貼られた {@code latest.log} からこの機序だと分かる文にしてある。
+     */
+    public static final String PREVIEW_MARKER =
+            "SoundCloud only streams a preview of this track";
+
     private FailureClassifier() {
     }
 
@@ -231,6 +246,13 @@ public final class FailureClassifier {
      * @return 分類結果
      */
     private static FailureReason classifyLine(String m) {
+        // 0. MDM 自身が立てた目印。ライブラリの文面と混ざらない自前の文字列なので、
+        //    語句一致の中で唯一「誤検出しない」と言い切れる。先に見るのは、後ろの語句
+        //    (preview / track) が別の分類に引っかかる余地を残さないため。
+        if (m.contains(PREVIEW_MARKER.toLowerCase(Locale.ROOT))) {
+            return FailureReason.PREVIEW_ONLY;
+        }
+
         // 1. HTTP ステータス。数字だけの失敗は語句を持たないので、ここで見ないと
         //    「分類できなかった」に落ちる。実測した形:
         //      "Status code 403"                                  (直リンク HTTP の probe)

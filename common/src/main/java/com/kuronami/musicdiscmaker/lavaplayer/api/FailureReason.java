@@ -48,7 +48,25 @@ public enum FailureReason {
     /** SSRF ガードが URL を拒否した (Track 1 が設定する)。 */
     BLOCKED_URL,
     /** YouTube の bot 判定でログインを要求された (datacenter IP でよく起きる。接続失敗ではない)。 */
-    BOT_CHECK;
+    BOT_CHECK,
+    /**
+     * 音源が冒頭の試聴版しか配信していない (SoundCloud GO+ の {@code monetization_model:
+     * SUB_HIGH_TIER})。<b>曲は在るが、全長を取る手段が無い</b>。
+     *
+     * <p>{@link #UNSUPPORTED_URL} と分けるのは、そちらへ落とすと嘘になるため。lavaplayer の
+     * 試聴版フィルタは弾いた曲を {@code NO_TRACK} として返し、それが {@code noMatches} まで
+     * 素通りするので、何もしないと正当な SoundCloud のリンクに「非対応のリンクです」と出る。
+     *
+     * <p>{@link #PRIVATE_OR_REMOVED} 等とも分ける。あちらは「その音源では観られない」なので
+     * 代替ソース探しが効くが、こちらは<b>探した先でも同じ試聴版が返る</b> (フィルタは検索経路にも
+     * 効くので候補から落ちる)。やり直しても結果は変わらないので
+     * {@code MusicLoaderImpl#isRetryable} は false のままにする。
+     *
+     * <p>この理由だけは<b>サービス名を文面に出してよい</b>。{@link #BOT_CHECK} が
+     * 「YouTube が〜」を止めたのは、あれがどのホストでも起きるので名指しが誤りになるため。
+     * 試聴版フィルタは SoundCloud の source manager にしか無いので、名指しは常に正しい。
+     */
+    PREVIEW_ONLY;
 
     /**
      * 制作機 GUI に出す短いラベルの翻訳キー。
@@ -75,6 +93,7 @@ public enum FailureReason {
             case SOURCE_REFUSED -> "gui.music_disc_maker.failed.refused";
             case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
             case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
+            case PREVIEW_ONLY -> "gui.music_disc_maker.failed.preview";
         };
     }
 

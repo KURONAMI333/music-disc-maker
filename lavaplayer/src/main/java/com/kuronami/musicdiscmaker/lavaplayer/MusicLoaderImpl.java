@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
@@ -27,7 +28,15 @@ import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.bandcamp.BandcampAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataLoader;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataReader;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudFormatHandler;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudPlaylistLoader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudDataLoader;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudDataReader;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudFormatHandler;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudPlaylistLoader;
 import com.sedmelluq.discord.lavaplayer.source.twitch.TwitchStreamAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
@@ -130,7 +139,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         this.youtube = registerYoutube();
         this.session = youtube == null ? YoutubeSession.NONE
                 : new YoutubeTokenSession(youtube, System::currentTimeMillis);
-        register(SoundCloudAudioSourceManager::createDefault);
+        register(PreviewAwareSoundCloud::create);
         register(BandcampAudioSourceManager::new);
         register(VimeoAudioSourceManager::new);
         register(TwitchStreamAudioSourceManager::new);
@@ -624,6 +633,9 @@ public class MusicLoaderImpl implements IMusicLoader {
      * 弾かれると<b>結果ゼロ件 = noMatches</b> として返ってくるため (Spotify 経路がここに落ちる)。
      * 検索でない URL の「対応外」は本当に対応外なので、再試行しない。
      *
+     * <p>{@link FailureReason#PREVIEW_ONLY} は {@code default} のまま false でよい。相手が
+     * 配信していないものは、開き直しても visitorId を替えても出てこない。
+     *
      * <p>{@link FailureReason#SOURCE_REFUSED} を<b>明示で</b>書いてあるのは、ここが
      * {@code default -> false} に落ちると 5xx が再試行されなくなるため。この理由が生まれる前は
      * 番号つきの失敗が {@link FailureReason#CONNECTION_FAILED} に同居していて再試行されていた。
@@ -717,6 +729,69 @@ public class MusicLoaderImpl implements IMusicLoader {
                     "no source manager matched");
         }
         return track;
+    }
+
+    /**
+     * 試聴版だけの曲を<b>失敗として返す</b> SoundCloud source manager。
+     *
+     * <h2>なぜ要るか</h2>
+     * SoundCloud GO+ の曲は冒頭の数十秒しか配信されないのに、track の JSON は尺を
+     * {@code full_duration} = <b>全長</b>で名乗る。だから {@code TrackMatch#durationFits} の
+     * 尺検査は素通りし、MDM は「全長のディスク」を作ってしまう。再生は始まるが途中で無音になり、
+     * <b>画面には何も出ない</b> (2026-08-23 の利用者報告 C17)。
+     *
+     * <p>ライブラリには判定 ({@code monetization_model: SUB_HIGH_TIER}) と切り替え口
+     * ({@code Builder#withFilterOutPreviewTracks}) が既に在り、直読み・プレイリスト・検索の
+     * 3 経路すべてで参照される。<b>既定で切ってあるだけ</b>なので、立てれば済む。
+     *
+     * <h2>なぜ builder でなく継承なのか</h2>
+     * フラグを立てただけだと、弾かれた曲は<b>戻り値 {@code null}</b> になり
+     * ({@code loadTrack(String, boolean)} の実測バイトコード)、呼び出し元の
+     * {@code processAsSingleTrack} がそれを {@code AudioReference.NO_TRACK} に変え、
+     * {@code DefaultAudioPlayerManager} が {@code noMatches()} を呼ぶ。MDM の
+     * {@link MusicLoaderImpl#loadOnce} はそれを {@link FailureReason#UNSUPPORTED_URL} =
+     * 「非対応のリンクです。YouTube か音声の直リンクをお試しください」に落とす。
+     * <b>正当な SoundCloud のリンクに対してこれは嘘になる</b>。理由が分かるようにするのが
+     * この版の目的なので、null を理由つきの例外に変える。
+     *
+     * <p>目印は {@link FailureClassifier#PREVIEW_MARKER} 一本に縛ってある。ここで自前の文面を
+     * 書くと、分類器が拾えず {@link FailureReason#UNKNOWN} へ黙って落ちる。
+     *
+     * <h2>2 引数の側を override する理由</h2>
+     * 1 引数の {@code loadTrack(String)} は 2 引数版へ {@code invokevirtual} で委譲している。
+     * 2 引数の側を override すれば、どちらの入口から来ても通る。逆 (1 引数だけを override) は
+     * 現在の呼び出し経路にたまたま乗っているだけになる。
+     *
+     * <p>{@code allowFilter} が false の時に投げないのは、その時の {@code null} は
+     * 「試聴版だったから」ではないため (フィルタを通らない経路の戻り値)。
+     */
+    static final class PreviewAwareSoundCloud extends SoundCloudAudioSourceManager {
+
+        private PreviewAwareSoundCloud(SoundCloudDataReader dataReader,
+                SoundCloudDataLoader dataLoader, SoundCloudFormatHandler formatHandler,
+                SoundCloudPlaylistLoader playlistLoader) {
+            // 引数の並びは createDefault と同じ。最後の true だけが違う (= 試聴版を弾く)。
+            super(true, dataReader, dataLoader, formatHandler, playlistLoader, true);
+        }
+
+        /** {@code createDefault} と同じ部品で組む (あちらは戻り値の型が固定なので使えない)。 */
+        static PreviewAwareSoundCloud create() {
+            final SoundCloudDataReader dataReader = new DefaultSoundCloudDataReader();
+            final SoundCloudDataLoader dataLoader = new DefaultSoundCloudDataLoader();
+            final SoundCloudFormatHandler formatHandler = new DefaultSoundCloudFormatHandler();
+            return new PreviewAwareSoundCloud(dataReader, dataLoader, formatHandler,
+                    new DefaultSoundCloudPlaylistLoader(dataLoader, dataReader, formatHandler));
+        }
+
+        @Override
+        public AudioTrack loadTrack(String identifier, boolean allowFilter) {
+            final AudioTrack track = super.loadTrack(identifier, allowFilter);
+            if (track == null && allowFilter) {
+                throw new FriendlyException(FailureClassifier.PREVIEW_MARKER,
+                        FriendlyException.Severity.COMMON, null);
+            }
+            return track;
+        }
     }
 
 }

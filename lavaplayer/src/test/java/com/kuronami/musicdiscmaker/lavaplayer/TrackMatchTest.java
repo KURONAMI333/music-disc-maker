@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceManager;
 
 /**
  * 代替ソースの照合を、<b>実際に観測した文字列</b>で固定する。
@@ -317,6 +318,35 @@ class TrackMatchTest {
         assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.SOURCE_REFUSED));
         assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.BLOCKED_URL));
         assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.UNSUPPORTED_URL));
+        // 試聴版しか配信されていない曲も探しに行かない。フィルタは検索経路にも効くので、
+        // 同じ曲は候補から落ちる = 探すだけ遅くなる (C17)。
+        assertFalse(MusicLoaderImpl.firesSubstitute(FailureReason.PREVIEW_ONLY));
+    }
+
+    /**
+     * 代替ソース探しが使う SoundCloud が<b>試聴版を候補に出さない</b>こと (C17)。
+     *
+     * <h2>なぜフラグを直接見るのか</h2>
+     * 2.2.3 の看板は代替ソース探しで、その 1 段目は {@code scsearch:} = SoundCloud の検索経路
+     * ({@code MusicLoaderImpl#ALTERNATE_SEARCH_PREFIXES})。ライブラリの検索経路は
+     * {@code extractTracksFromSearchResults} でこのフラグを見て、立っていれば試聴版の候補を
+     * <b>1 件ずつ読み飛ばして残りは返す</b> (2026-08-24 バイトコード実測)。つまり
+     * 「候補から外れる」の実体はこのフラグ 1 つで、他に入口は無い。
+     *
+     * <p>本物の検索を撃つと結果が相手の都合で変わる = テストが日によって色を変えるので、
+     * ここでは<b>登録している manager がその状態で組まれているか</b>だけを固定する。
+     * {@code createDefault} に戻された時 (= C17 の退行) はここが赤くなる。
+     */
+    @Test
+    @DisplayName("代替ソース探しの SoundCloud は試聴版を弾く状態で組まれている")
+    void theSoundCloudUsedForSubstituteSearchFiltersOutPreviews() throws Exception {
+        final SoundCloudAudioSourceManager manager = MusicLoaderImpl.PreviewAwareSoundCloud.create();
+        final java.lang.reflect.Field flag =
+                SoundCloudAudioSourceManager.class.getDeclaredField("filterOutPreviewTracks");
+        flag.setAccessible(true);
+        assertTrue(flag.getBoolean(manager),
+                "登録している SoundCloud が試聴版を弾かない状態で組まれている"
+                        + " (createDefault に戻っていないか)");
     }
 
     @Test

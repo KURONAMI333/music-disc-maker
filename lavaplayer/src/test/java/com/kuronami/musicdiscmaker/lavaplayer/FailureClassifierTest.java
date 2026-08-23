@@ -1,7 +1,9 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -222,6 +224,48 @@ class FailureClassifierTest {
                 FriendlyException.Severity.COMMON, middle);
         assertEquals(FailureReason.CONNECTION_FAILED, FailureClassifier.classify(thrown));
         assertSame(deepest, FailureClassifier.blamed(thrown));
+    }
+
+    /**
+     * 試聴版だけの曲は<b>専用の理由</b>に落ちること (C17)。
+     *
+     * <p>これが崩れると {@link FailureReason#UNSUPPORTED_URL} = 「非対応のリンクです」に戻る。
+     * 正当な SoundCloud のリンクにその文面を出すのが C17 の直そうとしている嘘そのものなので、
+     * ここは分類の中で最も戻ってはいけない一点になる。
+     *
+     * <p>目印は MDM 自身が立てる文字列なので、投げる側 ({@code PreviewAwareSoundCloud}) と
+     * 読む側を同じ定数に縛ってある。テストでも文面を直書きせず定数を使う — 直書きすると
+     * 「両方が同時に壊れているのに緑」が作れてしまう。
+     */
+    @Test
+    void aPreviewOnlyTrackIsClassifiedFromItsOwnMarker() {
+        final Throwable thrown = new FriendlyException(FailureClassifier.PREVIEW_MARKER,
+                FriendlyException.Severity.COMMON, null);
+        assertEquals(FailureReason.PREVIEW_ONLY, FailureClassifier.classify(thrown));
+        // loadOnce が実際に呼ぶのはこちら (集約例外でなければ classify に委ねる経路)。
+        assertEquals(FailureReason.PREVIEW_ONLY, ClientFailureDetails.classify(thrown));
+        // 理由に添える技術詳細も loadOnce が同じ例外から採る。空だと画面とログから
+        // 「何を見て試聴版だと判じたか」が消えるので、目印がそのまま残ることを固定する。
+        assertTrue(ClientFailureDetails.shortDetail(thrown)
+                .contains(FailureClassifier.PREVIEW_MARKER),
+                "詳細から目印が消えている: " + ClientFailureDetails.shortDetail(thrown));
+        // lavaplayer が定型文で包んでも、連鎖の奥から拾えること。
+        final Throwable wrapped = new FriendlyException(NOT_PLAYABLE,
+                FriendlyException.Severity.COMMON, thrown);
+        assertEquals(FailureReason.PREVIEW_ONLY, FailureClassifier.classify(wrapped));
+    }
+
+    /**
+     * 存在しない SoundCloud トラックは試聴版<b>ではない</b>こと。
+     *
+     * <p>lavaplayer は track の JSON が取れない時に "This track is not available" を投げる。
+     * これを試聴版と同じ理由に寄せると、消えたリンクに「試聴版しか配信されていません」と出る。
+     */
+    @Test
+    void aMissingSoundCloudTrackIsNotAPreview() {
+        final Throwable thrown = new FriendlyException(SOUNDCLOUD_MISSING,
+                FriendlyException.Severity.COMMON, null);
+        assertNotEquals(FailureReason.PREVIEW_ONLY, FailureClassifier.classify(thrown));
     }
 
     @Test
