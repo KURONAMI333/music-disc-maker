@@ -547,8 +547,13 @@ public class LavaPlayerAudioStream implements AudioStream {
             // 開けたのに 1 バイトも鳴らないまま終わった。理由が付いていないので、従来は
             // 「最後まで鳴った」と同じ扱いで完全な無音のまま何も出なかった。
             if (endLogged.compareAndSet(false, true)) {
+                // token は計測用 (_research/FIRST_PLAY_SILENT.md §6)。Track switch / rejected の
+                // WARN と同じ値が載るので、3 行が同一の再生を指しているか突き合わせられる。
+                // timing が無い経路 (compat 側など) では "?" になる。
+                final PlaybackTiming t = timing;
                 MusicDiscMaker.LOGGER.warn(
-                        "The stream ended without producing any audio and without reporting a reason");
+                        "The stream ended without producing any audio and without reporting a reason token={}",
+                        t == null ? "?" : t.token());
             }
             report(PlaybackFailure.ofReason(FailureReason.UNKNOWN, "no audio"));
             return;

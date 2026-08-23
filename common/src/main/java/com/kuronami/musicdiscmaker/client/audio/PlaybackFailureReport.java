@@ -5,6 +5,8 @@ import org.jetbrains.annotations.Nullable;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 
+import net.minecraft.core.BlockPos;
+
 /**
  * 再生できなかったことを、その client の<b>ログ</b>へ理由つきで残す。
  *
@@ -42,5 +44,24 @@ public final class PlaybackFailureReport {
     public static void report(@Nullable String title, @Nullable String url, PlaybackFailure failure) {
         MusicDiscMaker.LOGGER.warn("Playback failed [{}] track={} url={}", failure.label(),
                 title == null || title.isBlank() ? "?" : title, url == null ? "?" : url);
+    }
+
+    /**
+     * 座標 (key) と再生の世代 (token) が分かる呼び出し元向け (計測用。挙動は変えない)。
+     *
+     * <p>{@code key}/{@code token} は {@link ClientPlaybackManager} が持ち回っている値をそのまま
+     * 渡すだけで、この行専用に新しく採番するものではない ({@code PlaybackTiming} の
+     * "Track switch" 行に載る token と同じ値になる)。同じ再生を指すログ行同士を突き合わせるためのもの。
+     */
+    public static void report(@Nullable CustomTrackData track, BlockPos key, int token, PlaybackFailure failure) {
+        report(track == null ? null : track.title(), track == null ? null : track.url(), key, token, failure);
+    }
+
+    /** {@link #report(CustomTrackData, BlockPos, int, PlaybackFailure)} の曲データを持たない版。 */
+    public static void report(@Nullable String title, @Nullable String url, BlockPos key, int token,
+            PlaybackFailure failure) {
+        MusicDiscMaker.LOGGER.warn("Playback failed [{}] track={} url={} key={} token={}", failure.label(),
+                title == null || title.isBlank() ? "?" : title, url == null ? "?" : url,
+                key.toShortString(), token);
     }
 }
