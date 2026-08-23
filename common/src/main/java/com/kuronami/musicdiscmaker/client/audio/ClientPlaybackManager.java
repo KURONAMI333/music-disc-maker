@@ -317,11 +317,16 @@ public final class ClientPlaybackManager {
             instance.requestStop();
             return;
         }
+        // 鳴らないまま座り続ける再生を永久に待たない。期限は PlaybackSessions が持つ。
+        // <b>受理の判定より前に張る。</b> 拒否された再生も音源を畳まずに置くようになったので
+        // (SoundEngineAcceptance#KEEP_UNTIL_DEADLINE)、回収を引き受けるのはこの期限だけになった。
+        // 受理された側だけに張ると、拒否された音源を誰も閉じない = 垂れ流しになる。
+        armFirstAudioDeadline(key, token, track);
         // play は受理しなかったことを戻り値で返さない。見ずに進むと、捨てられた再生を鳴っている
         // ものとして扱い、同じ URL の再通知も既存 session に弾かれる = 停止まで無音が固定される。
         // 出すかどうかは PlaybackSessions が決める。engine の拒否は直るまで何度でも同じ理由で
         // 起きるので、毎回出すと今度はノイズになる (同じ理由は鳴り始めるまで 1 回だけ)。
-        if (!SoundEngineAcceptance.start(instance, instance, rejected -> {
+        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
             final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
             if (show != null) {
                 failures.record(key, show);
@@ -339,8 +344,6 @@ public final class ClientPlaybackManager {
         // install (ロードが間に合った) では捨てない — engine の受理はその後なので、install で
         // 捨てると engine に弾かれてもラベルだけ消える (MDM_DECISIONS D10 が名指しで警告している取り違え)。
         failures.clear(key);
-        // 鳴らないまま座り続ける再生を永久に待たない。期限は PlaybackSessions が持つ。
-        armFirstAudioDeadline(key, token, track);
     }
 
     /** vanilla disc と同じ "Now Playing: ..." overlay に出す文字列。 */
@@ -362,6 +365,11 @@ public final class ClientPlaybackManager {
         if (!sessions.noteFirstAudio(key, token)) {
             return; // 停止済み / 世代違い / 2 回目
         }
+        // 実際に鳴った以上、直前に出した「engine が受理しなかった」は誤りだったことになる。
+        // 拒否の後も音源を畳まなくなった (KEEP_UNTIL_DEADLINE) ので、遅れて開栓して鳴り始める
+        // 経路が生きている。その時にラベルと抑止を自分で畳む — 受理の側では拾えない。
+        sessions.engineAccepted(key);
+        failures.clear(key);
         if (desc != null && !desc.isBlank()) {
             Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
         }
