@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "Não foi possível alcançar a fonte. Verifique sua conexão.",
   "gui.music_disc_maker.failed.refused": "A fonte recusou esta faixa. Tente outro link.",
   "gui.music_disc_maker.failed.blocked": "Endereço não permitido. Use um link http ou https público.",
-  "gui.music_disc_maker.failed.botcheck": "Bloqueado pelo YouTube e sem cópia. Tente outro link.",
+  "gui.music_disc_maker.failed.botcheck": "Bloqueado pela fonte e sem cópia. Tente outro link.",
   "gui.music_disc_maker.failed.botcheck.tip": "Esta fonte está marcando esta conexão como um bot e exigindo login. Não é um problema de conexão: depende do endereço IP de onde parte a requisição, então pode acontecer tanto em um jogador quanto em um servidor. Tente um link direto ou outra fonte.",
   "gui.music_disc_maker.failed.generic": "Não foi possível tocar esta faixa.",
   "gui.music_disc_maker.failed.limit": "Faixas demais tocando. Pare uma e tente de novo.",

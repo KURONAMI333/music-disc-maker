@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "Source injoignable. Vérifiez votre connexion.",
   "gui.music_disc_maker.failed.refused": "La source a refusé cette piste. Essayez un autre lien.",
   "gui.music_disc_maker.failed.blocked": "Adresse non autorisée. Utilisez un lien http ou https public.",
-  "gui.music_disc_maker.failed.botcheck": "Bloqué par YouTube, aucune copie. Essayez un autre lien.",
+  "gui.music_disc_maker.failed.botcheck": "Bloqué par la source, aucune copie. Essayez un autre lien.",
   "gui.music_disc_maker.failed.botcheck.tip": "Cette source considère cette connexion comme un bot et exige une connexion au compte. Ce n'est pas un problème de réseau : cela dépend de l'adresse IP d'où part la requête, donc cela peut arriver en solo comme sur un serveur. Essayez un lien direct ou une autre source.",
   "gui.music_disc_maker.failed.generic": "Impossible de lire cette piste.",
   "gui.music_disc_maker.failed.limit": "Trop de pistes en cours. Arrêtez-en une et réessayez.",

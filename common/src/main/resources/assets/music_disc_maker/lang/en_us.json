@@ -14,7 +14,7 @@
   "gui.music_disc_maker.failed.connection": "Could not reach the source. Check your connection.",
   "gui.music_disc_maker.failed.refused": "The source refused this track. Try another link.",
   "gui.music_disc_maker.failed.blocked": "Address not allowed. Use a public http or https link.",
-  "gui.music_disc_maker.failed.botcheck": "YouTube blocked this one and no copy found. Try another.",
+  "gui.music_disc_maker.failed.botcheck": "The source blocked this one and no copy found. Try another.",
   "gui.music_disc_maker.failed.botcheck.tip": "This source is flagging this connection as a bot and asking to sign in. It is not a connection problem - it depends on the IP address the request comes from, so it can happen in single player as well as on a server. Try a direct link or another source.",
   "gui.music_disc_maker.failed.generic": "Could not play this track.",
   "gui.music_disc_maker.failed.limit": "Too many tracks playing. Stop one and try again.",

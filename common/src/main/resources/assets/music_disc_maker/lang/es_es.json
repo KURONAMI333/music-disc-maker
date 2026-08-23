@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "No se pudo contactar con la fuente. Revisa tu conexión.",
   "gui.music_disc_maker.failed.refused": "La fuente rechazó esta pista. Prueba otro enlace.",
   "gui.music_disc_maker.failed.blocked": "Dirección no permitida. Usa un enlace http o https público.",
-  "gui.music_disc_maker.failed.botcheck": "YouTube lo ha bloqueado y no hay copia. Prueba otro enlace.",
+  "gui.music_disc_maker.failed.botcheck": "La fuente lo ha bloqueado y no hay copia. Prueba otro enlace.",
   "gui.music_disc_maker.failed.botcheck.tip": "Esta fuente marca esta conexión como un bot y exige iniciar sesión. No es un problema de conexión: depende de la dirección IP desde la que se hace la petición, así que puede ocurrir tanto en un jugador como en un servidor. Prueba un enlace directo u otra fuente.",
   "gui.music_disc_maker.failed.generic": "No se pudo reproducir esta pista.",
   "gui.music_disc_maker.failed.limit": "Suenan demasiadas pistas. Detén una e inténtalo de nuevo.",
