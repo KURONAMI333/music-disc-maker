@@ -53,8 +53,13 @@ public class LavaPlayerAudioStream implements AudioStream {
      * こちらが意図して終わらせた印 (ディスク取り出し・撤去・差し替え)。立っている間の終端は
      * 失敗ではないので報告しない。<b>これが無いと、曲の途中でディスクを抜くたびに
      * 「途中で切れた」が出る</b>。
+     *
+     * <p><b>ストリームの持ち物ではない。</b> 印を立てたい瞬間 (停止) にストリームがまだ
+     * 生まれていないことがあり、そこで落とすと後から生まれたストリームが印を持たずに終端へ
+     * 着く = 理由の付かない終了警告になる。だから持ち主は {@link DiscSoundInstance} で、
+     * このクラスは受け取って読むだけ。
      */
-    private final AtomicBoolean expectedEnd = new AtomicBoolean(false);
+    private final AtomicBoolean expectedEnd;
     /**
      * 「理由なく終わった」の INFO を 1 曲につき 1 回だけにするガード。{@code read} は終端を見た後も
      * 何度も呼ばれるので、これが無いと同じ行が 1 曲で 4 回出る (MDM_DECISIONS D28)。
@@ -162,9 +167,28 @@ public class LavaPlayerAudioStream implements AudioStream {
      */
     public LavaPlayerAudioStream(IAudioSource source, @Nullable Runnable onEnded,
             @Nullable Consumer<PlaybackFailure> onFailure) {
+        this(source, onEnded, onFailure, new AtomicBoolean(false));
+    }
+
+    /**
+     * 「意図した終了」の印を<b>外から受け取る</b>版。
+     *
+     * <p>印の持ち主はストリームより長生きする側 ({@link DiscSoundInstance}) で、そこが作る
+     * ストリームは全部この同じ {@link AtomicBoolean} を共有する。共有するから、<b>印を立てた
+     * 後に生まれたストリームもその印を持って生まれる</b> — 引き継ぎのコードは要らない。
+     * 理由は {@link DiscSoundInstance#markExpectedEnd()}。
+     *
+     * @param source      PCM ソース
+     * @param onEnded     終端で一度だけ呼ばれるコールバック (ラジオ再接続用。null=無効)
+     * @param onFailure   再生中に壊れた時に一度だけ呼ばれる届け先 (null=曲名なしで自分で報告する)
+     * @param expectedEnd 意図した終了の印 (インスタンス側が持つ)
+     */
+    public LavaPlayerAudioStream(IAudioSource source, @Nullable Runnable onEnded,
+            @Nullable Consumer<PlaybackFailure> onFailure, AtomicBoolean expectedEnd) {
         this.source = source;
         this.onEnded = onEnded;
         this.onFailure = onFailure;
+        this.expectedEnd = expectedEnd;
         this.format = new AudioFormat(
                 source.sampleRate(), source.bitsPerSample(), source.channels(), true, source.bigEndian());
         this.gainApplicable = source.bitsPerSample() == 16 && !source.bigEndian();
@@ -516,14 +540,6 @@ public class LavaPlayerAudioStream implements AudioStream {
             MusicDiscMaker.LOGGER.info("Filled {} ms of silence across {} buffer underruns"
                     + " (audio data did not arrive in time)", playedMs(bytes), underruns.get());
         }
-    }
-
-    /**
-     * こちらが意図して終わらせることを伝える (ディスク取り出し・撤去・差し替え)。
-     * 以後の終端は失敗として扱わない。{@link DiscSoundInstance} が音源を閉じる前に呼ぶ。
-     */
-    void expectEnd() {
-        expectedEnd.set(true);
     }
 
     /**

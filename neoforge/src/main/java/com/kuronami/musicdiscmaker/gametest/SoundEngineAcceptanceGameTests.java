@@ -38,7 +38,7 @@ public class SoundEngineAcceptanceGameTests {
         final List<PlaybackFailure> reports = new ArrayList<>();
 
         final boolean started = SoundEngineAcceptance.start(
-                new FakeEngine(true, false), voice, reports::add);
+                new FakeEngine(true, false), voice::stopAndRelease, reports::add);
 
         helper.assertTrue(started, "受理された再生を失敗として扱っている");
         helper.assertTrue(reports.isEmpty(), "鳴っているのに失敗を報告している: " + reports);
@@ -57,7 +57,7 @@ public class SoundEngineAcceptanceGameTests {
         final List<PlaybackFailure> reports = new ArrayList<>();
 
         final boolean started = SoundEngineAcceptance.start(
-                new FakeEngine(false, false), voice, reports::add);
+                new FakeEngine(false, false), voice::stopAndRelease, reports::add);
 
         helper.assertTrue(!started,
                 "engine が捨てたのに再生成功として返している (この後 Now Playing が出る)");
@@ -79,7 +79,7 @@ public class SoundEngineAcceptanceGameTests {
         final FakeVoice voice = new FakeVoice("muted");
         final List<PlaybackFailure> reports = new ArrayList<>();
 
-        SoundEngineAcceptance.start(new FakeEngine(false, true), voice, reports::add);
+        SoundEngineAcceptance.start(new FakeEngine(false, true), voice::stopAndRelease, reports::add);
 
         helper.assertTrue(reports.size() == 1, "報告が 1 件でない: " + reports.size());
         helper.assertTrue(reports.get(0).kind() == PlaybackFailure.Kind.MUTED,

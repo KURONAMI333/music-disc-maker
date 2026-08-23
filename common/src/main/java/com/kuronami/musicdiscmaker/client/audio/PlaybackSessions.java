@@ -349,12 +349,21 @@ public final class PlaybackSessions {
     }
 
     /**
-     * sound engine が再生を受理しなかった ({@link SoundEngineAcceptance})。この再生を諦めた上で、
-     * 利用者に出すべきかどうかを答える。
+     * sound engine が再生を受理しなかった ({@link SoundEngineAcceptance})。利用者に出すべきか
+     * どうかを答える。
      *
      * <p>ロードは成功しているので原因は MC 側にあり、直るまで<b>何度やっても同じ理由で弾かれる</b>。
      * 出すこと自体は正しい (誤って音量を 0 にしている人には必要な情報) が、毎回出すとノイズになる。
      * だから頻度の問題として扱う — 同じ理由は実際に鳴り始めるまで 1 回だけ。
+     *
+     * <p><b>ここで世代を落としてはいけない。</b> 拒否は「もう鳴らない」の証明ではなく、遅れて
+     * 開栓して鳴り出す経路が実在する ({@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE})。
+     * だから音源は畳まずに置く。
+     * <b>畳まない以上、回収するのは {@link #FIRST_AUDIO_DEADLINE_MS} の期限だけ</b>で、
+     * その入口 ({@link #firstAudioOverdue}) は {@link #isLive} が真であることを要求する。
+     * ここで {@link #abandon} を呼ぶと期限が二度と発火せず、<b>誰も閉じない音源が残る</b>
+     * (拒否されたのに鳴り続ける = 今回の修正が最も避けたい形)。遅れて鳴り始めた時に
+     * "Now Playing" と失敗ラベルの取り消しが要るのも、この世代が生きている間だけ。
      *
      * @param key     jukebox の位置
      * @param token   この再生の世代
@@ -363,7 +372,9 @@ public final class PlaybackSessions {
      */
     @Nullable
     public PlaybackFailure engineRejected(BlockPos key, int token, PlaybackFailure failure) {
-        abandon(key, token);
+        if (!isLive(key, token)) {
+            return null; // 停止済み / 差し替え済みの再生の拒否は出さない
+        }
         return startNotices.shouldReport(key, failure) ? failure : null;
     }
 

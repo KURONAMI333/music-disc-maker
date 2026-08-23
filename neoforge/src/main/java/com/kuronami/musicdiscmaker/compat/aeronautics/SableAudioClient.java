@@ -142,7 +142,7 @@ public final class SableAudioClient {
                 // 見ずに進むと、鳴っていないのに "Now Playing" が出たまま固定される。
                 // ここは 1 秒ごとに再送が来る経路なので、ロード失敗と同じ待ち時間と重複抑止に乗せる
                 // (乗せないと、音量 0 のような直らない理由で毎秒チャットが埋まる)。
-                if (!SoundEngineAcceptance.start(instance, instance, rejected -> {
+                if (!SoundEngineAcceptance.start(instance, instance::stopAndRelease, rejected -> {
                     if (SLOTS.loadFailed(actorKey, track.url(), rejected)) {
                         PlaybackFailureReport.report(track, rejected);
                     }

@@ -120,7 +120,7 @@ public final class CreateAudioClient {
                 ACTIVE.put(actorKey, instance);
                 // play は受理しなかったことを戻り値で返さない (SoundEngineAcceptance の javadoc)。
                 // 見ずに進むと、鳴っていないのに "Now Playing" が出たまま固定される。
-                if (!SoundEngineAcceptance.start(instance, instance,
+                if (!SoundEngineAcceptance.start(instance, instance::stopAndRelease,
                         rejected -> PlaybackFailureReport.report(track, rejected))) {
                     ACTIVE.remove(actorKey, instance); // 鳴っていない席を残さない (次の payload が弾かれる)
                     return;

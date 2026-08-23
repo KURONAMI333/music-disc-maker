@@ -186,6 +186,16 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     private volatile LavaPlayerAudioStream stream;
 
     /**
+     * 「意図して終わらせた」の印。{@link #getCustomStream()} が作るストリームと共有する
+     * (理由は {@link #markExpectedEnd()})。
+     *
+     * <p>{@link #stream} とは別に持つ。あちらは<b>今開いているストリーム</b>への参照で、
+     * 開栓前は {@code null} になる (ゲインのライブ反映はそれでよい)。印の方は
+     * <b>開栓前に立ててもストリームへ届かなければならない</b>ので、参照ではなく共有で渡す。
+     */
+    private final AtomicBoolean expectedEnd = new AtomicBoolean(false);
+
+    /**
      * 再生スレッドの中で落ちた失敗の届け先。書き込み = main thread /
      * 読み出し = streaming スレッド ({@link #getCustomStream()})。
      */
@@ -629,7 +639,10 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
      * @return PCM ストリーム。充填が済んだ時点で完了する
      */
     public CompletableFuture<AudioStream> getCustomStream() {
-        final LavaPlayerAudioStream s = new LavaPlayerAudioStream(source, onStreamEnded, failureSink);
+        // 印はこのインスタンスの持ち物を渡す。開栓より前に停止していれば、生まれた時点で
+        // 既に印が立っている (引き継ぎのコードを書かずに済ませるための共有)。
+        final LavaPlayerAudioStream s =
+                new LavaPlayerAudioStream(source, onStreamEnded, failureSink, expectedEnd);
         s.setPcmGain(computePcmGain());
         s.setTiming(timing);
         s.setFirstAudioSink(firstAudioSink);
@@ -669,15 +682,22 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     /**
-     * こちらが意図して終わらせることをストリームへ伝える。ストリームは終端を見た時に
+     * こちらが意図して終わらせることを印にする。ストリームは終端を見た時に
      * 「一音も鳴らずに終わった」を失敗として報告するので、<b>停止をその経路に入れないための印</b>。
      * これが無いと、曲の途中でディスクを抜くたびに失敗が出る。
+     *
+     * <h2>印はストリームでなくこちらが持つ</h2>
+     * 印を立てる時点でストリームが開栓済みとは限らない。{@code SoundManager#play} が
+     * {@link #getCustomStream()} を呼ぶ前に停止が入る経路 (install の世代負け・
+     * play の受理判定より後に開栓する engine) があり、そこで
+     * {@code stream != null} の時だけ立てる作りにすると<b>印が落ちる</b>。落ちた結果は
+     * 「理由の付かない終了警告」で、実機のログに実際に出ていた
+     * (`_research/FIRST_PLAY_SILENT.md` §2)。{@link #expectedEnd} は
+     * {@link #getCustomStream()} が作る全てのストリームと共有しているので、ここで立てれば
+     * <b>後から生まれたストリームも印を持って生まれる</b>。
      */
     private void markExpectedEnd() {
-        final LavaPlayerAudioStream s = this.stream;
-        if (s != null) {
-            s.expectEnd();
-        }
+        this.expectedEnd.set(true);
     }
 
     public void requestStop() {

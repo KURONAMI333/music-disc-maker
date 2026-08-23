@@ -51,23 +51,47 @@ public final class SoundEngineAcceptance {
     }
 
     /**
-     * 音を鳴らし、engine が受理しなかったら音源を畳んで理由を報告する。
+     * 拒否された時に<b>何もしない</b>後始末。音源も channel も触らずにそのまま置く。
+     *
+     * <p><b>これを渡してよいのは、期限で必ず回収する呼び出し側だけ。</b> 拒否は「もう鳴らない」の
+     * 証明ではない。{@code play} の中でチャンネルを作らずに返り、数 ms 遅れて開栓する経路が
+     * 実在する (他 MOD が {@code PlaySoundEvent} を掴んで投げ直す形)。
+     * そこで音源を閉じると、遅れて生まれたストリームは<b>死んだソース</b>から
+     * 読むので 1 バイトも出せず、しかも {@code close} は理由を残さないため
+     * <b>理由の付かない完全な無音</b>になる (実機 2/2 で再現。`_research/FIRST_PLAY_SILENT.md`)。
+     *
+     * <p>壊さない代わりに、垂れ流しは<b>期限が回収する</b>。
+     * {@code ClientPlaybackManager} は install の直後に
+     * {@link PlaybackSessions#FIRST_AUDIO_DEADLINE_MS} の期限を張っており、実 PCM が一度も
+     * 渡らなければ音源も channel も先読みの枠も畳む。<b>期限を張らない呼び出し側が
+     * これを渡すと、鳴らない音源を誰も回収しなくなる</b> — compat 経路 (Create / Sable) は
+     * 期限を持たないので、従来どおり {@code voice::stopAndRelease} を渡すこと。
+     */
+    public static final Runnable KEEP_UNTIL_DEADLINE = () -> {
+    };
+
+    /**
+     * 音を鳴らし、engine が受理しなかったら後始末をして理由を報告する。
      *
      * <p>呼び出し側は {@code false} が返ったら<b>そこで止めること</b>。特に "Now Playing" は
      * これが {@code true} を返した後にだけ出す (逆にすると、鳴っていないのに再生中と出る)。
      *
-     * @param engine     音を渡す先
-     * @param voice      受理されなかった時に畳む音源
-     * @param onRejected 理由の報告先 (session の後始末もここで行う)
+     * <p><b>受理の判定 ({@link Engine#playAndConfirm}) は変えていない。</b> 変えたのは
+     * 拒否と判定した後の後始末で、そこを呼び出し側に選ばせる ({@link #KEEP_UNTIL_DEADLINE}
+     * を渡せるのは期限を張っている側だけ)。
+     *
+     * @param engine            音を渡す先
+     * @param onRejectedCleanup 受理されなかった時の後始末 ({@code voice::stopAndRelease} か
+     *                          {@link #KEEP_UNTIL_DEADLINE})
+     * @param onRejected        理由の報告先 (session の後始末もここで行う)
      * @return 受理されたなら {@code true}
      */
-    public static boolean start(Engine engine, PlaybackVoice voice, Consumer<PlaybackFailure> onRejected) {
+    public static boolean start(Engine engine, Runnable onRejectedCleanup,
+            Consumer<PlaybackFailure> onRejected) {
         if (engine.playAndConfirm()) {
             return true;
         }
-        // 受理されていない = このインスタンスは二度と鳴らない。掴んだままにすると同時再生数だけ
-        // 消費して、次の再通知も「既に鳴っている」で弾かれる。
-        voice.stopAndRelease();
+        onRejectedCleanup.run();
         onRejected.accept(engine.mutedOut()
                 ? PlaybackFailure.soundMuted()
                 : PlaybackFailure.soundEngineRejected());
