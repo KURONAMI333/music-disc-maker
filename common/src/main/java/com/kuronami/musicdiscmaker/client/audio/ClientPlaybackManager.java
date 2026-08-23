@@ -103,7 +103,8 @@ public final class ClientPlaybackManager {
         // 先読みが当たっていれば解決 (ネットワーク) と 4 秒のプリバッファを丸ごと飛ばせる。
         // 外れたら null が返るだけなので、従来の経路がそのまま走る。
         final IAudioSource warm = prefetch.claim(key, track.url(), startOffsetMs);
-        final PlaybackTiming timing = new PlaybackTiming(key.toShortString(), track.url(), warm != null);
+        final PlaybackTiming timing =
+                new PlaybackTiming(key.toShortString(), track.url(), decision.token(), warm != null);
         if (warm != null) {
             timing.resolved();
             attachFaultSink(warm, key, decision.token(), track);
@@ -324,7 +325,9 @@ public final class ClientPlaybackManager {
             final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
             if (show != null) {
                 failures.record(key, show);
-                PlaybackFailureReport.report(track, show);
+                // key/token を添える (計測用)。同じ token が Track switch の INFO 行にも載るので、
+                // 突き合わせて同一の再生を指しているか確認できる (_research/FIRST_PLAY_SILENT.md §6)。
+                PlaybackFailureReport.report(track, key, token, show);
             }
         })) {
             return;
@@ -452,7 +455,7 @@ public final class ClientPlaybackManager {
                 final PlaybackSessions.Request req = next.request();
                 submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(),
                         RECONNECT_DELAY_MS, token,
-                        new PlaybackTiming(key.toShortString(), req.track().url(), false));
+                        new PlaybackTiming(key.toShortString(), req.track().url(), token, false));
             }
             case GIVE_UP -> {
                 // 再接続を諦めた = 恒久的にこの音源は鳴らない。数秒で消えるアクションバーではなく

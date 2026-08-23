@@ -39,6 +39,14 @@ public final class PlaybackTiming {
     /** 音源の識別子 (座標など)。ログに出すだけ。 */
     private final String label;
     private final String url;
+    /**
+     * この再生の世代 ({@link PlaybackSessions} の token をそのまま持つ。計測用)。
+     *
+     * <p>ログを突き合わせるための識別子。{@code key} (座標=label) と組にして初めて一意になる
+     * (token 自体は座標ごとに 0 から数える生成カウンタ)。新しく採番するのではなく、
+     * {@link ClientPlaybackManager} が既に持ち回っている値を素通しするだけ。
+     */
+    private final int token;
     /** {@link PlaybackPrefetch#claim} が温めておいたソースを返したか。 */
     private final boolean prefetchHit;
     /**
@@ -77,12 +85,19 @@ public final class PlaybackTiming {
     /**
      * @param label       音源の識別子 (座標など)
      * @param url         鳴らそうとしている曲の URL
+     * @param token       この再生の世代 (計測用。ログの突き合わせにだけ使う)
      * @param prefetchHit 先読みが当たったか
      */
-    public PlaybackTiming(String label, String url, boolean prefetchHit) {
+    public PlaybackTiming(String label, String url, int token, boolean prefetchHit) {
         this.label = label;
         this.url = url;
+        this.token = token;
         this.prefetchHit = prefetchHit;
+    }
+
+    /** この再生の世代 (計測用)。{@link LavaPlayerAudioStream} が終端ログに載せる。 */
+    public int token() {
+        return token;
     }
 
     /** URL 解決をこれから始める。意図した待ち時間 (再接続の間隔) を解決時間に混ぜないための起点。 */
@@ -132,8 +147,9 @@ public final class PlaybackTiming {
             return;
         }
         MusicDiscMaker.LOGGER.info(
-                "Track switch [{}] prefetch={} resolve={}ms {} firstpcm={} buffer4s={}ms{} url={}",
+                "Track switch [{}] token={} prefetch={} resolve={}ms {} firstpcm={} buffer4s={}ms{} url={}",
                 label,
+                token,
                 prefetchHit ? "hit" : "miss",
                 Math.max(resolveMs, 0L),
                 prefillText(),
