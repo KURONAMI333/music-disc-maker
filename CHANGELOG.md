@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.2.3
+- **A source blocking the connection is no longer described as YouTube doing it.** Any host that refuses the request now says so in neutral wording.
+
 ## 2.2.2
 - **Fixed YouTube playback after YouTube changed the connection it accepts.** Tracks that suddenly would not play now use a different YouTube connection and play again. Spotify links also keep their own search path, so they no longer turn into audio from a different source.
 - **Fixed the whole game freezing when a track changed.** Track changes could hold up all sound and game activity while music finished, started, or waited for audio. Those waits no longer block the game.
