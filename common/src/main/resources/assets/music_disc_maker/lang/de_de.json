@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "Quelle nicht erreichbar. Prüfe deine Verbindung.",
   "gui.music_disc_maker.failed.refused": "Die Quelle hat den Titel abgelehnt. Probiere einen anderen Link.",
   "gui.music_disc_maker.failed.blocked": "Adresse nicht erlaubt. Nimm einen offenen http- oder https-Link.",
-  "gui.music_disc_maker.failed.botcheck": "Von YouTube gesperrt, keine Kopie. Probiere einen anderen.",
+  "gui.music_disc_maker.failed.botcheck": "Von dieser Quelle gesperrt, keine Kopie. Probiere einen anderen.",
   "gui.music_disc_maker.failed.botcheck.tip": "Diese Quelle stuft diese Verbindung als Bot ein und verlangt eine Anmeldung. Das ist kein Verbindungsproblem - es hängt von der IP-Adresse ab, von der die Anfrage kommt, und kann daher im Einzelspieler genauso auftreten wie auf einem Server. Probiere einen direkten Link oder eine andere Quelle.",
   "gui.music_disc_maker.failed.generic": "Titel konnte nicht abgespielt werden.",
   "gui.music_disc_maker.failed.limit": "Zu viele Titel laufen. Stoppe einen und versuche es erneut.",

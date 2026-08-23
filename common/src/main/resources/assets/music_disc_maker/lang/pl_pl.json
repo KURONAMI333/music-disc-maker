@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "Nie można połączyć się ze źródłem. Sprawdź połączenie.",
   "gui.music_disc_maker.failed.refused": "Źródło odrzuciło ten utwór. Spróbuj innego linku.",
   "gui.music_disc_maker.failed.blocked": "Adres niedozwolony. Użyj publicznego linku http lub https.",
-  "gui.music_disc_maker.failed.botcheck": "Zablokowane przez YouTube, brak kopii. Spróbuj innego linku.",
+  "gui.music_disc_maker.failed.botcheck": "Zablokowane przez źródło, brak kopii. Spróbuj innego linku.",
   "gui.music_disc_maker.failed.botcheck.tip": "To źródło uznaje to połączenie za bota i wymaga zalogowania. To nie jest problem z połączeniem - zależy od adresu IP, z którego wychodzi żądanie, więc może się zdarzyć zarówno w trybie jednoosobowym, jak i na serwerze. Spróbuj bezpośredniego odnośnika lub innego źródła.",
   "gui.music_disc_maker.failed.generic": "Nie można odtworzyć tego utworu.",
   "gui.music_disc_maker.failed.limit": "Gra zbyt wiele utworów. Zatrzymaj jeden i spróbuj ponownie.",

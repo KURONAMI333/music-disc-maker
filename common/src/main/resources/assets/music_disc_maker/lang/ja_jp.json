@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "音源に接続できませんでした。通信環境をご確認ください。",
   "gui.music_disc_maker.failed.refused": "音源がこの曲を拒否しました。別のリンクをお試しください。",
   "gui.music_disc_maker.failed.blocked": "使えないアドレスです。公開された http か https のリンクをご利用ください。",
-  "gui.music_disc_maker.failed.botcheck": "YouTubeに遮断され、代わりも見つかりません。別のリンクをお試しください。",
+  "gui.music_disc_maker.failed.botcheck": "音源側に遮断され、代わりも見つかりません。別のリンクをお試しください。",
   "gui.music_disc_maker.failed.botcheck.tip": "音源側がこの接続を bot と判定し、ログインを求めています。接続の問題ではありません。リクエストの送信元 IP アドレスによって起きるので、サーバーだけでなくシングルプレイでも起こります。直リンクや別の音源をお試しください。",
   "gui.music_disc_maker.failed.generic": "この曲を再生できませんでした。",
   "gui.music_disc_maker.failed.limit": "同時再生数が上限です。どれかを止めてからお試しください。",

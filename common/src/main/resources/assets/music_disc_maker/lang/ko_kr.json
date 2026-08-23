@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "음원에 연결하지 못했습니다. 인터넷 연결을 확인해 보세요.",
   "gui.music_disc_maker.failed.refused": "음원이 이 트랙을 거부했습니다. 다른 링크를 사용해 보세요.",
   "gui.music_disc_maker.failed.blocked": "사용할 수 없는 주소입니다. 공개된 http나 https 링크를 사용하세요.",
-  "gui.music_disc_maker.failed.botcheck": "YouTube가 차단했고 대체 음원도 없습니다. 다른 링크를 사용해 보세요.",
+  "gui.music_disc_maker.failed.botcheck": "음원이 차단했고 대체 음원도 없습니다. 다른 링크를 사용해 보세요.",
   "gui.music_disc_maker.failed.botcheck.tip": "이 음원이 이 연결을 봇으로 판단하여 로그인을 요구합니다. 연결 문제가 아닙니다. 요청을 보내는 IP 주소에 따라 발생하므로 서버뿐 아니라 싱글플레이에서도 일어날 수 있습니다. 직접 링크나 다른 음원을 사용해 보세요.",
   "gui.music_disc_maker.failed.generic": "이 트랙을 재생하지 못했습니다.",
   "gui.music_disc_maker.failed.limit": "재생 중인 트랙이 너무 많습니다. 하나를 멈추고 다시 시도하세요.",

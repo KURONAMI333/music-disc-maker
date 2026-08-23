@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "Sorgente irraggiungibile. Controlla la connessione.",
   "gui.music_disc_maker.failed.refused": "La sorgente ha rifiutato questa traccia. Prova un altro link.",
   "gui.music_disc_maker.failed.blocked": "Indirizzo non permesso. Usa un link http o https pubblico.",
-  "gui.music_disc_maker.failed.botcheck": "Bloccato da YouTube, nessuna copia. Prova un altro link.",
+  "gui.music_disc_maker.failed.botcheck": "Bloccato dalla sorgente, nessuna copia. Prova un altro link.",
   "gui.music_disc_maker.failed.botcheck.tip": "Questa sorgente segnala questa connessione come un bot e richiede l'accesso. Non è un problema di connessione: dipende dall'indirizzo IP da cui parte la richiesta, quindi può accadere sia in giocatore singolo sia su un server. Prova un link diretto o un'altra sorgente.",
   "gui.music_disc_maker.failed.generic": "Impossibile riprodurre questa traccia.",
   "gui.music_disc_maker.failed.limit": "Troppe tracce in riproduzione. Fermane una e riprova.",

@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "Не вдалося зв'язатися з джерелом. Перевірте з'єднання.",
   "gui.music_disc_maker.failed.refused": "Джерело відмовило в цьому треку. Інше посилання?",
   "gui.music_disc_maker.failed.blocked": "Адреса не дозволена. Потрібне публічне http або https.",
-  "gui.music_disc_maker.failed.botcheck": "YouTube заблокував, заміни немає. Інше посилання?",
+  "gui.music_disc_maker.failed.botcheck": "Джерело заблокувало, заміни немає. Інше посилання?",
   "gui.music_disc_maker.failed.botcheck.tip": "Це джерело вважає це з’єднання ботом і вимагає входу в акаунт. Це не проблема з’єднання: усе залежить від IP-адреси, з якої надходить запит, тому таке буває і в одиночній грі, і на сервері. Спробуйте пряме посилання або інше джерело.",
   "gui.music_disc_maker.failed.generic": "Не вдалося відтворити трек.",
   "gui.music_disc_maker.failed.limit": "Забагато треків грає. Зупиніть один і повторіть.",

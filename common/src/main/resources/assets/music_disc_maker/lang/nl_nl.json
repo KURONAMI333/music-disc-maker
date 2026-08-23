@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "Bron niet bereikbaar. Controleer je verbinding.",
   "gui.music_disc_maker.failed.refused": "De bron weigerde dit nummer. Probeer een andere link.",
   "gui.music_disc_maker.failed.blocked": "Adres niet toegestaan. Gebruik een openbare http- of https-link.",
-  "gui.music_disc_maker.failed.botcheck": "YouTube blokkeerde dit, geen kopie. Probeer een andere link.",
+  "gui.music_disc_maker.failed.botcheck": "De bron blokkeerde dit, geen kopie. Probeer een andere link.",
   "gui.music_disc_maker.failed.botcheck.tip": "Deze bron markeert deze verbinding als een bot en vraagt om in te loggen. Dit is geen verbindingsprobleem: het hangt af van het IP-adres waar het verzoek vandaan komt, dus het kan net zo goed in singleplayer als op een server gebeuren. Probeer een directe link of een andere bron.",
   "gui.music_disc_maker.failed.generic": "Kan dit nummer niet afspelen.",
   "gui.music_disc_maker.failed.limit": "Te veel nummers spelen. Stop er een en probeer opnieuw.",

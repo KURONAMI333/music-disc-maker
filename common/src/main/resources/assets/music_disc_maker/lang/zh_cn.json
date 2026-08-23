@@ -13,7 +13,7 @@
   "gui.music_disc_maker.failed.connection": "无法连接到音源。请检查网络连接。",
   "gui.music_disc_maker.failed.refused": "音源拒绝了这段音频。请换一个链接。",
   "gui.music_disc_maker.failed.blocked": "不允许该地址。请用公开的 http 或 https 链接。",
-  "gui.music_disc_maker.failed.botcheck": "已被 YouTube 封锁，也没有找到替代。请换一个链接。",
+  "gui.music_disc_maker.failed.botcheck": "已被音源封锁，也没有找到替代。请换一个链接。",
   "gui.music_disc_maker.failed.botcheck.tip": "此音源将此连接判定为机器人并要求登录。这不是连接问题，而是取决于请求来源的 IP 地址，因此单人游戏和服务器上都可能出现。可以尝试直接链接或换一个音源。",
   "gui.music_disc_maker.failed.generic": "无法播放这段音频。",
   "gui.music_disc_maker.failed.limit": "同时播放的音频过多。请停止一个后重试。",
