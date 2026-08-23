@@ -2,6 +2,7 @@
 
 ## 2.2.3
 - **A source blocking the connection is no longer described as YouTube doing it.** Any host that refuses the request now says so in neutral wording.
+- **Fixed a SoundCloud preview-only link producing a disc that goes silent partway through.** A preview-only track reports its full song length even though SoundCloud only streams the opening part, so the disc played briefly and then fell silent with no explanation. These links are now recognized and rejected up front with a clear reason, whether pasted directly, found in a playlist, or picked up while searching for another source.
 
 ## 2.2.2
 - **Fixed YouTube playback after YouTube changed the connection it accepts.** Tracks that suddenly would not play now use a different YouTube connection and play again. Spotify links also keep their own search path, so they no longer turn into audio from a different source.
