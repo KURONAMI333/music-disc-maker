@@ -66,7 +66,12 @@ public record PlaybackFailure(Kind kind, String detail) {
         /** sound engine が再生を受理しなかった (未登録 sound event・チャンネル枯渇・他 MOD の取り消し)。 */
         SOUND_ENGINE("sound_engine"),
         /** 音量が 0 なので engine が捨てた。engine の拒否のうち<b>利用者が自分で直せる</b>唯一のもの。 */
-        MUTED("muted");
+        MUTED("muted"),
+        /**
+         * 音源が冒頭の試聴版しか配信していない (SoundCloud GO+)。
+         * {@link FailureReason#PREVIEW_ONLY} の再生側。
+         */
+        PREVIEW_ONLY("preview");
 
         private final String suffix;
 
@@ -119,6 +124,7 @@ public record PlaybackFailure(Kind kind, String detail) {
                 case REFUSED -> "gui.music_disc_maker.failed.refused";
                 case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
                 case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
+                case PREVIEW_ONLY -> "gui.music_disc_maker.failed.preview";
                 // 再生時にしか起きないもの (制作機は URL を解決するだけなので相当する語が無い)。
                 case CONCURRENT_LIMIT -> "gui.music_disc_maker.failed.limit";
                 case MUTED -> "gui.music_disc_maker.failed.muted";
@@ -196,6 +202,9 @@ public record PlaybackFailure(Kind kind, String detail) {
             case REGION_LOCKED -> Kind.REGION_LOCKED;
             case AGE_RESTRICTED -> Kind.AGE_RESTRICTED;
             case BOT_CHECK -> Kind.BOT_CHECK;
+            // 制作機で弾いた曲でも、既に作られたディスクは再生時にここへ来る (再生も同じ
+            // 解決経路を通るため。MusicLoaderImpl#openStreamDetailed)。
+            case PREVIEW_ONLY -> Kind.PREVIEW_ONLY;
             // 行動が既存の分類と同じものは寄せる (ガード拒否・回線)。
             case BLOCKED_URL -> Kind.BLOCKED_URL;
             case CONNECTION_FAILED -> Kind.NETWORK;

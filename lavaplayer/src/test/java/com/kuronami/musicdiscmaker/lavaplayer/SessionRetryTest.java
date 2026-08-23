@@ -164,6 +164,9 @@ class SessionRetryTest {
         // 検索が bot 判定で弾かれると 0 件 = noMatches として返るので、検索の時だけやり直す。
         assertTrue(MusicLoaderImpl.isRetryable(FailureReason.UNSUPPORTED_URL, true));
         assertFalse(MusicLoaderImpl.isRetryable(FailureReason.UNSUPPORTED_URL, false));
+        // 相手が配信していないものは、開き直しても visitorId を替えても出てこない (C17)。
+        assertFalse(MusicLoaderImpl.isRetryable(FailureReason.PREVIEW_ONLY, false));
+        assertFalse(MusicLoaderImpl.isRetryable(FailureReason.PREVIEW_ONLY, true));
     }
 
     /** 再試行の対象になるのは YouTube 相手だけ (他サービスの visitorId は存在しない)。 */
