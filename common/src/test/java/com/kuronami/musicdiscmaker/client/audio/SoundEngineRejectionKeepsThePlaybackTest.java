@@ -82,6 +82,23 @@ class SoundEngineRejectionKeepsThePlaybackTest {
         }
     };
 
+    /**
+     * 受理せず、しかも<b>理由を聞かれると落ちる</b> engine。実機で起きた形の再現
+     * ({@code play} が {@code resolve} へ到達せずに捨てた後、音量の参照が NPE になった)。
+     */
+    private static final SoundEngineAcceptance.Engine REJECTING_AND_BROKEN = new SoundEngineAcceptance.Engine() {
+
+        @Override
+        public boolean playAndConfirm() {
+            return false;
+        }
+
+        @Override
+        public boolean mutedOut() {
+            throw new NullPointerException("Cannot invoke \"Sound.getVolume()\" because \"this.sound\" is null");
+        }
+    };
+
     private final AtomicLong clock = new AtomicLong();
     private final PlaybackSessions sessions = new PlaybackSessions(clock::get);
     private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(clock::get);
@@ -98,7 +115,12 @@ class SoundEngineRejectionKeepsThePlaybackTest {
 
     /** 受理されなかった時の経路を、後始末の選び方だけ変えて通す。 */
     private boolean play(int token, Runnable cleanup) {
-        return SoundEngineAcceptance.start(REJECTING, cleanup, rejected -> {
+        return play(REJECTING, token, cleanup);
+    }
+
+    /** {@code ClientPlaybackManager} の拒否経路と同じ繋ぎ方で engine を差し替えて通す。 */
+    private boolean play(SoundEngineAcceptance.Engine engine, int token, Runnable cleanup) {
+        return SoundEngineAcceptance.start(engine, cleanup, rejected -> {
             final PlaybackFailure show = sessions.engineRejected(KEY, token, rejected);
             if (show != null) {
                 reported.add(show);
@@ -164,6 +186,44 @@ class SoundEngineRejectionKeepsThePlaybackTest {
         clock.set(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS * 2);
         assertFalse(sessions.firstAudioOverdue(KEY, token), "鳴っている再生を期限が畳もうとしている");
         assertFalse(voice.stopped);
+    }
+
+    /**
+     * <b>理由の判定が落ちても、F1 の安全網が働くこと。</b>
+     *
+     * <p>実機で踏んだ形: 他 MOD が {@code play} を取り消したため {@code resolve} が走らず、
+     * 拒否の理由を聞いた所 ({@code mutedOut}) が NPE を投げて、それが呼び出し元の task を
+     * 中断させた。中断は<b>拒否より後ろにある処理を丸ごと落とす</b>ので、そこに回収の仕掛けが
+     * 乗っていたら「誰も閉じない音源」に戻る。
+     *
+     * <p>ここが見るのは 3 つ。例外を外に出さないこと・報告を落とさないこと・そして
+     * 30 秒の期限が変わらず効くこと。
+     */
+    @Test
+    void aRejectionWhoseReasonCannotBeToldStillLeavesTheSafetyNetWorking() {
+        final int token = install();
+
+        assertFalse(play(REJECTING_AND_BROKEN, token, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE),
+                "理由の判定が落ちたせいで例外が外へ出ている (呼び出し元の task ごと中断する)");
+
+        assertEquals(1, reported.size(), "理由が分からないことを口実に報告ごと捨てている: " + reported);
+        assertEquals(PlaybackFailure.Kind.SOUND_ENGINE, reported.get(0).kind(),
+                "分からない時は一般の拒否として出すこと");
+
+        clock.set(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS);
+        assertTrue(sessions.firstAudioOverdue(KEY, token), "期限が効かなくなっている");
+        ClientPlaybackManager.releaseOnFirstAudioDeadline(sessions, prefetch, KEY, false);
+        assertTrue(voice.stopped, "期限が来ても音源を畳んでいない");
+    }
+
+    /** 理由の判定が落ちても、期限を持たない呼び出し側の後始末は先に走り切っていること。 */
+    @Test
+    void aCallerWithoutADeadlineStillFoldsTheVoiceWhenTheReasonCannotBeTold() {
+        final int token = install();
+
+        assertFalse(play(REJECTING_AND_BROKEN, token, voice::stopAndRelease));
+
+        assertTrue(voice.stopped, "理由の判定が落ちた時に後始末が飛ばされている");
     }
 
     /**
