@@ -2,6 +2,8 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.function.Consumer;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
+
 /**
  * 「{@code SoundManager.play} に渡したのに鳴らなかった」を捕まえる関門 (MC 非依存)。
  *
@@ -92,9 +94,36 @@ public final class SoundEngineAcceptance {
             return true;
         }
         onRejectedCleanup.run();
-        onRejected.accept(engine.mutedOut()
-                ? PlaybackFailure.soundMuted()
-                : PlaybackFailure.soundEngineRejected());
+        onRejected.accept(reasonFor(engine));
         return false;
+    }
+
+    /**
+     * 拒否の理由を名指しする。<b>ここで例外を外へ出さない。</b>
+     *
+     * <p>理由の細分化は engine の状態を読む処理なので、engine が中途半端な状態だと落ちうる
+     * (実例: {@code play} が {@code resolve} へ到達せずに捨てた後の音量参照が NPE になった)。
+     * ところがここは<b>拒否が確定した後</b>で、呼び出し側は {@code play} の失敗を記録しに
+     * 来ているだけ。ここから例外を投げると、呼び出し元が回している task ごと落ちて
+     * <b>報告もその後の処理も丸ごと失われる</b>。
+     *
+     * <p>だから理由が分からなかった時は「分からない」として一般の拒否に落とす。
+     * 拒否そのものは {@link Engine#playAndConfirm} が既に確定させており、この関数の答えは
+     * <b>文言の選択だけ</b>に効く。
+     *
+     * @param engine 音を渡した先
+     * @return 報告する理由
+     */
+    private static PlaybackFailure reasonFor(Engine engine) {
+        try {
+            return engine.mutedOut()
+                    ? PlaybackFailure.soundMuted()
+                    : PlaybackFailure.soundEngineRejected();
+        } catch (final Throwable t) {
+            MusicDiscMaker.LOGGER.warn(
+                    "Could not tell whether the sound was dropped for zero volume; reporting it as a plain rejection",
+                    t);
+            return PlaybackFailure.soundEngineRejected();
+        }
     }
 }

@@ -558,6 +558,29 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     /**
+     * {@inheritDoc}
+     *
+     * <p><b>{@link #resolve} より前に呼ばれても落ちないようにする。</b> 親の実装は
+     * {@code this.volume * this.sound.getVolume().sample(random)} で、{@code sound} を差すのは
+     * {@link #resolve} だけ。ところが {@code SoundEngine#play} は {@code resolve} へ<b>到達せずに
+     * 捨てる経路を 3 つ持つ</b> (engine 未ロード / 他 MOD が {@code ClientHooks.playSound} で
+     * 取り消した / {@code canPlaySound} が偽)。そこを通った後で音量を見ると {@code sound} が
+     * {@code null} のままで、親の実装は NPE を投げる。
+     *
+     * <p>投げると呼び出し元の task ごと落ちるので実害が大きい。実機では他 MOD が
+     * {@code play} を取り消した後に {@link #mutedOut()} がここへ来て、
+     * {@code BlockableEventLoop} の task が中断した。
+     *
+     * <p>未 resolve の時は<b>掛ける相手が未知なので MDM 側の音量だけで答える</b>。
+     * {@code sounds.json} の {@code custom_disc_playback} は volume を書いていない = 既定 1.0
+     * なので、この答えは resolve 後の値と一致する (見かけの音量が変わることはない)。
+     */
+    @Override
+    public float getVolume() {
+        return getSound() == null ? this.volume : super.getVolume();
+    }
+
+    /**
      * 再生スレッドの中で落ちた失敗の届け先を差す。{@link #getCustomStream()} が開栓時に
      * ストリームへ渡すので、{@code SoundManager#play} より前に差しておくこと
      * (未設定なら曲名なしの既定報告になる)。
@@ -613,6 +636,11 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
      * gain は master をそのまま見る。どれかが 0 なら {@code play} は必ず捨てるので、
      * 「engine が受理しなかった」ではなく「音量が 0 だ」と答えられる。
      * この音源自身の音量 (ジュークボックスのスライダー・{@code volumeMultiplier}) も同じ扱いにする。
+     *
+     * <p>1.21.1 の {@code SoundEngine#play} で音量を理由に捨てる 2 箇所
+     * ({@code calculateVolume} が 0 / {@code listener.getGain()} が 0) は、どちらも
+     * {@code resolve} の<b>後ろ</b>にある。つまり {@code resolve} 前に捨てられた再生は
+     * 定義から音量 0 が理由ではない。その状態でも落ちないことは {@link #getVolume()} が持つ。
      */
     @Override
     public boolean mutedOut() {
