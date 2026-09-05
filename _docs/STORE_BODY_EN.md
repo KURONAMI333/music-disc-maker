@@ -36,4 +36,6 @@ Minecraft only gives you a fixed set of music discs and no way to play your own 
 - Audio is streamed from the source each time it plays — it isn't stored inside the disc, so it needs an internet connection. Some tracks may be region-locked or unavailable.
 - Install it on the server and on every client; audio plays client-side. No other mods required.
 
-Free to use in any modpack. Source and issues: https://github.com/KURONAMI333/music-disc-maker
+Bugs and questions: comment on the CurseForge page, or DM @kuronami333 on X.
+
+Free to use in any modpack. Source: https://github.com/KURONAMI333/music-disc-maker
