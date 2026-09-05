@@ -2,7 +2,7 @@ Paste a track link, insert a blank disc, and get a custom music disc that plays 
 
 Minecraft only gives you a fixed set of music discs and no way to play your own music. This adds a crafting block: paste a URL (YouTube, Spotify, SoundCloud, Bandcamp, or a direct stream), drop in a blank disc, and it makes a disc that streams that track from an ordinary jukebox, with the vanilla "Now Playing" overlay and positional audio.
 
-Demo: https://youtu.be/7sUJqdRrS3M
+<iframe width="560" height="315" src="https://www.youtube.com/embed/7sUJqdRrS3M" title="Music Disc Maker demo" frameborder="0" allowfullscreen></iframe>
 
 **Features**
 
