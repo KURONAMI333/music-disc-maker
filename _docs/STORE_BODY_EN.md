@@ -1,18 +1,3 @@
-<!--
-KURONAMI store description (Modrinth body / CurseForge description — shared, English).
-Written to knowledge/STORE_BODY_FRAMEWORK.md (no version table, function-first hook, facts over adjectives).
-
-Current as of v2.2.0 (2026-08-15). This file is the source; Modrinth body and CurseForge description are copies of it.
-
-== Store fields (set separately from the body) ==
-SUMMARY: Craft playable music discs from any YouTube, Spotify, or SoundCloud link and play them in a vanilla jukebox.
-MODRINTH categories: decoration, utility | loaders: fabric, forge, neoforge | versions: 1.20.1, 1.21.1, 1.21.11, 26.1.2, 26.2 | env: client + server (required both)
-MODRINTH slug: music-disc-maker
-CURSEFORGE: main category = Miscellaneous; additional = Cosmetic, Server Utility | summary: Craft playable music discs from any YouTube/Spotify/SoundCloud link.
--->
-
-# Music Disc Maker
-
 Paste a track link, insert a blank disc, and get a custom music disc that plays in a vanilla jukebox.
 
 Minecraft only gives you a fixed set of music discs and no way to play your own music. This adds a crafting block: paste a URL (YouTube, Spotify, SoundCloud, Bandcamp, or a direct stream), drop in a blank disc, and it makes a disc that streams that track from an ordinary jukebox, with the vanilla "Now Playing" overlay and positional audio.
@@ -64,8 +49,9 @@ Paste an internet radio stream (Icecast/SHOUTcast) or a YouTube live URL and you
 
 - Audio is streamed from the source each time it plays. It isn't stored inside the disc, so it needs an internet connection. Some tracks may be region-locked or unavailable.
 - Not all sources are equally reliable. Direct audio-file links, SoundCloud, and Bandcamp don't do bot checks. YouTube (and Spotify, which resolves through a YouTube search) can occasionally hit a login/bot-check wall on some server IPs — most common on hosted or rented servers. The maker tells you when that happens; a direct link or one of the other sources is the fix.
-- Install it on the server and on every client. Audio plays client-side. No other mods required.
+- No other mods are required.
 - **The server and every client must run the same version of this mod.** From 2.2.0 on, NeoForge and Forge reject a mismatch when you connect. Fabric has no version handshake, so a mismatch there is not caught and will misbehave instead — update both sides together.
 
-All Rights Reserved. Free to put in any modpack, on any platform, monetised or not - no permission needed, no credit required. Source is published so you can read exactly what it does: https://github.com/KURONAMI333/music-disc-maker
+Bugs and questions: comment on the CurseForge page, or DM @kuronami333 on X.
 
+All Rights Reserved. Free to put in any modpack, on any platform, monetised or not - no permission needed, no credit required. Source is published so you can read exactly what it does: https://github.com/KURONAMI333/music-disc-maker
