@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "G G",
+    "GNG",
+    "IRI"
+  ],
+  "key": {
+    "G": "minecraft:gold_ingot",
+    "N": "minecraft:note_block",
+    "I": "minecraft:iron_ingot",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "music_disc_maker:speaker",
+    "count": 1
+  }
+}

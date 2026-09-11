@@ -1,62 +1,43 @@
 # Music Disc Maker
 
-> Paste a URL, turn a blank disc into a custom music disc, and play it in any vanilla jukebox.
-> **NeoForge 1.21.1.**
+Craft playable music discs from YouTube, Spotify, SoundCloud, Bandcamp, internet radio, and direct audio links.
 
-Music Disc Maker adds a crafting block that takes a **Blank Disc** + a **URL** and produces a
-**Custom Music Disc** playable in the ordinary Minecraft jukebox — bringing the "paste a link, hear it instantly"
-experience to Minecraft's disc culture.
+[Watch the demo](https://www.youtube.com/watch?v=7sUJqdRrS3M)
 
-## Supported services
+Music Disc Maker turns a Blank Disc and a URL into a Custom Music Disc. Play it in a vanilla jukebox with positional audio and the vanilla “Now Playing” overlay, or use the added players and displays for larger builds.
 
-YouTube · Spotify · SoundCloud · Bandcamp · Vimeo · Twitch · direct HTTP audio streams
+## Features
 
-Spotify track links are matched by song + artist (the audio is then found automatically). Audio is
-streamed and decoded with [LavaPlayer](https://github.com/lavalink-devs/lavaplayer),
-**bundled inside the mod jar** — no extra install, no external programs (no ffmpeg / yt-dlp).
+- Custom discs with track title, artist, length, source, and cover art in the tooltip
+- Albums that hold up to nine custom discs, list their contents, and keep their contents and order when dyed
+- A portable or placeable Boombox with play/pause, previous/next, shuffle, repeat, seek, and volume controls
+- A Golden Jukebox with 16–256 block range, 0–200% volume, positional or flat audio, Album controls, and resource-pack support for its sliders and playback bar
+- Speakers that link to a Golden Jukebox, mount on floors, walls, ceilings, or fence posts, and have individual volume and redstone mute
+- A Disc Dyeing Table for separate surface and accent colors
+- A Disc Pedestal that shows one custom disc with its track title and artist
+- Internet radio and YouTube live discs with automatic reconnection
+- Up to 64 simultaneous custom tracks without changing settings; the limit adjusts on devices with fewer available audio channels
 
-## How to use
+## Basic use
 
-1. Craft a **Music Disc Maker** block and a **Blank Disc** (lapis lazuli + iron).
-2. Right-click the block to open its GUI.
-3. Paste a track URL into the field and insert a Blank Disc in the input slot. As soon as both are
-   present, a **Custom Music Disc** is created in the output — one disc per link (the field then clears).
-4. Take the **Custom Music Disc** and put it in a vanilla **Jukebox**. It plays as positional audio
-   (fades with distance, follows the Records volume slider). Right-click the jukebox again to eject and stop.
+1. Craft a Blank Disc with lapis lazuli and iron, then craft a Music Disc Maker.
+2. Open the Music Disc Maker, paste a supported track URL, and insert the Blank Disc.
+3. Take the Custom Music Disc from the output and play it in a vanilla jukebox, Golden Jukebox, or Boombox.
 
-## Multiplayer
+Audio streams from its source each time it plays, so playback needs an internet connection. Use the same Music Disc Maker version on the server and every client.
 
-Server-authoritative: the URL is stored on the block / disc, and on playback the server broadcasts it to
-nearby players who each decode independently (≈1–2 s sync tolerance). No voice-chat mod required.
+## Compatibility
 
-## Config (client)
+- Additional Additions Albums and Pocket Jukebox
+- Sophisticated Backpacks jukebox upgrade
+- Traveler's Backpack jukebox upgrade
+- Create moving contraptions on NeoForge 1.21.1 and Forge 1.20.1; Create Aeronautics physics airships on NeoForge 1.21.1
+- Valkyrien Skies 2, Eureka!, and Clockwork ships on 1.20.1
 
-- `volumeMultiplier` (default `0.5`) — playback volume relative to the Records slider.
-- `maxConcurrent` (default `16`) — max custom discs playing at once.
+## Support
 
-## Disclaimer
+Bugs and questions: comment on the CurseForge page, or DM @kuronami333 on X.
 
-Streaming audio from third-party services is **the user's responsibility**. Please respect the Terms of
-Service of YouTube, SoundCloud, and any other service you use. This mod is a tool; how you use it is up to you.
+## License
 
-## Requirements
-
-- Minecraft 1.21.1
-- NeoForge 21.1.x
-
-## Building
-
-```bash
-export JAVA_HOME=/path/to/jdk-21
-./gradlew build
-```
-
-The output jar (in `build/libs/`) bundles LavaPlayer and its dependencies in a `dependencies/` folder,
-loaded at runtime by an isolated class loader so they don't clash with the game's own libraries.
-
-## License & credits
-
-- Mod code: [MIT](LICENSE).
-- Bundled audio libraries (LavaPlayer etc.): see `META-INF/NOTICE` and `META-INF/LICENSE-DEPENDENCIES`.
-- LavaPlayer-on-NeoForge integration approach inspired by
-  [MC-U-Team/Music-Player](https://github.com/MC-U-Team/Music-Player).
+All Rights Reserved. Free to include in any modpack, on any platform, monetised or not. No permission or credit is required.

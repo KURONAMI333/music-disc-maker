@@ -1,0 +1,54 @@
+package com.kuronami.musicdiscmaker.mixin;
+
+import java.util.Map;
+
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+
+import com.kuronami.musicdiscmaker.client.audio.StreamingChannelPool;
+import com.kuronami.musicdiscmaker.client.audio.SoundEngineChannelAccess;
+import com.mojang.blaze3d.audio.Library;
+
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.sounds.ChannelAccess;
+import net.minecraft.client.sounds.SoundEngine;
+
+/**
+ * SoundEngine の private {@code instanceToChannel} を経由して、再生中チャンネルの線形減衰半径と
+ * 相対座標フラグを ライブ更新する ({@link SoundEngineChannelAccess})。強化版ジュークボックスの範囲
+ * スライダーと指向性トグルを、音量と同様に再ストリームなしで即反映するために使う。
+ *
+ * <p>{@code @Shadow} フィールド読み + duck メソッド追加のみ = {@code play}/{@code tickNonPaused} の
+ * bytecode には触れない。既存の {@code MixinSoundEngine} の {@code @Redirect} (Forge の getStream 拡張点) とは
+ * 別系統で、互いに干渉しない。
+ */
+@Mixin(SoundEngine.class)
+public abstract class MixinSoundEngineChannels implements SoundEngineChannelAccess {
+
+    @Shadow
+    private Map<SoundInstance, ChannelAccess.ChannelHandle> instanceToChannel;
+
+    @Shadow
+    private Library library;
+
+    @Override
+    public void mdm$updateLinearAttenuation(SoundInstance instance, float linearAttenuation) {
+        final ChannelAccess.ChannelHandle handle = this.instanceToChannel.get(instance);
+        if (handle != null) {
+            handle.execute(channel -> channel.linearAttenuation(linearAttenuation));
+        }
+    }
+
+    @Override
+    public void mdm$setRelative(SoundInstance instance, boolean relative) {
+        final ChannelAccess.ChannelHandle handle = this.instanceToChannel.get(instance);
+        if (handle != null) {
+            handle.execute(channel -> channel.setRelative(relative));
+        }
+    }
+
+    @Override
+    public int mdm$streamingPoolLimit() {
+        return StreamingChannelPool.actualStreamingLimit(this.library.getDebugString());
+    }
+}

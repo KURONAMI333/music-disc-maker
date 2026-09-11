@@ -1,0 +1,10 @@
+{
+  "sourceJar": "music_disc_maker-2.2.4+neoforge-1.21.1.jar",
+  "sourceJarSha256": "447f742e589adae59135c61cdc4668f099fb6e933fae274a8269c365f2875ac2",
+  "fixture": "music_disc_maker_active_discs.dat",
+  "fixtureSha256": "7f95949f12c54d34de57d9c025556f27e9fecfa7dc2730c8fedfb3e4c0441186",
+  "producer": "Published ActiveDiscSaveData.put, save(File, RegistryAccess.EMPTY), IOUtilities.waitUntilIOWorkerComplete",
+  "dataVersion": 3955,
+  "entryCount": 1,
+  "scope": "Synthetic entry saved by the published JAR; not a user world export"
+}

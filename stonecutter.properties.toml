@@ -1,0 +1,23 @@
+mod.id = "music_disc_maker"
+
+["26.2"]
+deps.neoform = "26.2-2"
+deps.java = "25"
+
+["26.1.2"]
+deps.neoform = "26.1.2-1"
+deps.java = "25"
+
+["1.21.11"]
+deps.neoform = "1.21.11-20251209.172050"
+deps.java = "21"
+
+["1.21.1"]
+deps.neoform = "1.21.1-20240808.144430"
+deps.java = "21"
+
+["1.20.1"]
+deps.java = "17"
+deps.forge = "47.2.30"
+deps.parchment_mc = "1.20.1"
+deps.parchment = "2023.09.03"

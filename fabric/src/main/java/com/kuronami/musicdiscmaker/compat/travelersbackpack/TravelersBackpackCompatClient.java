@@ -1,0 +1,494 @@
+package com.kuronami.musicdiscmaker.compat.travelersbackpack;
+
+//? if >=26.2 {
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import org.jetbrains.annotations.Nullable;
+
+import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
+import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackGenerations;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
+import com.kuronami.musicdiscmaker.register.ModDataComponents;
+import com.kuronami.musicdiscmaker.register.ModItems;
+
+import com.tiviacz.travelersbackpack.inventory.menu.BackpackBaseMenu;
+import com.tiviacz.travelersbackpack.inventory.upgrades.jukebox.JukeboxUpgrade;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+
+/**
+ * client 側: Traveler's Backpack の Jukebox Upgrade スロットで MDM の custom disc を LavaPlayer 再生する。
+ *
+ * <p>TB の再生は完全にローカル ({@code JukeboxWidget.playDiscToPlayer} が {@code Minecraft.getInstance()}
+ * を直接叩くだけで、SB のような近隣プレイヤーへの broadcast packet が無い) ので、この compat も同じ
+ * 「クリックした本人にしか聞こえない」聞こえ方に揃える (TB 自体の設計がそうなっているだけで、機能を
+ * 削っているわけではない)。
+ *
+ * <p>呼び出し元は {@code TravelersBackpackJukeboxMixin} のみ。TB 型 ({@link BackpackBaseMenu}/
+ * {@link JukeboxUpgrade}) を参照するのはこのクラスだけなので、mixin が適用されない
+ * (= TB 非導入環境) ではこのクラス自体が一切 touch されない。
+ *
+ * <p>Fabric 版 TB の {@code JukeboxUpgrade.diskHandler} は TB 独自の
+ * {@code com.tiviacz.travelersbackpack.inventory.handler.ItemStackHandler} で、NeoForge 版と違い
+ * {@code getStackInSlot(int)} をそのまま持つ (26.2 fabric 実 jar で確認済み)。
+ */
+public final class TravelersBackpackCompatClient {
+
+    private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
+        final Thread thread = new Thread(runnable, "music_disc_maker-tb-playback");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /** 現在再生中のインスタンス。stop クリックまで保持し続ける (曲の自然終了で再トリガーしない)。 */
+    @Nullable
+    private static volatile DiscSoundInstance activeInstance;
+
+    /**
+     * 再生世代。{@link #activeInstance} はロードが終わるまで {@code null} なので、それだけでは
+     * ロード中の要求を止められない (再生 → 即停止 が空振りし、再生の連打で音源が重なる)。
+     */
+    private static final PlaybackGenerations<String> GENERATIONS = new PlaybackGenerations<>();
+
+    /** TB の jukebox upgrade は client にひとつだけ (画面 1 枚ぶん) なので鍵は固定。 */
+    private static final String SLOT = "jukebox_upgrade";
+
+    private TravelersBackpackCompatClient() {
+    }
+
+    /** {@code JukeboxWidget.playDiscToPlayer} の TAIL から呼ばれる。entityId は再生元 (装着者)。 */
+    public static void onPlayClicked(int entityId) {
+        final ItemStack disc = currentDisc();
+        if (disc == null || disc.isEmpty() || !disc.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            return;
+        }
+        final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
+        if (track == null || track.isEmpty()) {
+            return;
+        }
+        final Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return;
+        }
+        final Entity entity = mc.level.getEntity(entityId);
+        if (entity == null) {
+            return;
+        }
+        stopInternal();
+        // 世代は stopInternal の後に進める (停止が自分自身のロードを打ち消さないように)。
+        final int generation = GENERATIONS.begin(SLOT);
+        // URL ロードはブロックするので別 thread、SoundManager 操作は main thread (SC compat と同じ配線)。
+        POOL.submit(() -> {
+            IAudioSource source = null;
+            PlaybackFailure failure = null;
+            try {
+                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
+                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), 0L);
+                source = result.source();
+                failure = result.isOk() ? null
+                        : PlaybackFailure.ofReason(result.reason(), result.detail());
+            } catch (final UrlBlockedException blocked) {
+                failure = PlaybackFailure.blocked(blocked.reason());
+            } catch (final Throwable t) {
+                failure = PlaybackFailure.thrown(t);
+            }
+            final IAudioSource resolved = source;
+            final PlaybackFailure reported = failure;
+            Minecraft.getInstance().execute(() -> {
+                if (resolved == null) {
+                    // 無音で終わらせない。理由の分類つきで画面とログの両方に残す (本体の再生経路と同じ出方)。
+                    PlaybackFailureReport.report(track, reported);
+                    return;
+                }
+                // ロード中に停止された / 次の再生が来ていたら、この音源は鳴らさずに捨てる。
+                if (!GENERATIONS.isCurrent(SLOT, generation)) {
+                    resolved.close();
+                    return;
+                }
+                // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
+                // 構築子を直接呼べないのは意図的 (繋ぎ忘れをコンパイルで止める。CompatPlayback の javadoc)。
+                final DiscSoundInstance instance = CompatPlayback.wired(entity, resolved, track);
+                activeInstance = instance;
+                Minecraft.getInstance().getSoundManager().play(instance);
+                final String desc = (track.author() != null && !track.author().isBlank())
+                        ? track.author() + " - " + track.title()
+                        : track.title();
+                if (desc != null && !desc.isBlank()) {
+                    Minecraft.getInstance().gui.hud.setNowPlaying(Component.literal(desc));
+                }
+            });
+        });
+    }
+
+    /** {@code JukeboxWidget.stopDisc} の TAIL から呼ばれる。 */
+    public static void onStopClicked() {
+        stopInternal();
+    }
+
+    private static void stopInternal() {
+        // まだロード中の要求もここで無効化する (鳴っている音源が無くても停止は空振りしない)。
+        GENERATIONS.invalidate(SLOT);
+        final DiscSoundInstance instance = activeInstance;
+        if (instance != null) {
+            instance.requestStop();
+            activeInstance = null;
+        }
+    }
+
+    /**
+     * 現在開いている TB backpack 画面の jukebox upgrade スロットに入っているディスク (無ければ null)。
+     * TB の private/継承フィールドへの {@code @Shadow} は使わず、公開 API だけで辿る。
+     */
+    @Nullable
+    private static ItemStack currentDisc() {
+        final Minecraft mc = Minecraft.getInstance();
+        if (!(mc.player != null && mc.player.containerMenu instanceof BackpackBaseMenu menu)) {
+            return null;
+        }
+        final Optional<JukeboxUpgrade> upgrade =
+                menu.getWrapper().getUpgradeManager().getUpgrade(JukeboxUpgrade.class);
+        return upgrade.map(u -> u.diskHandler.getStackInSlot(0)).orElse(null);
+    }
+}
+
+//?} elif >=1.21 {
+/*import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import org.jetbrains.annotations.Nullable;
+
+import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
+import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackGenerations;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
+import com.kuronami.musicdiscmaker.register.ModDataComponents;
+import com.kuronami.musicdiscmaker.register.ModItems;
+
+import com.tiviacz.travelersbackpack.inventory.menu.BackpackBaseMenu;
+import com.tiviacz.travelersbackpack.inventory.upgrades.jukebox.JukeboxUpgrade;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+
+/^*
+ * client 側: Traveler's Backpack の Jukebox Upgrade スロットで MDM の custom disc を LavaPlayer 再生する。
+ *
+ * <p>TB の再生は完全にローカル ({@code JukeboxWidget.playDiscToPlayer} が {@code Minecraft.getInstance()}
+ * を直接叩くだけで、SC のような近隣プレイヤーへの broadcast packet が無い) ので、この compat も同じ
+ * 「クリックした本人にしか聞こえない」聞こえ方に揃える。SB のような spatial broadcast はしない
+ * (TB 自体の設計がそうなっているだけで、機能を削っているわけではない)。
+ *
+ * <p>呼び出し元は {@code TravelersBackpackJukeboxMixin} のみ。TB 型 ({@link BackpackBaseMenu}/
+ * {@link JukeboxUpgrade}) を参照するのはこのクラスだけなので、mixin が適用されない
+ * (= TB 非導入環境) ではこのクラス自体が一切 touch されない。
+ ^/
+public final class TravelersBackpackCompatClient {
+
+    private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
+        final Thread thread = new Thread(runnable, "music_disc_maker-tb-playback");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /^* 現在再生中のインスタンス。stop クリックまで保持し続ける (曲の自然終了で再トリガーしない)。 ^/
+    @Nullable
+    private static volatile DiscSoundInstance activeInstance;
+
+    /^*
+     * 再生世代。{@link #activeInstance} はロードが終わるまで {@code null} なので、それだけでは
+     * ロード中の要求を止められない (再生 → 即停止 が空振りし、再生の連打で音源が重なる)。
+     ^/
+    private static final PlaybackGenerations<String> GENERATIONS = new PlaybackGenerations<>();
+
+    /^* TB の jukebox upgrade は client にひとつだけ (画面 1 枚ぶん) なので鍵は固定。 ^/
+    private static final String SLOT = "jukebox_upgrade";
+
+    private TravelersBackpackCompatClient() {
+    }
+
+    /^* {@code JukeboxWidget.playDiscToPlayer} の TAIL から呼ばれる。entityId は再生元 (装着者)。 ^/
+    public static void onPlayClicked(int entityId) {
+        final ItemStack disc = currentDisc();
+        if (disc == null || disc.isEmpty() || !disc.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            return;
+        }
+        final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
+        if (track == null || track.isEmpty()) {
+            return;
+        }
+        final Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return;
+        }
+        final Entity entity = mc.level.getEntity(entityId);
+        if (entity == null) {
+            return;
+        }
+        stopInternal();
+        // 世代は stopInternal の後に進める (停止が自分自身のロードを打ち消さないように)。
+        final int generation = GENERATIONS.begin(SLOT);
+        // URL ロードはブロックするので別 thread、SoundManager 操作は main thread (SC compat と同じ配線)。
+        POOL.submit(() -> {
+            IAudioSource source = null;
+            PlaybackFailure failure = null;
+            try {
+                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
+                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), 0L);
+                source = result.source();
+                failure = result.isOk() ? null
+                        : PlaybackFailure.ofReason(result.reason(), result.detail());
+            } catch (final UrlBlockedException blocked) {
+                failure = PlaybackFailure.blocked(blocked.reason());
+            } catch (final Throwable t) {
+                failure = PlaybackFailure.thrown(t);
+            }
+            final IAudioSource resolved = source;
+            final PlaybackFailure reported = failure;
+            Minecraft.getInstance().execute(() -> {
+                if (resolved == null) {
+                    // 無音で終わらせない。理由の分類つきでログに残す (この経路は画面を持たないのでログだけ)。
+                    PlaybackFailureReport.report(track, reported);
+                    return;
+                }
+                // ロード中に停止された / 次の再生が来ていたら、この音源は鳴らさずに捨てる。
+                if (!GENERATIONS.isCurrent(SLOT, generation)) {
+                    resolved.close();
+                    return;
+                }
+                // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
+                // 構築子を直接呼べないのは意図的 (繋ぎ忘れをコンパイルで止める。CompatPlayback の javadoc)。
+                final DiscSoundInstance instance = CompatPlayback.wired(entity, resolved, track);
+                activeInstance = instance;
+                Minecraft.getInstance().getSoundManager().play(instance);
+                final String desc = (track.author() != null && !track.author().isBlank())
+                        ? track.author() + " - " + track.title()
+                        : track.title();
+                if (desc != null && !desc.isBlank()) {
+                    Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+                }
+            });
+        });
+    }
+
+    /^* {@code JukeboxWidget.stopDisc} の TAIL から呼ばれる。 ^/
+    public static void onStopClicked() {
+        stopInternal();
+    }
+
+    private static void stopInternal() {
+        // まだロード中の要求もここで無効化する (鳴っている音源が無くても停止は空振りしない)。
+        GENERATIONS.invalidate(SLOT);
+        final DiscSoundInstance instance = activeInstance;
+        if (instance != null) {
+            instance.requestStop();
+            activeInstance = null;
+        }
+    }
+
+    /^*
+     * 現在開いている TB backpack 画面の jukebox upgrade スロットに入っているディスク (無ければ null)。
+     * TB の private/継承フィールドへの {@code @Shadow} は使わず、公開 API だけで辿る。
+     ^/
+    @Nullable
+    private static ItemStack currentDisc() {
+        final Minecraft mc = Minecraft.getInstance();
+        if (!(mc.player != null && mc.player.containerMenu instanceof BackpackBaseMenu menu)) {
+            return null;
+        }
+        final Optional<JukeboxUpgrade> upgrade =
+                menu.getWrapper().getUpgradeManager().getUpgrade(JukeboxUpgrade.class);
+        return upgrade.map(u -> u.diskHandler.getStackInSlot(0)).orElse(null);
+    }
+}
+
+*///?} else {
+/*import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import org.jetbrains.annotations.Nullable;
+
+import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
+import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackGenerations;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
+import com.kuronami.musicdiscmaker.register.ModItems;
+
+import com.tiviacz.travelersbackpack.inventory.menu.BackpackBaseMenu;
+import com.tiviacz.travelersbackpack.inventory.upgrades.jukebox.JukeboxUpgrade;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+
+/^*
+ * client 側 (Fabric 1.20.1): Traveler's Backpack の Jukebox Upgrade スロットで MDM の custom disc を
+ * LavaPlayer 再生する。
+ *
+ * <p>TB の再生は完全にローカル ({@code JukeboxWidget.playDiscToPlayer} が {@code Minecraft.getInstance()}
+ * を直接叩くだけで、SC のような近隣プレイヤーへの broadcast packet が無い) ので、この compat も同じ
+ * 「クリックした本人にしか聞こえない」聞こえ方に揃える。SC のような spatial broadcast はしない
+ * (TB 自体の設計がそうなっているだけで、機能を削っているわけではない)。
+ *
+ * <p>使う Fabric jar は 9.1.52 (forge 9.1.56 と同じ {@code UpgradeManager.getUpgrade(Class<T>)} を持つ
+ * 最新版。9.1.53 以降は {@code Fabric-Loom-Mixin-Remap-Type: static} (Loom 1.12.7 出荷) に切り替わり、
+ * 本 project の Loom (1.9.2) が「Mod was built with a newer version of Loom」で拒否するため使えない。
+ * 9.1.20〜9.1.52 は同じ {@code mixin} remap 方式で通し互換。
+ *
+ * <p>呼び出し元は {@code TravelersBackpackJukeboxMixin} のみ。TB 型 ({@link BackpackBaseMenu}/
+ * {@link JukeboxUpgrade}) を参照するのはこのクラスだけなので、mixin が適用されない
+ * (= TB 非導入環境) ではこのクラス自体が一切 touch されない。
+ ^/
+public final class TravelersBackpackCompatClient {
+
+    private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
+        final Thread thread = new Thread(runnable, "music_disc_maker-tb-playback");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /^* 現在再生中のインスタンス。stop クリックまで保持し続ける (曲の自然終了で再トリガーしない)。 ^/
+    @Nullable
+    private static volatile DiscSoundInstance activeInstance;
+
+    /^*
+     * 再生世代。{@link #activeInstance} はロードが終わるまで {@code null} なので、それだけでは
+     * ロード中の要求を止められない (再生 → 即停止 が空振りし、再生の連打で音源が重なる)。
+     ^/
+    private static final PlaybackGenerations<String> GENERATIONS = new PlaybackGenerations<>();
+
+    /^* TB の jukebox upgrade は client にひとつだけ (画面 1 枚ぶん) なので鍵は固定。 ^/
+    private static final String SLOT = "jukebox_upgrade";
+
+    private TravelersBackpackCompatClient() {
+    }
+
+    /^* {@code JukeboxWidget.playDiscToPlayer} の TAIL から呼ばれる。entityId は再生元 (装着者)。 ^/
+    public static void onPlayClicked(int entityId) {
+        final ItemStack disc = currentDisc();
+        if (disc == null || disc.isEmpty() || !disc.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            return;
+        }
+        final CustomTrackData track = CustomMusicDiscItem.getTrack(disc);
+        if (track.isEmpty()) {
+            return;
+        }
+        final Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return;
+        }
+        final Entity entity = mc.level.getEntity(entityId);
+        if (entity == null) {
+            return;
+        }
+        stopInternal();
+        // 世代は stopInternal の後に進める (停止が自分自身のロードを打ち消さないように)。
+        final int generation = GENERATIONS.begin(SLOT);
+        // URL ロードはブロックするので別 thread、SoundManager 操作は main thread (SC compat と同じ配線)。
+        POOL.submit(() -> {
+            IAudioSource source = null;
+            PlaybackFailure failure = null;
+            try {
+                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
+                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), 0L);
+                source = result.source();
+                failure = result.isOk() ? null : PlaybackFailure.ofReason(result.reason(), result.detail());
+            } catch (final UrlBlockedException blocked) {
+                failure = PlaybackFailure.blocked(blocked.reason());
+            } catch (final Throwable t) {
+                failure = PlaybackFailure.thrown(t);
+            }
+            final IAudioSource resolved = source;
+            final PlaybackFailure reported = failure;
+            Minecraft.getInstance().execute(() -> {
+                if (resolved == null) {
+                    PlaybackFailureReport.report(track, reported); // 無音で終わらせず、理由つきで伝える
+                    return;
+                }
+                // ロード中に停止された / 次の再生が来ていたら、この音源は鳴らさずに捨てる。
+                if (!GENERATIONS.isCurrent(SLOT, generation)) {
+                    resolved.close();
+                    return;
+                }
+                // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
+                // 構築子を直接呼べないのは意図的 (繋ぎ忘れをコンパイルで止める。CompatPlayback の javadoc)。
+                final DiscSoundInstance instance = CompatPlayback.wired(entity, resolved, track);
+                activeInstance = instance;
+                Minecraft.getInstance().getSoundManager().play(instance);
+                final String desc = (track.author() != null && !track.author().isBlank())
+                        ? track.author() + " - " + track.title()
+                        : track.title();
+                if (desc != null && !desc.isBlank()) {
+                    Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+                }
+            });
+        });
+    }
+
+    /^* {@code JukeboxWidget.stopDisc} の TAIL から呼ばれる。 ^/
+    public static void onStopClicked() {
+        stopInternal();
+    }
+
+    private static void stopInternal() {
+        // まだロード中の要求もここで無効化する (鳴っている音源が無くても停止は空振りしない)。
+        GENERATIONS.invalidate(SLOT);
+        final DiscSoundInstance instance = activeInstance;
+        if (instance != null) {
+            instance.requestStop();
+            activeInstance = null;
+        }
+    }
+
+    /^*
+     * 現在開いている TB backpack 画面の jukebox upgrade スロットに入っているディスク (無ければ null)。
+     * TB の private/継承フィールドへの {@code @Shadow} は使わず、公開 API だけで辿る。
+     ^/
+    @Nullable
+    private static ItemStack currentDisc() {
+        final Minecraft mc = Minecraft.getInstance();
+        if (!(mc.player != null && mc.player.containerMenu instanceof BackpackBaseMenu menu)) {
+            return null;
+        }
+        final Optional<JukeboxUpgrade> upgrade =
+                menu.getWrapper().getUpgradeManager().getUpgrade(JukeboxUpgrade.class);
+        return upgrade.map(u -> u.diskHandler.getStackInSlot(0)).orElse(null);
+    }
+}
+
+*///?}

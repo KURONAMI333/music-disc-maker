@@ -1,0 +1,11 @@
+{
+  "parent": "music_disc_maker:item/boombox_off",
+  "overrides": [
+    {
+      "predicate": {
+        "music_disc_maker:playing": 1.0
+      },
+      "model": "music_disc_maker:item/boombox_playing"
+    }
+  ]
+}

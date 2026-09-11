@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "LP",
+    "PL"
+  ],
+  "key": {
+    "L": "minecraft:leather",
+    "P": "minecraft:paper"
+  },
+  "result": {
+    "id": "music_disc_maker:album",
+    "count": 1
+  }
+}

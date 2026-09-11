@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "music_disc_maker:block/disc_dyeing_table_north",
+    "north": "music_disc_maker:block/disc_dyeing_table_north",
+    "south": "music_disc_maker:block/disc_dyeing_table_south",
+    "east": "music_disc_maker:block/disc_dyeing_table_east",
+    "west": "music_disc_maker:block/disc_dyeing_table_west",
+    "up": "music_disc_maker:block/disc_dyeing_table_top",
+    "down": "music_disc_maker:block/disc_dyeing_table_bottom"
+  }
+}

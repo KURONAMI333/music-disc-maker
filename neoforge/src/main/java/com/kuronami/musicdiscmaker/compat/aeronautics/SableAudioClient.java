@@ -1,0 +1,228 @@
+package com.kuronami.musicdiscmaker.compat.aeronautics;
+
+//? if >=1.21.2 {
+//?} else {
+/*import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.audio.LoaderHolder;
+import com.kuronami.musicdiscmaker.client.audio.CompatPlayback;
+import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
+import com.kuronami.musicdiscmaker.client.audio.SourcePlaybackOwnership;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackConcurrency;
+import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.LivePlaybackRegistry;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailureReport;
+import com.kuronami.musicdiscmaker.client.audio.SoundEngineAcceptance;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
+import com.kuronami.musicdiscmaker.network.UrlBlockedException;
+import com.kuronami.musicdiscmaker.network.UrlGuard;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+
+/^*
+ * client 側: Create Aeronautics の物理 sub-level に載った MDM 音源ブロックの custom disc を LavaPlayer 再生する。
+ * server の {@link SableServerAudio} が sub-level tracking player へ送る {@link SubLevelPlayDiscPayload} を受けて、
+ * plot 座標に張り付いた {@link SableSubLevelAnchor} で変換式追従再生する。
+ *
+ * <p>この class の Sable 参照 ({@link SableSubLevelAnchor} 経由) は {@link #play} が呼ばれた時のみ
+ * class-load される。{@link #play} は Sable が送った payload 受信時にしか呼ばれないので、Sable 非導入環境では
+ * 到達しない。{@code CreateAudioClient} (捕獲式) と同型。
+ *
+ * <p>同一 plot 座標への再送 (server は sub-level tracking player 全員へ {@code SWEEP_INTERVAL}=20 tick (1 秒) 毎に
+ * 周期送信し、late-tracking を拾う) の捌き方は {@link LivePlaybackRegistry} が持つ。解体・再組立で
+ * plot 座標が変わると別 key になり張り替わる。
+ *
+ * <h2>周期再送は「捨てる」のではなく「現在値として取り込む」</h2>
+ * server は 1 秒ごとに<b>その時点の</b>指向性・範囲・音量を載せて送ってくる。以前はここで
+ * 「同じ plot 座標で再生中なら早期 return」していたので、2 回目以降の payload が一度も読まれず、
+ * <b>GUI で設定を変えても Sable に載った音源にだけ永久に反映されなかった</b>。同じ URL の再送は
+ * 鳴らし直さずに値だけ押し込む ({@link LivePlaybackRegistry.Decision#LIVE_UPDATE})。
+ * 本体の強化版ジュークボックスが {@code DiscSoundInstance#tick} で client 側 BE を再読して
+ * 追従する経路は {@code StaticAnchor} 限定なので、Sable anchor はそちらに入らない。
+ *
+ * <p>世代トークンを使わない理由 (再送間隔がロード時間より短いと一度も鳴らなくなる) と、
+ * in-flight ガード・失敗 URL の記憶も {@link LivePlaybackRegistry} の javadoc にある。
+ ^/
+public final class SableAudioClient {
+
+    private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
+        final Thread thread = new Thread(runnable, "music_disc_maker-sable-playback");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /^* plot 座標ごとの再生スロット。周期再送の値取り込み・in-flight ガード・失敗記憶を持つ。 ^/
+    private static final LivePlaybackRegistry<Long> SLOTS = new LivePlaybackRegistry<>();
+
+    private static final Map<Long, Object> PENDING = new HashMap<>();
+    private static final Map<Long, SubLevelPlayDiscPayload> LATEST = new HashMap<>();
+
+    private record SableRoute(long packedPlotPos) {}
+
+    static { PlaybackConcurrency.client().registerCounter(SLOTS::countPlaying); }
+
+    private static void stop(long key) {
+        PENDING.remove(key);
+        LATEST.remove(key);
+        SLOTS.stop(key);
+    }
+
+    public static void stop(SubLevelStopDiscPayload payload) {
+        if (ClientPlaybackHandler.isProtocolMismatch()) return;
+        final var identity = payload.identity();
+        final long key = payload.plotPos().asLong();
+        if (identity.sourceId() == null) stop(key);
+        else ClientPlaybackHandler.SOURCE_OWNERS.stop(identity.sourceId(), identity.generation(), new SableRoute(key));
+    }
+
+    public static void stopAll() {
+        PENDING.clear();
+        LATEST.clear();
+        SLOTS.stopAll();
+    }
+
+    private SableAudioClient() {
+    }
+
+    public static void play(SubLevelPlayDiscPayload payload) {
+        final CustomTrackData track = payload.track();
+        if (ClientPlaybackHandler.isProtocolMismatch() || track == null || track.isEmpty()) {
+            return;
+        }
+        final var level = Minecraft.getInstance().level;
+        if (level == null) return;
+        final long actorKey = payload.plotPos().asLong();
+        final var identity = payload.identity();
+        final SourcePlaybackOwnership.Lease<Object> lease = identity.sourceId() == null ? null
+                : ClientPlaybackHandler.SOURCE_OWNERS.claim(identity.sourceId(), identity.generation(),
+                        new SableRoute(actorKey), () -> stop(actorKey));
+        if (identity.sourceId() != null && lease == null) return;
+        LATEST.put(actorKey, payload);
+        // 周期再送は「捨てる」のではなく「現在値として取り込む」。同じ曲が鳴っていれば
+        // ここで指向性・範囲・音量が反映され、ロードには進まない。
+        if (SLOTS.request(actorKey, track.url(), payload.rangeBlocks(), payload.volumePercent(),
+                payload.directional()) != LivePlaybackRegistry.Decision.LOAD) {
+            return;
+        }
+        final Object token = new Object();
+        PENDING.put(actorKey, token);
+        // 診断 (debug 既定 off): server の送信ログが出るのにこれが出なければ payload が client へ届いていない
+        // (sub-level tracking の解決漏れ / 配送) を疑う。両方出るのに無音なら SableSubLevelAnchor の座標変換側。
+        MusicDiscMaker.LOGGER.debug("Received Sable sub-level playback: plotPos={}", payload.plotPos());
+        // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
+        POOL.submit(() -> {
+            IAudioSource source = null;
+            PlaybackFailure failure = null;
+            try {
+                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
+                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), payload.startOffsetMs());
+                source = result.source();
+                failure = result.isOk() ? null
+                        : PlaybackFailure.ofReason(result.reason(), result.detail());
+            } catch (final UrlBlockedException blocked) {
+                failure = PlaybackFailure.blocked(blocked.reason());
+            } catch (final Throwable t) {
+                failure = PlaybackFailure.thrown(t);
+            }
+            final IAudioSource resolved = source;
+            final PlaybackFailure reported = failure;
+            Minecraft.getInstance().execute(() -> {
+                // A → B → A の切替でも、古い A が新しい A のロード状態を解除しない。
+                if (PENDING.get(actorKey) != token || Minecraft.getInstance().level != level
+                        || (lease != null && !ClientPlaybackHandler.SOURCE_OWNERS.isCurrent(lease))) {
+                    if (PENDING.remove(actorKey, token)) {
+                        LATEST.remove(actorKey);
+                        SLOTS.stop(actorKey);
+                    }
+                    if (resolved != null) resolved.close();
+                    return;
+                }
+                PENDING.remove(actorKey);
+                final SubLevelPlayDiscPayload latest = LATEST.get(actorKey);
+                // in-flight ガードの解除は成否に関わらず必ず行う (残すと以後の再送が全部黙って無視される)。
+                SLOTS.loadFinished(actorKey, track.url());
+                if (resolved == null) {
+                    // 無音で終わらせない。理由の分類つきでログに残す (この経路は画面を持たないのでログだけ)。
+                    // 同じ URL はしばらく繋ぎ直さないが、待ちが明ければ自分で戻る (LivePlaybackRegistry)。
+                    final PlaybackFailure why = reported == null
+                            ? PlaybackFailure.streamUnavailable() : reported;
+                    if (SLOTS.loadFailed(actorKey, track.url(), why)) {
+                        PlaybackFailureReport.report(track, why);
+                    }
+                    return;
+                }
+                if (Minecraft.getInstance().level == null) {
+                    // ワールドを抜けた。利用者に伝えることは無いが、無言で消えると
+                    // 「payload は届いたのに鳴らない」の切り分けができないので跡は残す。
+                    MusicDiscMaker.LOGGER.debug(
+                            "Dropped Sable sub-level playback because the client left the world (plotPos={})",
+                            payload.plotPos());
+                    resolved.close();
+                    return;
+                }
+                final SableSubLevelAnchor anchor = new SableSubLevelAnchor(payload.plotPos());
+                // plot が client に無い (sub-level 未 tracking) 場合は再生しない (無音より安全)。
+                if (!anchor.isValid()) {
+                    // 無音になるが、利用者に取れる手は無い (sub-level の tracking はこちらの都合)。
+                    // チャットには出さず、ログには残す — 「再生中と出るのに鳴らない」の報告で
+                    // ここに落ちていたかどうかが読めるのは latest.log だけ。
+                    MusicDiscMaker.LOGGER.warn(
+                            "The Sable sub-level carrying this audio source is not present on the client, so nothing was played (plotPos={})",
+                            payload.plotPos());
+                    // 黙って捨てると 1 秒ごとの再送で毎回ストリームを開き直すことになる。
+                    // 待ち時間を置いてから繋ぎ直す (報告はしないので理由は渡さない)。
+                    SLOTS.loadFailed(actorKey, track.url(), null);
+                    resolved.close();
+                    return;
+                }
+                // CompatPlayback が失敗の届け先 (push+pull) を繋いだインスタンスを返す。ここで
+                // 構築子を直接呼べないのは意図的 (繋ぎ忘れをコンパイルで止める。CompatPlayback の javadoc)。
+                final int limit = com.kuronami.musicdiscmaker.Config.maxConcurrent();
+                if (PlaybackConcurrency.client().sweepAll() >= limit) {
+                    resolved.close();
+                    final PlaybackFailure why = PlaybackFailure.concurrentLimit(limit);
+                    if (SLOTS.loadFailed(actorKey, track.url(), why)) PlaybackFailureReport.report(track, why);
+                    return;
+                }
+                final DiscSoundInstance instance = CompatPlayback.wired(
+                        anchor, resolved, latest.rangeBlocks(), latest.volumePercent(),
+                        latest.directional(), track);
+                // ロード中に曲が変わっていたら鳴らさずに捨てる (遅れて完了した古い曲で上書きしない)。
+                if (!SLOTS.install(actorKey, track.url(), instance)) {
+                    instance.requestStop();
+                    return;
+                }
+                // play は受理しなかったことを戻り値で返さない (SoundEngineAcceptance の javadoc)。
+                // 見ずに進むと、鳴っていないのに "Now Playing" が出たまま固定される。
+                // ここは 1 秒ごとに再送が来る経路なので、ロード失敗と同じ待ち時間と重複抑止に乗せる
+                // (乗せないと、音量 0 のような直らない理由で毎秒チャットが埋まる)。
+                if (!SoundEngineAcceptance.start(instance, instance::stopAndRelease, rejected -> {
+                    if (SLOTS.loadFailed(actorKey, track.url(), rejected)) {
+                        PlaybackFailureReport.report(track, rejected);
+                    }
+                })) {
+                    return;
+                }
+                SLOTS.playing(actorKey); // 実際に鳴り始めた。待ち時間と報告の抑止を捨てる唯一の点
+                final String desc = (track.author() != null && !track.author().isBlank())
+                        ? track.author() + " - " + track.title()
+                        : track.title();
+                if (desc != null && !desc.isBlank()) {
+                    Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+                }
+            });
+        });
+    }
+
+}
+
+*///?}

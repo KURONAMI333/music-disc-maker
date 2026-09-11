@@ -1,0 +1,615 @@
+package com.kuronami.musicdiscmaker.client.audio;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
+
+import org.jetbrains.annotations.Nullable;
+
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
+
+/**
+ * 鍵ごとの再生セッション管理 (MC 非依存)。{@link ClientPlaybackManager} から
+ * 「どうするか」の判断と状態を全部こちらへ出し、あちらには MC を触る操作だけを残してある。
+ *
+ * <h2>鍵は型引数 — 音源の指し方が経路で違う</h2>
+ * 金ジュークは<b>座標</b>で 1 再生を指すが、ブームボックスは持ち歩けるので座標では指せず、
+ * <b>アイテム個体ごとの識別子</b>で指す。どちらも「同じ鍵の再生は後勝ちで打ち消し合う」
+ * という同じ規則で動くので、容れ物はこのクラス 1 本で足りる ({@link PlaybackGenerations} が
+ * 最初から generic なのはこれを見込んでいたため)。
+ *
+ * <p><b>鍵を緩めたのは容れ物だけで、金ジュークの呼び出し側は {@code PlaybackSessions<BlockPos>}
+ * のまま</b>。{@code drivePrefetch} / {@code reanchorClientElapsed} /
+ * {@link LiveConfigAnchor#configPos} / {@link GoldenJukeboxFailures} は座標に紐付いた別の関心なので、
+ * ここの型引数に引きずられて緩めないこと。
+ *
+ * <p>同時再生の上限は<b>インスタンスをまたいで数える</b> ({@link PlaybackConcurrency})。
+ * 鍵の型が違っても OpenAL の streaming channel は 1 つのプールなので、{@link #sweep} の数を
+ * 経路ごとに別々に見ると上限が経路の数だけ増える。
+ *
+ * <h2>これが要る理由 — 「まだ鳴らしていいか」を座標で答えていた</h2>
+ * 以前は「この座標の再生はまだ望まれているか」を {@code wanted} という座標の集合で答えていた。
+ * 座標には<b>何回目の再生か</b>が入っていないので、同じ座標でディスクを A → B に差し替えると:
+ *
+ * <ol>
+ *   <li>A のロード中に停止 → 座標が集合から消える</li>
+ *   <li>B の再生要求で同じ座標が<b>すぐ入り直す</b></li>
+ *   <li>A のロードが完了 → 座標を見に行くと「ある」→ A も鳴り始める</li>
+ * </ol>
+ *
+ * 完了順によっては A と B が同時に鳴り、{@code active} は後から書いた方しか覚えていないので
+ * <b>片方は二度と止められない</b>。ディスクを差し替えるだけで起きる、実機で必ず踏む形だった。
+ *
+ * <p>だから鍵は座標ではなく<b>座標ごとの世代番号 (token)</b> にした ({@link PlaybackGenerations})。
+ * 再生要求のたびに世代を進め、ロードは開始時点の世代を持ち回り、完了時に一致しなければ捨てる。
+ * <b>座標だけで答える口はこのクラスに 1 つも残っていない</b> — 残すと 2 つの正本が食い違う。
+ *
+ * <h2>時計は 2 つある — 混ぜない</h2>
+ * <ul>
+ *   <li><b>経過時間</b> ({@code monotonicMs}) — 「どれだけ鳴っていたか」「期限を過ぎたか」。
+ *       OS の時刻調整で飛ばない単調時計から取る。{@link #STABLE_MS} と
+ *       {@link #FIRST_AUDIO_DEADLINE_MS} はこちらだけを読む</li>
+ *   <li><b>壁時計</b> ({@code clockMs}) — server が送ってくる {@code requestedOffsetMs} と
+ *       突き合わせる推定再生位置。{@link #isSeekRequest} <b>だけ</b>が読む</li>
+ * </ul>
+ *
+ * <p>混ぜると壊れ方が 2 通り出る。<b>壁時計で経過を測る</b>と、OS の時刻が後方修正された瞬間に
+ * 「30 秒経った」が偽になる。期限の delayed task は予定どおり<b>一度だけ</b>起きて再アームされない
+ * ので、future が未完了・PCM 無しの再生が source と channel を掴んだまま残る (前方修正なら逆に
+ * 短時間で「安定していた」に化ける)。<b>推定再生位置を単調時計へ寄せる</b>と、今度は突き合わせる
+ * 相手 (壁時計基準の {@code requestedOffsetMs}) と基準がずれ、chunk 再入の再送を本物のシークと
+ * 誤判定して鳴らし直す。
+ *
+ * <p>期限の待ち合わせ自体 ({@code CompletableFuture.delayedExecutor}) は元から {@code nanoTime}
+ * 基準で、時刻調整では動かない。ずれていたのは<b>起きた後の判定だけ</b>だった。
+ *
+ * <p>どちらも差し替え可能 ({@link LongSupplier})。テストは 2 つを別々に動かせる。
+ *
+ * @param <K> 再生を指す鍵。金ジュークは {@code BlockPos}、ブームボックスはアイテム個体の識別子。
+ *            同じ鍵の再生は互いに後勝ちで打ち消し合う
+ */
+public final class PlaybackSessions<K> {
+
+    /** ラジオ瞬断時の自動再接続の上限回数。 */
+    public static final int MAX_RECONNECT = 3;
+    /** これ以上再生できていたら「安定していた」とみなし、次の瞬断で試行回数をリセットする (ms)。 */
+    public static final long STABLE_MS = 15_000L;
+
+    /**
+     * 登録から<b>最初の実 PCM</b> が来るまでに待つ上限 (ms)。超えたら鳴らないものとして畳む
+     * ({@link #firstAudioOverdue})。
+     *
+     * <p><b>なぜ 30 秒なのか。</b> 下限は<b>健全なソースでも実 PCM が出ない時間</b>の総和で決まる:
+     *
+     * <ul>
+     *   <li>{@code DiscSoundInstance.PREBUFFER_BUDGET_MS} = 10 秒。この間 future は完了せず、
+     *       MC は {@code read} を一度も呼ばない ({@code LavaAudioSource.STARVE_DEADLINE_MS} =
+     *       10 秒に合わせてある)</li>
+     *   <li>{@code RetryingAudioSource} のやり直しが飛行中の 11.5 秒
+     *       ({@code DEFAULT_GRACE_MS} = 1.5 秒 + {@code MusicLoaderImpl.REOPEN_TIMEOUT_MS} =
+     *       10 秒)。{@code REOPEN_RETRIES} = 1 なので<b>1 回だけ</b>積まれる</li>
+     * </ul>
+     *
+     * 積み上げた最悪の健全経路が 21.5 秒。上限は lavaplayer の
+     * {@code AudioPlayerLifecycleManager} が {@code provide} されない player を殺す 60 秒で、
+     * ここを超えると理由を出す前に player が消える。
+     *
+     * <p>21.5 秒に約 1.4 倍の余裕を取って 30 秒に置いた。<b>短く取ることだけが現状より悪化する
+     * 経路</b>なので (健全な再生を失敗側へ倒す)、迷ったら長い方へ寄せてある。
+     *
+     * <p><b>実測はまだ無い。</b> 実際の {@code firstpcm=} は {@link PlaybackTiming} が切り替わり
+     * 1 回につき 1 行出すので、実機のログが溜まったら見直す。
+     */
+    public static final long FIRST_AUDIO_DEADLINE_MS = 30_000L;
+
+    /**
+     * 同じ曲の再生要求が「現在の推定再生位置」からこれ以上離れていれば本物のシーク (頭出し) とみなす。
+     * chunk 再入の再送は server 側が現在の経過 ms を載せて来るので推定位置とほぼ一致し、dedup される。
+     */
+    private static final long SEEK_TOLERANCE_MS = 1200L;
+
+    /**
+     * ラジオ再接続で同じ条件を再利用するための再生要求。
+     *
+     * @param track         曲
+     * @param rangeBlocks   可聴範囲 (ブロック)
+     * @param volumePercent 音量 (%)
+     */
+    public record Request(CustomTrackData track, int rangeBlocks, int volumePercent) {
+    }
+
+    /**
+     * 再生要求への答え。
+     *
+     * @param load  ロードして鳴らすなら {@code true}。{@code false} = 同じ曲の再送なので値だけ反映した
+     * @param token この再生の世代。ロード側が持ち回り、完了時に照合する ({@code load} が偽なら未使用)
+     */
+    public record StartDecision(boolean load, int token) {
+    }
+
+    /** {@link #radioStreamEnded} の答えの種類。 */
+    public enum ReconnectKind {
+        /** 停止済み / ラジオでない → 何もしない。 */
+        NONE,
+        /** 間隔を置いて再接続する。 */
+        RETRY,
+        /** 上限に達した → 諦めて通知する。 */
+        GIVE_UP
+    }
+
+    /**
+     * ラジオ終端への答え。
+     *
+     * @param kind    次に何をするか
+     * @param attempt 何回目の再接続か ({@link ReconnectKind#RETRY} の時だけ意味を持つ)
+     * @param request 再接続に使う再生要求 ({@link ReconnectKind#NONE} なら {@code null})
+     * @param why     諦めた理由 ({@link ReconnectKind#GIVE_UP} で拾えていれば。無ければ {@code null})
+     */
+    public record Reconnect(ReconnectKind kind, int attempt, @Nullable Request request,
+            @Nullable PlaybackFailure why) {
+    }
+
+    private final PlaybackGenerations<K> generations = new PlaybackGenerations<>();
+    private final Map<K, PlaybackVoice> active = new ConcurrentHashMap<>();
+    private final Map<K, String> playingUrl = new ConcurrentHashMap<>();
+    private final Map<K, Request> requests = new ConcurrentHashMap<>();
+    private final Map<K, Boolean> directionals = new ConcurrentHashMap<>();
+    private final Map<K, Integer> reconnectAttempts = new ConcurrentHashMap<>();
+    /**
+     * この再生の {@link #loadOffsetMs} が指していた時刻 (壁時計)。<b>推定再生位置の起点</b>で、
+     * {@link #isSeekRequest} だけが読む。実体は {@link #requestedAtMs} = 要求が届いた瞬間で、
+     * 登録 ({@link #install}) の時刻ではない。
+     *
+     * <p>server が送ってくる {@code requestedOffsetMs} は壁時計基準の経過 ms なので、
+     * こちらの起点を実 PCM へ寄せると<b>無音の総量ぶん推定が後退</b>し、
+     * {@link #SEEK_TOLERANCE_MS} を超えた瞬間に chunk 再入の再送を本物のシークと
+     * 誤判定して鳴らし直す。<b>起点と {@link #loadOffsetMs} は必ず同じ時点を指すこと。</b>
+     */
+    private final Map<K, Long> registeredMillis = new ConcurrentHashMap<>();
+    /**
+     * 登録できた時刻 (<b>単調時計</b>)。{@link #FIRST_AUDIO_DEADLINE_MS} の期限判定だけが読む。
+     *
+     * <p>時計だけでなく<b>指す瞬間も {@link #registeredMillis} とは違う</b>。あちらは server の
+     * 壁時計と突き合わせるため要求の到着時を指し、OS の時刻調整で飛ぶ。こちらは
+     * 「登録してから実 PCM が出るまで待った実時間」の話なので、登録の瞬間を飛ばない時計で取る。
+     */
+    private final Map<K, Long> registeredMonotonicMs = new ConcurrentHashMap<>();
+    /**
+     * server がこの再生の {@code startOffsetMs} を計算した瞬間 (壁時計)。
+     * {@link #install} が {@link #registeredMillis} の起点として読む。
+     *
+     * <p>{@link #install} は URL 解決が返った<b>後</b>に走るので、そこで時刻を打つと起点が
+     * 解決時間ぶん遅れ、{@link #isSeekRequest} の推定再生位置が同じだけ短くなる。server は
+     * chunk 再入の再送に<b>その時点の実経過</b>を載せて来る
+     * ({@code GoldenJukeboxBlockEntity#sendPlaybackTo}) ので、解決に
+     * {@link #SEEK_TOLERANCE_MS} を超える時間がかかった再生では再送が毎回シークと誤判定され、
+     * 鳴り直しになる。起点は<b>要求が届いた瞬間</b>＝{@code startOffsetMs} と同じ時点に置く。
+     *
+     * <p>ラジオの再接続は {@link #start} を通らず {@link #install} を {@code 0L} で呼ぶが、
+     * server 側の起点は再接続で動かない。ここを再接続で消さず持ち回ることで、{@code loaded=0}
+     * と組んだ推定が最初の要求からの経過を指し続ける。
+     */
+    private final Map<K, Long> requestedAtMs = new ConcurrentHashMap<>();
+    /**
+     * <b>最初の実 PCM</b> が音声エンジンへ渡った時刻 (<b>単調時計</b>)。まだなら鍵ごと無い。
+     *
+     * <p>{@code SoundManager#play} はインスタンスを登録するだけで音声ストリームの future は
+     * 未完了のまま返るので、{@link #registeredMillis} は「鳴っていた時間」の起点としては早すぎる。
+     * ラジオの安定判定 ({@link #STABLE_MS}) はこちらから数える。判別点は
+     * {@link LavaPlayerAudioStream#emit} の 1 箇所だけ。
+     *
+     * <p>鍵が<b>有るかどうか</b>も答えとして使う (期限判定の「一度でも鳴ったか」)。値は経過時間の
+     * 起点にしか使わないので、単調時計の値が負でも構わない — <b>0 を「無い」の代わりに使わないこと</b>。
+     */
+    private final Map<K, Long> firstAudioMonotonicMs = new ConcurrentHashMap<>();
+    private final Map<K, Long> loadOffsetMs = new ConcurrentHashMap<>();
+    /**
+     * ラジオで拾った失敗の保留。ラジオにとって音が途切れることは再接続が引き受ける想定内の状態
+     * なので、瞬断のたびにチャットへ理由を出すと再接続の表示 (アクションバー) と二重になる。
+     * 再接続を諦めた時に「なぜ諦めたか」として 1 度だけ出す。
+     */
+    private final Map<K, PlaybackFailure> pendingFailure = new ConcurrentHashMap<>();
+    /**
+     * 再生スレッドの中で落ちた失敗の重複抑止。ラジオは同じ理由で最大 {@link #MAX_RECONNECT} 回まで
+     * 落ち直すので、覚えておかないと同じ行がチャットに積まれる。忘れるのは停止した時だけ。
+     */
+    private final PlaybackFailureNotices notices = new PlaybackFailureNotices();
+    /**
+     * sound engine が受理しなかった失敗の重複抑止。{@link #notices} と<b>別に持つ</b>。
+     *
+     * <p>あちらは停止のたびに忘れる ({@link #stop})。再生要求は必ず {@code stop} を通ってから
+     * 新しい世代を起こすので、あちらに乗せると<b>何も抑えられない</b> — 音量 0 のように
+     * 「鳴らそうとするたびに同じ理由で弾かれる」失敗は、chunk 再入のたびに同じ行を積む。
+     *
+     * <p>だからこちらが忘れるのは<b>実際に鳴り始めた時</b>だけにする ({@link #engineAccepted})。
+     * 意図してミュートしている人は最初の 1 回だけ見て以降は黙り、誤って 0 にしている人は
+     * 気づける。理由が変われば (音量 0 → チャンネル枯渇) 別の情報なので通る。
+     */
+    private final PlaybackFailureNotices startNotices = new PlaybackFailureNotices();
+
+    private final LongSupplier clockMs;
+    private final LongSupplier monotonicMs;
+
+    /**
+     * テスト用。壁時計と単調時計を同じ供給元に束ねる (時刻調整を再現しないテストはこちらでよい)。
+     *
+     * @param clockMs 現在時刻 (ms)。テストは実時間を待たずに進めるために差し替える
+     */
+    public PlaybackSessions(LongSupplier clockMs) {
+        this(clockMs, clockMs);
+    }
+
+    /**
+     * @param clockMs     壁時計 (ms)。{@link #isSeekRequest} の推定再生位置だけが読む
+     * @param monotonicMs 単調に進む経過時間 (ms)。{@link #STABLE_MS} と
+     *                    {@link #FIRST_AUDIO_DEADLINE_MS} はこちらを読む
+     */
+    public PlaybackSessions(LongSupplier clockMs, LongSupplier monotonicMs) {
+        // null をここで弾くのは、静かに通すと最初の install() まで発覚しないため。
+        // 呼び出し側が static final を INSTANCE より後ろに宣言していると、構築時点では
+        // まだ代入されておらず null が渡る (2026-08-23 実機で再生が丸ごと不能になった)。
+        this.clockMs = java.util.Objects.requireNonNull(clockMs, "clockMs");
+        this.monotonicMs = java.util.Objects.requireNonNull(monotonicMs, "monotonicMs");
+    }
+
+    /**
+     * 再生要求を捌く。
+     *
+     * <p>同じ曲・非シークの再送 (chunk 再入等) は鳴らし直さず、聴取モデルだけその場で取り込む。
+     * それ以外は<b>まず今の再生を確実に畳んでから</b>新しい世代を起こす。
+     *
+     * @param key           再生の鍵 (金ジューク = jukebox の位置)
+     * @param track         曲
+     * @param startOffsetMs 再生開始位置 (ms)
+     * @param rangeBlocks   可聴範囲 (ブロック)
+     * @param volumePercent 音量 (%)
+     * @param directional   聴取モデル
+     * @return ロードすべきか、その世代
+     */
+    public StartDecision start(K key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
+            int volumePercent, boolean directional) {
+        final PlaybackVoice existing = active.get(key);
+        // 範囲・音量は client 側 BE から tick で live 反映されるので再ロード判定に含めない。
+        if (existing != null && !existing.isVoiceStopped() && track.url().equals(playingUrl.get(key))
+                && !isSeekRequest(key, startOffsetMs)) {
+            existing.setDirectional(directional);
+            directionals.put(key, directional);
+            return new StartDecision(false, 0);
+        }
+        stop(key); // 既存を止め、試行回数・要求もリセット (新しいサーバ駆動再生 or シーク)
+        final int token = generations.begin(key); // stop が世代を進めた後に、この再生の世代を起こす
+        directionals.put(key, directional);
+        requests.put(key, new Request(track, rangeBlocks, volumePercent));
+        requestedAtMs.put(key, clockMs.getAsLong()); // 起点は解決の完了時ではなく要求の到着時
+        return new StartDecision(true, token);
+    }
+
+    /**
+     * その世代の再生がまだ望まれているか。<b>座標だけで答えないための唯一の口。</b>
+     *
+     * @param key   再生の鍵 (金ジューク = jukebox の位置)
+     * @param token {@link #start} が返した世代
+     * @return まだ現役なら {@code true}
+     */
+    public boolean isLive(K key, int token) {
+        return generations.isCurrent(key, token);
+    }
+
+    /**
+     * 現在この鍵で鳴っているvoice。ライブ設定だけを更新するclient経路が使う。
+     *
+     * <p>返したvoiceを停止・差し替えないこと。再生の世代と停止の所有者はこのclassに残し、
+     * 呼び出し側は既存decoderへ設定を押し込むだけに限る。
+     */
+    @Nullable
+    public PlaybackVoice activeVoice(K key) {
+        return active.get(key);
+    }
+
+    /**
+     * ロード完了に伴う状態変更を、そのロードがまだ現役の時だけまとめて適用する。
+     *
+     * <p>完了側が {@link #isLive} より前に in-flight 記録や失敗予算を触ると、同じ URL を
+     * 読み直している後続世代まで古い成功・失敗で書き換えてしまう。完了に付随する副作用は
+     * 個別に判定せず、すべて {@code completion} の中へ置くこと。
+     *
+     * <p>判定と実行は同期的に続けて行う。呼び出し側は再生要求と同じ所有 thread
+     * (client 経路では main thread) で呼び、途中に別の状態遷移を挟まないこと。
+     *
+     * @param key        再生の鍵
+     * @param token      ロード開始時の世代
+     * @param completion 現役なら適用する完了処理
+     * @return 完了処理を適用したなら {@code true}、古い世代なら {@code false}
+     */
+    public boolean completeIfLive(K key, int token, Runnable completion) {
+        if (!isLive(key, token)) {
+            return false;
+        }
+        completion.run();
+        return true;
+    }
+
+    /**
+     * 自然終了した音源を掃除する (同時再生上限を不当に消費させない)。
+     *
+     * <p><b>これは書き込む操作</b>で、止まっていた音源の {@code playingUrl} と
+     * {@code loadOffsetMs} も落とす。{@link PlaybackConcurrency} が別経路のロード完了時にも
+     * ここを呼ぶので、金ジュークの状態が「別経路の都合で」掃除されうる。触る対象は
+     * <b>既に {@link PlaybackVoice#isVoiceStopped()} が真の音源だけ</b>で、その鍵では
+     * シーク判定も再送判定も「鳴っていない → 読み直す」に落ちるため、掃除の早い遅いで
+     * 結果が変わらない。
+     *
+     * @return 掃除後にこのインスタンスで鳴っている音源の数
+     */
+    public int sweep() {
+        active.entrySet().removeIf(entry -> {
+            if (entry.getValue().isVoiceStopped()) {
+                playingUrl.remove(entry.getKey());
+                loadOffsetMs.remove(entry.getKey());
+                return true;
+            }
+            return false;
+        });
+        return active.values().stream().mapToInt(PlaybackVoice::voiceCount).sum();
+    }
+
+    /**
+     * 鳴り始めた音源を登録する。
+     *
+     * <p>世代が古ければ受け付けない ({@code false} — 呼び出し側はその音源を捨てること)。
+     * 受け付けた場合でも、同じ座標に音源が残っていたら<b>必ず止めてから</b>置き換える。
+     * ここに来るのは上の世代判定をすり抜けた同時完了なので、放置すると 2 音源が重なり、
+     * 覚えていない方は二度と止められなくなる。
+     *
+     * @param key           再生の鍵 (金ジューク = jukebox の位置)
+     * @param token         この再生の世代
+     * @param url           鳴らす曲の URL
+     * @param startOffsetMs ロード開始オフセット (シーク判定の基準)
+     * @param voice         鳴り始めた音源
+     * @return 受け付けたなら {@code true}
+     */
+    public boolean install(K key, int token, String url, long startOffsetMs, PlaybackVoice voice) {
+        if (!isLive(key, token)) {
+            return false;
+        }
+        voice.setDirectional(directionals.getOrDefault(key, Boolean.TRUE));
+        final PlaybackVoice previous = active.put(key, voice);
+        if (previous != null && previous != voice && !previous.isVoiceStopped()) {
+            previous.stopAndRelease();
+        }
+        playingUrl.put(key, url);
+        registeredMillis.put(key, requestedAtMs.getOrDefault(key, clockMs.getAsLong()));
+        registeredMonotonicMs.put(key, monotonicMs.getAsLong());
+        // 前の世代 (ラジオの再接続は同じ世代を持ち回る) の「鳴り始めた時刻」を持ち越さない。
+        firstAudioMonotonicMs.remove(key);
+        loadOffsetMs.put(key, startOffsetMs);
+        return true;
+    }
+
+    /**
+     * この再生を諦める (同時再生上限で捨てた等)。世代を進めるので、後から届く報告も黙る。
+     *
+     * @param key   再生の鍵 (金ジューク = jukebox の位置)
+     * @param token この再生の世代
+     */
+    public void abandon(K key, int token) {
+        if (isLive(key, token)) {
+            generations.invalidate(key);
+            requests.remove(key);
+        }
+    }
+
+    /**
+     * 再生スレッドの中で落ちた失敗を、利用者に出すべきかどうか判定する。
+     *
+     * <p>止めた再生の後始末では黙る (ロード中に停止された・上限で捨てられたソースも後から理由を
+     * 上げてくるので、弾かないと「鳴らしていない再生の失敗」がチャットに出る)。ラジオはまだ
+     * 再接続する気がある間は抱えておく (瞬断は想定内)。
+     *
+     * @param key   再生の鍵 (金ジューク = jukebox の位置)
+     * @param token この再生の世代
+     * @param track 失敗した曲
+     * @param late  分類済みの失敗
+     * @return 出すべき失敗。黙るなら {@code null}
+     */
+    @Nullable
+    public PlaybackFailure lateFailure(K key, int token, CustomTrackData track, PlaybackFailure late) {
+        if (!isLive(key, token)) {
+            return null;
+        }
+        if (track.radio()) {
+            pendingFailure.put(key, late);
+            return null;
+        }
+        return notices.shouldReport(key, late) ? late : null;
+    }
+
+    /**
+     * sound engine が再生を受理しなかった ({@link SoundEngineAcceptance})。利用者に出すべきか
+     * どうかを答える。
+     *
+     * <p>ロードは成功しているので原因は MC 側にあり、直るまで<b>何度やっても同じ理由で弾かれる</b>。
+     * 出すこと自体は正しい (誤って音量を 0 にしている人には必要な情報) が、毎回出すとノイズになる。
+     * だから頻度の問題として扱う — 同じ理由は実際に鳴り始めるまで 1 回だけ。
+     *
+     * <p><b>ここで世代を落としてはいけない。</b> 拒否は「もう鳴らない」の証明ではなく、遅れて
+     * 開栓して鳴り出す経路が実在する ({@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE})。
+     * だから音源は畳まずに置く。
+     * <b>畳まない以上、回収するのは {@link #FIRST_AUDIO_DEADLINE_MS} の期限だけ</b>で、
+     * その入口 ({@link #firstAudioOverdue}) は {@link #isLive} が真であることを要求する。
+     * ここで {@link #abandon} を呼ぶと期限が二度と発火せず、<b>誰も閉じない音源が残る</b>
+     * (拒否されたのに鳴り続ける = 今回の修正が最も避けたい形)。遅れて鳴り始めた時に
+     * "Now Playing" と失敗ラベルの取り消しが要るのも、この世代が生きている間だけ。
+     *
+     * @param key     再生の鍵 (金ジューク = jukebox の位置)
+     * @param token   この再生の世代
+     * @param failure 受理されなかった理由
+     * @return 出すべき失敗。黙るなら {@code null}
+     */
+    @Nullable
+    public PlaybackFailure engineRejected(K key, int token, PlaybackFailure failure) {
+        if (!isLive(key, token)) {
+            return null; // 停止済み / 差し替え済みの再生の拒否は出さない
+        }
+        return startNotices.shouldReport(key, failure) ? failure : null;
+    }
+
+    /**
+     * sound engine が再生を受理した = 実際に鳴り始めた。受理されなかった理由の記憶を捨てる。
+     *
+     * <p>ここが唯一の忘れる点。{@link #stop} で忘れないのは、停止と再生を挟んで繰り返される
+     * 失敗こそが抑えたい相手だから ({@link #startNotices})。
+     *
+     * @param key 再生の鍵 (金ジューク = jukebox の位置)
+     */
+    public void engineAccepted(K key) {
+        startNotices.forget(key);
+    }
+
+    /**
+     * <b>最初の実 PCM が音声エンジンへ渡った</b> = 本当に鳴り始めた。
+     *
+     * <p>{@code SoundManager#play} が受理したことと音が出始めたことは別の事実で、前者は
+     * {@link #engineAccepted}、後者がここ。判別点は {@link LavaPlayerAudioStream#emit} の 1 箇所
+     * だけで、埋めた無音は数えない。
+     *
+     * <p>1 世代につき 1 回しか通さない。世代が進んだ後に届いた通知を通すと、差し替えられた
+     * 前の曲が新しい曲の "Now Playing" を上書きする ({@link PlaybackGenerations} が防いでいる
+     * 事故の表示版)。
+     *
+     * @param key   再生の鍵 (金ジューク = jukebox の位置)
+     * @param token この再生の世代
+     * @return この世代で初めての実 PCM なら {@code true} (呼び出し側は "Now Playing" を出してよい)
+     */
+    public boolean noteFirstAudio(K key, int token) {
+        if (!isLive(key, token)) {
+            return false;
+        }
+        return firstAudioMonotonicMs.putIfAbsent(key, monotonicMs.getAsLong()) == null;
+    }
+
+    /**
+     * 登録から {@link #FIRST_AUDIO_DEADLINE_MS} 経っても実 PCM が一度も渡っていないか。
+     *
+     * <p>これが無いと、ストリームの future が完了しないまま黙って座り続ける再生を
+     * <b>永久に待つ</b>ことになる (画面には何も出ず、音も出ない)。
+     *
+     * @param key   再生の鍵 (金ジューク = jukebox の位置)
+     * @param token この再生の世代
+     * @return 期限切れなら {@code true}。停止済み・世代違い・既に鳴っているなら {@code false}
+     */
+    public boolean firstAudioOverdue(K key, int token) {
+        if (!isLive(key, token) || firstAudioMonotonicMs.containsKey(key)) {
+            return false;
+        }
+        final Long registered = registeredMonotonicMs.get(key);
+        return registered != null && monotonicMs.getAsLong() - registered >= FIRST_AUDIO_DEADLINE_MS;
+    }
+
+    /**
+     * ラジオストリームが終端に達した。再接続するか、諦めるかを決める。
+     *
+     * <p>直前の再生が {@link #STABLE_MS} 以上<b>鳴っていたら</b> (瞬断が久しぶりなら) 試行回数を
+     * リセットする。数えるのは {@link #firstAudioMonotonicMs} から = <b>実際に音が出ていた時間</b>で、
+     * 登録できた時刻からではない。登録から数えると、一音も出ないまま 15 秒座っていた再生を
+     * 「安定していた」とみなして試行回数を毎回リセットし、<b>永久に再接続を繰り返す</b>。
+     * 一度も鳴っていなければ ({@link #firstAudioMonotonicMs} に鍵が無ければ) リセットしない。
+     *
+     * <p>数えるのは<b>単調時計</b>で。壁時計だと OS の時刻が前方修正された瞬間に、数秒しか
+     * 鳴っていない再生が「安定していた」に化けて試行回数が毎回リセットされる。
+     *
+     * @param key   再生の鍵 (金ジューク = jukebox の位置)
+     * @param token この再生の世代
+     * @return 次に何をするか
+     */
+    public Reconnect radioStreamEnded(K key, int token) {
+        if (!isLive(key, token)) {
+            return new Reconnect(ReconnectKind.NONE, 0, null, null); // 撤去/停止済み
+        }
+        final Request request = requests.get(key);
+        if (request == null || !request.track().radio()) {
+            return new Reconnect(ReconnectKind.NONE, 0, null, null);
+        }
+        final Long started = firstAudioMonotonicMs.get(key);
+        if (started != null && monotonicMs.getAsLong() - started >= STABLE_MS) {
+            reconnectAttempts.remove(key);
+        }
+        final PlaybackVoice ended = active.remove(key);
+        if (ended != null) {
+            ended.stopAndRelease();
+        }
+        playingUrl.remove(key);
+        registeredMillis.remove(key);
+        registeredMonotonicMs.remove(key);
+        firstAudioMonotonicMs.remove(key);
+        loadOffsetMs.remove(key);
+
+        final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
+        if (attempt > MAX_RECONNECT) {
+            final PlaybackFailure why = pendingFailure.remove(key);
+            stop(key); // 恒久失敗 → 世代を進めて後続の報告も黙らせる
+            return new Reconnect(ReconnectKind.GIVE_UP, attempt, request, why);
+        }
+        reconnectAttempts.put(key, attempt);
+        return new Reconnect(ReconnectKind.RETRY, attempt, request, null);
+    }
+
+    /**
+     * この座標の再生を止める。世代を進めるので、ロード中の要求も完了時点で捨てられる。
+     *
+     * @param key 再生の鍵 (金ジューク = jukebox の位置)
+     */
+    public void stop(K key) {
+        generations.invalidate(key);
+        playingUrl.remove(key);
+        requests.remove(key);
+        directionals.remove(key);
+        reconnectAttempts.remove(key);
+        requestedAtMs.remove(key);
+        registeredMillis.remove(key);
+        registeredMonotonicMs.remove(key);
+        firstAudioMonotonicMs.remove(key);
+        loadOffsetMs.remove(key);
+        pendingFailure.remove(key);
+        notices.forget(key);
+        final PlaybackVoice voice = active.remove(key);
+        if (voice != null) {
+            voice.stopAndRelease();
+        }
+    }
+
+    /** 全ての再生を止める (ワールド退出等)。 */
+    public void stopAll() {
+        // 鍵の集合は generations が持っている。「鳴っているものの一覧」から数え上げると、
+        // まだ一度も鳴っていないロードを取り落とす (退出後に完了して畳んだ client を触りに行く)。
+        generations.invalidateAll();
+        playingUrl.clear();
+        requests.clear();
+        directionals.clear();
+        reconnectAttempts.clear();
+        requestedAtMs.clear();
+        registeredMillis.clear();
+        registeredMonotonicMs.clear();
+        firstAudioMonotonicMs.clear();
+        loadOffsetMs.clear();
+        pendingFailure.clear();
+        notices.forgetAll();
+        startNotices.forgetAll();
+        active.values().forEach(PlaybackVoice::stopAndRelease);
+        active.clear();
+    }
+
+    /**
+     * chunk 再入の再送か、本物のシーク (頭出し) か。後方シークは常に推定位置 (前進中) と乖離するので
+     * 確実に通る。
+     */
+    private boolean isSeekRequest(K key, long requestedOffsetMs) {
+        final Long started = registeredMillis.get(key);
+        final Long loaded = loadOffsetMs.get(key);
+        if (started == null || loaded == null) {
+            return false; // 位置不明 → 従来通り dedup (再ロードしない)
+        }
+        final long estimatedNowMs = loaded + (clockMs.getAsLong() - started);
+        return Math.abs(requestedOffsetMs - estimatedNowMs) >= SEEK_TOLERANCE_MS;
+    }
+}

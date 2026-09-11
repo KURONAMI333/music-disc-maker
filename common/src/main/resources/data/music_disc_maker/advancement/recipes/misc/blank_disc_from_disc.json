@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_blankable_disc": {
+      "conditions": {
+        "items": [
+          {
+            "items": "#music_disc_maker:blankable_discs"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "music_disc_maker:blank_disc_from_disc"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_blankable_disc"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "music_disc_maker:blank_disc_from_disc"
+    ]
+  }
+}

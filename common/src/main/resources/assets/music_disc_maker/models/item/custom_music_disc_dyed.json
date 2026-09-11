@@ -1,0 +1,10 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "music_disc_maker:item/custom_music_disc_dyed_0",
+    "layer1": "music_disc_maker:item/custom_music_disc_dyed_1",
+    "layer2": "music_disc_maker:item/custom_music_disc_dyed_2",
+    "layer3": "music_disc_maker:item/custom_music_disc_dyed_3",
+    "layer4": "music_disc_maker:item/custom_music_disc_dyed_4"
+  }
+}

@@ -1,0 +1,382 @@
+{
+  "credit": "MDM square leather disc case; dyeable covers and spine, paper sleeves",
+  "ambientocclusion": false,
+  "gui_light": "front",
+  "textures": {
+    "cover": "music_disc_maker:item/album_leather",
+    "sleeve": "music_disc_maker:item/album_paper",
+    "particle": "music_disc_maker:item/album_leather"
+  },
+  "elements": [
+    {
+      "name": "front_cover",
+      "from": [
+        2,
+        2,
+        6
+      ],
+      "to": [
+        14,
+        14,
+        6.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "south": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "east": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "west": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "up": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "down": {
+          "texture": "#cover",
+          "tintindex": 0
+        }
+      }
+    },
+    {
+      "name": "back_cover",
+      "from": [
+        2,
+        2,
+        9.5
+      ],
+      "to": [
+        14,
+        14,
+        10
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "south": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "east": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "west": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "up": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "down": {
+          "texture": "#cover",
+          "tintindex": 0
+        }
+      }
+    },
+    {
+      "name": "spine",
+      "from": [
+        2,
+        2,
+        6.5
+      ],
+      "to": [
+        2.6,
+        14,
+        9.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cover",
+          "tintindex": 1
+        },
+        "south": {
+          "texture": "#cover",
+          "tintindex": 1
+        },
+        "east": {
+          "texture": "#cover",
+          "tintindex": 1
+        },
+        "west": {
+          "texture": "#cover",
+          "tintindex": 1
+        },
+        "up": {
+          "texture": "#cover",
+          "tintindex": 1
+        },
+        "down": {
+          "texture": "#cover",
+          "tintindex": 1
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_0",
+      "from": [
+        2.65,
+        2.6,
+        6.65
+      ],
+      "to": [
+        13.4,
+        13.4,
+        7.15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_1",
+      "from": [
+        2.65,
+        2.6,
+        7.3500000000000005
+      ],
+      "to": [
+        13.4,
+        13.4,
+        7.8500000000000005
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_2",
+      "from": [
+        2.65,
+        2.6,
+        8.05
+      ],
+      "to": [
+        13.4,
+        13.4,
+        8.55
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_3",
+      "from": [
+        2.65,
+        2.6,
+        8.75
+      ],
+      "to": [
+        13.4,
+        13.4,
+        9.25
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    }
+  ],
+  "display": {
+    "gui": {
+      "rotation": [
+        15,
+        155,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    "ground": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "fixed": {
+      "rotation": [
+        0,
+        180,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.75,
+        0.75,
+        0.75
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        65,
+        205,
+        -12
+      ],
+      "translation": [
+        0,
+        1.0,
+        0
+      ],
+      "scale": [
+        0.42,
+        0.42,
+        0.42
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        65,
+        155,
+        12
+      ],
+      "translation": [
+        0,
+        1.0,
+        0
+      ],
+      "scale": [
+        0.42,
+        0.42,
+        0.42
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        38,
+        215,
+        -8
+      ],
+      "translation": [
+        1.5,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        38,
+        145,
+        8
+      ],
+      "translation": [
+        -1.5,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.kuronami.musicdiscmaker.mixin",
+  "compatibilityLevel": "JAVA_${java_version}",
+  "mixins": [
+    "AlbumJukeboxTickMixin",
+    "ChunkWatchMixin",
+    "FurnitureGramophoneBlockMixin",
+    "FurnitureGramophoneMixin",
+    "JukeboxUpgradeWrapperMixin",
+    "UpgradeWrapperBaseAccessor"
+  ],
+  "client": [
+    "MixinDiscSoundInstance",
+    "MixinSoundManager",
+    "MixinLibraryChannels",
+    "MixinSoundEngineChannels",
+    "TravelersBackpackJukeboxMixin"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

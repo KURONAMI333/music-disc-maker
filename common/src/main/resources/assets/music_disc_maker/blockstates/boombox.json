@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "music_disc_maker:block/boombox" },
+    "facing=east":  { "model": "music_disc_maker:block/boombox", "y": 90 },
+    "facing=south": { "model": "music_disc_maker:block/boombox", "y": 180 },
+    "facing=west":  { "model": "music_disc_maker:block/boombox", "y": 270 }
+  }
+}

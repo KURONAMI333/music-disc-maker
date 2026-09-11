@@ -1,0 +1,40 @@
+Bundled dependency licenses
+===========================
+
+The distributed Music Disc Maker jar bundles the following libraries in its
+dependencies/ folder (loaded at runtime by an isolated class loader). Each is
+the property of its respective authors and licensed as noted below.
+
+Best-effort summary — verify against each project before redistribution:
+
+  lavaplayer (net.hycrafthd.lavaplayer, fork of dev.arbjerg:lavaplayer)
+      Apache License 2.0
+  lava-common
+      Apache License 2.0
+  youtube-source / v2 / common (dev.lavalink.youtube)
+      MIT License
+  jackson-core / jackson-databind / jackson-annotations (com.fasterxml.jackson)
+      Apache License 2.0
+  httpclient / httpcore (org.apache.httpcomponents)
+      Apache License 2.0
+  commons-codec
+      Apache License 2.0
+  commons-io
+      Apache License 2.0
+  jcl-over-slf4j
+      Apache License 2.0 / MIT (SLF4J)
+  jsoup
+      MIT License
+  rhino / rhino-engine (org.mozilla)
+      Mozilla Public License 2.0
+  nanojson
+      MIT License
+  json (org.json)
+      JSON License / Public Domain
+  base64
+      Public Domain
+  annotations (org.jetbrains)
+      Apache License 2.0
+
+Full license texts are available from each library's project page. This file
+is a redistribution attribution summary, not the authoritative license source.

@@ -1,0 +1,12 @@
+{
+  "variants": {
+    "facing=east,has_record=false":  { "model": "music_disc_maker:block/golden_jukebox", "y": 90 },
+    "facing=east,has_record=true":   { "model": "music_disc_maker:block/golden_jukebox", "y": 90 },
+    "facing=north,has_record=false": { "model": "music_disc_maker:block/golden_jukebox" },
+    "facing=north,has_record=true":  { "model": "music_disc_maker:block/golden_jukebox" },
+    "facing=south,has_record=false": { "model": "music_disc_maker:block/golden_jukebox", "y": 180 },
+    "facing=south,has_record=true":  { "model": "music_disc_maker:block/golden_jukebox", "y": 180 },
+    "facing=west,has_record=false":  { "model": "music_disc_maker:block/golden_jukebox", "y": 270 },
+    "facing=west,has_record=true":   { "model": "music_disc_maker:block/golden_jukebox", "y": 270 }
+  }
+}

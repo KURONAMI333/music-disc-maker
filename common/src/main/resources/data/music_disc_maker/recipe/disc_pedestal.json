@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "G G",
+    " P ",
+    "PPP"
+  ],
+  "key": {
+    "G": "minecraft:gold_ingot",
+    "P": "#minecraft:planks"
+  },
+  "result": {
+    "id": "music_disc_maker:disc_pedestal",
+    "count": 1
+  }
+}

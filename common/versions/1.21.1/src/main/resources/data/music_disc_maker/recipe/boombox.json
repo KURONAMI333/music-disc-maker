@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IRI",
+    "WJW",
+    "III"
+  ],
+  "key": {
+    "I": { "item": "minecraft:iron_ingot" },
+    "R": { "item": "minecraft:redstone" },
+    "W": { "tag": "minecraft:wool" },
+    "J": { "item": "minecraft:jukebox" }
+  },
+  "result": {
+    "id": "music_disc_maker:boombox",
+    "count": 1
+  }
+}

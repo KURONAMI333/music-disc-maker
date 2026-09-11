@@ -1,0 +1,13 @@
+{
+  "origin": "Published Music Disc Maker 2.2.4 Forge 1.20.1; runtime API output from SRG-to-named remapped copy",
+  "published_jar_sha256": "d79fceab0e533096894368823270599ee2c1ffc0598a3b568995a21e68aa9b6f",
+  "remapped_jar_sha256": "51c86dab69c4987e746b49281de5a612ba946bb6fc58916026845234fc354bb4",
+  "generator_test_count": 1,
+  "reader_test_count": 2,
+  "fixture_sha256": {
+    "custom-disc-1.20.1.snbt": "6c9a3922b7588c5c5d402dd4ff0ae8cbf68f8ac1376997902aa80f0894b43750",
+    "golden-paused-1.20.1.snbt": "3c732e9af4a59d3318446aa1ebe8533d31908bda3eb070a6828ae482939de903",
+    "golden-playing-1.20.1.snbt": "298b19b682c2b3d12952778cdc45c3f9c282f5d71c38bbf8f6886c15f8a4dc53",
+    "golden-stopped-empty-1.20.1.snbt": "6cb9406018cbc85c27afa2f0f9c3b5cee22251e92dbaca8a18385b0d2217ae9d"
+  }
+}

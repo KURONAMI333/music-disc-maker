@@ -1,41 +1,44 @@
-<!--
-KURONAMI store description (Modrinth body / CurseForge description — shared, English).
-Written to knowledge/STORE_BODY_FRAMEWORK.md (no version table, function-first hook, facts over adjectives).
+Turn a music link into a disc for your jukebox, carry it in a Boombox, or play it across your build through linked Speakers.
 
-== Store fields (set separately from the body) ==
-SUMMARY: Craft playable music discs from any YouTube, Spotify, or SoundCloud link and play them in a vanilla jukebox.
-MODRINTH categories: decoration, utility | loaders: neoforge | versions: 1.21.1 | env: client + server (required both)
-MODRINTH slug: music-disc-maker
-CURSEFORGE: main category = Miscellaneous; additional = Cosmetic, Server Utility | summary: Craft playable music discs from any YouTube/Spotify/SoundCloud link.
--->
+## Make a disc
 
-# Music Disc Maker
+Craft a **Music Disc Maker**, then make a **Blank Disc** with lapis lazuli and iron. Open the maker, paste a track URL, and insert the blank disc. Take your finished **Custom Music Disc** and play it in an ordinary jukebox.
 
-Paste a track link, insert a blank disc, and get a custom music disc that plays in a vanilla jukebox.
+Use links from **YouTube, Spotify, SoundCloud, Bandcamp**, or a direct audio URL. Discs show the track title, artist, duration, source, and cover art in their tooltip. You can also rename them on an anvil.
 
-Minecraft only gives you a fixed set of music discs and no way to play your own music. This adds a crafting block: paste a URL (YouTube, Spotify, SoundCloud, Bandcamp, or a direct stream), drop in a blank disc, and it makes a disc that streams that track from an ordinary jukebox — with the vanilla "Now Playing" overlay and positional audio.
+## Build your collection
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/7sUJqdRrS3M" title="Music Disc Maker demo" frameborder="0" allowfullscreen></iframe>
+- **Album:** Keep up to nine custom discs together. Right-click to arrange them, check the contents in its tooltip, and dye the cover to tell your collections apart. Dyeing preserves the discs, their order, and the Album's name.
+- **Disc Dyeing Table:** Recolor a custom disc's surface and accent separately. Change either color or both.
+- **Disc Pedestal:** Put a favorite disc on display with its track title and artist. Swap the displayed disc in one interaction.
 
-**Features**
+## Listen at home or on the move
 
-- Works with YouTube, Spotify, SoundCloud, Bandcamp, and direct stream URLs
-- Spotify links resolve by song and artist, so you get the actual track instead of a video title
-- Each song gets its own disc color, and the same song always looks the same
-- The disc tooltip shows the title, artist, and length
-- On a multiplayer server everyone hears it — including players who walk up mid-song, synced to the current position
+The **Boombox** plays a custom disc or an Album while carried or placed. Pause, skip between tracks, shuffle an Album, repeat, seek, and adjust the volume from its controls.
 
-**How to use**
+The **Golden Jukebox** gives you control over a listening area: set the range from **16 to 256 blocks**, adjust the volume from **0 to 200%**, and choose positional sound or an even volume throughout the area. It also has playback controls, including track skipping and shuffle for Albums.
 
-1. Craft a Blank Disc (lapis lazuli + iron) and a Music Disc Maker block.
-2. Open the block, paste a track URL, and insert the Blank Disc — a Custom Music Disc appears in the output.
-3. Put the disc in a vanilla jukebox to play it.
+Link **Speakers** to a Golden Jukebox to bring its music to other rooms or parts of a build. Mount them on floors, walls, ceilings, or fence posts, and turn each horn straight, left, or right. Each Speaker has its own volume; the jukebox sets their range. Apply a redstone signal to mute a Speaker.
 
-**Notes**
+## Radio and shared listening
 
-- Audio is streamed from the source each time it plays — it isn't stored inside the disc, so it needs an internet connection. Some tracks may be region-locked or unavailable.
-- Install it on the server and on every client; audio plays client-side. No other mods required.
+Icecast/SHOUTcast streams and YouTube live links become **live radio discs**. They show LIVE instead of a track length and reconnect after brief interruptions.
 
-Bugs and questions: comment on the CurseForge page, or DM @kuronami333 on X.
+On servers, playback is synchronized so players joining an ongoing track hear the same part. Play **up to 64 custom tracks at once** without changing settings; devices with fewer available audio channels use a lower limit automatically.
 
-Free to use in any modpack. Source: https://github.com/KURONAMI333/music-disc-maker
+## Compatibility
+
+- **Additional Additions:** Custom discs work in Albums and the Pocket Jukebox.
+- **Sophisticated Backpacks** and **Traveler's Backpack:** Custom discs work with their jukebox upgrades.
+- **Create:** Golden Jukebox audio follows moving contraptions on NeoForge 1.21.1 and Forge 1.20.1. Create Aeronautics airships are supported on NeoForge 1.21.1.
+- **Valkyrien Skies 2, Eureka!, and Clockwork:** Audio follows ships on 1.20.1.
+
+## Before you play
+
+Audio streams from its source rather than being stored inside the disc, so playback needs an internet connection. Spotify links use the song and artist to find a matching track on YouTube. Some tracks may be unavailable, region-locked, or blocked by a login or bot check. Try a direct audio link, SoundCloud, or Bandcamp if that happens. Twitch is not supported.
+
+Use the same Music Disc Maker version on the server and every client.
+
+Bugs and questions: comment on the [CurseForge page](https://www.curseforge.com/minecraft/mc-mods/music-disc-maker), or DM [@kuronami333 on X](https://x.com/kuronami333).
+
+All Rights Reserved. Free to include in modpacks, including monetized packs. No permission or credit is required. [Source code](https://github.com/KURONAMI333/music-disc-maker).

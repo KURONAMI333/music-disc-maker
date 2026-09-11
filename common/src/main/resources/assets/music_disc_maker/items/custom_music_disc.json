@@ -1,0 +1,56 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "music_disc_maker:item/custom_music_disc",
+    "tints": [
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 0
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 1
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 2
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 3
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 4
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 5
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 6
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 7
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 8
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 9
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 10
+      },
+      {
+        "type": "music_disc_maker:disc_dye",
+        "index": 11
+      }
+    ]
+  }
+}

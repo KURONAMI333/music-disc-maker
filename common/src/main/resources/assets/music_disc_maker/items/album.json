@@ -1,0 +1,16 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "music_disc_maker:item/album",
+    "tints": [
+      {
+        "type": "music_disc_maker:album_dye",
+        "index": 0
+      },
+      {
+        "type": "music_disc_maker:album_dye",
+        "index": 1
+      }
+    ]
+  }
+}

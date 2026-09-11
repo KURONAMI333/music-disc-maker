@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "DD",
+    "PP",
+    "PP"
+  ],
+  "key": {
+    "D": { "tag": "c:dyes" },
+    "P": { "tag": "minecraft:planks" }
+  },
+  "result": {
+    "id": "music_disc_maker:disc_dyeing_table",
+    "count": 1
+  }
+}

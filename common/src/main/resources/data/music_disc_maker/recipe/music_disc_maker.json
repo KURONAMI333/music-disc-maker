@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "ILI",
+    "LNL",
+    "ILI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "L": "minecraft:lapis_lazuli",
+    "N": "minecraft:note_block"
+  },
+  "result": {
+    "id": "music_disc_maker:music_disc_maker",
+    "count": 1
+  }
+}

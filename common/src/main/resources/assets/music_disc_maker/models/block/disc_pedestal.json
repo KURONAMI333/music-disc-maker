@@ -1,0 +1,314 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "music_disc_maker:block/pedestal_wood",
+    "material": "music_disc_maker:block/pedestal_wood",
+    "label": "music_disc_maker:block/pedestal_label_wood"
+  },
+  "elements": [
+    {
+      "name": "low solid wooden plinth",
+      "from": [
+        1,
+        0,
+        3
+      ],
+      "to": [
+        15,
+        3,
+        13
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            0,
+            0,
+            14,
+            10
+          ],
+          "texture": "#material"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            14,
+            10
+          ],
+          "texture": "#material"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            14,
+            3
+          ],
+          "texture": "#label"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            14,
+            3
+          ],
+          "texture": "#material"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            10,
+            3
+          ],
+          "texture": "#material"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            10,
+            3
+          ],
+          "texture": "#material"
+        }
+      }
+    },
+    {
+      "name": "record retaining lip",
+      "from": [
+        2,
+        3,
+        5
+      ],
+      "to": [
+        14,
+        4,
+        7
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#material"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            12,
+            2
+          ],
+          "texture": "#material"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            12,
+            1
+          ],
+          "texture": "#material"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            12,
+            1
+          ],
+          "texture": "#material"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            2,
+            1
+          ],
+          "texture": "#material"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            2,
+            1
+          ],
+          "texture": "#material"
+        }
+      }
+    },
+    {
+      "name": "left sloped back support",
+      "from": [
+        4,
+        3,
+        6
+      ],
+      "to": [
+        6,
+        11,
+        7
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            0,
+            0,
+            2,
+            1
+          ],
+          "texture": "#material"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2,
+            1
+          ],
+          "texture": "#material"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            2
+          ],
+          "texture": "#material",
+          "rotation": 90
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            2
+          ],
+          "texture": "#material",
+          "rotation": 90
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            1
+          ],
+          "texture": "#material",
+          "rotation": 90
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            1
+          ],
+          "texture": "#material",
+          "rotation": 90
+        }
+      },
+      "rotation": {
+        "origin": [
+          8,
+          3,
+          6
+        ],
+        "axis": "x",
+        "angle": 22.5,
+        "rescale": false
+      }
+    },
+    {
+      "name": "right sloped back support",
+      "from": [
+        10,
+        3,
+        6
+      ],
+      "to": [
+        12,
+        11,
+        7
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            0,
+            0,
+            2,
+            1
+          ],
+          "texture": "#material"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2,
+            1
+          ],
+          "texture": "#material"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            8,
+            2
+          ],
+          "texture": "#material",
+          "rotation": 90
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            8,
+            2
+          ],
+          "texture": "#material",
+          "rotation": 90
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            8,
+            1
+          ],
+          "texture": "#material",
+          "rotation": 90
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            8,
+            1
+          ],
+          "texture": "#material",
+          "rotation": 90
+        }
+      },
+      "rotation": {
+        "origin": [
+          8,
+          3,
+          6
+        ],
+        "axis": "x",
+        "angle": 22.5,
+        "rescale": false
+      }
+    }
+  ]
+}

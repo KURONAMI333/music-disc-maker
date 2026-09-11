@@ -1,0 +1,19 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "music_disc_maker:playing",
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "music_disc_maker:item/boombox_off"
+    },
+    "entries": [
+      {
+        "threshold": 0.5,
+        "model": {
+          "type": "minecraft:model",
+          "model": "music_disc_maker:item/boombox_playing"
+        }
+      }
+    ]
+  }
+}

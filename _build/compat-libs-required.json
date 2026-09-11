@@ -1,0 +1,587 @@
+{
+  "schema_version": 1,
+  "purpose": "hash-pinned compile-only inputs; third-party JAR bytes are not included in the source snapshot",
+  "lookup": {
+    "modrinth": {
+      "endpoint": "https://api.modrinth.com/v2/version_files",
+      "algorithm": "sha1",
+      "request_count": 1
+    },
+    "curseforge_verified_file": "https://www.curseforge.com/minecraft/mc-mods/sophisticated-core/files/8145747",
+    "nested_jar_evidence": "Sable Companion SHA-1/SHA-256 exactly matched the nested JAR in the Modrinth-resolved Sable 2.0.3 file"
+  },
+  "destination_count": 36,
+  "unique_blob_count": 34,
+  "resolved_blob_count": 32,
+  "unresolved_blob_count": 2,
+  "blobs": [
+    {
+      "sha1": "0e97e49837bed766e6f28a4c95b04885d6acc353",
+      "sha256": "ef87fe5709f1ba1f5b8bb20a2925b5afb4669e178fd6d8bf10c167759eefe37a",
+      "size": 19123767,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/create-1.21.1-6.0.10.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "LNytGWDc",
+      "version_id": "UjX6dr61",
+      "version_number": "6.0.10+mc1.21.1",
+      "date_published": "2026-04-21T22:20:03.579201Z",
+      "download_filename": "create-1.21.1-6.0.10.jar",
+      "download_url": "https://cdn.modrinth.com/data/LNytGWDc/versions/UjX6dr61/create-1.21.1-6.0.10.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "0f92365d1618e3d1cd96f5c00e590ffb8970c6a0",
+      "sha256": "18e652ca6750b386c759e5838f14a5e0a12f288adc57c152b18e96596d75195c",
+      "size": 1130147,
+      "destinations": [
+        "neoforge/compat-libs-26.1.2/sophisticatedbackpacks-26.1.2-3.25.64.1824.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "TyCTlI4b",
+      "version_id": "minvTvS7",
+      "version_number": "26.1.2-3.25.64.1824",
+      "date_published": "2026-06-06T15:27:31.315228Z",
+      "download_filename": "sophisticatedbackpacks-26.1.2-3.25.64.1824.jar",
+      "download_url": "https://cdn.modrinth.com/data/TyCTlI4b/versions/minvTvS7/sophisticatedbackpacks-26.1.2-3.25.64.1824.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "143927cea654acae69b106590d47c5b626f6a7ce",
+      "sha256": "5621c7468f996797a12ccd785fcf94f39366896ebbed1c1afcbcd2fe1163a957",
+      "size": 1163211,
+      "destinations": [
+        "neoforge/compat-libs-1.21.11/sophisticatedbackpacks-1.21.11-3.25.78.2025.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "TyCTlI4b",
+      "version_id": "Hnky8F3L",
+      "version_number": "1.21.11-3.25.78.2025",
+      "date_published": "2026-07-24T23:35:14.873193Z",
+      "download_filename": "sophisticatedbackpacks-1.21.11-3.25.78.2025.jar",
+      "download_url": "https://cdn.modrinth.com/data/TyCTlI4b/versions/Hnky8F3L/sophisticatedbackpacks-1.21.11-3.25.78.2025.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "1ba8c0df5244e922f36dd3957d876412b3fbde23",
+      "sha256": "01ed2dfdb10d6b8d080f27f38f3e4b16300d8a76af689bec55d7172c762a21b0",
+      "size": 4158006,
+      "destinations": [
+        "fabric/compat-libs-1.21.1/letsdo-furniture-fabric-1.1.4.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "3JQDJrYW",
+      "version_id": "8VB2yvP3",
+      "version_number": "1.1.4",
+      "date_published": "2026-03-13T16:19:05.381897Z",
+      "download_filename": "letsdo-furniture-fabric-1.1.4.jar",
+      "download_url": "https://cdn.modrinth.com/data/3JQDJrYW/versions/8VB2yvP3/letsdo-furniture-fabric-1.1.4.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "31a852198b6e692744f59bd03d714bd673235c91",
+      "sha256": "04e7b39179e95f1a69107a07a63d7bce52243149edffa3b03cfe6eb23503579e",
+      "size": 1413418,
+      "destinations": [
+        "forge/compat-libs-1.20.1/travelersbackpack-forge-1.20.1-9.1.56.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "YU3VeLg8",
+      "version_number": "1.20.1-9.1.56",
+      "date_published": "2026-07-22T14:19:49.898349Z",
+      "download_filename": "travelersbackpack-forge-1.20.1-9.1.56.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/YU3VeLg8/travelersbackpack-forge-1.20.1-9.1.56.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "324ad2558a86f2e2cd21003eaf01bb39cf6f00a7",
+      "sha256": "e97462a5897953662930820249cca26284a60126db081bee52f9615e50d1d103",
+      "size": 4484213,
+      "destinations": [
+        "fabric/compat-libs-26.2/additionaladditions-fabric-10.0.10.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "R4TvILfj",
+      "version_id": "HscbWbuL",
+      "version_number": "10.0.10+26.2-fabric",
+      "date_published": "2026-06-21T17:24:32.075121Z",
+      "download_filename": "additionaladditions-fabric-10.0.10.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/HscbWbuL/additionaladditions-fabric-10.0.10.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "370be7db705926176e05c0215ed676150c45daae",
+      "sha256": "873633e35046e3761b277ff8a1ecad0d55d9a3014fa81a0b084c9aecba1f3bed",
+      "size": 35444,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/sable-companion-common-1.21.1-1.6.0.jar"
+      ],
+      "status": "nested_from_modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "parent_sha1": "f3ba9a497122ba29d9e94ebe6f9a3a3aaa5fa756",
+      "parent_sha256": "da6c3b66238586603d1dcaa2afb012d36815fbce0a2d5938fbb2936701d42279",
+      "parent_download_filename": "sable-neoforge-1.21.1-2.0.3.jar",
+      "parent_download_url": "https://cdn.modrinth.com/data/T9PomCSv/versions/1L6XJqnY/sable-neoforge-1.21.1-2.0.3.jar",
+      "nested_entry": "META-INF/jarjar/sable-companion-common-1.21.1-1.6.0.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "3e65d00879f1eae1574beea38f75d997e6d3d472",
+      "sha256": "8758e8f922ca90fa3de7fffbaf13dd923f67be5cfd604f79f79f2b128974a166",
+      "size": 1490029,
+      "destinations": [
+        "fabric/compat-libs-1.20.1/travelersbackpack-fabric-1.20.1-9.1.52.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "q2caASeP",
+      "version_number": "1.20.1-9.1.52",
+      "date_published": "2026-05-04T20:33:12.643071Z",
+      "download_filename": "travelersbackpack-fabric-1.20.1-9.1.52.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/q2caASeP/travelersbackpack-fabric-1.20.1-9.1.52.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "43a95dfa338a2a6ba3ea33a5efa0ac040331e50c",
+      "sha256": "3c71a04d5b03cdf9d9fe50e71849fdf11291dd1fab149621e35688ef6e516054",
+      "size": 2996065,
+      "destinations": [
+        "fabric/compat-libs-1.21.1/sophisticatedcore-fabric-1.21.1-port.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "9jxwkYQL",
+      "version_id": "ZLVrtF0Q",
+      "version_number": "1.21.1-1.2.9.21.168",
+      "date_published": "2025-12-17T16:24:48.625119Z",
+      "download_filename": "sophisticatedcore-1.21.1-1.2.9.21.168.jar",
+      "download_url": "https://cdn.modrinth.com/data/9jxwkYQL/versions/ZLVrtF0Q/sophisticatedcore-1.21.1-1.2.9.21.168.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "4d6bd94b5ea7065b89d51e41b553687b9a2e895b",
+      "sha256": "9bd93171a1ec0df7ab395a58e36b346bfa2956cde9cda2e0c5dc2e5af11a7b06",
+      "size": 1456348,
+      "destinations": [
+        "neoforge/compat-libs-26.1.2/travelersbackpack-neoforge-26.1.2-11.2.6.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "T1BCIEn8",
+      "version_number": "26.1.2-11.2.6",
+      "date_published": "2026-07-28T14:46:53.714753Z",
+      "download_filename": "travelersbackpack-neoforge-26.1.2-11.2.6.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/T1BCIEn8/travelersbackpack-neoforge-26.1.2-11.2.6.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "642ec0bd02213ee087d86eda553d6d79c6a04d2b",
+      "sha256": "9c2899086a96339245b5abde82879011753871f25443df9581881f29596a7180",
+      "size": 3315123,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/veil-neoforge-1.21.1-4.1.4.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "3KUWeVhG",
+      "version_id": "dzQ4eH6T",
+      "version_number": "4.1.4",
+      "date_published": "2026-06-12T11:17:48.495074Z",
+      "download_filename": "veil-neoforge-1.21.1-4.1.4.jar",
+      "download_url": "https://cdn.modrinth.com/data/3KUWeVhG/versions/dzQ4eH6T/veil-neoforge-1.21.1-4.1.4.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "72774bfec13613ed3cdcf59da10ef84c4c4088fd",
+      "sha256": "63a7d5b2eea56b76e19a26d2477cb4b547a3e8fb5b7a1df89944e437ea02ce9b",
+      "size": 1153420,
+      "destinations": [
+        "neoforge/compat-libs-26.2/sophisticatedbackpacks-26.2-3.25.80.1990.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "TyCTlI4b",
+      "version_id": "pI7ItYwA",
+      "version_number": "26.2-3.25.80.1990",
+      "date_published": "2026-07-15T21:46:16.230858Z",
+      "download_filename": "sophisticatedbackpacks-26.2-3.25.80.1990.jar",
+      "download_url": "https://cdn.modrinth.com/data/TyCTlI4b/versions/pI7ItYwA/sophisticatedbackpacks-26.2-3.25.80.1990.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "807abb93594588b695f9eb2c3617b41e9a702d4d",
+      "sha256": "b1992c9722c181f8f158f5c3bd407f344b997e9d48c4a5912d16a3f1f8330166",
+      "size": 1454477,
+      "destinations": [
+        "neoforge/compat-libs-26.2/travelersbackpack-neoforge-26.2-11.3.2.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "17LVlxGN",
+      "version_number": "26.2-11.3.2",
+      "date_published": "2026-08-09T11:21:30.149503Z",
+      "download_filename": "travelersbackpack-neoforge-26.2-11.3.2.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/17LVlxGN/travelersbackpack-neoforge-26.2-11.3.2.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "888e87da4124758f4f96b3df16e14896f3bb01b9",
+      "sha256": "87f058481ad09dc5983a6fab4bcaf6455e62403d8d3649c1d50c9c37eebeda21",
+      "size": 4486838,
+      "destinations": [
+        "neoforge/compat-libs-26.2/additionaladditions-neoforge-10.0.10.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "R4TvILfj",
+      "version_id": "YCfSv6v7",
+      "version_number": "10.0.10+26.2-neoforge",
+      "date_published": "2026-06-21T17:24:56.714545Z",
+      "download_filename": "additionaladditions-neoforge-10.0.10.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/YCfSv6v7/additionaladditions-neoforge-10.0.10.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "8ef571b8091ee7bfb64f52e81b52c64e2ea65ff2",
+      "sha256": "dafca4311f94ed5eff18f34077e7ab91a169863a4bde2cc82ae525d869ee9396",
+      "size": 2858683,
+      "destinations": [
+        "fabric/compat-libs-1.20.1/sophisticatedcore-fabric-1.20.1-port.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "9jxwkYQL",
+      "version_id": "BP3CQI2v",
+      "version_number": "1.20.1-1.2.7.15.166",
+      "date_published": "2025-12-16T17:48:42.107693Z",
+      "download_filename": "sophisticatedcore-1.20.1-1.2.7.15.166.jar",
+      "download_url": "https://cdn.modrinth.com/data/9jxwkYQL/versions/BP3CQI2v/sophisticatedcore-1.20.1-1.2.7.15.166.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "9139c3176aa8743c9dbb5433023744d42ae72e3a",
+      "sha256": "7fef203f3e6ec18a3d0e1da6c326c7d9ea0a14790de7ee7484dc6859d6bc68b3",
+      "size": 1586337,
+      "destinations": [
+        "forge/compat-libs-1.20.1/sophisticatedcore-1.20.1-1.3.42.1945.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "nmoqTijg",
+      "version_id": "PPY4mjJv",
+      "version_number": "1.20.1-1.3.42.1945",
+      "date_published": "2026-06-05T18:04:04.841471Z",
+      "download_filename": "sophisticatedcore-1.20.1-1.3.42.1945.jar",
+      "download_url": "https://cdn.modrinth.com/data/nmoqTijg/versions/PPY4mjJv/sophisticatedcore-1.20.1-1.3.42.1945.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "99394dd89892a7eb13650c15931568246ba74305",
+      "sha256": "554a7b17029039ca9f797b448bd41e8a65fb579b5f8f3ca8b3d0f80d75b7dd1b",
+      "size": 1424066,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/travelersbackpack-neoforge-1.21.1-10.1.38.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "vHWNjFpl",
+      "version_number": "1.21.1-10.1.38",
+      "date_published": "2026-07-28T14:47:00.195914Z",
+      "download_filename": "travelersbackpack-neoforge-1.21.1-10.1.38.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/vHWNjFpl/travelersbackpack-neoforge-1.21.1-10.1.38.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "9a37e665a7751aa430cb41a6743134bb538e4970",
+      "sha256": "d526a095570e871fd288260dbe32b32855d2514d9f20c59fc08a87cd8d57e756",
+      "size": 7338093,
+      "destinations": [
+        "forge/compat-libs-1.20.1/create-api-6.0.8.jar"
+      ],
+      "status": "unresolved_after_modrinth_sha1_lookup",
+      "local_reference_present_during_release_packaging": true,
+      "note": "Locally retained Create 6.0.8 API artifact containing 2,687 com/... class entries with a 2026-07-23 processing timestamp. Existing notes call it a stub, but no generation/extraction script or verified public URL was found.",
+      "fresh_environment_retrieval_status": "source_unknown; provide a byte-identical local file at any listed destination"
+    },
+    {
+      "sha1": "a0567625189ef086da8319a310bb604e9df3485c",
+      "sha256": "b8e1c3f17fd240b647bf47d651e3f39092297a45e2bafed76749f886d513bc43",
+      "size": 1378978,
+      "destinations": [
+        "neoforge/compat-libs-1.21.11/travelersbackpack-neoforge-1.21.11-10.11.4.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "pgy46u2z",
+      "version_number": "1.21.11-10.11.4",
+      "date_published": "2026-01-29T01:16:09.912777Z",
+      "download_filename": "travelersbackpack-neoforge-1.21.11-10.11.4.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/pgy46u2z/travelersbackpack-neoforge-1.21.11-10.11.4.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "a05d3c3880af29bf02ae3092d7c5208c53e177a6",
+      "sha256": "045977a70ae1d4dd560c9046b493b9ea27453543d739943620414afc0ca26f7d",
+      "size": 1497825,
+      "destinations": [
+        "fabric/compat-libs-26.2/travelersbackpack-fabric-26.2-11.3.0.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "8zYSDRGA",
+      "version_number": "26.2-11.3.0",
+      "date_published": "2026-07-17T12:05:14.243929Z",
+      "download_filename": "travelersbackpack-fabric-26.2-11.3.0.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/8zYSDRGA/travelersbackpack-fabric-26.2-11.3.0.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "a2ddb91b97acb5e910b9e9de786a0ab8f5ec0a5a",
+      "sha256": "478e92d00009d5414843813e93452556d62e4a53a05af3ef86e30f8394f16483",
+      "size": 5307886,
+      "destinations": [
+        "common/compat-libs-1.20.1/valkyrienskies-api-2.4.11.jar",
+        "fabric/compat-libs-1.20.1/valkyrienskies-api-2.4.11.jar",
+        "forge/compat-libs-1.20.1/valkyrienskies-api-2.4.11.jar"
+      ],
+      "status": "unresolved_after_modrinth_sha1_lookup",
+      "local_reference_present_during_release_packaging": true,
+      "note": "Locally retained Valkyrien Skies 2.4.11 API artifact containing 3,947 org/... class entries with a 2026-07-23 processing timestamp, used at three destinations. No generation/extraction script or verified public URL was found.",
+      "fresh_environment_retrieval_status": "source_unknown; provide a byte-identical local file at any listed destination"
+    },
+    {
+      "sha1": "a8afeb3b8dc6a4972258c27e54ffce28c796bbdd",
+      "sha256": "77c44944323b72ac62922dce7f8cd1ee2a287ca8a7db10b49938aabaf89c7d47",
+      "size": 4349378,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/additionaladditions-neoforge-10.0.5.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "R4TvILfj",
+      "version_id": "7J1iQo6E",
+      "version_number": "10.0.5+1.21.1-neoforge",
+      "date_published": "2026-06-14T21:58:07.915563Z",
+      "download_filename": "additionaladditions-neoforge-10.0.5.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/7J1iQo6E/additionaladditions-neoforge-10.0.5.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "bb8334f5b48c89a1c20beb268ea4c31544ff37f5",
+      "sha256": "4fb9516c9bec6539c35ccc73ee3e5e924e977cff76c304f1fd27afec345f78df",
+      "size": 1444854,
+      "destinations": [
+        "fabric/compat-libs-1.21.11/travelersbackpack-fabric-1.21.11-10.11.0.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "zg4XzhT5",
+      "version_number": "1.21.11-10.11.0",
+      "date_published": "2025-12-26T02:29:47.838828Z",
+      "download_filename": "travelersbackpack-fabric-1.21.11-10.11.0.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/zg4XzhT5/travelersbackpack-fabric-1.21.11-10.11.0.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "c70759b301f3c34ea04218cfce27e8d237c19493",
+      "sha256": "4ede5340faeacca8f1d2d87234290692a9dcb84a00f2c462df89fb278b43ca06",
+      "size": 4489366,
+      "destinations": [
+        "neoforge/compat-libs-26.1.2/additionaladditions-neoforge-10.0.9.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "R4TvILfj",
+      "version_id": "cpJciDkP",
+      "version_number": "10.0.9+26.1.x-neoforge",
+      "date_published": "2026-06-21T13:47:43.179777Z",
+      "download_filename": "additionaladditions-neoforge-10.0.9.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/cpJciDkP/additionaladditions-neoforge-10.0.9.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "c96bc37fac2de3a76ce2bffe3881c5f08d04264c",
+      "sha256": "e6c10244608652acbfb796fe44167e7ee84481b4e48ad016c9f4bc62f6ee4f2c",
+      "size": 1612666,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/sophisticatedcore-1.21.1-1.4.42.1892.jar"
+      ],
+      "status": "curseforge_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "curseforge_project": "sophisticated-core",
+      "curseforge_file_id": 8145747,
+      "curseforge_page": "https://www.curseforge.com/minecraft/mc-mods/sophisticated-core/files/8145747",
+      "download_filename": "sophisticatedcore-1.21.1-1.4.42.1892.jar",
+      "download_url": "https://mediafilez.forgecdn.net/files/8145/747/sophisticatedcore-1.21.1-1.4.42.1892.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "cdd6904f5e114c80bc20b4f4b6d7e5ab92f2cbab",
+      "sha256": "a29798debb772eb44d708af4cacd0f0da58d7d810bb0e633475ee6a21a56d300",
+      "size": 1356269,
+      "destinations": [
+        "fabric/compat-libs-1.21.1/travelersbackpack-fabric-1.21.1-10.1.25.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "rlloIFEV",
+      "version_id": "oIvmZoLb",
+      "version_number": "1.21.1-10.1.25",
+      "date_published": "2025-09-17T11:00:00.463629Z",
+      "download_filename": "travelersbackpack-fabric-1.21.1-10.1.25.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/oIvmZoLb/travelersbackpack-fabric-1.21.1-10.1.25.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "d239f4c85c141fe50c61c11eadd2e968e602077a",
+      "sha256": "67753c5dd85662bcd4413ae9a5c44426d1b665f56d02403248eca55d862189a7",
+      "size": 1718508,
+      "destinations": [
+        "neoforge/compat-libs-26.2/sophisticatedcore-26.2-1.4.87.2179.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "nmoqTijg",
+      "version_id": "ci3hqabl",
+      "version_number": "26.2-1.4.87.2179",
+      "date_published": "2026-07-19T21:08:18.482207Z",
+      "download_filename": "sophisticatedcore-26.2-1.4.87.2179.jar",
+      "download_url": "https://cdn.modrinth.com/data/nmoqTijg/versions/ci3hqabl/sophisticatedcore-26.2-1.4.87.2179.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "d9b96f1346479a092519423193de9a4d06a989c7",
+      "sha256": "d3f65ec93863fac6638be9762d7eedccc16caa0944a6b269c14ae21fed15445f",
+      "size": 1661841,
+      "destinations": [
+        "neoforge/compat-libs-26.1.2/sophisticatedcore-26.1.2-1.4.53.1949.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "nmoqTijg",
+      "version_id": "E0VTDirg",
+      "version_number": "26.1.2-1.4.53.1949",
+      "date_published": "2026-06-05T18:00:35.319586Z",
+      "download_filename": "sophisticatedcore-26.1.2-1.4.53.1949.jar",
+      "download_url": "https://cdn.modrinth.com/data/nmoqTijg/versions/E0VTDirg/sophisticatedcore-26.1.2-1.4.53.1949.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "e587a1d868e4147e4da50efce327d012aed5da2b",
+      "sha256": "3676365c5b2e414e308a9e992d96f1efd97bcad1cd318acae1e95d85ebaf0c20",
+      "size": 4400470,
+      "destinations": [
+        "neoforge/compat-libs-1.21.11/additionaladditions-neoforge-10.0.9.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "R4TvILfj",
+      "version_id": "TzHOWmxs",
+      "version_number": "10.0.9+1.21.11-neoforge",
+      "date_published": "2026-06-23T08:21:02.731391Z",
+      "download_filename": "additionaladditions-neoforge-10.0.9.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/TzHOWmxs/additionaladditions-neoforge-10.0.9.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "ec05f64ce677622c968e0be6bb394b6e1debe9ed",
+      "sha256": "101e0d57edc16dcaaada13c9fdec5a179fd508d506aec4380401d113c8bfc6a9",
+      "size": 4340126,
+      "destinations": [
+        "fabric/compat-libs-1.21.1/additionaladditions-fabric-10.0.5.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "R4TvILfj",
+      "version_id": "u5XKg4fY",
+      "version_number": "10.0.5+1.21.1-fabric",
+      "date_published": "2026-06-14T21:57:30.732491Z",
+      "download_filename": "additionaladditions-fabric-10.0.5.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/u5XKg4fY/additionaladditions-fabric-10.0.5.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "ec0b83d8342e5e6e28be138ecde90c130052e1e2",
+      "sha256": "f5da391a3f2b46abbaea78d584366d2aad577de20e1e6cac02e815fd11453028",
+      "size": 4390428,
+      "destinations": [
+        "fabric/compat-libs-1.21.11/additionaladditions-fabric-10.0.9.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "R4TvILfj",
+      "version_id": "w6GSBBkf",
+      "version_number": "10.0.9+1.21.11-fabric",
+      "date_published": "2026-06-23T08:20:44.438918Z",
+      "download_filename": "additionaladditions-fabric-10.0.9.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/w6GSBBkf/additionaladditions-fabric-10.0.9.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "f19e7d247456373e24c0c49693e06f36f988debc",
+      "sha256": "d9eebab7f58d8aebd55c2af350acdf27b970522c7ddddafbbbd0626432929a79",
+      "size": 1780779,
+      "destinations": [
+        "neoforge/compat-libs-1.21.11/sophisticatedcore-1.21.11-1.4.86.2197.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "nmoqTijg",
+      "version_id": "At9UDjB3",
+      "version_number": "1.21.11-1.4.86.2197",
+      "date_published": "2026-07-24T23:26:14.011610Z",
+      "download_filename": "sophisticatedcore-1.21.11-1.4.86.2197.jar",
+      "download_url": "https://cdn.modrinth.com/data/nmoqTijg/versions/At9UDjB3/sophisticatedcore-1.21.11-1.4.86.2197.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "f3ba9a497122ba29d9e94ebe6f9a3a3aaa5fa756",
+      "sha256": "da6c3b66238586603d1dcaa2afb012d36815fbce0a2d5938fbb2936701d42279",
+      "size": 12889000,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/sable-neoforge-1.21.1-2.0.3.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "T9PomCSv",
+      "version_id": "1L6XJqnY",
+      "version_number": "2.0.3+mc1.21.1",
+      "date_published": "2026-06-17T04:32:49.279302Z",
+      "download_filename": "sable-neoforge-1.21.1-2.0.3.jar",
+      "download_url": "https://cdn.modrinth.com/data/T9PomCSv/versions/1L6XJqnY/sable-neoforge-1.21.1-2.0.3.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "fabc5aa1b2b354dae2338254a2fd0ff747944253",
+      "sha256": "c291928e4402ef638d2544fb3c551379375b80acf5a019383b57752a36196e54",
+      "size": 3901925,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/letsdo-furniture-neoforge-1.1.4.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "3JQDJrYW",
+      "version_id": "aYYcQFNB",
+      "version_number": "1.1.4",
+      "date_published": "2026-03-13T16:07:47.343499Z",
+      "download_filename": "letsdo-furniture-neoforge-1.1.4.jar",
+      "download_url": "https://cdn.modrinth.com/data/3JQDJrYW/versions/aYYcQFNB/letsdo-furniture-neoforge-1.1.4.jar",
+      "fresh_environment_retrieval_status": "verified"
+    }
+  ]
+}
