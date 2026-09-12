@@ -1,5 +1,7 @@
 Turn a music link into a disc for your jukebox, carry it in a Boombox, or play it across your build through linked Speakers.
 
+<p><a href="https://www.patreon.com/KURONAMI333"><img src="https://raw.githubusercontent.com/KURONAMI333/music-disc-maker/master/_docs/support/patreon.png" width="440" height="156" alt="Support my mods on Patreon"></a> <a href="https://x.com/kuronami333"><img src="https://raw.githubusercontent.com/KURONAMI333/music-disc-maker/master/_docs/support/x.png" width="300" height="156" alt="Follow @kuronami333 on X"></a></p>
+
 ## Make a disc
 
 Craft a **Music Disc Maker**, then make a **Blank Disc** with lapis lazuli and iron. Open the maker, paste a track URL, and insert the blank disc. Take your finished **Custom Music Disc** and play it in an ordinary jukebox.
