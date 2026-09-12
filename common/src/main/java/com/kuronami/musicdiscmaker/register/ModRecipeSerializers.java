@@ -21,9 +21,13 @@ public final class ModRecipeSerializers {
 
     public static final RegistryHolder<RecipeSerializer<AlbumDyeRecipe>> ALBUM_DYEING =
             //? if >=26.1 {
-            SERIALIZERS.register("album_dyeing", () -> new RecipeSerializer<>(
-                    com.mojang.serialization.MapCodec.unit(new AlbumDyeRecipe()),
-                    net.minecraft.network.codec.StreamCodec.unit(new AlbumDyeRecipe())));
+            SERIALIZERS.register("album_dyeing", () -> {
+                // unit の送信時は等値性が必要。読込側と同じ状態なしレシピを共有する。
+                final AlbumDyeRecipe recipe = new AlbumDyeRecipe();
+                return new RecipeSerializer<>(
+                        com.mojang.serialization.MapCodec.unit(recipe),
+                        net.minecraft.network.codec.StreamCodec.unit(recipe));
+            });
             //?} elif >=1.21.11 {
             /*SERIALIZERS.register("album_dyeing", () -> new net.minecraft.world.item.crafting.CustomRecipe.Serializer<>(AlbumDyeRecipe::new));
             *///?} elif >=1.21 {

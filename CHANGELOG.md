@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.1
+
+- Fixed a disconnect when joining a world caused by syncing the Disc Album dyeing recipe, including setups using JEI.
+- Applies to Minecraft 26.1.2 (NeoForge) and 26.2 (NeoForge/Fabric); other versions remain on 3.0.0.
+
 ## 3.0.0
 
 3.0.0 adds new ways to collect, carry, display, and share your music, along with a higher simultaneous playback limit and fixes for existing players.
