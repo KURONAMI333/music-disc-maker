@@ -32,6 +32,13 @@ import net.minecraft.world.level.block.state.properties.AttachFace;
 /** 固定Speakerを持つGoldenのplayer別配送状態。server threadからだけ呼ぶ。 */
 public final class SpeakerPlayback {
 
+    /**
+     * 既に聴いているplayerは可聴範囲の外側8ブロックまでdecoderを保持する。
+     * 15tickのフェードと近傍の出入りを吸収し、それ以上離れたら解放する。
+     * 新規listenerの開始距離や実際に音が届く範囲は広げない。
+     */
+    private static final int LISTENER_RETENTION_BLOCKS = 8;
+
     private record Snapshot(int range, int sourceVolume, boolean directional, List<SpeakerEntry> speakers, com.kuronami.musicdiscmaker.network.PlaybackSourceStamp identity) {
     }
 
@@ -68,7 +75,7 @@ public final class SpeakerPlayback {
     public static boolean play(GoldenJukeboxBlockEntity source, VanillaTrackData track, long offsetMs) {
         final ServerLevel level = serverLevel(source);
         return play(source, Playback.vanilla(track), offsetMs,
-                level != null && Services.PLATFORM.isMovingAudioSource(level, source.getBlockPos()));
+                level != null && requiresManagedVanilla(source, level));
     }
 
     /** Moving hosts cannot use a fixed vanilla block-event sound, even without extra speakers. */
@@ -82,7 +89,8 @@ public final class SpeakerPlayback {
         return play(source, playback, offsetMs, false);
     }
 
-    private static boolean play(GoldenJukeboxBlockEntity source, Playback playback, long offsetMs, boolean movingVanilla) {
+    private static boolean play(GoldenJukeboxBlockEntity source, Playback playback, long offsetMs,
+            boolean managedVanillaRequired) {
         final ServerLevel level = serverLevel(source);
         if (level == null) {
             return false;
@@ -90,7 +98,8 @@ public final class SpeakerPlayback {
         final Snapshot snapshot = snapshot(level, source);
         State state = STATES.get(source);
         final boolean continueManagedVanilla = playback.vanilla() != null
-                && (movingVanilla || (state != null && state.playback != null && state.playback.vanilla() != null));
+                && (managedVanillaRequired
+                        || (state != null && state.playback != null && state.playback.vanilla() != null));
         if (snapshot.speakers().isEmpty() && !continueManagedVanilla) {
             clearSpeakerSet(source, level);
             return false;
@@ -146,7 +155,7 @@ public final class SpeakerPlayback {
         State state = STATES.get(source);
         if (snapshot.speakers().isEmpty()
                 && (state == null || state.playback == null || state.playback.vanilla() == null)) {
-            if (playback.vanilla() != null && Services.PLATFORM.isMovingAudioSource(level, source.getBlockPos())) {
+            if (playback.vanilla() != null && requiresManagedVanilla(source, level)) {
                 return play(source, playback, offsetMs, true);
             }
             return false;
@@ -185,8 +194,8 @@ public final class SpeakerPlayback {
                 && current != null;
         if (next.speakers().isEmpty()) {
             if (state == null && playing && current.vanilla() != null
-                    && Services.PLATFORM.isMovingAudioSource(level, source.getBlockPos())) {
-                playMovingVanilla(source);
+                    && requiresManagedVanilla(source, level)) {
+                play(source, current, source.currentElapsedMs(), true);
                 return;
             }
             if (state != null && state.playback != null && state.playback.vanilla() != null && playing) {
@@ -249,7 +258,7 @@ public final class SpeakerPlayback {
                 if (setChanged || replayEveryone) {
                     sendSet(player, sourcePos, state.snapshot);
                 }
-                if (insideEnvelope(player, sourcePos, state.snapshot)) {
+                if (insideRetentionEnvelope(player, sourcePos, state.snapshot)) {
                     present.add(id);
                     if (replayEveryone && state.playback != null) {
                         sendPlay(player, sourcePos, state.playback, Math.max(0L, offsetMs),
@@ -319,12 +328,18 @@ public final class SpeakerPlayback {
         return false;
     }
 
-    private static boolean insideEnvelope(ServerPlayer player, BlockPos sourcePos, Snapshot snapshot) {
-        if (insideSource(player, sourcePos, snapshot.range())) {
+    /**
+     * Keep an already-started client voice past the audible boundary so its local fade can complete and
+     * stepping back across the boundary does not require a second decoder load.  This must not be used to
+     * start a voice: {@link #audible} remains the admission rule.
+     */
+    private static boolean insideRetentionEnvelope(ServerPlayer player, BlockPos sourcePos, Snapshot snapshot) {
+        final int retainedRange = snapshot.range() + LISTENER_RETENTION_BLOCKS;
+        if (insideSource(player, sourcePos, retainedRange)) {
             return true;
         }
         for (SpeakerEntry speaker : snapshot.speakers()) {
-            if (inside(player, speaker.pos(), snapshot.range())) {
+            if (inside(player, speaker.pos(), retainedRange)) {
                 return true;
             }
         }
@@ -374,6 +389,18 @@ public final class SpeakerPlayback {
         speakers.sort((left, right) -> Long.compare(left.pos().asLong(), right.pos().asLong()));
         return new Snapshot(source.getRangeBlocks(), source.getVolumePercent(), source.isDirectional(),
                 List.copyOf(speakers), source.playbackIdentity());
+    }
+
+    /**
+     * 固定音源の通常盤は既定設定の間だけバニラ再生を使える。音量・範囲・指向性を変えたら
+     * 設定を実音へ反映できる管理再生へ移す。一度移した曲は既定値へ戻しても同じ経路に保ち、
+     * 曲の途中でバニラ音源との二重再生を起こさない。
+     */
+    private static boolean requiresManagedVanilla(GoldenJukeboxBlockEntity source, ServerLevel level) {
+        return Services.PLATFORM.isMovingAudioSource(level, source.getBlockPos())
+                || source.getRangeBlocks() != GoldenJukeboxBlockEntity.RANGE_DEFAULT
+                || source.getVolumePercent() != GoldenJukeboxBlockEntity.VOLUME_DEFAULT
+                || source.isDirectional() != GoldenJukeboxBlockEntity.DIRECTIONAL_DEFAULT;
     }
 
     public static List<SpeakerEntry> movingSpeakers(ServerLevel level, UUID id, Object actor) {

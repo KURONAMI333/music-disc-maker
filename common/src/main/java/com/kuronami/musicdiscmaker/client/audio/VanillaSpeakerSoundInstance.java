@@ -40,6 +40,7 @@ public final class VanillaSpeakerSoundInstance extends AbstractTickableSoundInst
     private final Runnable onStreamReady;
     private boolean streamPrepared;
     private boolean readyReported;
+    private final FlatPlaybackGate flatGate = new FlatPlaybackGate();
 
     public VanillaSpeakerSoundInstance(String soundEventId, long startOffsetMs, DiscAnchor anchor) {
         this(soundEventId, () -> startOffsetMs, anchor,
@@ -99,10 +100,14 @@ public final class VanillaSpeakerSoundInstance extends AbstractTickableSoundInst
             stopAndRelease();
             return;
         }
-        applyAnchor(current);
+        applyAnchor(current, true);
     }
 
     private void applyAnchor(DiscAnchor current) {
+        applyAnchor(current, false);
+    }
+
+    private void applyAnchor(DiscAnchor current, boolean tick) {
         final Vec3 point = current.worldPos(1.0F);
         final LiveAudioConfig config = current instanceof LiveAudioConfig live ? live : null;
         final boolean directional = config == null || config.directional();
@@ -115,8 +120,11 @@ public final class VanillaSpeakerSoundInstance extends AbstractTickableSoundInst
             this.relative = true;
             this.x = this.y = this.z = 0.0D;
         }
-        final double gain = config == null ? 1.0D
-                : Math.max(0.0D, config.volumePercent() / 100.0D * config.gainMultiplier());
+        final Vec3 ear = DiscSoundInstance.listenerPos();
+        final double distance = ear == null ? 0.0D : ear.distanceTo(point);
+        final double gate = flatGate.update(directional, distance, effectiveRange(current), tick);
+        final double gain = gate * (config == null ? 1.0D
+                : Math.max(0.0D, config.volumePercent() / 100.0D * config.gainMultiplier()));
         this.pcmGain = (float) Math.max(gain, 1.0D);
         this.volume = (float) Math.min(gain, 1.0D);
         final VanillaSpeakerAudioStream currentStream = streams.current();

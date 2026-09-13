@@ -1,3 +1,15 @@
+## Music Disc Maker 3.0.2
+
+A bug-fix update for Albums, Boomboxes, Golden Jukeboxes, and Speakers.
+
+- Fixed Albums and Boomboxes being incorrectly blocked from opening because of large item data in equipment slots outside their menus.
+- Fixed volume, range, and directional sound settings not applying to vanilla music discs in a Golden Jukebox without linked Speakers.
+- Reduced unnecessary Speaker reloads when briefly crossing the listening boundary, and restored smooth transitions for non-directional playback.
+- Fixed delayed Speaker startup reading from an outdated position in the shared audio stream.
+- Restored playback-start checks and timeout recovery on newer Minecraft versions so a failed audio start does not leave a stale playback session.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 # Changelog
 
 ## 3.0.1

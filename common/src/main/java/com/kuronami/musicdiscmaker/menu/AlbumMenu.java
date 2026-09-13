@@ -98,7 +98,8 @@ public class AlbumMenu extends AbstractContainerMenu {
 
     /**
      * 初回open packetの全slotとcursorを、実ItemStack codecで先に検証する。
-     * main handのAlbumはinventory slotに含まれる。offhandだけはmenu slot外なので別に加える。
+     * 実際にmenuへ登録する内部9枠とプレイヤー所持品36枠だけを検査する。
+     * 装備・offhandはこのmenuのslotではなく、初回container packetにも載らない。
      */
     public static boolean fitsInitialMenuSync(Inventory inventory, BoomboxSource source) {
         final ItemStack heldAlbum = inventory.player.getItemInHand(source.heldHand());
@@ -108,19 +109,14 @@ public class AlbumMenu extends AbstractContainerMenu {
         for (int i = 0; i < ALBUM_SLOTS; i++) {
             initialSlots.add(i < saved.size() ? saved.get(i).copy() : ItemStack.EMPTY);
         }
-        boolean heldAlbumInInventory = false;
-        for (int i = 9; i < inventory.getContainerSize(); i++) {
+        for (int i = 9; i < Inventory.INVENTORY_SIZE; i++) {
             final ItemStack stack = inventory.getItem(i);
             initialSlots.add(stack.copy());
-            heldAlbumInInventory |= stack == heldAlbum;
         }
         for (int i = 0; i < 9; i++) {
             final ItemStack stack = inventory.getItem(i);
             initialSlots.add(stack.copy());
-            heldAlbumInInventory |= stack == heldAlbum;
         }
-        // offhand の元Albumは表示menuのinventory 36枠外だが、client側同期で必要になる。
-        if (!heldAlbumInInventory) initialSlots.add(heldAlbum.copy());
         //? if >=1.21 {
         return AlbumStorageBudget.fitsInitialMenuSync(initialSlots, ItemStack.EMPTY,
                 inventory.player.level().registryAccess());

@@ -7,6 +7,7 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 import com.kuronami.musicdiscmaker.block.BoomboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.AlbumContents;
+import com.kuronami.musicdiscmaker.component.AlbumStorageBudget;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.item.AlbumItem;
@@ -177,13 +178,46 @@ public final class OversizeMediaRecoveryGameTests {
 
         final ItemStack safeAlbum = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(safeAlbum, new AlbumContents(List.of(disc(30))));
-        final ItemStack blocker = album(40);
+        // 6枚分（約1.8 MiB）は単体2 MiB上限には収まりつつ、menu内に置けば初回枠を越える。
+        final ItemStack blocker = album(40, 6);
         player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
         player.getInventory().setItem(9, blocker);
         final OversizeMediaRecovery.Result untouched = OversizeMediaRecovery.recoverAlbum(player, safeAlbum);
         helper.assertTrue(untouched == OversizeMediaRecovery.Result.NOT_SOURCE_TOO_LARGE
                         && ordered(AlbumItem.contents(safeAlbum), 30),
                 "他inventoryが原因の拒否で安全なAlbumをばらまいた");
+
+        final ItemStack emptyAlbum = new ItemStack(ModItems.ALBUM.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, emptyAlbum);
+        final boolean emptyAlbumInitialFits = AlbumMenu.fitsInitialMenuSync(player.getInventory(),
+                BoomboxSource.held(InteractionHand.MAIN_HAND));
+        final OversizeMediaRecovery.Result emptyAlbumResult = OversizeMediaRecovery.recoverAlbum(player, emptyAlbum);
+        helper.assertTrue(emptyAlbumResult == OversizeMediaRecovery.Result.NOT_SOURCE_TOO_LARGE,
+                "空Albumで他inventoryが原因でも回収不要の案内を返さなかった: initialFits="
+                        + emptyAlbumInitialFits + ", result=" + emptyAlbumResult);
+        final ItemStack emptyBoombox = new ItemStack(ModItems.BOOMBOX.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, emptyBoombox);
+        helper.assertTrue(OversizeMediaRecovery.recoverHeldBoombox(player, emptyBoombox)
+                        == OversizeMediaRecovery.Result.NOT_SOURCE_TOO_LARGE,
+                "空Boomboxで他inventoryが原因でも回収不要の案内を返さなかった");
+
+        // 装備/offhandはこのmenuにslotとして登録されず、初回container packetにも含まれない。
+        // 大きい装備品のためにAlbum/Boomboxのopenまで拒否してはならない。
+        player.getInventory().setItem(9, ItemStack.EMPTY);
+        player.getInventory().setItem(40, blocker);
+        player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
+        // 旧実装はgetContainerSize()まで走査してoffhandを初回packetに含めていた。
+        // 同じ実codec・同じ1.5 MiB予算では旧集合だけが拒否されることを対照に残す。
+        helper.assertFalse(legacyInitialSlotsFit(player.getInventory(), safeAlbum, AlbumItem.GUI_CAPACITY),
+                "旧getContainerSize集合がoffhandを同期対象としていないため回帰対照になっていない");
+        helper.assertTrue(AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "menu外offhandの大きいitemで安全なAlbumの初回同期を拒否した");
+        player.setItemInHand(InteractionHand.MAIN_HAND, emptyBoombox);
+        helper.assertFalse(legacyInitialSlotsFit(player.getInventory(), emptyBoombox, 1),
+                "旧Boombox集合がoffhandを同期対象としていないため回帰対照になっていない");
+        helper.assertTrue(com.kuronami.musicdiscmaker.menu.BoomboxMenu.fitsInitialMenuSync(
+                        player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "menu外offhandの大きいitemで空Boomboxの初回同期を拒否した");
         helper.succeed();
     }
 
@@ -296,6 +330,34 @@ public final class OversizeMediaRecoveryGameTests {
 
     private static BoomboxContents contents(ItemStack stack) {
         return stack.getOrDefault(ModDataComponents.BOOMBOX_CONTENTS.get(), BoomboxContents.EMPTY);
+    }
+
+    /** 3.0.1までのgetContainerSize走査が構成していた初回slot集合。回帰用のみ。 */
+    private static boolean legacyInitialSlotsFit(net.minecraft.world.entity.player.Inventory inventory,
+            ItemStack heldSource, int internalSlots) {
+        final List<ItemStack> slots = new ArrayList<>(internalSlots + inventory.getContainerSize());
+        if (heldSource.is(ModItems.ALBUM.get())) {
+            final List<ItemStack> saved = AlbumItem.contents(heldSource).discs();
+            for (int i = 0; i < internalSlots; i++) {
+                slots.add(i < saved.size() ? saved.get(i).copy() : ItemStack.EMPTY);
+            }
+        } else {
+            for (int i = 0; i < internalSlots; i++) slots.add(ItemStack.EMPTY);
+        }
+        boolean sourceInInventory = false;
+        for (int i = 9; i < inventory.getContainerSize(); i++) {
+            final ItemStack stack = inventory.getItem(i);
+            slots.add(stack.copy());
+            sourceInInventory |= stack == heldSource;
+        }
+        for (int i = 0; i < 9; i++) {
+            final ItemStack stack = inventory.getItem(i);
+            slots.add(stack.copy());
+            sourceInInventory |= stack == heldSource;
+        }
+        if (!sourceInInventory) slots.add(heldSource.copy());
+        return AlbumStorageBudget.fitsInitialMenuSync(slots, ItemStack.EMPTY,
+                inventory.player.level().registryAccess());
     }
 
     private static boolean ordered(AlbumContents contents, int... ids) {

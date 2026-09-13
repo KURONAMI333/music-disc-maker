@@ -35,7 +35,11 @@ import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-//? if >=1.21.2 {
+//? if >=26.2 {
+import net.minecraft.client.Options;
+//?} elif >=1.21.2 {
+/*import net.minecraft.client.Options;
+*/
 //?} elif >=1.21 {
 /*import net.minecraft.client.Options;
 */
@@ -53,8 +57,9 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
-//? if >=1.21.2 {
-public class DiscSoundInstance extends AbstractTickableSoundInstance implements PlaybackVoice, CustomAudioStreamProvider {
+//? if >=26.2 {
+public class DiscSoundInstance extends AbstractTickableSoundInstance
+        implements PlaybackVoice, SoundEngineAcceptance.Engine, CustomAudioStreamProvider {
 
     private static final ExecutorService PREBUFFER = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-prebuffer");
@@ -63,6 +68,18 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
     });
 
     private static final long PREBUFFER_BUDGET_MS = 10_000L;
+//?} elif >=1.21.2 {
+/*public class DiscSoundInstance extends AbstractTickableSoundInstance
+        implements PlaybackVoice, SoundEngineAcceptance.Engine, CustomAudioStreamProvider {
+
+    private static final ExecutorService PREBUFFER = Executors.newCachedThreadPool(runnable -> {
+        final Thread thread = new Thread(runnable, "music_disc_maker-prebuffer");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private static final long PREBUFFER_BUDGET_MS = 10_000L;
+*/
 //?} elif >=1.21 {
 /*public class DiscSoundInstance extends AbstractTickableSoundInstance
         implements PlaybackVoice, SoundEngineAcceptance.Engine, CustomAudioStreamProvider {
@@ -625,6 +642,22 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance implements 
 
     public void setTiming(@Nullable PlaybackTiming value) {
         this.timing = value;
+    }
+
+    @Override
+    public boolean playAndConfirm() {
+        final SoundManager sounds = Minecraft.getInstance().getSoundManager();
+        // 26.2 の STARTED_SILENTLY も isActive なら受理済み。NOT_STARTED だけを拒否する。
+        sounds.play(this);
+        return sounds.isActive(this);
+    }
+
+    @Override
+    public boolean mutedOut() {
+        final Options options = Minecraft.getInstance().options;
+        return getVolume() <= 0.0F
+                || options.getSoundSourceVolume(SoundSource.MASTER) <= 0.0F
+                || options.getSoundSourceVolume(SoundSource.RECORDS) <= 0.0F;
     }
     //?} elif >=1.21 {
 /*    public void setTiming(@Nullable PlaybackTiming value) {

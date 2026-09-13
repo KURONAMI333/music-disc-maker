@@ -55,6 +55,7 @@ public final class MdmGameTestRegistration {
                                 100, 0, true)));
         register(event, "moving_vanilla_without_speakers", SpeakerPlaybackGameTests::movingVanillaWithoutSpeakersUsesManagedRoute, empty, 100);
         register(event, "new_blocks_have_recipe_unlocks", RecipeDiscoveryGameTests::newBlocksHaveLoadedRecipeUnlocks, empty, 100);
+        register(event, "vanilla_flat_range_fade", com.kuronami.musicdiscmaker.client.audio.GoldenEmitterAnchorGameTests::flatVanillaRangeFadesAndRecovers, empty, 100);
         register(event, "golden_emitter_fixed_source_live_settings", com.kuronami.musicdiscmaker.client.audio.GoldenEmitterAnchorGameTests::fixedGoldenWithoutSpeakersUsesLiveSettings, empty, 100);
         register(event, "golden_emitter_speaker_snapshot_authority", com.kuronami.musicdiscmaker.client.audio.GoldenEmitterAnchorGameTests::speakerNetworkKeepsServerSnapshotAuthoritative, empty, 100);
         register(event, "maker_single_disc_atomicity", MusicDiscMakerSingleDiscGameTests::createsOnlyCanonicalSingleDiscAndKeepsInputsAtomic, empty, 100);
@@ -68,6 +69,7 @@ public final class MdmGameTestRegistration {
         register(event, "captured_album_keeps_selection_and_state",
                 GoldenPlaybackStateGameTests::capturedPlaybackKeepsSelectionAndDoesNotRegisterOrResumeStoppedMedia,
                 empty, 100);
+        register(event, "golden_config_update_packet", GoldenPlaybackStateGameTests::configurationSurvivesUpdatePacket, empty, 100);
         register(event, "clear_content_stops_playback", GoldenPlaybackStateGameTests::clearContentStopsPlayback, empty, 100);
         register(event, "album_end_restarts_with_one_resume",
                 GoldenPlaybackStateGameTests::albumEndRestartsWithOneResume, empty, 100);

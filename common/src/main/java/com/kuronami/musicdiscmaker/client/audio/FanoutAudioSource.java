@@ -52,8 +52,11 @@ final class FanoutAudioSource {
         return openBranchAt(0L, true);
     }
 
-    /** Opens a branch present at the beginning of playback. */
-    synchronized Branch openInitialBranch() { return openBranchAt(0L, false); }
+    /**
+     * 再生開始時から存在する branch。worker の初回 pull までに master が鳴り始めていた場合も、
+     * late branch と同じくその時点の再生位置へそろえる。
+     */
+    synchronized Branch openInitialBranch() { return openBranchAt(0L, false, true); }
 
     /** Opens a newly-linked speaker at the master's estimated audible position. */
     synchronized Branch openLateBranch() {

@@ -28,6 +28,14 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
         this.source = source;
         this.sourceAnchor = sourceAnchor;
         this.pcm = pcm;
+        this.latestSet = set;
+    }
+
+    /** 他MODによる遅延再投入でmasterが後から鳴った場合も、未開始のspeakerを現時点へ合わせる。 */
+    void onFirstAudio() {
+        if (stopped || !initialUpdate) return;
+        initialUpdate = false;
+        update(latestSet);
     }
 
     void update(SpeakerSetPayload set) {

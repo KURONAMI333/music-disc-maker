@@ -77,7 +77,8 @@ class FanoutAudioSourceTest {
 
     @Test
     void postStartUnderrunIsOneSharedTimelineGapRatherThanPerVoiceSilence() {
-        final FanoutAudioSource fanout = new FanoutAudioSource(new OneChunkThenEmptySource());
+        // markPlaybackStarted の時刻と可聴clockは同じ座標系で渡す。
+        final FanoutAudioSource fanout = new FanoutAudioSource(new OneChunkThenEmptySource(), () -> 0L);
         final IAudioSource master = fanout.openMasterBranch();
         final IAudioSource speaker = fanout.openInitialBranch();
         fanout.markPlaybackStarted(0L);
@@ -109,7 +110,7 @@ class FanoutAudioSourceTest {
     @Test
     void sharedUnderrunKeepsTheFollowingRealPcmAligned() {
         final FanoutAudioSource fanout = new FanoutAudioSource(
-                new ScriptedSource(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}, 4, 0, 4));
+                new ScriptedSource(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}, 4, 0, 4), () -> 0L);
         final IAudioSource master = fanout.openMasterBranch();
         final IAudioSource speaker = fanout.openInitialBranch();
         fanout.markPlaybackStarted(0L);
@@ -133,6 +134,35 @@ class FanoutAudioSourceTest {
         // The async prebuffer worker can begin after the placement action; its first pull must use that later time.
         now[0] = 6_000L;
         assertArrayEquals(java.util.Arrays.copyOfRange(pcm, 6, 10), readExactly(speaker, 4));
+    }
+
+    @Test
+    void initialSpeakerAlsoUsesTheAudibleClockWhenItsWorkerStartsAfterMaster() {
+        final byte[] pcm = new byte[20];
+        for (int i = 0; i < pcm.length; i++) pcm[i] = (byte) i;
+        final long[] now = {0L};
+        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(pcm, 1, 1, 8), () -> now[0]);
+        final IAudioSource master = fanout.openMasterBranch();
+        // GUI/configuration updates can create the voice before its async prebuffer worker first pulls PCM.
+        final IAudioSource speaker = fanout.openInitialBranch();
+
+        // The decoder is well ahead of the audible position, so this proves clock alignment rather than only
+        // clamping to producedCursor.
+        assertArrayEquals(pcm, readExactly(master, pcm.length));
+        fanout.markPlaybackStarted(0L);
+        now[0] = 6_000L;
+        assertArrayEquals(java.util.Arrays.copyOfRange(pcm, 6, 10), readExactly(speaker, 4));
+    }
+
+    @Test
+    void initialSpeakerKeepsTheBeginningWhenItPullsBeforeMasterStarts() {
+        final byte[] pcm = new byte[] {0, 1, 2, 3};
+        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(pcm, 1, 1, 8), () -> 6_000L);
+        final IAudioSource master = fanout.openMasterBranch();
+        final IAudioSource speaker = fanout.openInitialBranch();
+
+        assertArrayEquals(pcm, readExactly(speaker, pcm.length));
+        assertArrayEquals(pcm, readExactly(master, pcm.length));
     }
 
     @Test

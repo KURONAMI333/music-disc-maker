@@ -117,14 +117,13 @@ public final class SpeakerPlaybackGameTests {
             speaker.clearLink();
             tick(level, source);
             final List<CapturingNetwork.Sent> removedNearSpeaker = forPlayer(net, player);
-            helper.assertTrue(removedNearSpeaker.size() == 2
-                            && removedNearSpeaker.get(0).payload() instanceof SpeakerSetPayload
-                            && removedNearSpeaker.get(1).payload() instanceof StopDiscPayload,
-                    "近傍speaker解除で遠方speakerだけ残ったplayerへSet→Stopを送っていない");
+            helper.assertTrue(removedNearSpeaker.size() == 1
+                            && removedNearSpeaker.get(0).payload() instanceof SpeakerSetPayload,
+                    "近傍speaker解除で保持中voiceへSetだけを送っていない");
             net.clear();
             speaker.linkTo(level, sourcePos);
             tick(level, source);
-            assertSetThenPlay(helper, net, player, "近傍speakerの再接続");
+            assertSetOnly(helper, net, player, "近傍speakerの再接続");
             remainingSpeaker.clearLink();
             level.setBlock(remainingSpeakerPos, Blocks.AIR.defaultBlockState(), 3);
             level.setBlock(remainingSpeakerPos.south(), Blocks.AIR.defaultBlockState(), 3);
@@ -160,6 +159,24 @@ public final class SpeakerPlaybackGameTests {
             helper.assertTrue(muteSet.speakers().get(0).muted(), "mute状態をSetへ反映していない");
 
             net.clear();
+            level.setBlock(speakerPos.east(), Blocks.AIR.defaultBlockState(), 3);
+            tick(level, source);
+            assertSetOnly(helper, net, player, "speaker unmute変更");
+
+            net.clear();
+            player.teleportTo(speakerPos.getX() + 18.0D, speakerPos.getY(), speakerPos.getZ());
+            tick(level, source);
+            helper.assertTrue(forPlayer(net, player).isEmpty(),
+                    "範囲端を少し越えただけでvoiceをStopして再decodeを必要にしている");
+
+            net.clear();
+            player.teleportTo(speakerPos.getX() + 0.5D, speakerPos.getY() + 0.5D,
+                    speakerPos.getZ() + 0.5D);
+            tick(level, source);
+            helper.assertTrue(forPlayer(net, player).isEmpty(),
+                    "保持中のvoiceが範囲へ戻る時にSet→Playを送り直している");
+
+            net.clear();
             player.teleportTo(speakerPos.getX() + 100.0D, speakerPos.getY(), speakerPos.getZ());
             tick(level, source);
             helper.assertTrue(forPlayer(net, player).stream()
@@ -167,7 +184,6 @@ public final class SpeakerPlaybackGameTests {
                     "全聴取点の範囲外へ出たplayerへStopを1回送っていない");
 
             net.clear();
-            level.setBlock(speakerPos.east(), Blocks.AIR.defaultBlockState(), 3);
             player.teleportTo(speakerPos.getX() + 0.5D, speakerPos.getY() + 0.5D,
                     speakerPos.getZ() + 0.5D);
             tick(level, source);
@@ -234,7 +250,6 @@ public final class SpeakerPlaybackGameTests {
                 GoldenJukeboxBlockEntity.class);
         //?}
         helper.assertTrue(source != null, "Golden sourceを生成できていない");
-        source.setRangeBlocks(16);
         final BlockPos sourcePos = source.getBlockPos();
         final BlockPos speakerPos = sourcePos.offset(40, 0, 0);
         level.setBlock(speakerPos.south(), Blocks.STONE.defaultBlockState(), 3);
@@ -262,6 +277,8 @@ public final class SpeakerPlaybackGameTests {
                     "speaker無しのvanilla盤へ追加音源payloadを送っている");
 
             net.clear();
+            // 固定sourceの既定設定はnative再生を維持し、speaker移行時の範囲だけ16へ切り替える。
+            source.setRangeBlocks(16);
             speaker.linkTo(level, sourcePos);
             tick(level, source);
             assertSetThenVanilla(helper, net, first, source, "再生途中のspeaker追加(first)");
@@ -470,8 +487,49 @@ public final class SpeakerPlaybackGameTests {
         final var net = new CapturingNetwork();
         final var previous = Services.swapNetwork(net);
         try {
+            // A fixed source at the vanilla-compatible defaults leaves sound ownership to the native
+            // JukeboxSongPlayer.  Changing a Golden setting during that playback must promote it to
+            // the managed route, so the setting can actually reach the client.
             source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
+            helper.assertTrue(forPlayer(net, player).isEmpty(),
+                    "Fixed vanilla defaults unexpectedly created a managed client sound");
+            source.setRangeBlocks(32);
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.tick(source);
+            assertSetThenVanilla(helper, net, player, source, "fixed vanilla range change");
+            final var configuredSet = (SpeakerSetPayload) forPlayer(net, player).get(0).payload();
+            helper.assertTrue(configuredSet.rangeBlocks() == 32,
+                    "Fixed vanilla range was not carried by the managed payload");
+
             net.clear();
+            source.setVolumePercent(42);
+            source.setDirectional(false);
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.tick(source);
+            assertSetOnly(helper, net, player, "fixed vanilla live setting change");
+            final var liveSet = (SpeakerSetPayload) forPlayer(net, player).get(0).payload();
+            helper.assertTrue(liveSet.volumePercent() == 42 && !liveSet.directional(),
+                    "Fixed vanilla live volume/directional settings were not resent");
+
+            final var latePlayer = helper.makeMockServerPlayerInLevel();
+            latePlayer.teleportTo(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5);
+            net.clear();
+            source.resendTo(latePlayer);
+            assertSetThenVanilla(helper, net, latePlayer, source, "fixed vanilla late join");
+
+            net.clear();
+            source.setRangeBlocks(GoldenJukeboxBlockEntity.RANGE_DEFAULT);
+            source.setVolumePercent(GoldenJukeboxBlockEntity.VOLUME_DEFAULT);
+            source.setDirectional(GoldenJukeboxBlockEntity.DIRECTIONAL_DEFAULT);
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.tick(source);
+            assertSetOnly(helper, net, player, "managed fixed vanilla reset to defaults");
+            net.clear();
+            source.resendTo(latePlayer);
+            assertSetThenVanilla(helper, net, latePlayer, source, "managed fixed vanilla late join after reset");
+            latePlayer.discard();
+
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.remove(source);
+            source.setItem(0, ItemStack.EMPTY);
+            net.clear();
+            source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
             helper.assertTrue(com.kuronami.musicdiscmaker.event.SpeakerPlayback.playMovingVanilla(source),
                     "Moving vanilla source without speakers was not managed");
             assertSetThenVanilla(helper, net, player, source, "moving vanilla start");

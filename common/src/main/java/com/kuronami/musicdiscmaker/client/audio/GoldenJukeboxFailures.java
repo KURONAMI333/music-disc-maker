@@ -20,13 +20,10 @@ import net.minecraft.core.BlockPos;
  *
  * <h2>消える点は 3 つだけ (時間では消さない)</h2>
  * <ol>
- * <li><b>同じ座標で新しい再生が音声エンジンへ登録された時</b>
- *     ({@code ClientPlaybackManager} の {@code SoundManager#play} 直後)。
- *     <b>この帯は engine が受理したかを見ていない</b> — {@code DiscSoundInstance} が
- *     {@code SoundEngineAcceptance.Engine} を実装しておらず、受理の合図そのものが存在しない。
- *     正リポ (mod-047) は {@code PlaybackSessions#engineAccepted} で消す (MDM_DECISIONS D10)。
- *     この帯では engine 拒否 (Muted / 再生拒否) 自体が発生しないので、
- *     「鳴っていないのにラベルだけ消える」経路も無い。意図的な差分の宣言は GAP_LOG。</li>
+ * <li><b>同じ座標で新しい再生が音声エンジンに受理された時</b>
+ *     ({@code ClientPlaybackManager} の {@code SoundEngineAcceptance} 経路)。受理されなかった
+ *     再生で失敗表示を消すと、「Now Playing だけ出て音が鳴らない」状態の手掛かりまで消えるため、
+ *     受理結果を確認してからだけ捨てる。</li>
  * <li>ディスクが抜かれた / ブロックが壊れた時 ({@code ClientPlaybackManager#stopPlayback})。</li>
  * <li>ワールドを抜けた時 ({@code ClientPlaybackManager#stopAll})。</li>
  * </ol>
@@ -94,4 +91,3 @@ public final class GoldenJukeboxFailures {
         latest.clear();
     }
 }
-

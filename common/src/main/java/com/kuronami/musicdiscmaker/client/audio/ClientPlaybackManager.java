@@ -1,5 +1,9 @@
 package com.kuronami.musicdiscmaker.client.audio;
-//? if >=1.21.2 {
+//? if >=26.2 {
+import java.util.concurrent.CompletableFuture;
+//?} elif >=1.21.2 {
+/*import java.util.concurrent.CompletableFuture;
+*/
 //?} elif >=1.21 {
 /*import java.util.concurrent.CompletableFuture;
 */
@@ -13,6 +17,7 @@ import java.util.function.BiFunction;
 import java.util.HashMap;
 import java.util.Map;
 //? if >=1.21.2 {
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 //?} elif >=1.21 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 */
@@ -29,6 +34,8 @@ import com.kuronami.musicdiscmaker.network.UrlGuard;
 import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
 
 import net.minecraft.client.Minecraft;
+//? if >=26.2 {
+//?}
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -436,6 +443,9 @@ public final class ClientPlaybackManager {
             Minecraft.getInstance().execute(() -> {
             if (sessions.noteFirstAudio(key, token)) {
                 reanchorClientElapsed(key, startOffsetMs);
+                sessions.engineAccepted(key);
+                failures.clear(key);
+                if (sessions.activeVoice(key) instanceof SpeakerVoiceGroup group) group.onFirstAudio();
             }
             });
         });
@@ -483,12 +493,41 @@ public final class ClientPlaybackManager {
         }
 */
         //?}
-        //? if >=1.21.2 {
-        Minecraft.getInstance().getSoundManager().play(instance);
+        //? if >=26.2 {
+        // 他MODが一度取り消して同じinstanceを後から再投入する経路もある。
+        // 受理されなくても即座には閉じず、実PCMが来ない場合だけ期限で解放する。
+        armFirstAudioDeadline(key, token, track);
+        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
+            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
+            if (show != null) {
+                failures.record(key, show);
+                PlaybackFailureReport.report(track, show);
+            }
+        })) {
+            return;
+        }
+        sessions.engineAccepted(key);
         if (playback instanceof SpeakerVoiceGroup group) {
-            // Let the Golden master enter SoundManager before child branches can prefill/read PCM.
+            // The accepted Golden master must exist before child branches can prefill/read PCM.
             group.update(speakerSet);
         }
+        //?} elif >=1.21.2 {
+/*        armFirstAudioDeadline(key, token, track);
+        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
+            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
+            if (show != null) {
+                failures.record(key, show);
+                PlaybackFailureReport.report(track, show);
+            }
+        })) {
+            return;
+        }
+        sessions.engineAccepted(key);
+        if (playback instanceof SpeakerVoiceGroup group) {
+            // The accepted Golden master must exist before child branches can prefill/read PCM.
+            group.update(speakerSet);
+        }
+*/
         //?} elif >=1.21 {
 /*        armFirstAudioDeadline(key, token, track);
         if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
@@ -588,6 +627,31 @@ public final class ClientPlaybackManager {
     //?} else {
     //?}
     }
+
+    //? if >=1.21.2 {
+    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+        CompletableFuture.delayedExecutor(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, TimeUnit.MILLISECONDS)
+                .execute(() -> Minecraft.getInstance()
+                        .execute(() -> onFirstAudioDeadline(key, token, track)));
+    }
+
+    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+        if (!sessions.firstAudioOverdue(key, token)) {
+            return; // 鳴り始めた / 停止済み / 差し替え済み
+        }
+        MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
+                PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.url());
+        if (track.radio()) {
+            onRadioStreamEnded(key, token);
+            return;
+        }
+        final PlaybackFailure show = PlaybackFailure.streamUnavailable();
+        failures.record(key, show);
+        PlaybackFailureReport.report(track, show);
+        sessions.stop(key); // 同じ曲の再送を dedup せず、次の再生要求で開き直せるようにする
+    }
+    //?} else {
+    //?}
 
     /** The server playback clock is paused with an integrated game; multiplayer uses the matching local clock. */
     private static long playbackClockMs() {

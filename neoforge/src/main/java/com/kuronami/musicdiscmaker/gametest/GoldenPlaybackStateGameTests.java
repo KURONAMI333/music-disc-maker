@@ -44,6 +44,39 @@ public final class GoldenPlaybackStateGameTests {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
+    public static void configurationSurvivesUpdatePacket(GameTestHelper helper) {
+        final var source = jukebox(helper);
+        final var player = net.neoforged.neoforge.common.util.FakePlayerFactory.getMinecraft(helper.getLevel());
+        final var pos = source.getBlockPos();
+        player.setPos(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+        final var requested = new com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload(
+                pos, 96, 23, true, false, false);
+        final var wire = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        try {
+            requested.write(wire);
+            com.kuronami.musicdiscmaker.network.ModNetwork.handleConfigureJukebox(
+                    com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload.read(wire), player);
+        } finally { wire.release(); }
+        helper.assertTrue(source.getRangeBlocks() == 96 && source.getVolumePercent() == 23
+                        && !source.isDirectional() && source.isRepeat(), "設定payloadがserverへ反映されない");
+        final var packet = (net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket) source.getUpdatePacket();
+        final var replica = new GoldenJukeboxBlockEntity(pos, source.getBlockState());
+        // 実clientで使うNeoForgeの受信入口を通す。clientの配送自体はこのheadless試験の対象外。
+        //? if >=1.21.2 {
+        replica.onDataPacket(null, TagValueInput.create(ProblemReporter.DISCARDING,
+                helper.getLevel().registryAccess(), packet.getTag()));
+        //?} else {
+        /*replica.loadWithComponents(packet.getTag(), helper.getLevel().registryAccess());
+        *///?}
+        helper.assertTrue(replica.getRangeBlocks() == 96 && replica.getVolumePercent() == 23
+                        && !replica.isDirectional() && replica.isRepeat(), "BE更新packetで設定を失う");
+        helper.succeed();
+    }
+
+    //? if <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void capturedPlaybackKeepsSelectionAndDoesNotRegisterOrResumeStoppedMedia(GameTestHelper helper) {
         final var source = jukebox(helper);
         final var identity = source.sourceIdentity();

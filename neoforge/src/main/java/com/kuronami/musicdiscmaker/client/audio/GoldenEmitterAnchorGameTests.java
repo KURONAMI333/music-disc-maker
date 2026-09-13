@@ -26,6 +26,30 @@ public final class GoldenEmitterAnchorGameTests {
     private GoldenEmitterAnchorGameTests() {
     }
 
+    //? if <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void flatVanillaRangeFadesAndRecovers(GameTestHelper helper) {
+        final FlatPlaybackGate gate = new FlatPlaybackGate();
+        helper.assertTrue(gate.update(false, 10, 16, false) == 1.0F, "範囲内の初期音量が不正");
+        helper.assertTrue(gate.update(false, 16.5, 16, true) == 1.0F, "境界の微小移動で音が揺れる");
+        float gain = gate.update(false, 18, 16, true);
+        helper.assertTrue(gain > 0 && gain < 1, "範囲外でフェードせず即時切替");
+        for (int i = 0; i < 15; i++) gain = gate.update(false, 18, 16, true);
+        helper.assertTrue(gain < 0.0001F, "範囲外でフラット音が鳴り続ける");
+        helper.assertTrue(gate.update(false, 16.5, 16, true) < 0.0001F, "再入前に音を戻す");
+        gain = gate.update(false, 15, 16, true);
+        helper.assertTrue(gain > 0 && gain < 1, "範囲へ戻ってもフェードインしない");
+        for (int i = 0; i < 15; i++) gain = gate.update(false, 15, 16, true);
+        helper.assertTrue(gain == 1, "範囲内で音量が復帰しない");
+        helper.assertTrue(new FlatPlaybackGate().update(false, 40, 16, false) == 0,
+                "範囲外で開始したspeakerから一瞬音が漏れる");
+        helper.assertTrue(new FlatPlaybackGate().update(true, 40, 16, false) == 1,
+                "定位モードの距離減衰をフラットゲートで二重適用");
+        helper.succeed();
+    }
+
     /** Wrapper越しでも、Speakerなし固定Goldenの同期済みclient BE設定を優先する。 */
     //? if <1.21.2 {
     /*@PrefixGameTestTemplate(false)
