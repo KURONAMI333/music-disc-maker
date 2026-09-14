@@ -425,7 +425,7 @@ public class PlaybackFailureGameTests {
     }
 
     /**
-     * KURONAMI333 の実機ログに出た <b>そのままの文面</b>が bot 判定に落ちること。
+     * 実機ログに出た <b>そのままの文面</b>が bot 判定に落ちること。
      *
      * <p>ここが要点 — この失敗は URL 解決には成功していて、落ちるのは lavaplayer の再生スレッド
      * ({@code lava-daemon-pool-playback-*}) の中。同期経路しか見ていなかった頃は、この形の
@@ -531,7 +531,7 @@ public class PlaybackFailureGameTests {
     }
 
     /**
-     * KURONAMI333 の実機 ({@code latest.log}) に出た {@code AllClientsFailedException} のメッセージ。
+     * 実機 ({@code latest.log}) に出た {@code AllClientsFailedException} のメッセージ。
      * youtube-source が各 client の失敗を自分のメッセージへ連結した形をそのまま写している。
      */
     private static final String ALL_CLIENTS_FAILED =

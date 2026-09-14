@@ -15,7 +15,7 @@ import net.minecraft.world.InteractionHand;
 /**
  * GUI を開いたブームボックスがどれかを client へ運ぶ値。
  *
- * <p>ブームボックスは<b>持ったままでも置いてからでも同じ GUI が開く</b> (KURONAMI333 裁定 2026-09-07) ので、
+ * <p>ブームボックスは<b>持ったままでも置いてからでも同じ GUI が開く</b> (設計上の決定 2026-09-07) ので、
  * 既存 3 ブロックの menu のように {@link BlockPos} 1 本では足りない。
  *
  * <ul>

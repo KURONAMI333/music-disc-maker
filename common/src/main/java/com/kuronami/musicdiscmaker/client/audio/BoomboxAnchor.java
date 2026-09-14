@@ -28,7 +28,7 @@ import net.minecraft.world.phys.Vec3;
  * ({@code DiscSoundInstance#tick} が毎 tick {@link #isValid()} を呼ぶので) 自己修復する。
  *
  * <p><b>{@link LiveConfigAnchor} は実装しない。</b> 携帯は範囲固定・指向性なし
- * (KURONAMI333 裁定 2026-09-07) なので、毎 tick 読み直す設定が存在しない。あの能力は金ジュークの
+ * (設計上の決定 2026-09-07) なので、毎 tick 読み直す設定が存在しない。あの能力は金ジュークの
  * スライダーのための口で、{@code configPos()} が {@link BlockPos} を返す契約になっている。
  */
 public final class BoomboxAnchor implements DiscAnchor {

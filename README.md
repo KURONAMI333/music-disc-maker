@@ -34,10 +34,16 @@ Audio streams from its source each time it plays, so playback needs an internet 
 - Create moving contraptions on NeoForge 1.21.1 and Forge 1.20.1; Create Aeronautics physics airships on NeoForge 1.21.1
 - Valkyrien Skies 2, Eureka!, and Clockwork ships on 1.20.1
 
-## Support
-
-Bugs and questions: comment on the CurseForge page, or DM @kuronami333 on X.
-
 ## License
 
 All Rights Reserved. Free to include in any modpack, on any platform, monetised or not. No permission or credit is required.
+
+## Downloads and support
+
+The features above describe the v3 series. Download a v3 file matching your Minecraft version and loader from [Modrinth Versions](https://modrinth.com/mod/music-disc-maker/versions). The [CurseForge files page](https://www.curseforge.com/minecraft/mc-mods/music-disc-maker/files/all) is another download route; check the file version there before installing.
+
+The [GitHub v2.2.3 release](https://github.com/KURONAMI333/music-disc-maker/releases/tag/v2.2.3) is from the earlier v2 series and does not include all v3 features described above.
+
+For bugs and questions, comment on the [CurseForge page](https://www.curseforge.com/minecraft/mc-mods/music-disc-maker) or DM [@kuronami333 on X](https://x.com/kuronami333).
+
+[Source](https://github.com/KURONAMI333/music-disc-maker) · [License](LICENSE)

@@ -68,7 +68,7 @@ class DiscPaletteTest {
         assertEquals(0x300607, DiscPalette.board(DiscDye.RED).step(0));
     }
 
-    /** KURONAMI333 が検証した 16 通り (mkauto.py のシート)。ΔE 52〜89 に収まるのも合わせて固定する。 */
+    /** 設計で検証した 16 通り (mkauto.py のシート)。ΔE 52〜89 に収まるのも合わせて固定する。 */
     @Test
     void mkautoSheetReproducesExactly() {
         assertAccent(DiscDye.WHITE, DiscDye.RED, 79.4651165274,

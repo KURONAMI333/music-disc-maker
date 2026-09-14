@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * ディスクに焼き付ける染色データ。<b>持つのは色相 (= 染料) だけ</b>で、彩度と明度は
- * {@code DiscPalette} が盤面から計算する (2026-09-06 KURONAMI333 裁定)。
+ * {@code DiscPalette} が盤面から計算する (2026-09-06 設計上の決定)。
  *
  * <p><b>このクラスは MC を一切参照しない。</b>シリアライズは帯ごとに置き場が違うので、
  * 既存の作法に合わせて外側で行う:

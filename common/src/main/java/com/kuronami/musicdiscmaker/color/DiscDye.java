@@ -4,7 +4,7 @@ import java.util.Locale;
 
 /**
  * ディスクの染色に使えるバニラ染料 16 色。<b>利用者が選ぶのは色相 (= 染料) だけで、
- * 彩度と明度は {@link DiscPalette} が決める</b> (2026-09-06 KURONAMI333 裁定)。
+ * 彩度と明度は {@link DiscPalette} が決める</b> (2026-09-06 設計上の決定)。
  *
  * <p>並びと id はバニラの {@code DyeColor} と 1 対 1。ここは MC を参照しない純粋な表なので、
  * ローダー側 (もしくは 1.20.1 の NBT 経路) が {@code DyeColor#getName()} で {@link #byId(String)}

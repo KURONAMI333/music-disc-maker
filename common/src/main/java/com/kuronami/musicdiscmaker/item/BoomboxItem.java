@@ -29,13 +29,13 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * 携帯ブームボックス。<b>{@code BlockItem} ではない</b> — 本体は持ち歩くアイテムで、
- * 置けるのはおまけ (KURONAMI333 裁定 2026-09-07「持ち歩くアイテムが本体で、置くこともできる」)。
+ * 置けるのはおまけ (設計上の決定 2026-09-07「持ち歩くアイテムが本体で、置くこともできる」)。
  * 先行実装の Sophisticated Backpacks の {@code BackpackItem} と同じ形
  * (向こうも {@code BlockItem} ではなく {@code useOn} で自分で設置する)。
  *
  * <h2>操作</h2>
  * <ul>
- *   <li>右クリック → GUI。<b>シフトは使わない</b> (KURONAMI333 裁定 2026-09-07)</li>
+ *   <li>右クリック → GUI。<b>シフトは使わない</b> (設計上の決定 2026-09-07)</li>
  *   <li>シフト＋右クリック (ブロックに向けて) → 地面に設置。置いた機体を右クリックすると同じ GUI</li>
  * </ul>
  *

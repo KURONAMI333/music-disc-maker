@@ -19,7 +19,7 @@ import net.minecraft.world.item.ItemStack;
  *
  * <p>染色されたディスクだけは 1.0 を返し、threshold 1.0 の枝 (tint を持つモデル) へ落とす。
  * 自動割り当ての最大値は (11+0.5)/12 = 0.958 なので、未染色がこの枝へ入ることはない
- * (自動 = 既定値・染色 = 上書き。2026-09-06 KURONAMI333 裁定)。
+ * (自動 = 既定値・染色 = 上書き。2026-09-06 設計上の決定)。
  */
 public record VariantItemModelProperty() implements RangeSelectItemModelProperty {
 

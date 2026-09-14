@@ -36,7 +36,7 @@ import net.minecraft.world.level.storage.ValueOutput;
  * <p><b>持っているのは「置かれたブームボックスのアイテムそのもの」1 個</b>で、ディスクは
  * そのアイテムの {@code BOOMBOX_CONTENTS} component の中に居る。設置は器ごと置く・撤去は器ごと
  * 返す、という 1 本の筋にしてあるので、中身の移し替えが要らない
- * (先行実装の Sophisticated Backpacks と同じ形。KURONAMI333 指摘 2026-09-07)。
+ * (先行実装の Sophisticated Backpacks と同じ形。設計上の指摘 2026-09-07)。
  *
  * <p>{@link net.minecraft.world.Container} は実装していない。ホッパーで抜き差しさせる設計判断が
  * まだ無いから。1.21.5+ は {@code preRemoveSideEffects} が BlockEntity を外す前に呼ばれるため

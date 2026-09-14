@@ -65,10 +65,10 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     *///?}
     // 解決失敗は、主経路から外した小さな警告印とホバー詳細で示す。
     //? if >=1.21.2 {
-    // 出所: 正リポ mod-047 branding/b1-legibility (KURONAMI333 却下後の候補シート「配置B・色4」)。
+    // 出所: 正リポ mod-047 branding/b1-legibility (design review 却下後の候補シート「配置B・色4」)。
     private static final int ERROR = 0xFFB02020;
     //?} else {
-    /*// 出所: branding/b1-legibility (KURONAMI333 却下後の候補シート「配置B・色4」)。
+    /*// 出所: branding/b1-legibility (design review 却下後の候補シート「配置B・色4」)。
     private static final int ERROR = 0xB02020;
     *///?}
     // v2.2.4 と同じく取得中表示は右端8px、主工程と同じ高さに置く。

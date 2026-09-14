@@ -27,7 +27,7 @@ import net.minecraft.network.FriendlyByteBuf;
  * ({@code BoomboxAnchor})。
  *
  * <p><b>可聴範囲・音量・指向性は載せない。</b> 携帯はゲーム内から範囲を伸ばせず指向性も持たない
- * (KURONAMI333 裁定「範囲を伸ばせず、指向性も持たない」)。範囲の正本は client の
+ * (設計上の決定「範囲を伸ばせず、指向性も持たない」)。範囲の正本は client の
  * {@code Config#boomboxRange()} (既定 {@code BoomboxContents#RANGE_DEFAULT})。
  * 載せると「server が範囲を決める」経路が生えて、聴く側の設定より server が勝つ形になる。
  * これは client config で調整できるという裁定 (2026-09-07) と噛み合わない。

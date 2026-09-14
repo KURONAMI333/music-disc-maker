@@ -175,7 +175,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final int RANGE_W = 140;         // 範囲スライダー幅 (右端に指向性トグルを置くぶん短い)
     private static final int SLIDER_H = 15;         // スライダー高さ (ラベルがバー内に読める太さ)
     // 失敗の文の帯。1 行目 y は範囲スライダーの下端 (102+15 = 116 行目まで) から 2px 下。
-    // ここより上は KURONAMI333 が合格と裁定した面なので、行数が増えても上へは伸ばさない。
+    // ここより上は 設計で合格と裁定した面なので、行数が増えても上へは伸ばさない。
     private static final int FAIL_Y = 122;
     private static final int FAIL_X = 8;            // 左端はスライダー・インベントリラベルと同じ列
     private static final int FAIL_W = 160;          // 折り返し幅 (imageWidth 176 - 左右余白 8)

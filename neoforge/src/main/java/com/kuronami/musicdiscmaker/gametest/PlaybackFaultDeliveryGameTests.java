@@ -153,7 +153,7 @@ public class PlaybackFaultDeliveryGameTests {
         helper.succeed();
     }
 
-    /** KURONAMI333 の実機ログに出た bot 判定の文面 (client ごとの理由が連結された形の要点部分)。 */
+    /** 実機ログに出た bot 判定の文面 (client ごとの理由が連結された形の要点部分)。 */
     private static final String REQUIRES_LOGIN =
             "(yts.version: 1.18.2) All clients failed to load the item. "
             + "Client [ANDROID_VR] failed: This video requires login.";

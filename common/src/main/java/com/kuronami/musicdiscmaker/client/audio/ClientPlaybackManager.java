@@ -395,7 +395,7 @@ public final class ClientPlaybackManager {
         }
         // 自然終了したインスタンスを掃除してから上限を見る (MAX_CONCURRENT を不当に消費させない)。
         // 数えるのは金ジュークの分だけではない — ブームボックスも同じ OpenAL の枠を消費するので、
-        // 経路をまたいだ合計で見る (KURONAMI333 裁定「金ジュークと枠を共有する」)。
+        // 経路をまたいだ合計で見る (設計上の決定「金ジュークと枠を共有する」)。
         final int playing = PlaybackConcurrency.client().sweepAll();
         final int limit = com.kuronami.musicdiscmaker.Config.maxConcurrent();
         if (playing >= limit) {

@@ -27,7 +27,7 @@ import java.util.List;
  *
  * <p>曲名は台座下部の木製面に固定し、カメラへ追従させない。
  *
- * <p><b>数値は全部仮</b>。実機で見るまで確定しない (見た目は KURONAMI333 の確認帯)。
+ * <p><b>数値は全部仮</b>。実機で見るまで確定しない (見た目は 設計の確認帯)。
  */
 public final class DiscPedestalLayout {
 

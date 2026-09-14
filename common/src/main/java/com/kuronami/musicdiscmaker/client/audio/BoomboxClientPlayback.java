@@ -40,7 +40,7 @@ import net.minecraft.world.phys.Vec3;
  * </ol>
  *
  * <p>同時再生上限も 1 Hz で効いてくる。<b>報告</b>は {@link PlaybackFailureNotices} で機体ごとに
- * 1 回へ畳み (<b>上限に当たった時に黙って鳴らないのが最悪</b>＝KURONAMI333 裁定なので出すのはやめない)、
+ * 1 回へ畳み (<b>上限に当たった時に黙って鳴らないのが最悪</b>＝設計上の決定なので出すのはやめない)、
  * <b>再試行</b>は {@link #refusedByConcurrencyLimit} をロードを起こす<b>前</b>にも置いて潰す。
  * 後ろだけで見ると、枠が埋まっている間じゅう毎秒 URL を開いては閉じることになる — チャットは
  * 静かでも回線を叩き続ける。ここで {@link LoadFailureBackoff} を使わないのは、あれが恒久的な
@@ -77,7 +77,7 @@ public final class BoomboxClientPlayback {
     });
 
     static {
-        // 同時再生の枠は金ジュークと共有する (KURONAMI333 裁定 2026-09-07)。
+        // 同時再生の枠は金ジュークと共有する (設計上の決定 2026-09-07)。
         PlaybackConcurrency.client().register(SESSIONS);
     }
 
@@ -210,7 +210,7 @@ public final class BoomboxClientPlayback {
         }
         final DiscSoundInstance instance = new DiscSoundInstance(live, resolved,
                 Config.boomboxRange(), liveRequest.volumePercent(), null);
-        // 携帯は指向性を持たない (KURONAMI333 裁定「範囲を伸ばせず、指向性も持たない」)。
+        // 携帯は指向性を持たない (設計上の決定「範囲を伸ばせず、指向性も持たない」)。
         instance.setDirectional(false);
         instance.setFailureSink(
                 late -> Minecraft.getInstance().execute(() -> lateFailure(id, token, track, late)));
@@ -252,7 +252,7 @@ public final class BoomboxClientPlayback {
         if (playing < limit) {
             return false;
         }
-        // 無言で鳴らさないのが最悪 (KURONAMI333 裁定)。ただし 1 Hz の再送で積まないよう 1 回に畳む。
+        // 無言で鳴らさないのが最悪 (設計上の決定)。ただし 1 Hz の再送で積まないよう 1 回に畳む。
         final PlaybackFailure overLimit = PlaybackFailure.concurrentLimit(limit);
         if (LIMIT_NOTICES.shouldReport(id, overLimit)) {
             PlaybackFailureReport.report(track, overLimit);

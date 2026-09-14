@@ -112,7 +112,7 @@ public class DiscDyeingTableBlockEntity extends BlockEntity implements WorldlyCo
 
     /**
      * 出力を取り出した時 (server)。入力を 1 減らし、<b>実際に使った側だけ</b>染料を 1 つ
-     * 減らして見本を組み直す (染料は消費する = 2026-09-06 KURONAMI333 裁定。バニラの織機・革防具と揃える)。
+     * 減らして見本を組み直す (染料は消費する = 2026-09-06 設計上の決定。バニラの織機・革防具と揃える)。
      */
     public void onResultTaken() {
         final ItemStack input = items.get(SLOT_INPUT);

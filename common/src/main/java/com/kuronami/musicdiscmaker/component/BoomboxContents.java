@@ -62,13 +62,13 @@ public record BoomboxContents(ItemStack disc, long id, PlaybackCursor cursor, lo
     public static final long UNASSIGNED = 0L;
 
     /**
-     * 可聴範囲の<b>既定値</b> (ブロック)。KURONAMI333 裁定 2026-09-07 で 16 に確定した。
+     * 可聴範囲の<b>既定値</b> (ブロック)。設計上の決定 2026-09-07 で 16 に確定した。
      *
      * <p><b>ゲーム内の GUI には出さない。</b>範囲調整・指向性・スピーカー網は金ジューク専権で、
      * 携帯は「自分の周りの小さい固定半径だけ」というのが差別化の軸
-     * (KURONAMI333 裁定「範囲を伸ばせず、指向性も持たない」)。
+     * (設計上の決定「範囲を伸ばせず、指向性も持たない」)。
      *
-     * <p>ただし<b>client config からは変えられる</b> (KURONAMI333 裁定 2026-09-07「念の為、config で
+     * <p>ただし<b>client config からは変えられる</b> (設計上の決定 2026-09-07「念の為、config で
      * 調整できるようにしておこうか」)。既定が気に入らない人の逃げ道であって機能ではないので、
      * 上限は金ジュークの 256 まで開けていない。実際に読むのは
      * {@code Config#boomboxRange()} で、ここはその既定値。
