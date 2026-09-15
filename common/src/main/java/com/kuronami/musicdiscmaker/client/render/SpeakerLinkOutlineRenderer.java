@@ -42,9 +42,12 @@ public final class SpeakerLinkOutlineRenderer {
 
     // NeoForge 1.21.11 stage event has no context-owned consumer.
     public static void renderIntermediateWithSharedBuffer(PoseStack poseStack, Vec3 camera) {
-        final Minecraft minecraft = Minecraft.getInstance();
-        renderIntermediate(poseStack, minecraft.renderBuffers().bufferSource().getBuffer(RenderTypes.debugQuads()), camera);
-        minecraft.renderBuffers().bufferSource().endBatch(RenderTypes.debugQuads());
+        target().ifPresent(pos -> {
+            final var buffers = Minecraft.getInstance().renderBuffers().bufferSource();
+            final VertexConsumer quads = buffers.getBuffer(RenderTypes.debugQuads());
+            withTargetPose(poseStack, camera, pos, () -> emitBands(poseStack.last(), quads, pos));
+            buffers.endBatch(RenderTypes.debugQuads());
+        });
     }
     *///?}
     //?} else {

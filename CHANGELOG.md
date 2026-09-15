@@ -1,4 +1,11 @@
-## Music Disc Maker 3.0.2
+# Changelog
+
+## 3.0.3
+
+- Fixed a client crash when joining a world on Fabric 1.21.11.
+- Applies to Fabric 1.21.11 only; other versions and loaders remain on 3.0.2.
+
+## 3.0.2
 
 A bug-fix update for Albums, Boomboxes, Golden Jukeboxes, and Speakers.
 
@@ -9,8 +16,6 @@ A bug-fix update for Albums, Boomboxes, Golden Jukeboxes, and Speakers.
 - Restored playback-start checks and timeout recovery on newer Minecraft versions so a failed audio start does not leave a stale playback session.
 
 Use the same Music Disc Maker version on the server and all clients.
-
-# Changelog
 
 ## 3.0.1
 

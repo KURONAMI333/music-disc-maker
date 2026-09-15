@@ -109,9 +109,8 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         LevelRenderEvents.COLLECT_SUBMITS.register(context -> SpeakerLinkOutlineRenderer.submitModern(
                 context.poseStack(), context.submitNodeCollector(), context.levelState().cameraRenderState.pos));
         //?} elif >=1.21.11 {
-        /*WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> SpeakerLinkOutlineRenderer.renderIntermediate(
-                context.matrices(), context.consumers().getBuffer(net.minecraft.client.renderer.rendertype.RenderTypes.debugQuads()),
-                context.worldState().cameraRenderState.pos));
+        /*WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> SpeakerLinkOutlineRenderer.renderIntermediateWithSharedBuffer(
+                context.matrices(), context.worldState().cameraRenderState.pos));
         */
         //?} else {
         /*WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> SpeakerLinkOutlineRenderer.renderLegacy(new com.mojang.blaze3d.vertex.PoseStack()));
