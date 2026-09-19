@@ -161,8 +161,13 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
 
     /** ディスクスロット: 再生可能ディスク (JUKEBOX_PLAYABLE) とアルバムのみ受け入れる。 */
     private static class DiscSlot extends Slot {
+        private final GoldenJukeboxBlockEntity jukebox;
+        private final int jukeboxSlot;
+
         DiscSlot(GoldenJukeboxBlockEntity be, int slot, int x, int y) {
             super(be, slot, x, y);
+            this.jukebox = be;
+            this.jukeboxSlot = slot;
         }
 
         @Override
@@ -170,7 +175,7 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
             //? if >=1.21 {
             return GoldenJukeboxBlockEntity.isPlayableInSlot(stack);
             //?} else {
-            /*return stack.getItem() instanceof RecordItem;
+            /*return jukebox.canPlaceItem(jukeboxSlot, stack);
             *///?}
         }
 

@@ -12,6 +12,7 @@ import com.kuronami.musicdiscmaker.component.VanillaTrackData;
 import com.kuronami.musicdiscmaker.event.GoldenSourceRegistry;
 import com.kuronami.musicdiscmaker.event.GoldenSourceRetirements;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
+import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
@@ -22,9 +23,13 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.common.util.FakePlayerFactory;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -191,6 +196,34 @@ public final class GoldenLegacyPlaybackGameTests {
             final java.util.UUID assigned = restored.sourceIdentity();
             helper.assertTrue(assigned != null && assigned.equals(restored.sourceIdentity()), "legacy identity was not stable");
         }
+        helper.succeed();
+    }
+
+    /**
+     * The block entity has accepted populated albums since the legacy NBT path was added.  Keep the
+     * menu slot on that same predicate: checking RecordItem here rejects the album before the block
+     * entity sees it, even though a Boombox accepts the identical ItemStack.
+     */
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void goldenMenuAcceptsPopulatedAlbum(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        final FakePlayer player = FakePlayerFactory.get(helper.getLevel(),
+                new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "golden-album-fixture"));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumContents.store(album, new AlbumContents(List.of(customDisc())));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        final GoldenJukeboxMenu menu = new GoldenJukeboxMenu(301, player.getInventory(), be);
+
+        menu.setCarried(album.copy());
+        menu.clicked(0, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.getCarried().isEmpty() && ItemStack.matches(be.getDisc(), album),
+                "legacy Golden menu rejected a populated NBT album on normal insertion");
+
+        helper.assertTrue(!menu.quickMoveStack(player, 0).isEmpty() && be.getDisc().isEmpty(),
+                "legacy Golden menu could not return the inserted album");
+        player.getInventory().setItem(9, album.copy());
+        helper.assertTrue(!menu.quickMoveStack(player, 1).isEmpty() && ItemStack.matches(be.getDisc(), album),
+                "legacy Golden menu rejected a populated NBT album on shift-click insertion");
         helper.succeed();
     }
 
