@@ -113,23 +113,17 @@ public class BoomboxMenu extends AbstractContainerMenu {
         if (authoritative && isOriginalMachine()) applyPlaybackState(BoomboxPlayback.stateOf(machine));
     }
 
-    /** 初回open packetが運ぶ内部枠・プレイヤー所持品36枠を実codecで検査する。 */
+    /** 初回openでこのmenu固有に初期化する媒体枠を実codecで検査する。 */
     public static boolean fitsInitialMenuSync(Inventory inventory, BoomboxSource source) {
         final Player player = inventory.player;
         final BoomboxBlockEntity placed = source.isPlaced()
                 && player.level().getBlockEntity(source.pos()) instanceof BoomboxBlockEntity be ? be : null;
         final ItemStack machine = resolveMachine(player, source, placed);
         if (!isBoombox(machine)) return false;
-        final List<ItemStack> initial = new ArrayList<>(38);
+        // プレイヤー所持品は AbstractContainerMenu の通常slot同期が担当する。ここで媒体枠と
+        // 二重にserialiseすると、媒体が空でも所持品だけでopenを拒否してしまう。
+        final List<ItemStack> initial = new ArrayList<>(1);
         initial.add(contentsOf(machine).disc().copy());
-        for (int i = 9; i < Inventory.INVENTORY_SIZE; i++) {
-            final ItemStack stack = inventory.getItem(i);
-            initial.add(stack.copy());
-        }
-        for (int i = 0; i < 9; i++) {
-            final ItemStack stack = inventory.getItem(i);
-            initial.add(stack.copy());
-        }
         //? if >=1.21 {
         return AlbumStorageBudget.fitsInitialMenuSync(initial, ItemStack.EMPTY, player.level().registryAccess());
         //?} else {

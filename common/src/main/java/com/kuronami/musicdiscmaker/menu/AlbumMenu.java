@@ -97,25 +97,17 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 初回open packetの全slotとcursorを、実ItemStack codecで先に検証する。
-     * 実際にmenuへ登録する内部9枠とプレイヤー所持品36枠だけを検査する。
-     * 装備・offhandはこのmenuのslotではなく、初回container packetにも載らない。
+     * 初回openでこのmenu固有に初期化する内部9枠を、実ItemStack codecで先に検証する。
+     * プレイヤー所持品は通常のAbstractContainerMenu slot同期が担当するため、ここで媒体の
+     * 初期payloadへ重ねて含めない。
      */
     public static boolean fitsInitialMenuSync(Inventory inventory, BoomboxSource source) {
         final ItemStack heldAlbum = inventory.player.getItemInHand(source.heldHand());
         if (!heldAlbum.is(ModItems.ALBUM.get())) return false;
-        final List<ItemStack> initialSlots = new ArrayList<>(ALBUM_SLOTS + 37);
+        final List<ItemStack> initialSlots = new ArrayList<>(ALBUM_SLOTS);
         final List<ItemStack> saved = AlbumItem.contents(heldAlbum).discs();
         for (int i = 0; i < ALBUM_SLOTS; i++) {
             initialSlots.add(i < saved.size() ? saved.get(i).copy() : ItemStack.EMPTY);
-        }
-        for (int i = 9; i < Inventory.INVENTORY_SIZE; i++) {
-            final ItemStack stack = inventory.getItem(i);
-            initialSlots.add(stack.copy());
-        }
-        for (int i = 0; i < 9; i++) {
-            final ItemStack stack = inventory.getItem(i);
-            initialSlots.add(stack.copy());
         }
         //? if >=1.21 {
         return AlbumStorageBudget.fitsInitialMenuSync(initialSlots, ItemStack.EMPTY,

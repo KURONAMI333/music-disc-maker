@@ -1,8 +1,10 @@
 package com.kuronami.musicdiscmaker.gametest;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
+import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
@@ -230,7 +232,7 @@ public final class BoomboxMenuGameTests {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
-    public static void initialSyncKeepsExistingMachineUntouched(GameTestHelper helper) {
+    public static void initialSyncIgnoresPlayerInventoryButRejectsOversizedMedium(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         final ItemStack safe = new ItemStack(ModItems.BOOMBOX.get());
         safe.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(disc(4), 46L));
@@ -238,6 +240,17 @@ public final class BoomboxMenuGameTests {
         helper.assertTrue(BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND))
                         && "track-4".equals(contents(safe).disc().get(ModDataComponents.CUSTOM_TRACK.get()).title()),
                 "安全な初回同期を拒否したか既存媒体を変えた");
+
+        for (int i = 0; i < 3; i++) player.getInventory().setItem(9 + i, oversizedDisc());
+        helper.assertTrue(BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "所持品の大きい盤だけで安全なBoomboxの初回同期を拒否した");
+
+        final ItemStack oversizedAlbum = new ItemStack(ModItems.ALBUM.get());
+        oversizedAlbum.set(ModDataComponents.ALBUM_CONTENTS.get(),
+                new AlbumContents(List.of(oversizedDisc(), oversizedDisc())));
+        safe.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(oversizedAlbum, 47L));
+        helper.assertTrue(!BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "媒体の中身が初回同期上限を越えたBoomboxを許可した");
         helper.succeed();
     }
 

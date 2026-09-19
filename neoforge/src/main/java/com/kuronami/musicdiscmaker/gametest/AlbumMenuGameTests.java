@@ -324,7 +324,7 @@ public final class AlbumMenuGameTests {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
-    public static void initialMenuSyncRejectsUnsafeExistingAlbum(GameTestHelper helper) {
+    public static void initialSyncIgnoresPlayerInventoryButRejectsOversizedContents(GameTestHelper helper) {
         final FakePlayer player = createPlayer(helper);
         final List<ItemStack> safeDiscs = new ArrayList<>();
         for (int i = 0; i < 9; i++) safeDiscs.add(longDisc(i, 1));
@@ -333,6 +333,10 @@ public final class AlbumMenuGameTests {
         player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
         helper.assertTrue(AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
                 "安全な既存Albumの初回menu同期を拒否した");
+
+        for (int i = 0; i < 3; i++) player.getInventory().setItem(9 + i, longDisc(5_000 + i, 6));
+        helper.assertTrue(AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "所持品の大きい盤だけで安全なAlbumの初回同期を拒否した");
 
         final List<ItemStack> unsafeDiscs = new ArrayList<>();
         for (int i = 0; i < 9; i++) unsafeDiscs.add(longDisc(10_000 + i * 10, 6));

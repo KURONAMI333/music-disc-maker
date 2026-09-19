@@ -165,7 +165,7 @@ public final class OversizeMediaRecoveryGameTests {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
-    public static void boomboxAlbumRecoveryAndInventoryOnlyRejection(GameTestHelper helper) {
+    public static void boomboxAlbumRecoveryAndEmptyMediaNoop(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         final ItemStack boombox = new ItemStack(ModItems.BOOMBOX.get());
         boombox.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(album(10), 901L));
@@ -185,21 +185,21 @@ public final class OversizeMediaRecoveryGameTests {
         final OversizeMediaRecovery.Result untouched = OversizeMediaRecovery.recoverAlbum(player, safeAlbum);
         helper.assertTrue(untouched == OversizeMediaRecovery.Result.NOT_SOURCE_TOO_LARGE
                         && ordered(AlbumItem.contents(safeAlbum), 30),
-                "他inventoryが原因の拒否で安全なAlbumをばらまいた");
+                "回収不要な安全なAlbumをばらまいた");
 
         final ItemStack emptyAlbum = new ItemStack(ModItems.ALBUM.get());
         player.setItemInHand(InteractionHand.MAIN_HAND, emptyAlbum);
         final boolean emptyAlbumInitialFits = AlbumMenu.fitsInitialMenuSync(player.getInventory(),
                 BoomboxSource.held(InteractionHand.MAIN_HAND));
         final OversizeMediaRecovery.Result emptyAlbumResult = OversizeMediaRecovery.recoverAlbum(player, emptyAlbum);
-        helper.assertTrue(emptyAlbumResult == OversizeMediaRecovery.Result.NOT_SOURCE_TOO_LARGE,
-                "空Albumで他inventoryが原因でも回収不要の案内を返さなかった: initialFits="
+        helper.assertTrue(emptyAlbumResult == OversizeMediaRecovery.Result.NOTHING_TO_RECOVER,
+                "空Albumで回収不要の結果を返さなかった: initialFits="
                         + emptyAlbumInitialFits + ", result=" + emptyAlbumResult);
         final ItemStack emptyBoombox = new ItemStack(ModItems.BOOMBOX.get());
         player.setItemInHand(InteractionHand.MAIN_HAND, emptyBoombox);
         helper.assertTrue(OversizeMediaRecovery.recoverHeldBoombox(player, emptyBoombox)
-                        == OversizeMediaRecovery.Result.NOT_SOURCE_TOO_LARGE,
-                "空Boomboxで他inventoryが原因でも回収不要の案内を返さなかった");
+                        == OversizeMediaRecovery.Result.NOTHING_TO_RECOVER,
+                "空Boomboxで回収不要の結果を返さなかった");
 
         // 装備/offhandはこのmenuにslotとして登録されず、初回container packetにも含まれない。
         // 大きい装備品のためにAlbum/Boomboxのopenまで拒否してはならない。
