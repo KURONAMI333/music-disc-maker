@@ -18,6 +18,14 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+//? if >=1.21 {
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.Holder;
+import net.minecraft.world.item.JukeboxSong;
+//?} else {
+/*import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.RecordItem;
+*///?}
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -88,14 +96,61 @@ public class DiscPedestalBlockEntity extends BlockEntity {
     /**
      * ディスクのスタックから曲名を読む。
      *
-     * <p>MDM のディスクだけを見る。バニラのレコードは曲メタを持たないので空文字になる。
+     * <p>MDM のディスクは埋め込み曲名を使い、それ以外は jukebox の曲名へフォールバックする。
      *
      * @param stack 読み出し元
      * @return 曲名。無ければ空文字
      */
     public static String titleOf(ItemStack stack) {
-        if (stack.isEmpty() || !stack.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+        if (stack.isEmpty()) {
             return "";
+        }
+        if (!stack.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            String title = null;
+            //? if >=26.1 {
+            title = JukeboxSong.fromStack(stack)
+                    .map(Holder::value)
+                    .map(JukeboxSong::description)
+                    .map(net.minecraft.network.chat.Component::getString)
+                    .filter(value -> !value.isBlank())
+                    .orElse(null);
+            //?} elif >=26.1.2 {
+            /*
+            title = JukeboxSong.fromStack(stack)
+                    .map(Holder::value)
+                    .map(JukeboxSong::description)
+                    .map(net.minecraft.network.chat.Component::getString)
+                    .filter(value -> !value.isBlank())
+                    .orElse(null);
+            *///?} elif >=1.21.2 {
+            /*
+            final var playable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
+            if (playable != null) {
+                title = playable.song().contents().left()
+                        .map(Holder::value)
+                        .map(JukeboxSong::description)
+                        .map(net.minecraft.network.chat.Component::getString)
+                        .filter(value -> !value.isBlank())
+                        .orElse(null);
+            }
+            *///?} elif >=1.21 {
+            /*
+            final var playable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
+            if (playable != null) {
+                title = playable.song().holder()
+                        .map(Holder::value)
+                        .map(JukeboxSong::description)
+                        .map(net.minecraft.network.chat.Component::getString)
+                        .filter(value -> !value.isBlank())
+                        .orElse(null);
+            }
+            *///?} else {
+            /*
+            if (stack.getItem() instanceof RecordItem record) {
+                title = record.getDisplayName().getString();
+            }
+            *///?}
+            return title == null || title.isBlank() ? stack.getHoverName().getString() : title;
         }
         //? if >=1.21 {
         final CustomTrackData track = stack.get(ModDataComponents.CUSTOM_TRACK.get());
@@ -103,7 +158,7 @@ public class DiscPedestalBlockEntity extends BlockEntity {
         /*final CustomTrackData track = CustomMusicDiscItem.getTrack(stack);
         *///?}
         if (track == null || track.isEmpty() || track.title().isBlank()) {
-            return "";
+            return stack.getHoverName().getString();
         }
         return track.title();
     }
@@ -111,7 +166,7 @@ public class DiscPedestalBlockEntity extends BlockEntity {
     /**
      * ディスクのスタックからアーティスト名を読む。
      *
-     * <p>曲名と同じく MDM のカスタムディスクだけを見る。バニラの盤に作者名を捏造しない。
+     * <p>曲名と同じく MDM のカスタムディスクだけが作者メタを持つ。
      *
      * @param stack 読み出し元
      * @return アーティスト名。無ければ空文字
@@ -131,9 +186,16 @@ public class DiscPedestalBlockEntity extends BlockEntity {
         return track.author();
     }
 
-    /** 台座に載せられるスタックか (MDM のカスタムディスクだけ。プレイリストディスクも同じアイテム)。 */
+    /**
+     * 台座に載せられるスタックか。MDM のカスタムディスクに加え、バニラ・他 MOD のレコードを受ける。
+     * バニラおよび他 MOD が jukebox 対応として登録する情報を見る。
+     */
     public static boolean accepts(ItemStack stack) {
-        return !stack.isEmpty() && stack.is(ModItems.CUSTOM_MUSIC_DISC.get());
+        //? if >=1.21 {
+        return !stack.isEmpty() && stack.has(DataComponents.JUKEBOX_PLAYABLE);
+        //?} else {
+        /*return !stack.isEmpty() && stack.is(ItemTags.MUSIC_DISCS);
+        *///?}
     }
 
     // ── persistence ──
