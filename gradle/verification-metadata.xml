@@ -3,6 +3,19 @@
    <configuration>
       <verify-metadata>true</verify-metadata>
       <verify-signatures>false</verify-signatures>
+      <!--
+         Loom がローカルで作る中間 JAR は、ハッシュ検証済みの入力から生成されていても
+         バイト列が毎回同じにならない (jar 内のタイムスタンプ等)。実際 `:fabric:*:build` は
+         ピン留めされた値と一致せず Incorrect checksum で止まり、新規クローンでは
+         fabric / forge セルをビルドできなかった。ここで検証対象から外す。
+         入力側 (上流の MOD / Minecraft jar) は components のピンで従来どおり検証される。
+      -->
+      <trusted-artifacts>
+         <trust group="remapped\..*" regex="true"
+                reason="Loom regenerates these remapped jars locally from hash-verified upstream mods; jar bytes are not reproducible across machines"/>
+         <trust group="net\.minecraft" name="minecraft-merged-.*" regex="true"
+                reason="Loom merges the Minecraft jars locally; the merged jar bytes are not reproducible across machines"/>
+      </trusted-artifacts>
    </configuration>
    <components>
       <component group="at.yawk.lz4" name="lz4-java" version="1.10.1">

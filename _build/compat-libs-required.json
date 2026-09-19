@@ -12,8 +12,8 @@
   },
   "destination_count": 36,
   "unique_blob_count": 34,
-  "resolved_blob_count": 32,
-  "unresolved_blob_count": 2,
+  "resolved_blob_count": 34,
+  "unresolved_blob_count": 0,
   "blobs": [
     {
       "sha1": "0e97e49837bed766e6f28a4c95b04885d6acc353",
@@ -310,10 +310,24 @@
       "destinations": [
         "forge/compat-libs-1.20.1/create-api-6.0.8.jar"
       ],
-      "status": "unresolved_after_modrinth_sha1_lookup",
+      "status": "generated_from_upstream",
       "local_reference_present_during_release_packaging": true,
-      "note": "Locally retained Create 6.0.8 API artifact containing 2,687 com/... class entries with a 2026-07-23 processing timestamp. Existing notes call it a stub, but no generation/extraction script or verified public URL was found.",
-      "fresh_environment_retrieval_status": "source_unknown; provide a byte-identical local file at any listed destination"
+      "note": "Compile-only subset of Create 6.0.8. On 2026-09-19 every entry was matched against the upstream jar: the shipped file is exactly the non-directory `com/simibubi/` entries (2,687 entries, 0 content differences). Whole-file SHA-1/SHA-256 record the bytes shipped since 2026-07-23; regenerated jars differ in container bytes only, so verification uses content_sha256.",
+      "content_sha256": "3f334b136a516e668645c3ef32bc749eb430342419322bf6bcedd1adf0786dc8",
+      "upstream": {
+        "url": "https://cdn.modrinth.com/data/LNytGWDc/versions/8amzvn9x/create-1.20.1-6.0.8.jar",
+        "sha1": "b13d912b9247a38d66d11598c121442585a1c1e9",
+        "sha256": "6fbb910c367dbce8e4fc7e5bf64b6edd4de980906ed00af8e47e4af843c0d9b0",
+        "size": 19170905,
+        "project_id": "LNytGWDc",
+        "version_id": "8amzvn9x",
+        "version_number": "mc1.20.1-6.0.8",
+        "download_filename": "create-1.20.1-6.0.8.jar"
+      },
+      "extract": {
+        "prefix": "com/simibubi/"
+      },
+      "fresh_environment_retrieval_status": "generated from the pinned upstream jar and verified by content_sha256"
     },
     {
       "sha1": "a0567625189ef086da8319a310bb604e9df3485c",
@@ -358,10 +372,27 @@
         "fabric/compat-libs-1.20.1/valkyrienskies-api-2.4.11.jar",
         "forge/compat-libs-1.20.1/valkyrienskies-api-2.4.11.jar"
       ],
-      "status": "unresolved_after_modrinth_sha1_lookup",
+      "status": "generated_from_upstream",
       "local_reference_present_during_release_packaging": true,
-      "note": "Locally retained Valkyrien Skies 2.4.11 API artifact containing 3,947 org/... class entries with a 2026-07-23 processing timestamp, used at three destinations. No generation/extraction script or verified public URL was found.",
-      "fresh_environment_retrieval_status": "source_unknown; provide a byte-identical local file at any listed destination"
+      "note": "Compile-only subset of Valkyrien Skies 2.4.11: all `org/valkyrienskies/` entries of the Forge jar plus all `org/valkyrienskies/` entries of its nested `META-INF/jars/api-*.jar` (3,947 entries, 0 content differences against the shipped file, matched 2026-09-19). The nested `util-*.jar` is deliberately excluded because the 3.0.x builds never compiled against it. Whole-file SHA-1/SHA-256 record the bytes shipped since 2026-07-23; regenerated jars differ in container bytes only, so verification uses content_sha256.",
+      "content_sha256": "a41fc59cc5220a1b1ce628a452dd13567270df19dea022a6084979e3db69ebba",
+      "upstream": {
+        "url": "https://cdn.modrinth.com/data/V5ujR2yw/versions/pOkdwuUh/valkyrienskies-120-2.4.11.jar",
+        "sha1": "bd3478fcd43d4168950dfa7e77188d7bb12fd43e",
+        "sha256": "f99f24de62015451a047f90484cf9d25970cac350105b581c22b2d5247ebfd53",
+        "size": 27752937,
+        "project_id": "V5ujR2yw",
+        "version_id": "pOkdwuUh",
+        "version_number": "1.20.1-forge-2.4.11",
+        "download_filename": "valkyrienskies-120-2.4.11.jar"
+      },
+      "extract": {
+        "prefix": "org/valkyrienskies/",
+        "nested": [
+          "META-INF/jars/api-*.jar"
+        ]
+      },
+      "fresh_environment_retrieval_status": "generated from the pinned upstream jar and verified by content_sha256"
     },
     {
       "sha1": "a8afeb3b8dc6a4972258c27e54ffce28c796bbdd",

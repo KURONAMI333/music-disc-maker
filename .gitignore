@@ -48,3 +48,8 @@ run/
 .research-tmp/
 repo/
 *.token
+
+# compile-only の第三者JAR。tools/fetch_compat_libs.py が _build/compat-libs-required.json
+# のハッシュ照合つきで取得する入力で、リポジトリには入れない (release.py の phase_github は
+# git add -A なので、ignore しないと 100MB 超の第三者JARが公開リポへ入る)
+compat-libs-*/
