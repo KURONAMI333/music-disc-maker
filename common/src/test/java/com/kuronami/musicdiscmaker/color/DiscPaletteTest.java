@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import com.kuronami.musicdiscmaker.component.DiscDyeData;
 
 /**
- * {@link DiscPalette} の盤面と有彩色アクセントが Python の参照実装
+ * {@link DiscPalette} の盤面と有彩色アクセントの主段が Python の参照実装
  * ({@code _work/stonecutter-loader-2026-08-24/assets-v3/mkauto.py}) と同じ色を返すことを固定する。
  *
  * <p>無彩色アクセントだけは 2026-09-10 裁定で参照実装から分岐する。利用者が選んだ
@@ -113,7 +113,7 @@ class DiscPaletteTest {
     @Test
     void blueBoardAccentsMatchPythonReference() {
         assertAccent(DiscDye.BLUE, DiscDye.CYAN, 79.8760404885,
-                0x000000, 0x000000, 0x020B0B, 0x051F1F, 0x0D4C4D, 0x0F5758, 0x126A6B);
+                0x010404, 0x031414, 0x051E1E, 0x072C2C, 0x0D4C4D, 0x0F5758, 0x126A6B);
         assertAccent(DiscDye.BLUE, DiscDye.MAGENTA, 52.4992068938,
                 0x73136F, 0x8A1785, 0x971992, 0xAB1CA5, 0xD824D1, 0xDC2DD5, 0xDF41D9);
         assertAccent(DiscDye.BLUE, DiscDye.PURPLE, 52.6361879453,
@@ -278,5 +278,29 @@ class DiscPaletteTest {
     void blueDyeIsNotTheDefaultBoard() {
         assertTrue(DiscPalette.board(DiscDye.BLUE).dominant() != 0x0E2041,
                 "青染料の盤面が確定済みの既定盤面と一致してしまっている");
+    }
+
+    @Test
+    void chromaticAccentsKeepEveryTintLayerVisible() {
+        for (DiscDye boardDye : DiscDye.values()) {
+            final DiscPalette.Board board = DiscPalette.board(boardDye);
+            for (DiscDye accentDye : DiscDye.values()) {
+                if (!accentDye.isChromatic()) {
+                    continue;
+                }
+                final int[] steps = DiscPalette.accent(accentDye, board).steps();
+                int previous = -1;
+                for (int i = 0; i < steps.length; i++) {
+                    final int step = steps[i];
+                    final String label = boardDye.id() + " x " + accentDye.id() + " step=" + i;
+                    assertTrue(step != 0, "色相が純黒へ潰れた: " + label);
+                    assertTrue(ColorMath.red(step) != ColorMath.green(step)
+                                    || ColorMath.green(step) != ColorMath.blue(step),
+                            "有彩色のはずの段が無彩色になった: " + label);
+                    assertTrue(step != previous, "隣接する tint 段が同じ色になった: " + label);
+                    previous = step;
+                }
+            }
+        }
     }
 }

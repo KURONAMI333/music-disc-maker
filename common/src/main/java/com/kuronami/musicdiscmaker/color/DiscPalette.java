@@ -15,9 +15,10 @@ package com.kuronami.musicdiscmaker.color;
  * </ul>
  *
  * <p><b>参照実装</b>は {@code _work/stonecutter-loader-2026-08-24/assets-v3/mkauto.py}。
- * 有彩色と自動配色の探索は、探索順・スコア・早期打ち切り・フォールバックまで
- * 参照実装と一致する。明示的な白/薄灰/灰/黒は、2026-09-10の黒化報告への修正として
- * 染料の明るさを優先し、色差の床を適用しない。自動配色は従来の探索を維持する。
+ * 有彩色と自動配色の主段を探す処理は、探索順・スコア・早期打ち切り・フォールバックまで
+ * 参照実装と一致する。主段から遠い陰影は 0/96 の clamp へ潰れないよう圧縮する。
+ * 明示的な白/薄灰/灰/黒は、2026-09-10の黒化報告への修正として染料の明るさを優先し、
+ * 色差の床を適用しない。自動配色は従来の探索を維持する。
  *
  * <p>純粋計算 = MC も描画も参照しない。tint レイヤーの宣言はここの外側 (次のユニット)。
  */
@@ -43,6 +44,10 @@ public final class DiscPalette {
     private static final int BOARD_DOMINANT = 3;
     /** アクセントの主段 (L_ACC の index)。ここの明度を基準に 7 段をずらす。 */
     private static final double ACC_MAIN_L = 31.57;
+    // 7 段の端を ColorMath の 0/96 clamp へ送らない範囲。主段のコントラストを
+    // 変えずに済むよう、はみ出す時は主段から端へ向かう側だけを圧縮する。
+    private static final double ACCENT_STEP_MIN_L = 1.0;
+    private static final double ACCENT_STEP_MAX_L = 95.0;
 
     // 明示的に選んだ無彩色アクセントの主段。黒でも下側4段を潰さず、白は盤面との
     // コントラスト探索より色名の明るさを優先する。未染色曲の自動割当には使わない。
@@ -233,11 +238,25 @@ public final class DiscPalette {
             }
         }
 
-        final double off = bestL - ACC_MAIN_L;
         final int[] steps = new int[L_ACC.length];
         for (int i = 0; i < L_ACC.length; i++) {
-            steps[i] = ColorMath.rgb(h, bestS, L_ACC[i] + off);
+            steps[i] = ColorMath.rgb(h, bestS, accentStepLightness(bestL, L_ACC[i]));
         }
         return new Accent(steps, bestE);
+    }
+
+    private static double accentStepLightness(double mainLightness, double baseLightness) {
+        final double offset = baseLightness - ACC_MAIN_L;
+        if (offset < 0.0) {
+            final double room = mainLightness - ACCENT_STEP_MIN_L;
+            final double baseRoom = ACC_MAIN_L - L_ACC[0];
+            return mainLightness + offset * Math.min(1.0, room / baseRoom);
+        }
+        if (offset > 0.0) {
+            final double room = ACCENT_STEP_MAX_L - mainLightness;
+            final double baseRoom = L_ACC[L_ACC.length - 1] - ACC_MAIN_L;
+            return mainLightness + offset * Math.min(1.0, room / baseRoom);
+        }
+        return mainLightness;
     }
 }
