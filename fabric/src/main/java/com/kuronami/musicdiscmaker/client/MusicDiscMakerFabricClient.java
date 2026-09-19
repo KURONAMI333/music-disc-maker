@@ -109,8 +109,17 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         LevelRenderEvents.COLLECT_SUBMITS.register(context -> SpeakerLinkOutlineRenderer.submitModern(
                 context.poseStack(), context.submitNodeCollector(), context.levelState().cameraRenderState.pos));
         //?} elif >=1.21.11 {
-        /*WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> SpeakerLinkOutlineRenderer.renderIntermediateWithSharedBuffer(
-                context.matrices(), context.worldState().cameraRenderState.pos));
+        /*WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
+            // Fabric の WorldRenderContext はこの描画段階でも matrix/world/camera state を
+            // 常には揃えない。ロード遷移や第三者 renderer の経路では null になり得るため、
+            // 輪郭は次フレームへ譲り、ワールド参加そのものを落とさない。
+            final var matrices = context.matrices();
+            final var worldState = context.worldState();
+            if (matrices == null || worldState == null || worldState.cameraRenderState == null
+                    || worldState.cameraRenderState.pos == null) return;
+            SpeakerLinkOutlineRenderer.renderIntermediateWithSharedBuffer(
+                    matrices, worldState.cameraRenderState.pos);
+        });
         */
         //?} else {
         /*WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> SpeakerLinkOutlineRenderer.renderLegacy(new com.mojang.blaze3d.vertex.PoseStack()));
