@@ -10,6 +10,7 @@ import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.event.BoomboxCarry;
+import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
@@ -207,6 +208,13 @@ public final class BoomboxClientPlayback {
             resolved.close();
             SESSIONS.abandon(id, token);
             return;
+        }
+        // 末尾の猶予帯は server が意図的に黙る (BoomboxHeartbeat.decide)。その沈黙を
+        // 「server が消えた」と client が誤解しないよう、曲の想定終端を anchor に登録する。
+        // 尺を持たないラジオ/ライブには終端が無いので登録しない (従来の途絶判定のまま)。
+        final long automaticDuration = track.radio() ? 0L : track.durationMs();
+        if (automaticDuration > 0L) {
+            live.armTailSilence(automaticDuration - startOffsetMs, BoomboxPlayback.TAIL_GRACE_MS);
         }
         final DiscSoundInstance instance = new DiscSoundInstance(live, resolved,
                 Config.boomboxRange(), liveRequest.volumePercent(), null);
