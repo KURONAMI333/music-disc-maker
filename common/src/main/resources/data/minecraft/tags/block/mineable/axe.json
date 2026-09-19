@@ -3,7 +3,6 @@
   "values": [
     "music_disc_maker:music_disc_maker",
     "music_disc_maker:disc_dyeing_table",
-    "music_disc_maker:boombox",
     "music_disc_maker:disc_pedestal"
   ]
 }
