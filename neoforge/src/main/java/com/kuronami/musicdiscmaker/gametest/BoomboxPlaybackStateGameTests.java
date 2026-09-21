@@ -161,6 +161,57 @@ public final class BoomboxPlaybackStateGameTests {
     //? if <1.21.2 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
+    public static void creativeRemovalSuppressesDropAndSurvivalKeepsStoredMachine(GameTestHelper helper) {
+        // GameTestHelper#makeMockServerPlayerInLevel は isCreative() を常に true へ固定するため、
+        // game mode に応じて能力が切り替わる NeoForge の FakePlayer で実際の破壊入口を通す。
+        final ServerPlayer player = net.neoforged.neoforge.common.util.FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "boombox-removal"));
+        final BlockPos creativePos = helper.absolutePos(POS);
+        final BlockPos survivalPos = helper.absolutePos(POS.offset(2, 0, 0));
+        final ItemStack creativeBox = sequenceBox("creative-removal", 120_000L, true);
+        final ItemStack survivalBox = sequenceBox("survival-removal", 120_000L, false);
+        try {
+            helper.setBlock(POS, ModBlocks.BOOMBOX.get());
+            final BoomboxBlockEntity creative = (BoomboxBlockEntity) helper.getLevel().getBlockEntity(creativePos);
+            creative.setStored(creativeBox.copy());
+            // 中クリックが返す既存の「中身入りコピー」は、破壊抑止とは独立して維持する。
+            //? if >=1.21.2 {
+            final ItemStack clone = helper.getLevel().getBlockState(creativePos)
+                    .getCloneItemStack(helper.getLevel(), creativePos, true);
+            //?} else {
+            /*final ItemStack clone = ModBlocks.BOOMBOX.get()
+                    .getCloneItemStack(helper.getLevel(), creativePos, helper.getLevel().getBlockState(creativePos));
+            *///?}
+            helper.assertTrue(ItemStack.matches(clone, creativeBox),
+                    "creative clone no longer preserves the stored machine");
+
+            player.setGameMode(GameType.CREATIVE);
+            helper.assertTrue(player.gameMode.destroyBlock(creativePos), "creative player could not remove Boombox");
+            helper.assertTrue(boomboxDrops(helper, creativePos).isEmpty(),
+                    "creative player removal dropped a Boombox body");
+
+            helper.setBlock(POS.offset(2, 0, 0), ModBlocks.BOOMBOX.get());
+            final BoomboxBlockEntity survival = (BoomboxBlockEntity) helper.getLevel().getBlockEntity(survivalPos);
+            survival.setStored(survivalBox.copy());
+            player.setGameMode(GameType.SURVIVAL);
+            helper.assertTrue(!player.isCreative() && player.gameMode.isSurvival(),
+                    "mock player did not leave creative mode before survival removal");
+            helper.assertTrue(player.gameMode.destroyBlock(survivalPos), "survival player could not remove Boombox");
+            final List<ItemEntity> drops = boomboxDrops(helper, survivalPos);
+            helper.assertTrue(drops.size() == 1,
+                    "survival removal dropped " + drops.size() + " Boombox bodies instead of one");
+            helper.assertTrue(ItemStack.matches(drops.get(0).getItem(), survivalBox),
+                    "survival removal did not preserve the stored medium and settings");
+            drops.get(0).discard();
+            helper.succeed();
+        } finally {
+            player.discard();
+        }
+    }
+
+    //? if <1.21.2 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void creativePlacementTransfersPlaybackAndLeavesIndependentPausedCopy(GameTestHelper helper) {
         final ItemStack box = sequenceBox("creative-placement", 120_000L, true);
         final BoomboxContents configured = box.get(ModDataComponents.BOOMBOX_CONTENTS.get())
@@ -655,6 +706,11 @@ public final class BoomboxPlaybackStateGameTests {
         box.set(ModDataComponents.BOOMBOX_CONTENTS.get(),
                 new BoomboxContents(album, BoomboxContents.mintId()).withRepeat(repeat));
         return box;
+    }
+
+    private static List<ItemEntity> boomboxDrops(GameTestHelper helper, BlockPos pos) {
+        return helper.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(pos).inflate(1.0),
+                entity -> entity.getItem().is(ModItems.BOOMBOX.get()));
     }
 
     private static BlockPos placeHeldBoombox(GameTestHelper helper, ServerPlayer player, GameType gameType) {

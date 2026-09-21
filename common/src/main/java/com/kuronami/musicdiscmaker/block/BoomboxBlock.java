@@ -234,6 +234,29 @@ public class BoomboxBlock extends Block implements EntityBlock {
     }
     *///?}
 
+    /**
+     * Creative の通常破壊では本体を落とさないことを、BE が外れる前に撤去処理へ伝える。
+     *
+     * <p>本体は loot table ではなく BE 自身が返すため、vanilla の Creative ドロップ抑止より
+     * 先に生成されてしまう。ここは player 破壊だけが通るので、爆発等による回収は変えない。
+     */
+    @Override
+    //? if >=1.21 {
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide() && level.getBlockEntity(pos) instanceof BoomboxBlockEntity boombox) {
+            boombox.preparePlayerRemoval(player.isCreative());
+        }
+        return super.playerWillDestroy(level, pos, state, player);
+    }
+    //?} else {
+    /*public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide && level.getBlockEntity(pos) instanceof BoomboxBlockEntity boombox) {
+            boombox.preparePlayerRemoval(player.isCreative());
+        }
+        super.playerWillDestroy(level, pos, state, player);
+    }
+    *///?}
+
     // 撤去時は「置いた時のアイテム」を 1 個だけ返す。loot table は空なので二重ドロップにならない。
     // 1.21.5+ は BlockEntity#preRemoveSideEffects。ここへ来る時点では BE が level から外れている。
     //? if >=1.21.2 {
@@ -246,7 +269,9 @@ public class BoomboxBlock extends Block implements EntityBlock {
                 if (level instanceof ServerLevel serverLevel) {
                     BoomboxPlayback.stopPlaced(serverLevel, pos, be);
                 }
-                Containers.dropContents(level, pos, be.contentsForDrop());
+                if (be.shouldDropContentsOnRemoval()) {
+                    Containers.dropContents(level, pos, be.contentsForDrop());
+                }
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
@@ -260,7 +285,9 @@ public class BoomboxBlock extends Block implements EntityBlock {
                 if (level instanceof ServerLevel serverLevel) {
                     BoomboxPlayback.stopPlaced(serverLevel, pos, be);
                 }
-                Containers.dropContents(level, pos, be.contentsForDrop());
+                if (be.shouldDropContentsOnRemoval()) {
+                    Containers.dropContents(level, pos, be.contentsForDrop());
+                }
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);

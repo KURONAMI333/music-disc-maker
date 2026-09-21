@@ -53,6 +53,9 @@ public class BoomboxBlockEntity extends BlockEntity {
     /** 保存は 1 スロットの inventory として書く ({@link ContainerHelper} を帯ごとに使い分けられる)。 */
     private final NonNullList<ItemStack> stored = NonNullList.withSize(1, ItemStack.EMPTY);
 
+    /** Creative の player 破壊を受けた tick。保存せず、失敗した破壊を次 tick へ持ち越さない。 */
+    private long suppressDropGameTime = Long.MIN_VALUE;
+
     /**
      * client 専用: 取っ手の倒れ具合 (0 = 立つ / 1 = 倒れる)。BER が毎フレーム進める。
      *
@@ -106,13 +109,25 @@ public class BoomboxBlockEntity extends BlockEntity {
         return stored;
     }
 
+    /** player 破壊の入口から、今回の撤去で本体ドロップを抑止するかを受け取る。 */
+    public void preparePlayerRemoval(boolean suppressDrop) {
+        suppressDropGameTime = suppressDrop && level != null ? level.getGameTime() : Long.MIN_VALUE;
+    }
+
+    /** 非 player 撤去と Survival 破壊は本体を返し、同 tick の Creative 破壊だけ抑止する。 */
+    public boolean shouldDropContentsOnRemoval() {
+        return level == null || suppressDropGameTime != level.getGameTime();
+    }
+
     //? if >=1.21.2 {
     /** BlockEntity が level から外れる前に、設置元を照合して停止し、本体を 1 個返す。 */
     @Override
     public void preRemoveSideEffects(BlockPos pos, BlockState state) {
         if (level instanceof ServerLevel serverLevel) {
             BoomboxPlayback.stopPlaced(serverLevel, pos, this);
-            Containers.dropContents(serverLevel, pos, contentsForDrop());
+            if (shouldDropContentsOnRemoval()) {
+                Containers.dropContents(serverLevel, pos, contentsForDrop());
+            }
         }
         super.preRemoveSideEffects(pos, state);
     }

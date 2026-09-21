@@ -111,6 +111,9 @@ public final class MdmGameTestRegistration {
         register(event, "boombox_media_generation", BoomboxPlaybackStateGameTests::replacingMediaClearsPositionWithoutResettingGeneration, empty, 200);
         register(event, "boombox_sessionless_no_resume", BoomboxPlaybackStateGameTests::sessionlessPlayingStateDoesNotOfferImplicitResume, empty, 200);
         register(event, "boombox_carry_placed_lifecycle", BoomboxPlaybackStateGameTests::carriedPlacedStaleLifecycleKeepsCursorAndNeverAutoRestarts, empty, 200);
+        register(event, "boombox_creative_and_survival_removal_drops",
+                BoomboxPlaybackStateGameTests::creativeRemovalSuppressesDropAndSurvivalKeepsStoredMachine,
+                empty, 100);
         register(event, "boombox_creative_placement_identity_controls",
                 BoomboxPlaybackStateGameTests::creativePlacementTransfersPlaybackAndLeavesIndependentPausedCopy,
                 empty, 200);
