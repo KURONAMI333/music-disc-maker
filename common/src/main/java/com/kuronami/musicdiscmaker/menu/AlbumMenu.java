@@ -50,6 +50,7 @@ public class AlbumMenu extends AbstractContainerMenu {
     private boolean loading;
     private boolean handlingClick;
     private boolean storageRejected;
+    private boolean deferFullSyncValues;
 
     //? if >=1.21 {
     public AlbumMenu(int id, Inventory inventory, RegistryFriendlyByteBuf buf) {
@@ -84,10 +85,12 @@ public class AlbumMenu extends AbstractContainerMenu {
         }
         for (int i = 0; i < ALBUM_SLOTS; i++) addSlot(new AlbumSlot(contents, i, 8 + (i % 9) * 18, 18));
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++)
-            addSlot(new Slot(inventory, col + row * 9 + 9, 8 + col * 18, 49 + row * 18));
+            addSlot(new DeferredInitialInventorySlot(inventory, col + row * 9 + 9, 8 + col * 18,
+                    49 + row * 18, () -> deferFullSyncValues));
         for (int col = 0; col < 9; col++) addSlot(col == sourceInventorySlot
-                ? new LockedSourceSlot(inventory, col, 8 + col * 18, 107)
-                : new Slot(inventory, col, 8 + col * 18, 107));
+                ? new LockedSourceSlot(inventory, col, 8 + col * 18, 107, () -> deferFullSyncValues)
+                : new DeferredInitialInventorySlot(inventory, col, 8 + col * 18, 107,
+                        () -> deferFullSyncValues));
         for (int i = ALBUM_SLOTS; i < slots.size(); i++) {
             if (slots.get(i).container == inventory && slots.get(i).getContainerSlot() == sourceInventorySlot) {
                 sourceMenuSlot = i;
@@ -97,9 +100,8 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 初回openでこのmenu固有に初期化する内部9枠を、実ItemStack codecで先に検証する。
-     * プレイヤー所持品は通常のAbstractContainerMenu slot同期が担当するため、ここで媒体の
-     * 初期payloadへ重ねて含めない。
+     * 初回の一括packetに残す内部9枠を、実ItemStack codecで先に検証する。
+     * player inventoryは{@link #sendAllDataToRemote()}が直後のslot単位packetへ分割する。
      */
     public static boolean fitsInitialMenuSync(Inventory inventory, BoomboxSource source) {
         final ItemStack heldAlbum = inventory.player.getItemInHand(source.heldHand());
@@ -109,12 +111,36 @@ public class AlbumMenu extends AbstractContainerMenu {
         for (int i = 0; i < ALBUM_SLOTS; i++) {
             initialSlots.add(i < saved.size() ? saved.get(i).copy() : ItemStack.EMPTY);
         }
+        for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) initialSlots.add(ItemStack.EMPTY);
         //? if >=1.21 {
         return AlbumStorageBudget.fitsInitialMenuSync(initialSlots, ItemStack.EMPTY,
                 inventory.player.level().registryAccess());
         //?} else {
         /*return AlbumStorageBudget.fitsInitialMenuSync(initialSlots, ItemStack.EMPTY);
         *///?}
+    }
+
+    /**
+     * vanillaのfull syncは内部枠・player inventory・cursorを1 packetへ詰める。player側とcursorを
+     * 空で送り、同じ同期中に通常のslot差分として復元して、合法な大きい値を合算しない。
+     * stateId不一致のbroadcastFullStateやspectator clickもこの経路を通るため、初回だけに限らない。
+     */
+    @Override public void sendAllDataToRemote() {
+        if (!authoritative) {
+            super.sendAllDataToRemote();
+            return;
+        }
+        deferFullSyncValues = true;
+        try {
+            super.sendAllDataToRemote();
+        } finally {
+            deferFullSyncValues = false;
+        }
+        super.broadcastChanges();
+    }
+
+    @Override public ItemStack getCarried() {
+        return deferFullSyncValues ? ItemStack.EMPTY : super.getCarried();
     }
 
     private void save() {
@@ -290,8 +316,11 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
 
     /** 開いているAlbumの元stackを画面内で移動できないようにする。 */
-    private static final class LockedSourceSlot extends Slot {
-        LockedSourceSlot(Container container, int slot, int x, int y) { super(container, slot, x, y); }
+    private static final class LockedSourceSlot extends DeferredInitialInventorySlot {
+        LockedSourceSlot(Container container, int slot, int x, int y,
+                java.util.function.BooleanSupplier deferred) {
+            super(container, slot, x, y, deferred);
+        }
         @Override public boolean mayPlace(@NotNull ItemStack stack) { return false; }
         @Override public boolean mayPickup(Player player) { return false; }
     }
