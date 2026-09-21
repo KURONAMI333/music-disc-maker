@@ -188,13 +188,18 @@ public class DiscPedestalBlockEntity extends BlockEntity {
 
     /**
      * 台座に載せられるスタックか。MDM のカスタムディスクに加え、バニラ・他 MOD のレコードを受ける。
-     * バニラおよび他 MOD が jukebox 対応として登録する情報を見る。
+     *
+     * <p>MDM の盤を先に見るのは、1.21+ の旧盤に {@code CUSTOM_TRACK} はあっても
+     * {@code JUKEBOX_PLAYABLE} が無い世代があるため。バニラおよび他 MOD の盤は jukebox 対応として
+     * 登録する情報を見る。
      */
     public static boolean accepts(ItemStack stack) {
         //? if >=1.21 {
-        return !stack.isEmpty() && stack.has(DataComponents.JUKEBOX_PLAYABLE);
+        return !stack.isEmpty() && (stack.is(ModItems.CUSTOM_MUSIC_DISC.get())
+                || stack.has(DataComponents.JUKEBOX_PLAYABLE));
         //?} else {
-        /*return !stack.isEmpty() && stack.is(ItemTags.MUSIC_DISCS);
+        /*return !stack.isEmpty() && (stack.is(ModItems.CUSTOM_MUSIC_DISC.get())
+                || stack.is(ItemTags.MUSIC_DISCS));
         *///?}
     }
 

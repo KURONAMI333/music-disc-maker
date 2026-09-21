@@ -132,6 +132,13 @@ public final class DiscPedestalInteractionGameTests {
     public static void selectionOutlineIsWholeAndTrackMetadataFollowsSwap(GameTestHelper helper) {
         final Fixture fixture = fixture(helper, "pedestal-outline-metadata");
         try {
+            helper.assertTrue(DiscPedestalBlockEntity.accepts(disc("legacy-without-song")),
+                    "jukebox_playableを持たない旧MDMディスクを台座が拒否する");
+            helper.assertTrue(DiscPedestalBlockEntity.accepts(new ItemStack(Items.MUSIC_DISC_13)),
+                    "バニラのレコードを台座が拒否する");
+            helper.assertTrue(!DiscPedestalBlockEntity.accepts(new ItemStack(Items.STONE)),
+                    "レコードでないアイテムを台座が受け入れる");
+
             final ServerLevel level = fixture.helper().getLevel();
             final BlockPos absolutePos = fixture.helper().absolutePos(fixture.relativePos());
             final DiscPedestalBlock block = (DiscPedestalBlock) ModBlocks.DISC_PEDESTAL.get();
