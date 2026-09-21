@@ -425,7 +425,7 @@ public final class ClientPlaybackManager {
         final DiscAnchor anchor = sourceAnchor;
         final int initialRange = anchor instanceof LiveAudioConfig audioConfig ? audioConfig.rangeBlocks() : rangeBlocks;
         final int initialVolume = anchor instanceof LiveAudioConfig audioConfig ? audioConfig.volumePercent() : volumePercent;
-        final FanoutAudioSource fanout = new FanoutAudioSource(resolved, ClientPlaybackManager::playbackClockMs);
+        final FanoutAudioSource fanout = new FanoutAudioSource(resolved);
         final DiscSoundInstance instance = new DiscSoundInstance(anchor,
                 fanout.openMasterBranch(), initialRange, initialVolume, endCb);
         // ストリーム終端の pull 経路も同じ届け先へ繋ぐ。push を持つソースでは重複しうるが、
@@ -439,7 +439,7 @@ public final class ClientPlaybackManager {
         // 実音が鳴り始めた (最初の実 PCM) 瞬間に、進捗表示のアンカーを実音の開始へ打ち直す。
         // 1 再生につき 1 回は noteFirstAudio の世代ガードが保証する。打ち直しは main thread で行う。
         instance.setFirstAudioSink(() -> {
-            fanout.markPlaybackStarted(playbackClockMs());
+            fanout.markPcmStarted();
             Minecraft.getInstance().execute(() -> {
             if (sessions.noteFirstAudio(key, token)) {
                 reanchorClientElapsed(key, startOffsetMs);
@@ -453,7 +453,7 @@ public final class ClientPlaybackManager {
 /*        instance.setTiming(timing);
          final String desc = nowPlayingText(track);
          instance.setFirstAudioSink(() -> {
-             fanout.markPlaybackStarted(playbackClockMs());
+             fanout.markPcmStarted();
              Minecraft.getInstance().execute(() -> onFirstAudio(key, token, desc, startOffsetMs));
          });
         */
@@ -462,7 +462,7 @@ public final class ClientPlaybackManager {
         // 実音が鳴り始めた (最初の実 PCM) 瞬間に、進捗表示のアンカーを実音の開始へ打ち直す。
         // 1 再生につき 1 回は noteFirstAudio の世代ガードが保証する。打ち直しは main thread で行う。
          instance.setFirstAudioSink(() -> {
-             fanout.markPlaybackStarted(playbackClockMs());
+             fanout.markPcmStarted();
              Minecraft.getInstance().execute(() -> {
                  if (sessions.noteFirstAudio(key, token)) {
                      reanchorClientElapsed(key, startOffsetMs);

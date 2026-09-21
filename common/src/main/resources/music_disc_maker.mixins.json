@@ -11,7 +11,8 @@
     "MixinItemStack",
     "MixinVanillaJukeboxAudio",
     "MixinClientLevelAudioBridge",
-    "IntegratedServerPlaybackClockMixin"
+    "IntegratedServerPlaybackClockMixin",
+    "MixinChannelPlayback"
   ],
   "server": [],
   "injectors": {

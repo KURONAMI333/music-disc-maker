@@ -77,11 +77,11 @@ class FanoutAudioSourceTest {
 
     @Test
     void postStartUnderrunIsOneSharedTimelineGapRatherThanPerVoiceSilence() {
-        // markPlaybackStarted の時刻と可聴clockは同じ座標系で渡す。
-        final FanoutAudioSource fanout = new FanoutAudioSource(new OneChunkThenEmptySource(), () -> 0L);
+        // 実 PCM が出た後だけ、各 branch に同じ underrun を渡す。
+        final FanoutAudioSource fanout = new FanoutAudioSource(new OneChunkThenEmptySource());
         final IAudioSource master = fanout.openMasterBranch();
         final IAudioSource speaker = fanout.openInitialBranch();
-        fanout.markPlaybackStarted(0L);
+        fanout.markPcmStarted();
 
         assertArrayEquals(new byte[] {1, 2, 3, 4, 0, 0, 0, 0}, readExactly(master, 8));
         assertArrayEquals(new byte[] {1, 2, 3, 4, 0, 0, 0, 0}, readExactly(speaker, 8));
@@ -108,12 +108,30 @@ class FanoutAudioSourceTest {
     }
 
     @Test
+    void goldenOutputPaddingKeepsNativeAndSharedTimelinesInTheSameCoordinates() {
+        final FanoutAudioSource fanout = new FanoutAudioSource(
+                new ScriptedSource(new byte[] {1, 2, 3, 4}, 0, 4));
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        assertEquals(0, master.read(new byte[4], 0, 4));
+
+        // LavaPlayerAudioStream が最初の OpenAL buffer を埋めたのと同じ処理。
+        master.shareOutputPadding(4);
+        assertArrayEquals(new byte[] {1, 2, 3, 4}, readExactly(master, 4));
+
+        // native cursor=6 は「無音4 + 実PCM2」。late Speaker も同じ座標の3バイト目から読む。
+        master.attachNativePlayback(() -> 6L);
+        final FanoutAudioSource.Branch speaker = fanout.openLateBranch();
+        assertEquals(6L, speaker.attachNativePlayback(() -> 0L));
+        assertArrayEquals(new byte[] {3, 4}, readExactly(speaker, 2));
+    }
+
+    @Test
     void sharedUnderrunKeepsTheFollowingRealPcmAligned() {
         final FanoutAudioSource fanout = new FanoutAudioSource(
-                new ScriptedSource(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}, 4, 0, 4), () -> 0L);
+                new ScriptedSource(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}, 4, 0, 4));
         final IAudioSource master = fanout.openMasterBranch();
         final IAudioSource speaker = fanout.openInitialBranch();
-        fanout.markPlaybackStarted(0L);
+        fanout.markPcmStarted();
         assertArrayEquals(new byte[] {1, 2, 3, 4, 0, 0, 0, 0}, readExactly(master, 8));
         assertArrayEquals(new byte[] {1, 2, 3, 4, 0, 0, 0, 0}, readExactly(speaker, 8));
         assertArrayEquals(new byte[] {5, 6, 7, 8}, readExactly(master, 4));
@@ -121,48 +139,62 @@ class FanoutAudioSourceTest {
     }
 
     @Test
-    void lateSpeakerUsesTheAudibleClockInsteadOfRefillTiming() {
-        final byte[] pcm = new byte[10];
-        for (int i = 0; i < pcm.length; i++) pcm[i] = (byte) i;
-        final long[] now = {0L};
-        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(pcm, 1, 1, 8), () -> now[0]);
-        final IAudioSource master = fanout.openMasterBranch();
-
-        assertArrayEquals(pcm, readExactly(master, pcm.length));
-        fanout.markPlaybackStarted(0L);
-        final IAudioSource speaker = fanout.openLateBranch();
-        // The async prebuffer worker can begin after the placement action; its first pull must use that later time.
-        now[0] = 6_000L;
-        assertArrayEquals(java.util.Arrays.copyOfRange(pcm, 6, 10), readExactly(speaker, 4));
-    }
-
-    @Test
-    void initialSpeakerAlsoUsesTheAudibleClockWhenItsWorkerStartsAfterMaster() {
+    void lateSpeakerStartsAtNativeCursorAndAccountsForItsOwnBufferPreparationDelay() {
         final byte[] pcm = new byte[20];
         for (int i = 0; i < pcm.length; i++) pcm[i] = (byte) i;
-        final long[] now = {0L};
-        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(pcm, 1, 1, 8), () -> now[0]);
-        final IAudioSource master = fanout.openMasterBranch();
-        // GUI/configuration updates can create the voice before its async prebuffer worker first pulls PCM.
-        final IAudioSource speaker = fanout.openInitialBranch();
-
-        // The decoder is well ahead of the audible position, so this proves clock alignment rather than only
-        // clamping to producedCursor.
-        assertArrayEquals(pcm, readExactly(master, pcm.length));
-        fanout.markPlaybackStarted(0L);
-        now[0] = 6_000L;
-        assertArrayEquals(java.util.Arrays.copyOfRange(pcm, 6, 10), readExactly(speaker, 4));
+        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(pcm, 1, 1, 8));
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        readExactly(master, pcm.length); // 先読み位置は実出音位置とは異なる。
+        final long[] audible = {6L};
+        assertEquals(0L, master.attachNativePlayback(() -> audible[0]));
+        final FanoutAudioSource.Branch speaker = fanout.openLateBranch();
+        final long base = speaker.attachNativePlayback(() -> 0L);
+        assertEquals(6L, base);
+        assertArrayEquals(new byte[] {6, 7, 8, 9}, readExactly(speaker, 4));
+        // PCM を queue へ用意する間にも master が進む。play 直前の offset で追いつく。
+        audible[0] = 8L;
+        assertEquals(2L, speaker.playbackOffsetBytes(base, 4L));
     }
 
     @Test
-    void initialSpeakerKeepsTheBeginningWhenItPullsBeforeMasterStarts() {
-        final byte[] pcm = new byte[] {0, 1, 2, 3};
-        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(pcm, 1, 1, 8), () -> 6_000L);
-        final IAudioSource master = fanout.openMasterBranch();
-        final IAudioSource speaker = fanout.openInitialBranch();
+    void pausedMasterDoesNotAdvanceALateSpeakerWithWallTime() {
+        final FanoutAudioSource fanout = new FanoutAudioSource(
+                new BytesSource(new byte[] {0, 1, 2, 3, 4, 5}, 1, 1, 8));
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        readExactly(master, 6);
+        master.attachNativePlayback(() -> 2L);
+        final FanoutAudioSource.Branch speaker = fanout.openInitialBranch();
+        assertEquals(2L, speaker.attachNativePlayback(() -> 0L));
+        assertArrayEquals(new byte[] {2, 3}, readExactly(speaker, 2));
+        assertEquals(0L, speaker.playbackOffsetBytes(2L, 2L));
+    }
 
-        assertArrayEquals(pcm, readExactly(speaker, pcm.length));
-        assertArrayEquals(pcm, readExactly(master, pcm.length));
+    @Test
+    void speakerWaitsForMasterNativeAttachmentAndStopsWaitingWhenMasterCloses() {
+        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(new byte[] {1, 2}));
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        final FanoutAudioSource.Branch speaker = fanout.openInitialBranch();
+        assertTrue(!speaker.masterAttached().isDone());
+        master.close();
+        assertTrue(speaker.masterAttached().isDone());
+        assertEquals(-1L, speaker.attachNativePlayback(() -> 0L));
+        assertTrue(speaker.desynchronised());
+    }
+
+    @Test
+    void stalledSpeakerIsRecreatedInsteadOfSeekingBeyondItsNativeQueue() {
+        final FanoutAudioSource fanout = new FanoutAudioSource(
+                new BytesSource(new byte[] {0, 1, 2, 3, 4, 5}, 1, 1, 8));
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        readExactly(master, 6);
+        final long[] audible = {0L};
+        master.attachNativePlayback(() -> audible[0]);
+        final FanoutAudioSource.Branch speaker = fanout.openLateBranch();
+        speaker.attachNativePlayback(() -> 0L);
+        readExactly(speaker, 4);
+        audible[0] = 5L;
+        assertEquals(-1L, speaker.playbackOffsetBytes(0L, 4L));
+        assertTrue(speaker.desynchronised());
     }
 
     @Test
@@ -174,6 +206,7 @@ class FanoutAudioSourceTest {
         final FanoutAudioSource.Branch speaker = fanout.openInitialBranch();
         final boolean[] notified = {false};
         speaker.onDesynchronised(() -> notified[0] = true);
+        readExactly(speaker, 1); // native 接続/読出し前の branch は古い cursor をまだ持たない。
 
         assertArrayEquals(pcm, readExactly(master, pcm.length));
         assertTrue(notified[0]);
@@ -182,16 +215,30 @@ class FanoutAudioSourceTest {
     }
 
     @Test
+    void waitingSpeakerIsNotEvictedBeforeItsNativeCursorIsChosen() {
+        final byte[] pcm = new byte[9_000];
+        for (int i = 0; i < pcm.length; i++) pcm[i] = (byte) i;
+        final FanoutAudioSource fanout = new FanoutAudioSource(new BytesSource(pcm, 1, 1, 8));
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        final FanoutAudioSource.Branch speaker = fanout.openLateBranch();
+        readExactly(master, 9_000);
+        master.attachNativePlayback(() -> 8_500L);
+        assertTrue(!speaker.desynchronised());
+        assertEquals(8_500L, speaker.attachNativePlayback(() -> 0L));
+        assertArrayEquals(java.util.Arrays.copyOfRange(pcm, 8_500, 8_504), readExactly(speaker, 4));
+    }
+
+    @Test
     void lateSpeakerCanDrainRetainedTailAfterDecoderEof() {
-        final long[] now = {0L};
         final FanoutAudioSource fanout = new FanoutAudioSource(
-                new BytesSource(new byte[] {1, 2, 3, 4, 5, 6}, 1, 1, 8), () -> now[0]);
+                new BytesSource(new byte[] {1, 2, 3, 4, 5, 6}, 1, 1, 8));
         final IAudioSource master = fanout.openMasterBranch();
         readExactly(master, 6);
         assertEquals(-1, master.read(new byte[1], 0, 1));
-        fanout.markPlaybackStarted(0L);
-        now[0] = 4_000L;
-        final IAudioSource speaker = fanout.openLateBranch();
+        fanout.markPcmStarted();
+        ((FanoutAudioSource.Branch) master).attachNativePlayback(() -> 4L);
+        final FanoutAudioSource.Branch speaker = fanout.openLateBranch();
+        speaker.attachNativePlayback(() -> 0L);
         assertArrayEquals(new byte[] {5, 6}, readExactly(speaker, 2));
         assertEquals(-1, speaker.read(new byte[1], 0, 1));
     }

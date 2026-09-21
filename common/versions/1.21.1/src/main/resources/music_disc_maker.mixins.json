@@ -12,7 +12,8 @@
     "MixinVanillaJukeboxAudio",
     "MixinClientLevelAudioBridge",
     "IntegratedServerPlaybackClockMixin",
-    "BoomboxShoulderPoseMixin"
+    "BoomboxShoulderPoseMixin",
+    "MixinChannelPlayback"
   ],
   "server": [],
   "injectors": {

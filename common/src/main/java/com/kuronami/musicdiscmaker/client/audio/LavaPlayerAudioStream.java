@@ -1,6 +1,8 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -11,6 +13,8 @@ import javax.sound.sampled.AudioFormat;
 
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.BufferUtils;
+import org.lwjgl.openal.AL10;
+import org.lwjgl.openal.AL11;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
@@ -25,6 +29,64 @@ import net.minecraft.client.sounds.AudioStream;
  * MC の {@code Channel.pumpBuffers} がこの {@code read} を呼び、OpenAL バッファに流す。
  */
 public class LavaPlayerAudioStream implements AudioStream {
+
+    /** Channel の attach/read/unqueue/play はすべて sound engine thread 上で直列に呼ばれる。 */
+    private int nativeSource;
+    private long queueStart;
+    private long removedBytes;
+    private long queuedBytes;
+    private final ArrayDeque<Integer> nativeBufferSizes = new ArrayDeque<>();
+
+    boolean isSynchronizedSpeaker() {
+        return source instanceof FanoutAudioSource.Branch branch && !branch.isMaster();
+    }
+
+    CompletableFuture<AudioStream> whenMasterAttached() {
+        return ((FanoutAudioSource.Branch) source).masterAttached().thenApply(ignored -> this);
+    }
+
+    /** Channel mixin 専用。PCM callback の時刻を実再生位置と取り違えない。 */
+    public void attachNativeChannel(int sourceId) {
+        if (!(source instanceof FanoutAudioSource.Branch branch)) return;
+        nativeSource = sourceId;
+        queueStart = branch.attachNativePlayback(this::nativePlaybackCursor);
+    }
+
+    private long nativePlaybackCursor() {
+        if (AL10.alGetSourcei(nativeSource, AL10.AL_SOURCE_STATE) == AL10.AL_STOPPED) return -1L;
+        return queueStart + removedBytes
+                + (long) AL10.alGetSourcei(nativeSource, AL11.AL_SAMPLE_OFFSET) * format.getFrameSize();
+    }
+
+    public void nativeBuffersProcessed(int count) {
+        if (!(source instanceof FanoutAudioSource.Branch)) return;
+        while (count-- > 0 && !nativeBufferSizes.isEmpty()) {
+            final int bytes = nativeBufferSizes.removeFirst();
+            removedBytes += bytes;
+            queuedBytes -= bytes;
+        }
+    }
+
+    public boolean prepareNativePlay() {
+        if (!(source instanceof FanoutAudioSource.Branch branch) || branch.isMaster()) return true;
+        final long offset = branch.playbackOffsetBytes(queueStart + removedBytes, queuedBytes);
+        if (queueStart < 0L || offset < 0L) return false;
+        AL10.alSourcei(nativeSource, AL11.AL_SAMPLE_OFFSET, (int) (offset / format.getFrameSize()));
+        return true;
+    }
+
+    /**
+     * 同期できなかった child channel を SoundEngine の通常破棄経路へ渡す。
+     *
+     * <p>OpenAL 実測では {@code AL_INITIAL} へ {@code alSourceStop} だけを呼んでも
+     * {@code AL_INITIAL} のままになる。一度 play して同じ sound-engine thread で直ちに stop すると
+     * {@code AL_STOPPED} になり、次の tick で既存の channel cleanup が回収できる。
+     */
+    public void rejectNativePlay() {
+        if (nativeSource == 0) return;
+        AL10.alSourcePlay(nativeSource);
+        AL10.alSourceStop(nativeSource);
+    }
 
     private final IAudioSource source;
     private final AudioFormat format;
@@ -480,6 +542,10 @@ public class LavaPlayerAudioStream implements AudioStream {
             }
         }
         buffer.flip();
+        if (source instanceof FanoutAudioSource.Branch) {
+            nativeBufferSizes.addLast(buffer.remaining());
+            queuedBytes += buffer.remaining();
+        }
         return buffer;
     }
 
@@ -527,6 +593,9 @@ public class LavaPlayerAudioStream implements AudioStream {
         final int n = buffer.remaining();
         if (n <= 0) {
             return;
+        }
+        if (source instanceof FanoutAudioSource.Branch branch) {
+            branch.shareOutputPadding(n);
         }
         for (int i = 0; i < n; i++) {
             buffer.put((byte) 0);
@@ -619,4 +688,3 @@ public class LavaPlayerAudioStream implements AudioStream {
         source.close();
     }
 }
-
