@@ -13,7 +13,8 @@
     "MixinClientLevelAudioBridge",
     "IntegratedServerPlaybackClockMixin",
     "BoomboxShoulderPoseMixin",
-    "MixinChannelPlayback"
+    "MixinChannelPlayback",
+    "MixinSoundEngineReload"
   ],
   "server": [],
   "injectors": {

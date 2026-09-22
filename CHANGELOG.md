@@ -8,6 +8,7 @@ A bug-fix update for Albums, Boomboxes, Golden Jukeboxes, Speakers, and Disc Ped
 - Fixed contradictory recovery messages for oversized media and preserved the contents when recovering them.
 - Fixed Boomboxes dropping an extra body when broken in Creative mode. Survival drops and Creative copies retain their contents and settings.
 - Fixed newly connected Speakers starting ahead of their Golden Jukebox or failing to start after a slow initial load.
+- Fixed MDM playback staying silent after reloading resource packs, including custom discs in Jukeboxes, Golden Jukeboxes with Speakers, and Boomboxes.
 - Fixed carried Boombox playback ending before the track's final audio had finished.
 - Fixed Album insertion into Golden Jukeboxes on Forge 1.20.1.
 - Fixed disc dye combinations turning pure black or losing distinct neighboring shades.
