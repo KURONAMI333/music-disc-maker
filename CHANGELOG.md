@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.0.4
+
+A bug-fix update for Albums, Boomboxes, Golden Jukeboxes, Speakers, and Disc Pedestals.
+
+- Fixed Albums and Boomboxes being blocked by large items elsewhere in the inventory, including when their menus resynchronize.
+- Fixed contradictory recovery messages for oversized media and preserved the contents when recovering them.
+- Fixed Boomboxes dropping an extra body when broken in Creative mode. Survival drops and Creative copies retain their contents and settings.
+- Fixed newly connected Speakers starting ahead of their Golden Jukebox or failing to start after a slow initial load.
+- Fixed MDM playback staying silent after reloading resource packs, including custom discs in Jukeboxes, Golden Jukeboxes with Speakers, and Boomboxes.
+- Fixed carried Boombox playback ending before the track's final audio had finished.
+- Fixed Album insertion into Golden Jukeboxes on Forge 1.20.1.
+- Fixed disc dye combinations turning pure black or losing distinct neighboring shades.
+- Disc Pedestals now accept vanilla and compatible music discs and display their track names, while retaining support for existing custom discs.
+- Boomboxes now break faster, with the same speed regardless of tool.
+- Added a guard against missing world-outline render state on Fabric 1.21.11.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 ## 3.0.3
 
 - Fixed a client crash when joining a world on Fabric 1.21.11.

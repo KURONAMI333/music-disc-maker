@@ -1,6 +1,9 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -10,6 +13,7 @@ import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.event.BoomboxCarry;
+import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
@@ -61,6 +65,8 @@ public final class BoomboxClientPlayback {
 
     /** ロード中の移動・音量変更も、完了時には最新の同一音声世代へ反映する。 */
     private static final Map<Long, BoomboxPlayPayload> LATEST_REQUESTS = new ConcurrentHashMap<>();
+    /** {@link #LATEST_REQUESTS} の offset が指していた playback clock 。 */
+    private static final Map<Long, Long> LATEST_RECEIVED_MS = new ConcurrentHashMap<>();
 
     private static final PlaybackSessions<Long> SESSIONS =
             new PlaybackSessions<>(System::currentTimeMillis);
@@ -101,6 +107,7 @@ public final class BoomboxClientPlayback {
             return;
         }
         final BoomboxPlayPayload previousRequest = LATEST_REQUESTS.put(id, payload);
+        LATEST_RECEIVED_MS.put(id, playbackClockMs());
         final Long previousGeneration = previousRequest == null ? null : previousRequest.audioGeneration();
         if (previousGeneration != null && previousGeneration.longValue() != payload.audioGeneration()) {
             BACKOFF.reset(id);
@@ -208,6 +215,13 @@ public final class BoomboxClientPlayback {
             SESSIONS.abandon(id, token);
             return;
         }
+        // 末尾の猶予帯は server が意図的に黙る (BoomboxHeartbeat.decide)。その沈黙を
+        // 「server が消えた」と client が誤解しないよう、曲の想定終端を anchor に登録する。
+        // 尺を持たないラジオ/ライブには終端が無いので登録しない (従来の途絶判定のまま)。
+        final long automaticDuration = track.radio() ? 0L : track.durationMs();
+        if (automaticDuration > 0L) {
+            live.armTailSilence(automaticDuration - startOffsetMs, BoomboxPlayback.TAIL_GRACE_MS);
+        }
         final DiscSoundInstance instance = new DiscSoundInstance(live, resolved,
                 Config.boomboxRange(), liveRequest.volumePercent(), null);
         // 携帯は指向性を持たない (設計上の決定「範囲を伸ばせず、指向性も持たない」)。
@@ -314,6 +328,7 @@ public final class BoomboxClientPlayback {
     public static void stop(long boomboxId) {
         com.kuronami.musicdiscmaker.network.BoomboxTrace.stop("client-stop-received", boomboxId);
         LATEST_REQUESTS.remove(boomboxId);
+        LATEST_RECEIVED_MS.remove(boomboxId);
         BACKOFF.reset(boomboxId);
         LIMIT_NOTICES.forget(boomboxId);
         teardown(boomboxId);
@@ -380,9 +395,45 @@ public final class BoomboxClientPlayback {
         SESSIONS.stopAll();
         PENDING.clear();
         LATEST_REQUESTS.clear();
+        LATEST_RECEIVED_MS.clear();
         BACKOFF.clear();
         LIMIT_NOTICES.forgetAll();
         ACTIVE.values().forEach(playing -> playing.instance().stopAndRelease());
         ACTIVE.clear();
+    }
+
+    /** SoundEngine 再読み込み後の stale channel を無効化し、再開処理を返す。 */
+    static Runnable prepareSoundReloadResume() {
+        final Set<Long> live = new HashSet<>(ACTIVE.keySet());
+        live.addAll(PENDING.keySet());
+        final Map<Long, BoomboxPlayPayload> requests = new HashMap<>();
+        final Map<Long, Long> received = new HashMap<>();
+        for (long id : live) {
+            final BoomboxPlayPayload payload = LATEST_REQUESTS.get(id);
+            if (payload != null) {
+                requests.put(id, payload);
+                received.put(id, LATEST_RECEIVED_MS.getOrDefault(id, playbackClockMs()));
+            }
+            teardown(id);
+        }
+        return () -> {
+            final long now = playbackClockMs();
+            requests.forEach((id, payload) -> {
+                final CustomTrackData track = payload.track();
+                final long offset = SoundReloadResume.offset(payload.startOffsetMs(), received.get(id), now,
+                        track.durationMs(), track.radio());
+                if (offset >= 0L) {
+                    play(new BoomboxPlayPayload(payload.boomboxId(), payload.ownerEntityId(), payload.pos(), track,
+                            offset, payload.audioGeneration(), payload.volumePercent()));
+                }
+            });
+        };
+    }
+
+    private static long playbackClockMs() {
+        final var server = Minecraft.getInstance().getSingleplayerServer();
+        return server instanceof com.kuronami.musicdiscmaker.component.PlaybackClockAccess clock
+                ? clock.mdm$playbackTimeMs()
+                : com.kuronami.musicdiscmaker.component.PauseAwarePlaybackClock.realTimeMs();
     }
 }

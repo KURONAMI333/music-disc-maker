@@ -1,6 +1,8 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import com.kuronami.musicdiscmaker.network.PlayVanillaDiscPayload;
 import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
@@ -110,5 +112,29 @@ public final class VanillaSpeakerPlayback {
         }
         VOICES.clear();
         ANCHORS.clear();
+    }
+
+    /** SoundEngine 再読み込み後の stale channel を無効化し、再開処理を返す。 */
+    static Runnable prepareSoundReloadResume() {
+        final long now = playbackClockMs();
+        final List<PlayVanillaDiscPayload> requests = new ArrayList<>();
+        for (Playing playing : VOICES.values()) {
+            final PlayVanillaDiscPayload payload = playing.payload();
+            final long offset = SoundReloadResume.offset(payload.startOffsetMs(), playing.receivedPlaybackMs(), now,
+                    payload.track().durationMs(), false);
+            if (offset >= 0L) {
+                requests.add(new PlayVanillaDiscPayload(payload.jukeboxPos(), payload.track(), offset,
+                        payload.rangeBlocks(), payload.volumePercent(), payload.directional(), payload.identity()));
+            }
+            try {
+                playing.voice().stopAndRelease();
+            } catch (RuntimeException failure) {
+                com.kuronami.musicdiscmaker.MusicDiscMaker.LOGGER.warn(
+                        "Could not release vanilla record voice after sound reload", failure);
+            }
+        }
+        VOICES.clear();
+        // ANCHORS describes the still-live speaker set in the world and is reused by play().
+        return () -> requests.forEach(VanillaSpeakerPlayback::play);
     }
 }

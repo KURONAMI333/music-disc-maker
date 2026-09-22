@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -20,7 +21,9 @@ final class FanoutAudioSource {
     private final List<Branch> branches = new ArrayList<>();
     private final long bytesPerSecond;
     private final int bytesPerFrame;
-    private final LongSupplier playbackClockMs;
+    /** sound engine thread 専用。OpenAL が現在再生している絶対 PCM byte 位置。 */
+    private LongSupplier nativePlaybackCursor;
+    private final CompletableFuture<Void> masterAttached = new CompletableFuture<>();
     private final byte[] ring;
     private boolean closed;
     private boolean ended;
@@ -29,15 +32,10 @@ final class FanoutAudioSource {
     private long producedCursor;
     /** Oldest absolute cursor still available from {@link #ring}. */
     private long floorCursor;
-    private long playbackStartedAtMs = -1L;
+    private boolean pcmStarted;
 
     FanoutAudioSource(IAudioSource upstream) {
-        this(upstream, System::currentTimeMillis);
-    }
-
-    FanoutAudioSource(IAudioSource upstream, LongSupplier playbackClockMs) {
         this.upstream = Objects.requireNonNull(upstream, "upstream");
-        this.playbackClockMs = Objects.requireNonNull(playbackClockMs, "playbackClockMs");
         bytesPerSecond = Math.max(1L, (long) upstream.sampleRate() * upstream.channels()
                 * Math.max(1, upstream.bitsPerSample() / 8));
         bytesPerFrame = Math.max(1, upstream.channels() * Math.max(1, upstream.bitsPerSample() / 8));
@@ -52,41 +50,34 @@ final class FanoutAudioSource {
         return openBranchAt(0L, true);
     }
 
+    /** 子の位置は worker で推定せず、native channel に接続する時に決める。 */
+    synchronized Branch openInitialBranch() { return openBranchAt(0L, false); }
+
+    synchronized Branch openLateBranch() { return openBranchAt(0L, false); }
+
+    /** PCM 供給開始の印。出音位置ではなく、共有 underrun padding の開始条件だけに使う。 */
+    synchronized void markPcmStarted() { pcmStarted = true; }
+
     /**
-     * 再生開始時から存在する branch。worker の初回 pull までに master が鳴り始めていた場合も、
-     * late branch と同じくその時点の再生位置へそろえる。
+     * Golden の {@link LavaPlayerAudioStream} が出力 queue を無音で埋めた分を共有時間軸へ足す。
+     *
+     * <p>OpenAL cursor はこの無音を含む。ここで ring と master cursor も同じ量だけ
+     * 進めないと、途中参加 Speaker の native cursor が {@link #producedCursor} を超える。
+     * 無音は decoder PCM ではないので、この処理は実 PCM 開始の印を変えない。
      */
-    synchronized Branch openInitialBranch() { return openBranchAt(0L, false, true); }
-
-    /** Opens a newly-linked speaker at the master's estimated audible position. */
-    synchronized Branch openLateBranch() {
-        // Placement only creates the voice. Its prebuffer worker may start later, so calculate the cursor at its
-        // first PCM pull rather than here; otherwise that preparation delay becomes an audible late-speaker echo.
-        return openBranchAt(0L, false, true);
+    private synchronized void shareOutputPadding(Branch branch, int count) {
+        if (count <= 0 || closed || branch.closed || !branch.master) return;
+        // LavaPlayerAudioStream が pad するのは branch.read が現在の先端で短く返った時だけ。
+        if (branch.cursor != producedCursor) return;
+        appendSilence(count);
+        branch.cursor += count;
     }
 
-    private void alignLateBranch(Branch branch) {
-        if (!branch.latePending) return;
-        branch.latePending = false;
-        if (playbackStartedAtMs < 0L) return;
-        final long elapsedBytes = Math.max(0L, bytesPerSecond
-                * Math.max(0L, playbackClockMs.getAsLong() - playbackStartedAtMs) / 1_000L);
-        final long audibleCursor = elapsedBytes - elapsedBytes % bytesPerFrame;
-        branch.cursor = Math.max(floorCursor, Math.min(producedCursor, audibleCursor));
-    }
-
-    /** Records when the Golden master first handed real PCM to SoundEngine (the audible-track epoch). */
-    synchronized void markPlaybackStarted(long clockMs) {
-        if (playbackStartedAtMs < 0L) playbackStartedAtMs = clockMs;
-    }
-
-    private Branch openBranchAt(long cursor, boolean master) { return openBranchAt(cursor, master, false); }
-
-    private Branch openBranchAt(long cursor, boolean master, boolean latePending) {
+    private Branch openBranchAt(long cursor, boolean master) {
         // Ended only means no more decoder bytes. The retained tail must remain playable for a speaker linked
         // during the Golden voice's native OpenAL queue, until every branch has actually released it.
         if (closed) throw new IllegalStateException("Cannot open a branch after the shared source closed");
-        final Branch branch = new Branch(cursor, master, latePending);
+        final Branch branch = new Branch(cursor, master);
         branches.add(branch);
         return branch;
     }
@@ -99,7 +90,7 @@ final class FanoutAudioSource {
 
     private synchronized int read(Branch branch, byte[] dst, int off, int len) {
         if (branch.closed || branch.desynchronised || len == 0) return branch.closed || branch.desynchronised ? -1 : 0;
-        alignLateBranch(branch);
+        branch.nativePending = false;
         int copied = 0;
         while (copied < len) {
             if (branch.cursor < floorCursor) { branch.desynchronise(); return copied > 0 ? copied : -1; }
@@ -116,7 +107,7 @@ final class FanoutAudioSource {
                 // short read before playback begins; cold prefill keeps its own 20ms retry behaviour. Once the
                 // Golden master is audible, write missing PCM once into the shared timeline so every positional
                 // voice advances over identical silence instead of inventing different local gaps.
-                if (filled == 0 && playbackStartedAtMs >= 0L) {
+                if (filled == 0 && pcmStarted) {
                     appendSilence(requested);
                 } else if (filled <= 0) {
                     break;
@@ -156,7 +147,7 @@ final class FanoutAudioSource {
         producedCursor += count;
         floorCursor = Math.max(0L, producedCursor - ring.length);
         for (Branch branch : List.copyOf(branches)) {
-            if (!branch.master && !branch.closed && branch.cursor < floorCursor) branch.desynchronise();
+            if (!branch.master && !branch.closed && !branch.nativePending && branch.cursor < floorCursor) branch.desynchronise();
         }
     }
 
@@ -176,6 +167,10 @@ final class FanoutAudioSource {
         if (branch.closed) return;
         branch.closed = true;
         branches.remove(branch);
+        if (branch.master) {
+            nativePlaybackCursor = null;
+            masterAttached.complete(null);
+        }
         if (branches.isEmpty() && !closed) { closed = true; upstream.close(); }
     }
 
@@ -184,12 +179,49 @@ final class FanoutAudioSource {
         private final boolean master;
         private boolean closed;
         private boolean desynchronised;
+        private boolean nativePending;
         private Consumer<PlaybackFault> faultSink;
         private Runnable desyncSink;
 
-        private boolean latePending;
-        private Branch(long cursor, boolean master, boolean latePending) {
-            this.cursor = cursor; this.master = master; this.latePending = latePending;
+        private Branch(long cursor, boolean master) {
+            this.cursor = cursor; this.master = master; this.nativePending = !master;
+        }
+        boolean isMaster() { return master; }
+        CompletableFuture<Void> masterAttached() { return masterAttached; }
+        void shareOutputPadding(int count) { FanoutAudioSource.this.shareOutputPadding(this, count); }
+
+        /** Sound engine thread の attachBufferStream でのみ呼ぶ。OpenAL を worker から読まない。 */
+        long attachNativePlayback(LongSupplier ownCursor) {
+            synchronized (FanoutAudioSource.this) {
+                if (master) {
+                    nativePlaybackCursor = ownCursor;
+                    masterAttached.complete(null);
+                    return 0L;
+                } else {
+                    nativePending = false;
+                    final long audible = nativePlaybackCursor == null ? -1L : nativePlaybackCursor.getAsLong();
+                    if (audible < floorCursor || audible > producedCursor) {
+                        desynchronise();
+                        return -1L;
+                    }
+                    cursor = audible - audible % bytesPerFrame;
+                }
+                return cursor;
+            }
+        }
+
+        /** attach 後の buffer 準備中にも master は進む。play 直前に native queue 内を補正する。 */
+        long playbackOffsetBytes(long queueStart, long queuedBytes) {
+            synchronized (FanoutAudioSource.this) {
+                if (master) return 0L;
+                final long audible = nativePlaybackCursor == null ? -1L : nativePlaybackCursor.getAsLong();
+                final long offset = audible - queueStart;
+                if (audible < 0L || offset < 0L || offset >= queuedBytes) {
+                    desynchronise();
+                    return -1L;
+                }
+                return offset - offset % bytesPerFrame;
+            }
         }
         @Override public int sampleRate() { return upstream.sampleRate(); }
         @Override public int channels() { return upstream.channels(); }

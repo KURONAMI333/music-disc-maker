@@ -7,12 +7,14 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 import com.kuronami.musicdiscmaker.block.BoomboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.AlbumContents;
+import com.kuronami.musicdiscmaker.component.AlbumStorageBudget;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.item.AlbumItem;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.item.OversizeMediaRecovery;
 import com.kuronami.musicdiscmaker.menu.AlbumMenu;
+import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.menu.BoomboxSource;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
@@ -36,7 +38,7 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     @GameTest(template = "empty8x3x8", timeoutTicks = 200)
     public static void albumRecoveryPreservesOrderAndSpawnFailurePreservesSource(GameTestHelper helper) {
         final FakePlayer player = player(helper);
-        final ItemStack album = album(0);
+        final ItemStack album = oversizedAlbum(0);
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
         helper.assertTrue(!AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
                 "legacy過大Album fixtureが初回同期拒否域に入っていない");
@@ -69,7 +71,7 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     public static void recoveryStaleCommitDiscardsSpawnedEntities(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         final ItemStack boombox = new ItemStack(ModItems.BOOMBOX.get());
-        BoomboxContents.store(boombox, new BoomboxContents(album(60), 2_103L));
+        BoomboxContents.store(boombox, new BoomboxContents(oversizedAlbum(60), 2_103L));
         final BoomboxContents before = BoomboxContents.of(boombox);
         player.setItemInHand(InteractionHand.MAIN_HAND, boombox);
         final List<ItemEntity> spawned = new ArrayList<>();
@@ -89,7 +91,7 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     @GameTest(template = "empty8x3x8", timeoutTicks = 200)
     public static void albumContentChangeDiscardsSpawnedEntities(GameTestHelper helper) {
         final FakePlayer player = player(helper);
-        final ItemStack album = album(70);
+        final ItemStack album = oversizedAlbum(70);
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
         final List<ItemEntity> spawned = new ArrayList<>();
         final AlbumContents replacement = new AlbumContents(List.of(disc(75)));
@@ -110,7 +112,8 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     public static void oversizedDiscAndPlacedBoomboxAreUntouched(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         final ItemStack oversizedAlbum = new ItemStack(ModItems.ALBUM.get());
-        final ItemStack oversizedDisc = disc(80, 256);
+        // 初回menu上限も、単体drop上限も超える1枚。前者未満では回収自体が不要になる。
+        final ItemStack oversizedDisc = discWithPadding(80, 1600 * 1024);
         AlbumItem.setContents(oversizedAlbum, new AlbumContents(List.of(oversizedDisc)));
         final AlbumContents albumBefore = AlbumItem.contents(oversizedAlbum);
         player.setItemInHand(InteractionHand.MAIN_HAND, oversizedAlbum);
@@ -123,7 +126,7 @@ public final class OversizeMediaRecoveryLegacyGameTests {
         helper.setBlock(relative, ModBlocks.BOOMBOX.get());
         final BoomboxBlockEntity be = (BoomboxBlockEntity) helper.getLevel().getBlockEntity(pos);
         final ItemStack stored = new ItemStack(ModItems.BOOMBOX.get());
-        BoomboxContents.store(stored, new BoomboxContents(album(90), 3_007L));
+        BoomboxContents.store(stored, new BoomboxContents(oversizedAlbum(90), 3_007L));
         final BoomboxContents storedBefore = BoomboxContents.of(stored);
         be.setStored(stored);
         player.setPos(pos.getX() + 20.5, pos.getY() + 0.5, pos.getZ() + 0.5);
@@ -144,7 +147,7 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     public static void boomboxAlbumRecoveryAndInventoryOnlyRejection(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         final ItemStack boombox = new ItemStack(ModItems.BOOMBOX.get());
-        BoomboxContents.store(boombox, new BoomboxContents(album(10), 901L));
+        BoomboxContents.store(boombox, new BoomboxContents(oversizedAlbum(10), 901L));
         player.setItemInHand(InteractionHand.MAIN_HAND, boombox);
         final OversizeMediaRecovery.Result result = OversizeMediaRecovery.recoverHeldBoombox(player, boombox);
         final ItemStack remaining = BoomboxContents.of(boombox).disc();
@@ -153,10 +156,36 @@ public final class OversizeMediaRecoveryLegacyGameTests {
         final ItemStack safeAlbum = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(safeAlbum, new AlbumContents(List.of(disc(30))));
         player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
-        player.getInventory().setItem(9, album(40));
+        final ItemStack blocker = oversizedAlbum(40);
+        player.getInventory().setItem(9, blocker);
         helper.assertTrue(OversizeMediaRecovery.recoverAlbum(player, safeAlbum)
                         == OversizeMediaRecovery.Result.NOT_SOURCE_TOO_LARGE && ordered(AlbumItem.contents(safeAlbum), 30),
                 "legacy他inventory起因で安全なAlbumをばらまいた");
+
+        final ItemStack emptyAlbum = new ItemStack(ModItems.ALBUM.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, emptyAlbum);
+        helper.assertTrue(OversizeMediaRecovery.recoverAlbum(player, emptyAlbum)
+                        == OversizeMediaRecovery.Result.NOTHING_TO_RECOVER,
+                "legacy空Albumで回収不要の結果を返さなかった");
+        final ItemStack emptyBoombox = new ItemStack(ModItems.BOOMBOX.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, emptyBoombox);
+        helper.assertTrue(OversizeMediaRecovery.recoverHeldBoombox(player, emptyBoombox)
+                        == OversizeMediaRecovery.Result.NOTHING_TO_RECOVER,
+                "legacy空Boomboxで回収不要の結果を返さなかった");
+
+        // このmenuに登録されないoffhandを大きくしても、媒体の初回同期を拒否してはならない。
+        player.getInventory().setItem(9, ItemStack.EMPTY);
+        player.getInventory().setItem(40, blocker);
+        player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
+        helper.assertFalse(legacyInitialSlotsFit(player.getInventory(), safeAlbum, AlbumItem.GUI_CAPACITY),
+                "legacy旧inventory全体集合がoffhandを同期対象としていないため回帰対照になっていない");
+        helper.assertTrue(AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "legacy menu外offhandの大きいitemで安全なAlbumの初回同期を拒否した");
+        player.setItemInHand(InteractionHand.MAIN_HAND, emptyBoombox);
+        helper.assertFalse(legacyInitialSlotsFit(player.getInventory(), emptyBoombox, 1),
+                "legacy旧Boombox集合がoffhandを同期対象としていないため回帰対照になっていない");
+        helper.assertTrue(BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "legacy menu外offhandの大きいitemで空Boomboxの初回同期を拒否した");
         helper.succeed();
     }
 
@@ -164,8 +193,8 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     public static void sourceCountChangeRollsBackRecovery(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         for (boolean machine : new boolean[] { false, true }) {
-            final ItemStack source = machine ? new ItemStack(ModItems.BOOMBOX.get()) : album(100);
-            if (machine) BoomboxContents.store(source, new BoomboxContents(album(110), 2_209L));
+            final ItemStack source = machine ? new ItemStack(ModItems.BOOMBOX.get()) : oversizedAlbum(100);
+            if (machine) BoomboxContents.store(source, new BoomboxContents(oversizedAlbum(110), 2_209L));
             final ItemStack before = source.copy();
             player.setItemInHand(InteractionHand.MAIN_HAND, source);
             final List<ItemEntity> spawned = new ArrayList<>();
@@ -198,7 +227,7 @@ public final class OversizeMediaRecoveryLegacyGameTests {
         helper.getLevel().removeBlockEntity(pos);
         helper.getLevel().setBlockEntity(be);
         final ItemStack source = new ItemStack(ModItems.BOOMBOX.get());
-        BoomboxContents.store(source, new BoomboxContents(album(110), 2_209L));
+        BoomboxContents.store(source, new BoomboxContents(oversizedAlbum(110), 2_209L));
         be.setStored(source);
         final ItemStack before = source.copy();
         final List<ItemEntity> spawned = new ArrayList<>();
@@ -248,11 +277,49 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     }
 
     private static ItemStack disc(int index, int sizeClass) {
+        return discWithPadding(index, sizeClass == 70 ? 300 * 1024 : 1100 * 1024);
+    }
+
+    /** 2枚を取り出すまで初回menu枠に収まらない既存媒体のfixture。各drop自体は1 MiB以内。 */
+    private static ItemStack oversizedAlbum(int first) {
+        final List<ItemStack> discs = new ArrayList<>();
+        for (int i = 0; i < 4; i++) discs.add(discWithPadding(first + i, 520 * 1024));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(discs));
+        return album;
+    }
+
+    private static ItemStack discWithPadding(int index, int paddingBytes) {
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         CustomMusicDiscItem.setTrack(disc, new CustomTrackData("https://example.invalid/" + index, "track-" + index, "test", 1_000L, "", false));
         // Extra item metadata exercises the synchronization limit without a multi-track disc.
-        disc.getOrCreateTag().putByteArray("fixture_padding", new byte[sizeClass == 70 ? 300 * 1024 : 1100 * 1024]);
+        disc.getOrCreateTag().putByteArray("fixture_padding", new byte[paddingBytes]);
         return disc;
+    }
+
+    /** 3.0.1までのgetContainerSize走査が構成していた初回slot集合。回帰用のみ。 */
+    private static boolean legacyInitialSlotsFit(net.minecraft.world.entity.player.Inventory inventory,
+            ItemStack heldSource, int internalSlots) {
+        final List<ItemStack> slots = new ArrayList<>(internalSlots + inventory.getContainerSize());
+        if (heldSource.is(ModItems.ALBUM.get())) {
+            final List<ItemStack> saved = AlbumItem.contents(heldSource).discs();
+            for (int i = 0; i < internalSlots; i++) slots.add(i < saved.size() ? saved.get(i).copy() : ItemStack.EMPTY);
+        } else {
+            for (int i = 0; i < internalSlots; i++) slots.add(ItemStack.EMPTY);
+        }
+        boolean sourceInInventory = false;
+        for (int i = 9; i < inventory.getContainerSize(); i++) {
+            final ItemStack stack = inventory.getItem(i);
+            slots.add(stack.copy());
+            sourceInInventory |= stack == heldSource;
+        }
+        for (int i = 0; i < 9; i++) {
+            final ItemStack stack = inventory.getItem(i);
+            slots.add(stack.copy());
+            sourceInInventory |= stack == heldSource;
+        }
+        if (!sourceInInventory) slots.add(heldSource.copy());
+        return AlbumStorageBudget.fitsInitialMenuSync(slots, ItemStack.EMPTY);
     }
 
     private static boolean ordered(AlbumContents contents, int... ids) {

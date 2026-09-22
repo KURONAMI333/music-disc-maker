@@ -98,7 +98,7 @@ public final class MdmGameTestRegistration {
         register(event, "oversize_recovery_stale_commit_rollback", OversizeMediaRecoveryGameTests::recoveryStaleCommitDiscardsSpawnedEntities, empty, 400);
         register(event, "oversize_single_disc_and_placed_guards", OversizeMediaRecoveryGameTests::oversizedDiscAndPlacedBoomboxAreUntouched, empty, 400);
         register(event, "oversize_album_recovery_order_and_rollback", OversizeMediaRecoveryGameTests::albumRecoveryPreservesOrderAndSpawnFailurePreservesSource, empty, 400);
-        register(event, "oversize_boombox_album_recovery_and_inventory_only", OversizeMediaRecoveryGameTests::boomboxAlbumRecoveryAndInventoryOnlyRejection, empty, 400);
+        register(event, "oversize_boombox_album_recovery_and_empty_media_noop", OversizeMediaRecoveryGameTests::boomboxAlbumRecoveryAndEmptyMediaNoop, empty, 400);
         register(event, "boombox_contents_legacy_defaults_roundtrip", BoomboxControlGameTests::legacyContentsDefaultAndExtendedStateRoundTrip, empty, 100);
         register(event, "boombox_menu_stores_and_takes_single_medium", BoomboxMenuGameTests::storesAndTakesSingleMedium, empty, 200);
         register(event, "boombox_menu_inserting_medium_starts_carried_and_placed",
@@ -106,11 +106,14 @@ public final class MdmGameTestRegistration {
         register(event, "boombox_main_hand_menu_sync", BoomboxHeldMenuSyncGameTests::mainHandOpenKeepsIdentityAcrossCursorUpdates, empty, 200);
         register(event, "boombox_stale_generation_recovery", BoomboxHeldMenuSyncGameTests::staleInitialGenerationIsRejectedThenCurrentAccepted, empty, 200);
         register(event, "boombox_menu_stale_and_reverse_swap_preserve_source", BoomboxMenuGameTests::staleAndReverseSwapPreserveSource, empty, 200);
-        register(event, "boombox_menu_initial_sync_keeps_existing_machine_untouched", BoomboxMenuGameTests::initialSyncKeepsExistingMachineUntouched, empty, 200);
+        register(event, "boombox_menu_initial_sync_budget", BoomboxMenuGameTests::initialSyncIgnoresPlayerInventoryButRejectsOversizedMedium, empty, 200);
         register(event, "boombox_menu_placed_source_and_storage_rejection_preserve_stacks", BoomboxMenuGameTests::placedSourceAndStorageRejectionPreserveStacks, empty, 200);
         register(event, "boombox_media_generation", BoomboxPlaybackStateGameTests::replacingMediaClearsPositionWithoutResettingGeneration, empty, 200);
         register(event, "boombox_sessionless_no_resume", BoomboxPlaybackStateGameTests::sessionlessPlayingStateDoesNotOfferImplicitResume, empty, 200);
         register(event, "boombox_carry_placed_lifecycle", BoomboxPlaybackStateGameTests::carriedPlacedStaleLifecycleKeepsCursorAndNeverAutoRestarts, empty, 200);
+        register(event, "boombox_creative_and_survival_removal_drops",
+                BoomboxPlaybackStateGameTests::creativeRemovalSuppressesDropAndSurvivalKeepsStoredMachine,
+                empty, 100);
         register(event, "boombox_creative_placement_identity_controls",
                 BoomboxPlaybackStateGameTests::creativePlacementTransfersPlaybackAndLeavesIndependentPausedCopy,
                 empty, 200);
@@ -135,7 +138,7 @@ public final class MdmGameTestRegistration {
         register(event, "playback_same_url_logical_position", PlaybackSessionGameTests::sameUrlAtAnotherLogicalPositionNeedsStopBeforePlay, empty, 100);
         register(event, "golden_navigation_menu_generation", GoldenNavigationGameTests::navigationRequiresOpenMenuAndCurrentGeneration, empty, 400);
         register(event, "album_menu_storage_decode_limit", AlbumMenuGameTests::storageDecodeLimitRejectsInsertionButKeepsExistingContents, empty, 400);
-        register(event, "album_menu_initial_sync_budget", AlbumMenuGameTests::initialMenuSyncRejectsUnsafeExistingAlbum, empty, 400);
+        register(event, "album_menu_initial_sync_budget", AlbumMenuGameTests::initialSyncIgnoresPlayerInventoryButRejectsOversizedContents, empty, 400);
         register(event, "codec_round_trip_keeps_disc_metadata", AlbumContentsGameTests::codecRoundTripKeepsDiscMetadata, empty, 100);
         register(event, "album_dyeing_keeps_metadata_and_contents",
                 AlbumDyeingGameTests::dyeingKeepsAlbumMetadataAndContents, empty, 100);

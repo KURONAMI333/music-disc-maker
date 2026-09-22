@@ -324,7 +324,7 @@ public final class AlbumMenuGameTests {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
-    public static void initialMenuSyncRejectsUnsafeExistingAlbum(GameTestHelper helper) {
+    public static void initialSyncIgnoresPlayerInventoryButRejectsOversizedContents(GameTestHelper helper) {
         final FakePlayer player = createPlayer(helper);
         final List<ItemStack> safeDiscs = new ArrayList<>();
         for (int i = 0; i < 9; i++) safeDiscs.add(longDisc(i, 1));
@@ -333,6 +333,55 @@ public final class AlbumMenuGameTests {
         player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
         helper.assertTrue(AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
                 "安全な既存Albumの初回menu同期を拒否した");
+
+        for (int i = 0; i < 3; i++) player.getInventory().setItem(9 + i, longDisc(5_000 + i, 6));
+        helper.assertTrue(AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "所持品の大きい盤だけで安全なAlbumの初回同期を拒否した");
+        final AlbumMenu splitMenu = new AlbumMenu(10, player.getInventory(),
+                BoomboxSource.held(InteractionHand.MAIN_HAND));
+        final InitialMenuSyncCapture capture = new InitialMenuSyncCapture();
+        splitMenu.setSynchronizer(capture);
+        helper.assertTrue(capture.initial.size() == splitMenu.slots.size()
+                        && capture.initial.subList(AlbumItem.GUI_CAPACITY, capture.initial.size()).stream()
+                                .allMatch(ItemStack::isEmpty),
+                "初回一括同期へplayer inventoryを残した");
+        for (int i = 0; i < 3; i++) {
+            final ItemStack expected = player.getInventory().getItem(9 + i);
+            helper.assertTrue(capture.slotChanges.stream().anyMatch(change -> ItemStack.matches(change.stack(), expected)),
+                    "分割したslot同期で大きい所持品を復元しなかった: " + i);
+        }
+        helper.assertTrue(ItemStack.matches(player.getItemInHand(InteractionHand.MAIN_HAND), safeAlbum),
+                "初回同期の分割がserver inventoryを変更した");
+
+        final ItemStack carried = longDisc(6_000, 6);
+        splitMenu.setCarried(carried);
+        capture.clearDeltas();
+        splitMenu.sendAllDataToRemote();
+        helper.assertTrue(capture.initialCalls == 2 && capture.initialCarried.isEmpty()
+                        && capture.initial.subList(AlbumItem.GUI_CAPACITY, capture.initial.size()).stream()
+                                .allMatch(ItemStack::isEmpty),
+                "強制再同期でplayer inventoryまたはcursorを一括packetへ戻した");
+        for (int i = 0; i < 3; i++) {
+            final ItemStack expected = player.getInventory().getItem(9 + i);
+            helper.assertTrue(capture.slotChanges.stream().anyMatch(change -> ItemStack.matches(change.stack(), expected)),
+                    "強制再同期後のslot分割で大きい所持品を復元しなかった: " + i);
+        }
+        helper.assertTrue(capture.carriedChanges.stream().anyMatch(stack -> ItemStack.matches(stack, carried))
+                        && ItemStack.matches(splitMenu.getCarried(), carried),
+                "強制再同期後のcursor分割が復元されないかserver値を変更した");
+
+        capture.clearDeltas();
+        splitMenu.broadcastChanges();
+        helper.assertTrue(capture.slotChanges.isEmpty() && capture.carriedChanges.isEmpty(),
+                "強制再同期後のremote snapshotが更新されず同じ差分を再送した");
+        final ItemStack changedSlot = disc(7_000);
+        final ItemStack changedCarried = disc(7_001);
+        player.getInventory().setItem(9, changedSlot);
+        splitMenu.setCarried(changedCarried);
+        splitMenu.broadcastChanges();
+        helper.assertTrue(capture.slotChanges.stream().anyMatch(change -> ItemStack.matches(change.stack(), changedSlot))
+                        && capture.carriedChanges.stream().anyMatch(stack -> ItemStack.matches(stack, changedCarried)),
+                "強制再同期後の次のslot/cursor差分を送信しなかった");
 
         final List<ItemStack> unsafeDiscs = new ArrayList<>();
         for (int i = 0; i < 9; i++) unsafeDiscs.add(longDisc(10_000 + i * 10, 6));

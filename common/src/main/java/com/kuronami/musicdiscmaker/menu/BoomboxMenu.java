@@ -70,6 +70,7 @@ public class BoomboxMenu extends AbstractContainerMenu {
     private long playbackStateReceivedMillis;
     private boolean playbackStateReady;
     private long lastStateSentMillis;
+    private boolean deferFullSyncValues;
 
     //? if >=1.21 {
     public BoomboxMenu(int containerId, Inventory playerInventory, RegistryFriendlyByteBuf buf) {
@@ -99,10 +100,13 @@ public class BoomboxMenu extends AbstractContainerMenu {
         loading = false;
         addSlot(new MediaSlot(contents, MEDIA_SLOT, MEDIA_SLOT_X, MEDIA_SLOT_Y));
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++)
-            addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 142 + row * 18));
+            addSlot(new DeferredInitialInventorySlot(playerInventory, col + row * 9 + 9, 8 + col * 18,
+                    142 + row * 18, () -> deferFullSyncValues));
         for (int col = 0; col < 9; col++) addSlot(col == sourceInventorySlot
-                ? new LockedSourceSlot(playerInventory, col, 8 + col * 18, 200)
-                : new Slot(playerInventory, col, 8 + col * 18, 200));
+                ? new LockedSourceSlot(playerInventory, col, 8 + col * 18, 200,
+                        () -> deferFullSyncValues)
+                : new DeferredInitialInventorySlot(playerInventory, col, 8 + col * 18, 200,
+                        () -> deferFullSyncValues));
         for (int i = PLAYER_SLOTS_START; i < slots.size(); i++) {
             final Slot slot = slots.get(i);
             if (slot.container == playerInventory && slot.getContainerSlot() == sourceInventorySlot) {
@@ -113,28 +117,40 @@ public class BoomboxMenu extends AbstractContainerMenu {
         if (authoritative && isOriginalMachine()) applyPlaybackState(BoomboxPlayback.stateOf(machine));
     }
 
-    /** 初回open packetが運ぶ内部枠・プレイヤー所持品36枠を実codecで検査する。 */
+    /** 初回の一括packetに残す媒体枠を実codecで検査する。player inventoryはslot単位へ分ける。 */
     public static boolean fitsInitialMenuSync(Inventory inventory, BoomboxSource source) {
         final Player player = inventory.player;
         final BoomboxBlockEntity placed = source.isPlaced()
                 && player.level().getBlockEntity(source.pos()) instanceof BoomboxBlockEntity be ? be : null;
         final ItemStack machine = resolveMachine(player, source, placed);
         if (!isBoombox(machine)) return false;
-        final List<ItemStack> initial = new ArrayList<>(38);
+        final List<ItemStack> initial = new ArrayList<>(1 + Inventory.INVENTORY_SIZE);
         initial.add(contentsOf(machine).disc().copy());
-        for (int i = 9; i < Inventory.INVENTORY_SIZE; i++) {
-            final ItemStack stack = inventory.getItem(i);
-            initial.add(stack.copy());
-        }
-        for (int i = 0; i < 9; i++) {
-            final ItemStack stack = inventory.getItem(i);
-            initial.add(stack.copy());
-        }
+        for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) initial.add(ItemStack.EMPTY);
         //? if >=1.21 {
         return AlbumStorageBudget.fitsInitialMenuSync(initial, ItemStack.EMPTY, player.level().registryAccess());
         //?} else {
         /*return AlbumStorageBudget.fitsInitialMenuSync(initial, ItemStack.EMPTY);
         *///?}
+    }
+
+    /** AlbumMenuと同じく、全full syncでplayer inventoryとcursorをslot単位packetへ分割する。 */
+    @Override public void sendAllDataToRemote() {
+        if (!authoritative) {
+            super.sendAllDataToRemote();
+            return;
+        }
+        deferFullSyncValues = true;
+        try {
+            super.sendAllDataToRemote();
+        } finally {
+            deferFullSyncValues = false;
+        }
+        super.broadcastChanges();
+    }
+
+    @Override public ItemStack getCarried() {
+        return deferFullSyncValues ? ItemStack.EMPTY : super.getCarried();
     }
 
     public BoomboxSource source() { return source; }
@@ -358,8 +374,11 @@ public class BoomboxMenu extends AbstractContainerMenu {
         @Override public int getMaxStackSize() { return 1; }
     }
 
-    private static final class LockedSourceSlot extends Slot {
-        LockedSourceSlot(Container container, int slot, int x, int y) { super(container, slot, x, y); }
+    private static final class LockedSourceSlot extends DeferredInitialInventorySlot {
+        LockedSourceSlot(Container container, int slot, int x, int y,
+                java.util.function.BooleanSupplier deferred) {
+            super(container, slot, x, y, deferred);
+        }
         @Override public boolean mayPlace(@NotNull ItemStack stack) { return false; }
         @Override public boolean mayPickup(Player player) { return false; }
     }

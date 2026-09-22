@@ -726,6 +726,9 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         */
         //?}
         this.stream = s;
+        // Speaker は共有 PCM ring から即時に読む。別 worker で先に cursor を固定すると、
+        // worker 待ち/queue 準備の時間が Golden とのずれとして残る。
+        if (s.isSynchronizedSpeaker()) return s.whenMasterAttached();
         //? if >=1.21 {
         final CompletableFuture<AudioStream> ready = new CompletableFuture<>();
         try {

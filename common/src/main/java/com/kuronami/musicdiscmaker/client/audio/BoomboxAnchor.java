@@ -37,6 +37,11 @@ public final class BoomboxAnchor implements DiscAnchor {
      * この時間 keep-alive が来なければ停止する (ms)。server の打刻切れ判定
      * ({@code BoomboxPlayback.STALE_MS} = 1.5 秒) より十分長く取る — こちらが先に切れると、
      * 一時的な遅延で鳴っているものを勝手に止めてしまう。
+     *
+     * <p><b>末尾の猶予帯は別扱い</b> ({@link BoomboxLiveness})。server は尺を使い切ったあと
+     * {@code BoomboxPlayback.TAIL_GRACE_MS} (8 秒) のあいだ意図的に payload を撃たないので、
+     * この値だけで判定すると猶予の 3 秒目で音が切れる。曲の想定終端の前後は
+     * {@link #armTailSilence} の窓がこの判定を延ばす。
      */
     public static final long TIMEOUT_MS = 3_000L;
 
@@ -52,6 +57,9 @@ public final class BoomboxAnchor implements DiscAnchor {
     private volatile Vec3 placed;
 
     private volatile long lastSeenMillis = playbackTimeMs();
+
+    /** 末尾の猶予帯で許す沈黙の窓。{@link BoomboxLiveness.TailSilence#NONE} = 従来の判定。 */
+    private volatile BoomboxLiveness.TailSilence tailSilence = BoomboxLiveness.TailSilence.NONE;
 
     private static long playbackTimeMs() {
         final var server = Minecraft.getInstance().getSingleplayerServer();
@@ -95,6 +103,19 @@ public final class BoomboxAnchor implements DiscAnchor {
     }
 
     /**
+     * この曲の想定終端を登録する = 末尾の猶予帯の沈黙を「server が消えた」と誤解しない。
+     *
+     * <p>尺を持たないラジオ/ライブでは呼ばない (終端が無いので窓を作れない)。
+     *
+     * @param remainingMillis いまから曲が終わるまでの想定 (尺 − 開始 offset)
+     * @param tailGraceMillis server が終端後も黙って待つ長さ
+     */
+    public void armTailSilence(long remainingMillis, long tailGraceMillis) {
+        this.tailSilence = BoomboxLiveness.tailSilence(playbackTimeMs() + Math.max(0L, remainingMillis),
+                tailGraceMillis);
+    }
+
+    /**
      * いま追従している entity の id。設置なら負。
      *
      * @return entity id、または負 (設置)
@@ -135,7 +156,7 @@ public final class BoomboxAnchor implements DiscAnchor {
 
     @Override
     public boolean isValid() {
-        if (playbackTimeMs() - lastSeenMillis > TIMEOUT_MS) {
+        if (!BoomboxLiveness.isAlive(playbackTimeMs(), lastSeenMillis, TIMEOUT_MS, tailSilence)) {
             return false;
         }
         final EntityAnchor following = carrier;

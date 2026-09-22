@@ -95,6 +95,11 @@ public final class ClientPlaybackManager {
     private final PlaybackSessions<BlockPos> sessions =
             new PlaybackSessions<>(System::currentTimeMillis, MONOTONIC_MS);
 
+    /** world 音源ごとの最新 server 要求。SoundEngine 差し替え時に同じ曲を開き直すためだけに保持する。 */
+    private record ReloadRequest(CustomTrackData track, long startOffsetMs, int rangeBlocks,
+            int volumePercent, boolean directional, long receivedPlaybackMs) {}
+    private final Map<BlockPos, ReloadRequest> reloadRequests = new HashMap<>();
+
     /** Golden音源位置ごとの固定speaker集合。値は進行中の音声インスタンスにも共有される。 */
     private final Map<BlockPos, MultiSpeakerAnchor> speakerAnchors = new HashMap<>();
 
@@ -155,6 +160,8 @@ public final class ClientPlaybackManager {
             return;
         }
         final BlockPos key = pos.immutable();
+        reloadRequests.put(key, new ReloadRequest(track, startOffsetMs, rangeBlocks, volumePercent,
+                directional, playbackClockMs()));
         final PlaybackSessions.StartDecision decision =
                 sessions.start(key, track, startOffsetMs, rangeBlocks, volumePercent, directional);
         if (!decision.load()) {
@@ -425,7 +432,7 @@ public final class ClientPlaybackManager {
         final DiscAnchor anchor = sourceAnchor;
         final int initialRange = anchor instanceof LiveAudioConfig audioConfig ? audioConfig.rangeBlocks() : rangeBlocks;
         final int initialVolume = anchor instanceof LiveAudioConfig audioConfig ? audioConfig.volumePercent() : volumePercent;
-        final FanoutAudioSource fanout = new FanoutAudioSource(resolved, ClientPlaybackManager::playbackClockMs);
+        final FanoutAudioSource fanout = new FanoutAudioSource(resolved);
         final DiscSoundInstance instance = new DiscSoundInstance(anchor,
                 fanout.openMasterBranch(), initialRange, initialVolume, endCb);
         // ストリーム終端の pull 経路も同じ届け先へ繋ぐ。push を持つソースでは重複しうるが、
@@ -439,7 +446,7 @@ public final class ClientPlaybackManager {
         // 実音が鳴り始めた (最初の実 PCM) 瞬間に、進捗表示のアンカーを実音の開始へ打ち直す。
         // 1 再生につき 1 回は noteFirstAudio の世代ガードが保証する。打ち直しは main thread で行う。
         instance.setFirstAudioSink(() -> {
-            fanout.markPlaybackStarted(playbackClockMs());
+            fanout.markPcmStarted();
             Minecraft.getInstance().execute(() -> {
             if (sessions.noteFirstAudio(key, token)) {
                 reanchorClientElapsed(key, startOffsetMs);
@@ -453,7 +460,7 @@ public final class ClientPlaybackManager {
 /*        instance.setTiming(timing);
          final String desc = nowPlayingText(track);
          instance.setFirstAudioSink(() -> {
-             fanout.markPlaybackStarted(playbackClockMs());
+             fanout.markPcmStarted();
              Minecraft.getInstance().execute(() -> onFirstAudio(key, token, desc, startOffsetMs));
          });
         */
@@ -462,7 +469,7 @@ public final class ClientPlaybackManager {
         // 実音が鳴り始めた (最初の実 PCM) 瞬間に、進捗表示のアンカーを実音の開始へ打ち直す。
         // 1 再生につき 1 回は noteFirstAudio の世代ガードが保証する。打ち直しは main thread で行う。
          instance.setFirstAudioSink(() -> {
-             fanout.markPlaybackStarted(playbackClockMs());
+             fanout.markPcmStarted();
              Minecraft.getInstance().execute(() -> {
                  if (sessions.noteFirstAudio(key, token)) {
                      reanchorClientElapsed(key, startOffsetMs);
@@ -799,6 +806,7 @@ public final class ClientPlaybackManager {
         //?} else {
         //?}
         sessions.stop(key);
+        reloadRequests.remove(key);
         speakerAnchors.remove(key);
         failures.clear(key);
     }
@@ -814,11 +822,33 @@ public final class ClientPlaybackManager {
         //?} else {
         //?}
         sessions.stopAll();
+        reloadRequests.clear();
         speakerAnchors.clear();
         // ブームボックスは別の鍵空間で鳴っているので、ここで一緒に畳まないとワールドを出た後も残る。
         BoomboxClientPlayback.stopAll();
         VanillaSpeakerPlayback.stopAll();
         failures.clearAll();
+    }
+
+    /**
+     * resource 再読み込みで OpenAL channel を失った voice を無効化し、再開処理を返す。
+     * world の再生自体は止まっていないため、Speaker anchor と音源所有権は保持する。
+     */
+    Runnable prepareSoundReloadResume() {
+        final Map<BlockPos, ReloadRequest> snapshot = Map.copyOf(reloadRequests);
+        reloadRequests.clear();
+        sessions.stopAll();
+        return () -> {
+            final long now = playbackClockMs();
+            snapshot.forEach((pos, request) -> {
+                final long offset = SoundReloadResume.offset(request.startOffsetMs(), request.receivedPlaybackMs(),
+                        now, request.track().durationMs(), request.track().radio());
+                if (offset >= 0L) {
+                    startPlayback(pos, request.track(), offset, request.rangeBlocks(), request.volumePercent(),
+                            request.directional());
+                }
+            });
+        };
     }
 
     // --- B5 (混在アルバムの先読み) ------------------------------------------------------------

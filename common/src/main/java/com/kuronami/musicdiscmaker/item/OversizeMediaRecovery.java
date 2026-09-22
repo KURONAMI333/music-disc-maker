@@ -73,12 +73,8 @@ public final class OversizeMediaRecovery {
         if (hand == null) return Result.STALE_SOURCE;
         closeMediaMenu(player);
         final RegistryAccess registries = registryAccess((ServerLevel) player.level());
-        // 空Album自体は初回menu同期の原因になれない。ここで先に NOTHING を返すと、
-        // 他の所持品が大きくて開けない場合にも取るべき行動を案内できなくなる。
-        if (AlbumItem.contents(album).isEmpty()) {
-            return AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(hand))
-                    ? Result.NOTHING_TO_RECOVER : Result.NOT_SOURCE_TOO_LARGE;
-        }
+        // 初回同期はAlbumの内部枠だけを測る。空Albumには取り出すべき媒体がない。
+        if (AlbumItem.contents(album).isEmpty()) return Result.NOTHING_TO_RECOVER;
         if (albumCleanSyncFits(album, registries)) return Result.NOT_SOURCE_TOO_LARGE;
         final AlbumPlan plan = albumPlan(album, registries);
         if (plan == null) return noAlbumPlanResult(AlbumItem.contents(album), registries);
@@ -110,12 +106,8 @@ public final class OversizeMediaRecovery {
         final RegistryAccess registries = registryAccess((ServerLevel) player.level());
         final BoomboxContents before = contentsOf(boombox);
         final ItemStack original = boombox.copy();
-        // 空Boomboxも同様に媒体側ではなく、初回menuへ含まれる他の所持品だけが
-        // 拒否理由になり得る。sneak-useではその理由を優先して返す。
-        if (before.disc().isEmpty()) {
-            return BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(hand))
-                    ? Result.NOTHING_TO_RECOVER : Result.NOT_SOURCE_TOO_LARGE;
-        }
+        // 初回同期はBoomboxの媒体枠だけを測る。空の媒体枠には回収対象がない。
+        if (before.disc().isEmpty()) return Result.NOTHING_TO_RECOVER;
         if (boomboxCleanSyncFits(boombox, registries)) return Result.NOT_SOURCE_TOO_LARGE;
         final BoomboxPlan plan = boomboxPlan(boombox, before, registries);
         if (plan == null) return noMediumPlanResult(before.disc(), registries);
@@ -217,15 +209,14 @@ public final class OversizeMediaRecovery {
     }
 
     private static boolean albumCleanSyncFits(ItemStack album, RegistryAccess registries) {
-        final List<ItemStack> minimal = new ArrayList<>(AlbumItem.GUI_CAPACITY + 1);
+        final List<ItemStack> minimal = new ArrayList<>(AlbumItem.GUI_CAPACITY);
         final List<ItemStack> discs = AlbumItem.contents(album).discs();
         for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) minimal.add(i < discs.size() ? discs.get(i) : ItemStack.EMPTY);
-        minimal.add(album.copy());
         return fitsInitial(minimal, registries);
     }
 
     private static boolean boomboxCleanSyncFits(ItemStack boombox, RegistryAccess registries) {
-        return fitsInitial(List.of(contentsOf(boombox).disc().copy(), boombox.copy()), registries);
+        return fitsInitial(List.of(contentsOf(boombox).disc().copy()), registries);
     }
 
     private static Result noAlbumPlanResult(AlbumContents contents, RegistryAccess registries) {

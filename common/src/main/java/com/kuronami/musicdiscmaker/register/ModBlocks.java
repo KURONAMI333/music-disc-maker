@@ -64,21 +64,26 @@ public final class ModBlocks {
                     /*() -> new DiscDyeingTableBlock(BlockBehaviour.Properties.copy(Blocks.JUKEBOX)));
                     *///?}
 
-    // 置いたブームボックス。硬さ・素材は他の 3 ブロックと揃えて jukebox 準拠 (本体は鉄だが、
-    // 中身がバニラのジュークボックスなのでレシピと同じ理屈で揃う)。
+    // 置いたブームボックス。適正ツールを持たせず、素手を含む全ての道具で同じ速さにする。
+    // バニラの作業台を木の斧で壊す速度 (hardness 2.5 / tool speed 2 / correct-tool divisor 30)
+    // と揃えるため、適正ツール不要 (hasCorrectToolForDrops=true) の divisor 30 に合わせて
+    // hardness を 1.25 にする。mineable タグを持たないため、道具速度はすべて 1 になる。
     // noOcclusion は必須。3D モデルは 16x14x7 で立方体ではないので、jukebox からコピーした
     // canOcclude=true のままだと箱の下に立方体ぶんの影が落ち、頭が中に入ると画面が暗転する。
     //? if >=1.21.2 {
     public static final RegistryHolder<BoomboxBlock> BOOMBOX =
-            BLOCKS.register("boombox", () -> new BoomboxBlock(props("boombox").noOcclusion()));
+            BLOCKS.register("boombox", () -> new BoomboxBlock(props("boombox")
+                    .strength(1.25F).noOcclusion()));
     //?} elif >=1.21 {
     /*public static final RegistryHolder<BoomboxBlock> BOOMBOX =
             BLOCKS.register("boombox",
-                    () -> new BoomboxBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX).noOcclusion()));
+                    () -> new BoomboxBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX)
+                            .strength(1.25F).noOcclusion()));
     *///?} else {
     /*public static final RegistryHolder<BoomboxBlock> BOOMBOX =
             BLOCKS.register("boombox",
-                    () -> new BoomboxBlock(BlockBehaviour.Properties.copy(Blocks.JUKEBOX).noOcclusion()));
+                    () -> new BoomboxBlock(BlockBehaviour.Properties.copy(Blocks.JUKEBOX)
+                            .strength(1.25F).noOcclusion()));
     *///?}
 
     // ディスクを飾る台座。noOcclusion は必須 (土台 + 柱 + 天板で立方体ではないので、

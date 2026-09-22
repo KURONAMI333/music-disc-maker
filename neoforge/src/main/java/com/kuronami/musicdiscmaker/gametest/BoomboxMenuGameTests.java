@@ -1,8 +1,10 @@
 package com.kuronami.musicdiscmaker.gametest;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
+import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
@@ -230,7 +232,7 @@ public final class BoomboxMenuGameTests {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
-    public static void initialSyncKeepsExistingMachineUntouched(GameTestHelper helper) {
+    public static void initialSyncIgnoresPlayerInventoryButRejectsOversizedMedium(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         final ItemStack safe = new ItemStack(ModItems.BOOMBOX.get());
         safe.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(disc(4), 46L));
@@ -238,6 +240,60 @@ public final class BoomboxMenuGameTests {
         helper.assertTrue(BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND))
                         && "track-4".equals(contents(safe).disc().get(ModDataComponents.CUSTOM_TRACK.get()).title()),
                 "安全な初回同期を拒否したか既存媒体を変えた");
+
+        for (int i = 0; i < 3; i++) player.getInventory().setItem(9 + i, oversizedDisc());
+        helper.assertTrue(BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "所持品の大きい盤だけで安全なBoomboxの初回同期を拒否した");
+        final BoomboxMenu splitMenu = new BoomboxMenu(208, player.getInventory(),
+                BoomboxSource.held(InteractionHand.MAIN_HAND));
+        final InitialMenuSyncCapture capture = new InitialMenuSyncCapture();
+        splitMenu.setSynchronizer(capture);
+        helper.assertTrue(capture.initial.size() == splitMenu.slots.size()
+                        && capture.initial.subList(1, capture.initial.size()).stream().allMatch(ItemStack::isEmpty),
+                "Boombox初回一括同期へplayer inventoryを残した");
+        for (int i = 0; i < 3; i++) {
+            final ItemStack expected = player.getInventory().getItem(9 + i);
+            helper.assertTrue(capture.slotChanges.stream().anyMatch(change -> ItemStack.matches(change.stack(), expected)),
+                    "Boomboxの分割slot同期で大きい所持品を復元しなかった: " + i);
+        }
+        helper.assertTrue(ItemStack.matches(player.getItemInHand(InteractionHand.MAIN_HAND), safe),
+                "Boombox初回同期の分割がserver inventoryを変更した");
+
+        final ItemStack carried = oversizedDisc();
+        splitMenu.setCarried(carried);
+        capture.clearDeltas();
+        splitMenu.sendAllDataToRemote();
+        helper.assertTrue(capture.initialCalls == 2 && capture.initialCarried.isEmpty()
+                        && capture.initial.subList(1, capture.initial.size()).stream().allMatch(ItemStack::isEmpty),
+                "Boombox強制再同期でplayer inventoryまたはcursorを一括packetへ戻した");
+        for (int i = 0; i < 3; i++) {
+            final ItemStack expected = player.getInventory().getItem(9 + i);
+            helper.assertTrue(capture.slotChanges.stream().anyMatch(change -> ItemStack.matches(change.stack(), expected)),
+                    "Boombox強制再同期後のslot分割で大きい所持品を復元しなかった: " + i);
+        }
+        helper.assertTrue(capture.carriedChanges.stream().anyMatch(stack -> ItemStack.matches(stack, carried))
+                        && ItemStack.matches(splitMenu.getCarried(), carried),
+                "Boombox強制再同期後のcursor分割が復元されないかserver値を変更した");
+
+        capture.clearDeltas();
+        splitMenu.broadcastChanges();
+        helper.assertTrue(capture.slotChanges.isEmpty() && capture.carriedChanges.isEmpty(),
+                "Boombox強制再同期後のremote snapshotが更新されず同じ差分を再送した");
+        final ItemStack changedSlot = disc(7_000);
+        final ItemStack changedCarried = disc(7_001);
+        player.getInventory().setItem(9, changedSlot);
+        splitMenu.setCarried(changedCarried);
+        splitMenu.broadcastChanges();
+        helper.assertTrue(capture.slotChanges.stream().anyMatch(change -> ItemStack.matches(change.stack(), changedSlot))
+                        && capture.carriedChanges.stream().anyMatch(stack -> ItemStack.matches(stack, changedCarried)),
+                "Boombox強制再同期後の次のslot/cursor差分を送信しなかった");
+
+        final ItemStack oversizedAlbum = new ItemStack(ModItems.ALBUM.get());
+        oversizedAlbum.set(ModDataComponents.ALBUM_CONTENTS.get(),
+                new AlbumContents(List.of(oversizedDisc(), oversizedDisc())));
+        safe.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(oversizedAlbum, 47L));
+        helper.assertTrue(!BoomboxMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND)),
+                "媒体の中身が初回同期上限を越えたBoomboxを許可した");
         helper.succeed();
     }
 
