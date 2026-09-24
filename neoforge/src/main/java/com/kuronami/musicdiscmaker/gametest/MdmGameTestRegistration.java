@@ -71,6 +71,7 @@ public final class MdmGameTestRegistration {
                 empty, 100);
         register(event, "golden_config_update_packet", GoldenPlaybackStateGameTests::configurationSurvivesUpdatePacket, empty, 100);
         register(event, "clear_content_stops_playback", GoldenPlaybackStateGameTests::clearContentStopsPlayback, empty, 100);
+        register(event, "breaking_golden_stops_playback", GoldenPlaybackStateGameTests::breakingGoldenStopsPlayback, empty, 100);
         register(event, "album_end_restarts_with_one_resume",
                 GoldenPlaybackStateGameTests::albumEndRestartsWithOneResume, empty, 100);
         register(event, "stopped_album_stays_stopped_after_reload",

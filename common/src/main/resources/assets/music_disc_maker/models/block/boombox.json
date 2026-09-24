@@ -1,3 +1,7 @@
 {
-  "parent": "music_disc_maker:item/boombox_body"
+  "parent": "music_disc_maker:item/boombox_body",
+  "textures": {
+    "0": "music_disc_maker:block/boombox_3d",
+    "particle": "music_disc_maker:block/boombox_3d"
+  }
 }

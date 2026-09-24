@@ -212,6 +212,34 @@ public final class GoldenPlaybackStateGameTests {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
+    public static void breakingGoldenStopsPlayback(GameTestHelper helper) {
+        final var be = jukebox(helper);
+        be.setItem(0, album(helper));
+        helper.assertTrue(be.isVanillaPlaying(), "golden jukebox did not start before removal");
+        final var playing = be.playbackIdentity();
+        final var captured = new CapturingNetwork();
+        final var previous = com.kuronami.musicdiscmaker.platform.Services.swapNetwork(captured);
+        try {
+            helper.setBlock(POS, net.minecraft.world.level.block.Blocks.AIR);
+        } finally {
+            com.kuronami.musicdiscmaker.platform.Services.swapNetwork(previous);
+        }
+        helper.assertTrue(be.isStopped(), "breaking golden jukebox left playback running");
+        helper.assertTrue(!be.isVanillaPlaying(), "breaking golden jukebox left vanilla song active");
+        helper.assertTrue(captured.of(com.kuronami.musicdiscmaker.network.StopDiscPayload.class).stream()
+                        .anyMatch(sent -> sent.kind().equals("chunk")
+                                && sent.payload() instanceof com.kuronami.musicdiscmaker.network.StopDiscPayload stop
+                                && stop.jukeboxPos().equals(be.getBlockPos())
+                                && stop.identity().sourceId().equals(playing.sourceId())
+                                && stop.identity().generation() >= playing.generation()),
+                "breaking golden jukebox did not broadcast a current stop packet");
+        helper.succeed();
+    }
+
+    //? if <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void albumEndRestartsWithOneResume(GameTestHelper helper) {
         final var be = jukebox(helper);
         be.setItem(0, album(helper));

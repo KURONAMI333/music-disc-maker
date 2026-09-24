@@ -1693,7 +1693,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 /*    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         final CompoundTag invTag = new CompoundTag();
-        ContainerHelper.saveAllItems(invTag, items, registries);
+        SafeItemSaver.saveAllItems(invTag, items, registries);
         tag.put("inventory", invTag);
         if (sourceId != null) tag.putString("source_id", sourceId.toString());
         tag.putInt("range", rangeBlocks);

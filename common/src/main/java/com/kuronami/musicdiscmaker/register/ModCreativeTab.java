@@ -17,10 +17,11 @@ public final class ModCreativeTab {
     public static final RegistrationProvider<CreativeModeTab> TABS =
             RegistrationProvider.get(Registries.CREATIVE_MODE_TAB, MusicDiscMaker.MODID);
 
-    // 26.2 は CreativeModeTab.Output が protected になり、displayItems generator を common
+    // 1.21.2+ は CreativeModeTab.Output が protected になり、displayItems generator を common
     // (vanilla classpath) で書けない。tab の identity (title/icon) のみ common で作り、中身は各ローダー
     // のタブ内容イベント (NeoForge=BuildCreativeModeTabContentsEvent / Fabric=ItemGroupEvents) で
-    // {@link #TAB_ITEMS} を流し込む。
+    // {@link #TAB_ITEMS} を流し込む。1.21.1 / 1.20.1 は下の displayItems generator がそのまま効く
+    // (loader イベントで二重に流さない)。
     public static final RegistryHolder<CreativeModeTab> MAIN =
             TABS.register("main", () -> CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
                     .title(Component.translatable("itemGroup.music_disc_maker"))
@@ -30,7 +31,7 @@ public final class ModCreativeTab {
                         return icon;
                     })
                     //? if >=1.21.2 {
-                    //?} elif >=1.21 {
+                    //?} else {
                     /*.displayItems((params, output) -> {
                         output.accept(ModItems.MUSIC_DISC_MAKER.get());
                         output.accept(ModItems.BLANK_DISC.get());
@@ -41,8 +42,7 @@ public final class ModCreativeTab {
                         output.accept(ModItems.ALBUM.get());
                         output.accept(ModItems.BOOMBOX.get());
                     })
-                    *///?} else {
-                    //?}
+                    *///?}
                     .build());
     //? if >=1.21.2 {
 
@@ -50,12 +50,7 @@ public final class ModCreativeTab {
     public static final java.util.List<RegistryHolder<? extends net.minecraft.world.item.Item>> TAB_ITEMS =
             java.util.List.of(ModItems.MUSIC_DISC_MAKER, ModItems.BLANK_DISC, ModItems.GOLDEN_JUKEBOX,
                     ModItems.DISC_DYEING_TABLE, ModItems.DISC_PEDESTAL, ModItems.SPEAKER, ModItems.ALBUM, ModItems.BOOMBOX);
-    //?} elif >=1.21 {
-    //?} else {
-    /*public static final java.util.List<RegistryHolder<? extends net.minecraft.world.item.Item>> TAB_ITEMS =
-            java.util.List.of(ModItems.MUSIC_DISC_MAKER, ModItems.BLANK_DISC, ModItems.GOLDEN_JUKEBOX,
-                    ModItems.DISC_DYEING_TABLE, ModItems.DISC_PEDESTAL, ModItems.SPEAKER, ModItems.ALBUM, ModItems.BOOMBOX);
-    *///?}
+    //?}
 
     private ModCreativeTab() {
     }

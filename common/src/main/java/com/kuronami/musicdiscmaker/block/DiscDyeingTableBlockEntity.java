@@ -173,7 +173,7 @@ public class DiscDyeingTableBlockEntity extends BlockEntity implements WorldlyCo
     /*protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         final CompoundTag invTag = new CompoundTag();
-        ContainerHelper.saveAllItems(invTag, items, registries);
+        SafeItemSaver.saveAllItems(invTag, items, registries);
         tag.put("inventory", invTag);
     *///?} else {
     /*protected void saveAdditional(CompoundTag tag) {

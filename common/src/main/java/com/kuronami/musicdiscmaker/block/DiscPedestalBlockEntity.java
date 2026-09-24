@@ -237,7 +237,7 @@ public class DiscPedestalBlockEntity extends BlockEntity {
     /*protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         final CompoundTag pedestalTag = new CompoundTag();
-        ContainerHelper.saveAllItems(pedestalTag, stored, registries);
+        SafeItemSaver.saveAllItems(pedestalTag, stored, registries);
         tag.put("pedestal", pedestalTag);
     }
     *///?} else {

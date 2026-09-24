@@ -32,9 +32,8 @@ public class MusicDiscMakerForge {
         // SimpleChannel に payload を登録する。
         ForgeNetwork.register();
 
-        // creative タブ内容: common の ModCreativeTab は tab の identity だけを作り、
-        // 中身は各ローダーが TAB_ITEMS から流す (26.2 / 1.21.11 の entry と同じ形)。
-        modEventBus.addListener(this::onBuildCreativeTab);
+        // creative タブ内容: 1.20.1 は common の displayItems generator が流し込む。
+        // ここで BuildCreativeModeTabContentsEvent でも TAB_ITEMS を足すと generator 分と重複する。
 
         // Sophisticated Core 互換: ロードされていれば custom disc を SB の Jukebox Upgrade で使える IDiscHandler を登録。
         modEventBus.addListener(this::onCommonSetup);
@@ -43,15 +42,6 @@ public class MusicDiscMakerForge {
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ForgeConfigHelper.SPEC);
 
         MusicDiscMaker.LOGGER.info("Music Disc Maker (Forge) initialized");
-    }
-
-    private void onBuildCreativeTab(net.minecraftforge.event.BuildCreativeModeTabContentsEvent event) {
-        if (!event.getTabKey().location().equals(
-                com.kuronami.musicdiscmaker.register.ModCreativeTab.MAIN.getId())) {
-            return;
-        }
-        com.kuronami.musicdiscmaker.register.ModCreativeTab.TAB_ITEMS
-                .forEach(holder -> event.accept(holder.get()));
     }
 
     private void onCommonSetup(net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent event) {
