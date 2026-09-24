@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.0.5
+
+A bug-fix update for disc colors, playback recovery, and saved device contents.
+
+- Fixed a rare Minecraft 1.21.1 case where an invalid third-party disc could prevent the other contents of a Golden Jukebox, Boombox, Disc Pedestal, Disc Dyeing Table, or Music Disc Maker from being saved.
+- Fixed custom disc accent colors turning pale gray after an explicit dye choice.
+- Fixed playback failing to resume after leaving and returning to a loaded chunk on Fabric 1.20.1.
+- Fixed the placed Boombox model using a missing texture on some versions.
+- Removed duplicate Music Disc Maker entries from the Forge 1.20.1 Creative tab.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 ## 3.0.4
 
 A bug-fix update for Albums, Boomboxes, Golden Jukeboxes, Speakers, and Disc Pedestals.
