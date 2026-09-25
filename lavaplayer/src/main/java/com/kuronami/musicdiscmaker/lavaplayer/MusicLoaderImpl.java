@@ -267,8 +267,12 @@ public class MusicLoaderImpl implements IMusicLoader {
             throw ex;
         }
         final AudioTrackInfo info = track.getInfo();
-        final String[] cleaned = MetadataCleaner.clean(info.title, info.author);
-        return new TrackInfo(cleaned[0], cleaned[1], info.length, info.uri, info.identifier,
+        final String normalized = normalizeYoutubeUrl(url);
+        final YoutubeWatchPage.Result watch = isNormalizedWatchUrl(normalized) && isTopicAuthor(info.author)
+                ? YoutubeWatchPage.fetch(normalized, WATCH_PAGE_TIMEOUT_MS)
+                : YoutubeWatchPage.Result.EMPTY;
+        final SourceMetadata source = sourceMetadata(info.title, info.author, watch);
+        return new TrackInfo(source.displayTitle(), source.displayAuthor(), info.length, info.uri, info.identifier,
                 info.isStream, safe(info.artworkUrl));
     }
 
@@ -310,7 +314,8 @@ public class MusicLoaderImpl implements IMusicLoader {
                 // og タグの曲名とアーティストは既に分かれているので、MetadataCleaner の
                 // 「Artist - Song」分割をかけない (Spotify の "Song - Remastered 2011" が壊れる)。
                 // Spotify の URL には watch ページが無いので、尺は分からないまま探す。
-                final TrackInfo substitute = substitute(meta[0], meta[0], meta[1], spotifyUrl, null,
+                final TrackInfo substitute = substitute(meta[0], meta[0], meta[1], meta[0], meta[1],
+                        spotifyUrl, null, null,
                         System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS);
                 if (substitute != null) {
                     return substitute;
@@ -385,8 +390,14 @@ public class MusicLoaderImpl implements IMusicLoader {
                     normalizedUrl, reason);
             return null;
         }
-        final String[] want = MetadataCleaner.clean(meta[0], meta[1]);
-        return substitute(meta[0], want[0], want[1], normalizedUrl, normalizedUrl, deadline);
+        final YoutubeWatchPage.Result watch = isTopicAuthor(meta[1])
+                ? YoutubeWatchPage.fetch(normalizedUrl,
+                        Math.min(WATCH_PAGE_TIMEOUT_MS, deadline - System.currentTimeMillis()))
+                : YoutubeWatchPage.Result.EMPTY;
+        final SourceMetadata source = sourceMetadata(meta[0], meta[1], watch);
+        return substitute(meta[0], source.searchTitle(), source.searchAuthor(),
+                source.displayTitle(), source.displayAuthor(), normalizedUrl, normalizedUrl,
+                isTopicAuthor(meta[1]) ? watch : null, deadline);
     }
 
     /**
@@ -410,20 +421,25 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @param markerTitle 版の目印を探す元のタイトル
      * @param title       探す曲名 (整形済み)
      * @param author      探すアーティスト (整形済み)
+     * @param displayTitle 表示に残す元ソースの曲名
+     * @param displayAuthor 表示に残す元ソースのアーティスト
      * @param originUrl   元の URL (ログ用)
      * @param watchUrl    元の尺を取れる watch URL ({@code null} 可 = 尺は分からない)
+     * @param watchResult 曲情報のため先に取得済みのwatch結果 ({@code null} 可)
      * @param deadline    これを過ぎたら諦める時刻 (壁時計 ms)
      * @return 代わりに使えるトラック。検索に踏み切れなかった場合は {@code null}
      * @throws ResolveException 全プレフィックスを検索して使える候補が無かった
      *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
      */
-    private TrackInfo substitute(String markerTitle, String title, String author, String originUrl,
-            String watchUrl, long deadline) {
+    private TrackInfo substitute(String markerTitle, String title, String author,
+            String displayTitle, String displayAuthor, String originUrl,
+            String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
         if (title.isBlank() || author.isBlank()) {
             return null;
         }
         final String query = author + " " + title;
-        long sourceMs = -1L; // -1 = まだ取りに行っていない / 0 = 取れなかった
+        // -1 = まだ取りに行っていない / 0 = 取得済みだが取れなかった。
+        long sourceMs = watchResult == null ? -1L : watchResult.durationMs();
         for (final String prefix : ALTERNATE_SEARCH_PREFIXES) {
             final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - System.currentTimeMillis());
             if (budget <= 0L) {
@@ -455,7 +471,7 @@ public class MusicLoaderImpl implements IMusicLoader {
                 final String[] cleaned = MetadataCleaner.clean(best.title, best.author);
                 LOGGER.info("Substituting an alternate source for {} -> {} ({} - {}, {}ms against {}ms)",
                         originUrl, best.uri, cleaned[1], cleaned[0], best.length, sourceMs);
-                return new TrackInfo(cleaned[0], cleaned[1], best.length, best.uri,
+                return new TrackInfo(displayTitle, displayAuthor, best.length, best.uri,
                         best.identifier, best.isStream, safe(best.artworkUrl));
             }
         }
@@ -567,6 +583,59 @@ public class MusicLoaderImpl implements IMusicLoader {
             Thread.currentThread().interrupt();
             return List.of();
         }
+    }
+
+    /**
+     * 元ソースの表示情報と代替検索用の正規化情報を分ける。
+     * 配信クレジットを採用できた場合は構造化済み情報として両方に使う。
+     */
+    static SourceMetadata sourceMetadata(String rawTitle, String rawAuthor,
+            YoutubeWatchPage.Result watch) {
+        final String title = safe(rawTitle).trim();
+        final String author = safe(rawAuthor).trim();
+        if (watch != null
+                && title.equals(watch.title())
+                && author.equals(watch.author())) {
+            final var distributed = YoutubeMusicMetadata.fromDescription(
+                    title, author, watch.shortDescription());
+            if (distributed.isPresent()) {
+                final YoutubeMusicMetadata.Value value = distributed.orElseThrow();
+                final String artists = String.join(" · ", value.artists());
+                return new SourceMetadata(value.title(), artists, value.title(), artists);
+            }
+        }
+
+        final String[] display = MetadataCleaner.display(title, author);
+        final String[] search = MetadataCleaner.clean(title, author);
+        if (isGenericTopicAuthor(author)) {
+            // Release / Various Artists は自動生成配信の仮置き名で、曲固有情報が取れない時に
+            // アーティストとして検索・表示へ流さない。Topicでない同名の投稿者は対象外。
+            display[1] = "";
+            search[1] = "";
+        }
+        return new SourceMetadata(display[0], display[1], search[0], search[1]);
+    }
+
+    private static boolean isTopicAuthor(String author) {
+        return author != null && author.trim().toLowerCase(Locale.ROOT).endsWith(" - topic");
+    }
+
+    private static boolean isGenericTopicAuthor(String author) {
+        if (!isTopicAuthor(author)) {
+            return false;
+        }
+        final String prefix = author.trim().substring(0,
+                author.trim().length() - " - Topic".length()).trim().toLowerCase(Locale.ROOT);
+        return prefix.equals("release") || prefix.equals("various artists");
+    }
+
+    private static boolean isNormalizedWatchUrl(String url) {
+        return url != null
+                && url.matches("https://www\\.youtube\\.com/watch\\?v=[A-Za-z0-9_-]{11}");
+    }
+
+    record SourceMetadata(String displayTitle, String displayAuthor,
+            String searchTitle, String searchAuthor) {
     }
 
     private static String safe(String s) {

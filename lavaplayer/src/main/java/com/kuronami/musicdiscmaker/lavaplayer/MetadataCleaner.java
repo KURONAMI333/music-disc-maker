@@ -95,6 +95,79 @@ public final class MetadataCleaner {
     private MetadataCleaner() {
     }
 
+    /**
+     * 動画サイトの生メタ情報を表示用に分ける。
+     *
+     * <p>{@link #clean} は代替音源の照合にも使うため、Official等の注記や客演表記を落とす。
+     * 表示では客演・録音版を残す。動画種別だけの括弧と末尾注記に限って落とし、
+     * 曲名の一部か判断できない括弧はそのままにする。Topicの曲名は分割も除去もしない。
+     *
+     * @return [title, author] の表示用配列
+     */
+    static String[] display(String rawTitle, String rawAuthor) {
+        String title = rawTitle == null ? "" : rawTitle.trim();
+        String author = rawAuthor == null ? "" : rawAuthor.trim();
+
+        final boolean topic = author.toLowerCase(Locale.ROOT).endsWith("- topic");
+        if (topic) {
+            author = author.substring(0, author.length() - "- topic".length()).trim();
+            return new String[] {title, author};
+        }
+
+        author = cleanAuthor(author);
+        final String original = title;
+        title = stripDisplayNoise(title);
+        // 【Ado】うっせぇわのように、投稿者と完全一致する先頭クレジットだけを分離する。
+        final Matcher credit = LEADING_CREDIT.matcher(title);
+        if (credit.find() && credit.group(1).trim().equalsIgnoreCase(author)) {
+            title = title.substring(credit.end()).trim();
+        }
+        if (title.isBlank()) return new String[] {original, author};
+
+        final Matcher quoted = QUOTED.matcher(title);
+        if (quoted.find()) {
+            final String song = firstNonNull(
+                    quoted.group(2), quoted.group(3), quoted.group(4), quoted.group(5));
+            final String artist = quoted.group(1).trim();
+            if (song != null && !song.isBlank() && !artist.isBlank()) {
+                final String suffix = title.substring(quoted.end()).trim();
+                return new String[] {song.trim() + (suffix.isEmpty() ? "" : " " + suffix), cleanAuthor(artist)};
+            }
+        }
+
+        final Matcher separator = SEPARATOR.matcher(title);
+        if (separator.find() && separator.start() > 0 && separator.end() < title.length()) {
+            final String artist = title.substring(0, separator.start()).trim();
+            final String song = title.substring(separator.end()).trim();
+            // Song - Live のような版の注記をアーティスト／曲名と取り違えない。
+            if (!artist.isEmpty() && !song.isEmpty() && !RECORDING_SUFFIX.matcher(song).find()) {
+                return new String[] {song, cleanAuthor(artist)};
+            }
+        }
+        return new String[] {title, author};
+    }
+
+    /**
+     * 2026-09-22公式oEmbedで確認した動画種別の完全一致だけを除去する。
+     * ORIGINAL SONG+MV / ORIGINAL MV / オリジナル曲、Official Video / Music Videoを含む。
+     * Live/Cover/Remix/Remasteredや、名前を含む複合見出しはこの集合に入れない。
+     */
+    private static final Pattern DISPLAY_NOISE_BRACKET = Pattern.compile(
+            "(?i)\\s*" + OPEN + "\\s*(?:official(?:\\s+(?:music\\s+video|video|audio|mv))?"
+            + "|original\\s+(?:song(?:\\s*\\+\\s*mv)?|mv)|オリジナル曲|mv|pv)\\s*[" + CLOSED + "]");
+    private static final Pattern DISPLAY_NOISE_TAIL = Pattern.compile(
+            "(?i)\\s+(?:official\\s+(?:music\\s+video|video|audio|mv))\\s*$");
+    private static final Pattern LEADING_CREDIT = Pattern.compile("^【([^】]+)】");
+    private static final Pattern RECORDING_SUFFIX = Pattern.compile(
+            "(?i)^(?:live|remix|cover|remaster(?:ed)?|acoustic|instrumental)(?:\\b|$)");
+
+    private static String stripDisplayNoise(String title) {
+        String cleaned = DISPLAY_NOISE_BRACKET.matcher(title).replaceAll(" ");
+        cleaned = DISPLAY_NOISE_TAIL.matcher(cleaned).replaceAll("");
+        cleaned = MULTISPACE.matcher(cleaned).replaceAll(" ").trim();
+        return cleaned.isEmpty() ? title : cleaned;
+    }
+
     /** @return [title, author] の整形済み配列。 */
     public static String[] clean(String rawTitle, String rawAuthor) {
         String title = rawTitle == null ? "" : rawTitle.trim();
