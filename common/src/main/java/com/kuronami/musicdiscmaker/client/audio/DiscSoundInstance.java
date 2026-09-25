@@ -259,6 +259,15 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     private volatile LavaPlayerAudioStream stream;
 
     /**
+     * engine がこの instance の stream を一度でも作った = 受理の証拠。
+     * {@link #getCustomStream()} が立てる (全 loader・全 band で stream 生成はここ 1 箇所に
+     * 集約されるので、{@code SoundManager#play} を直接叩く boombox / speaker 子 / compat の
+     * 経路でも必ず来る)。書き込み = sound engine thread / 読み = main thread。
+     * {@link #isVoiceStopped()} が「受理後に channel を失った」= 自然終了を見るのに使う。
+     */
+    private volatile boolean engineAccepted;
+
+    /**
      * 意図した停止 (jukebox 撤去・{@link #requestStop()}) の印。
      *
      * <p>{@link LavaPlayerAudioStream} がストリームの終端でこれを読み、立っていれば
@@ -711,6 +720,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
 */
     //?}
     public CompletableFuture<AudioStream> getCustomStream() {
+        this.engineAccepted = true;
         final LavaPlayerAudioStream s =
                 new LavaPlayerAudioStream(source, onStreamEnded, failureSink, expectedEnd);
         s.setPcmGain(computePcmGain());
@@ -779,10 +789,36 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
      * 満たすメソッドが消える (継承元が intermediary 名になるため)。<b>ここを
      * {@code @Override public boolean isStopped()} に書き換えないこと</b> — 宣言側も remap されるので
      * 同じことになる。
+     *
+     * <p>さらに「自分は止めていないのに engine が channel を手放した」状態もここで拾う。
+     * vanilla は channel の自然終了で {@code SoundInstance#stop()} を呼ばない (出荷対象の
+     * 全 band の {@code SoundEngine#tickNonPaused} を実機 bytecode で確認) ため、
+     * {@code isStopped()} だけでは鳴り終わった voice が session に残り続け、同じ URL の
+     * 再送は dedup で捨てられて復帰しない。判定の規則は {@link PlaybackVoice#voiceGone}、
+     * vanilla speaker 側も同じ穴を {@code isActive} で埋めている
+     * ({@link VanillaSpeakerSoundInstance#isVoiceStopped()})。
      */
     @Override
     public boolean isVoiceStopped() {
-        return isStopped();
+        if (isStopped()) {
+            return true;
+        }
+        if (PlaybackVoice.voiceGone(engineAccepted,
+                Minecraft.getInstance().getSoundManager().isActive(this), isSpeakerChild())) {
+            stopAndRelease();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * fanout の非 master branch (speaker 子 voice) か。子の channel 喪失は desync として
+     * {@link SpeakerVoiceGroup} が branch を張り替えて再建するので、ここでは
+     * 「鳴り終わった」と答えない — 答えると group の掃除が branch ごと畳んで再建が
+     * 二度と効かなくなる。
+     */
+    private boolean isSpeakerChild() {
+        return source instanceof FanoutAudioSource.Branch branch && !branch.isMaster();
     }
 
     /** これ以降の終端を「意図した停止」として扱う。{@link #expectedEnd} の唯一の立て手。 */
