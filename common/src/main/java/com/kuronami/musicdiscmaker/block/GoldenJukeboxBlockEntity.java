@@ -322,7 +322,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (startMillis > 0L) {
             return Math.max(0L, playbackTimeMs() - startMillis);
         }
-        if (cursor.state() == PlaybackCursor.State.PLAYING && level != null) {
+        if (cursor.state() == PlaybackCursor.State.PLAYING && level != null && playbackStartGameTime >= 0L) {
             return Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
         }
         return -1L;

@@ -342,6 +342,52 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
+    /**
+     * 同じ窓でも、止まった / 鳴り終わったディスクへは resend が飛ばないこと
+     * (止まったディスクを頭出しで鳴らし直さない — 上のテストと合わせて窓の両側を固定)。
+     */
+    //? if <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void chunkWatchBeforeFirstTickDoesNotResendStoppedDisc(GameTestHelper helper) {
+        final var be = jukebox(helper);
+        be.setItem(0, disc(helper, new CustomTrackData(
+                "https://example.invalid/finished", "finished", "test", 120_000L, "", false)));
+        be.seekTo(120_000L); // 尺の終端へ — 次の tick で自然終了して STOPPED になる
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        helper.assertTrue(be.isStopped(), "disc did not reach the stopped state");
+
+        final CompoundTag saved = be.saveWithFullMetadata(helper.getLevel().registryAccess());
+        be.onBlockRemoved();
+        final var restored = (GoldenJukeboxBlockEntity) BlockEntity.loadStatic(
+                be.getBlockPos(), be.getBlockState(), saved, helper.getLevel().registryAccess());
+        helper.assertTrue(restored != null, "saved jukebox could not be restored");
+        restored.setLevel(helper.getLevel());
+        helper.getLevel().setBlockEntity(restored);
+
+        final var captured = new CapturingNetwork();
+        final var previous = Services.swapNetwork(captured);
+        try {
+            final var player = helper.makeMockServerPlayerInLevel();
+            try {
+                JukeboxHandler.onChunkWatch(new ChunkWatchEvent.Watch(
+                        player, helper.getLevel().getChunkAt(helper.absolutePos(POS)),
+                        helper.getLevel()));
+            } finally {
+                player.discard();
+            }
+        } finally {
+            Services.swapNetwork(previous);
+        }
+
+        helper.assertTrue(captured.of(PlayDiscPayload.class).stream()
+                        .map(s -> (PlayDiscPayload) s.payload())
+                        .noneMatch(p -> p.jukeboxPos().equals(restored.getBlockPos())),
+                "止まったディスクへ resend が飛んだ (頭出しで鳴り直す)");
+        helper.succeed();
+    }
+
     private static GoldenJukeboxBlockEntity reload(GameTestHelper helper, GoldenJukeboxBlockEntity be,
             boolean legacy) {
         final CompoundTag saved = be.saveWithFullMetadata(helper.getLevel().registryAccess());
