@@ -10,7 +10,7 @@ A bug-fix update for disc colors, playback recovery, and saved device contents.
 - Fixed a Golden Jukebox staying silent for a player who walked back into range after the world had unloaded and reloaded its chunk; playback could stay silent until the disc was paused and resumed.
 - Fixed a client staying silent after a track's audio stream ended or its sound channel was dropped mid-play; playback could fail to restart on that client while others kept hearing the song.
 - Fixed the placed Boombox model using a missing texture on some versions.
-- Removed duplicate Music Disc Maker entries from the Forge 1.20.1 Creative tab.
+- Fixed the Music Disc Maker creative tab listing no items on Minecraft 1.20.1 on Fabric, and removed duplicate entries on Forge 1.20.1.
 
 Use the same Music Disc Maker version on the server and all clients.
 
