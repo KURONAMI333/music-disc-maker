@@ -6,9 +6,13 @@ import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlock;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.component.PlaybackCursor;
 import com.kuronami.musicdiscmaker.component.SilentSongs;
 import com.kuronami.musicdiscmaker.event.GoldenSourceRegistry;
 import com.kuronami.musicdiscmaker.event.GoldenSourceRetirements;
+import com.kuronami.musicdiscmaker.event.JukeboxHandler;
+import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
@@ -22,6 +26,7 @@ import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.neoforged.neoforge.event.level.ChunkWatchEvent;
 //? if >=1.21.2 {
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueInput;
@@ -277,6 +282,63 @@ public final class GoldenPlaybackStateGameTests {
         final var restored = reload(helper, be, false);
         helper.assertTrue(restored.currentElapsedMs() >= 29_950L && restored.currentElapsedMs() < 31_000L,
                 "Reload lost the actual audio offset during slow ticks");
+        helper.succeed();
+    }
+
+    /**
+     * chunk 再ロード直後の watch が最初の {@code serverTick} (resumePlaybackAfterLoad で
+     * {@code startMillis} が復元される) より先に来る窓でも、再生中ディスクへ経過分 offset の
+     * resend が飛ぶこと。実クライアントで再現した不具合: この窓で {@code resendTo} が黙って
+     * return し、距離を離れて戻った client が pause/unpause まで無音のままだった。
+     */
+    //? if <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void chunkWatchBeforeFirstTickStillResendsPlayingDisc(GameTestHelper helper) {
+        final var be = jukebox(helper);
+        be.setItem(0, disc(helper, new CustomTrackData(
+                "https://example.invalid/resend", "resend", "test", 120_000L, "", false)));
+        be.seekTo(30_000L);
+        helper.assertTrue(be.playbackCursor().state() == PlaybackCursor.State.PLAYING,
+                "custom disc did not start");
+
+        // NBT 復元直後・最初の serverTick 前の BE を組み立てる (startMillis==0,
+        // playbackStartGameTime だけが永続化から戻る — 本番の chunk reload と同じ状態)。
+        final CompoundTag saved = be.saveWithFullMetadata(helper.getLevel().registryAccess());
+        be.onBlockRemoved();
+        final var restored = (GoldenJukeboxBlockEntity) BlockEntity.loadStatic(
+                be.getBlockPos(), be.getBlockState(), saved, helper.getLevel().registryAccess());
+        helper.assertTrue(restored != null, "saved jukebox could not be restored");
+        restored.setLevel(helper.getLevel());
+        helper.getLevel().setBlockEntity(restored);
+        helper.assertTrue(restored.playbackCursor().state() == PlaybackCursor.State.PLAYING,
+                "reload did not keep the playing state");
+
+        final var captured = new CapturingNetwork();
+        final var previous = Services.swapNetwork(captured);
+        try {
+            final var player = helper.makeMockServerPlayerInLevel();
+            try {
+                JukeboxHandler.onChunkWatch(new ChunkWatchEvent.Watch(
+                        player, helper.getLevel().getChunkAt(helper.absolutePos(POS)),
+                        helper.getLevel()));
+            } finally {
+                player.discard();
+            }
+        } finally {
+            Services.swapNetwork(previous);
+        }
+
+        final var plays = captured.of(PlayDiscPayload.class).stream()
+                .map(s -> (PlayDiscPayload) s.payload())
+                .filter(p -> p.jukeboxPos().equals(restored.getBlockPos()))
+                .toList();
+        helper.assertTrue(!plays.isEmpty(),
+                "chunk reload 直後の watch が再生中ディスクへ resend を送らなかった");
+        helper.assertTrue(plays.get(0).startOffsetMs() >= 30_000L
+                        && plays.get(0).startOffsetMs() < 40_000L,
+                "resend offset が経過分でない (実際 " + plays.get(0).startOffsetMs() + "ms)");
         helper.succeed();
     }
 
