@@ -22,6 +22,7 @@ class VoiceLivenessTest {
     /** 「engine が channel を手放した」を再現するための可変の voice。 */
     private static final class FlaggedVoice implements PlaybackVoice {
         boolean gone;
+        boolean released;
 
         @Override
         public boolean isVoiceStopped() {
@@ -31,7 +32,7 @@ class VoiceLivenessTest {
         @Override public void setDirectional(boolean value) { }
         @Override public void setRangeBlocks(int value) { }
         @Override public void setVolumePercent(int value) { }
-        @Override public void stopAndRelease() { }
+        @Override public void stopAndRelease() { released = true; }
     }
 
     @Test
@@ -72,5 +73,23 @@ class VoiceLivenessTest {
         voice.gone = true; // stream 終端で channel が外れた (vanilla は stop() を呼ばない)
         assertEquals(0, sessions.sweep(), "止まった voice は掃除されて枠を返す");
         assertNull(sessions.activeVoice(KEY));
+    }
+
+    @Test
+    void sameUrlResendReloadsAfterVoiceGone() {
+        // 実害の経路そのもの: voice が「止まった」と答え始めた後の同 URL 再送は
+        // start の dedup で捨てず load=true を返す (さもないと chunk 再入の再送が
+        // 飲まれて、その client だけ無音のままになる — 実機で観測した不具合)。
+        // gate は isVoiceStopped() で short-circuit するため track=null でも到達できる。
+        final PlaybackSessions<Long> sessions = new PlaybackSessions<>(() -> 0L);
+        final var first = sessions.start(KEY, null, 0L, 0, 0, false);
+        assertTrue(first.load());
+        final FlaggedVoice voice = new FlaggedVoice();
+        assertTrue(sessions.install(KEY, first.token(), "https://example.invalid/a", 0L, voice));
+
+        voice.gone = true; // channel が自然終了 (vanilla は SoundInstance#stop を呼ばない)
+        final var resend = sessions.start(KEY, null, 60_000L, 0, 0, false);
+        assertTrue(resend.load(), "止まった voice への同 URL 再送が dedup に飲まれた");
+        assertTrue(voice.released, "畳まれた voice が stopAndRelease されず残っている");
     }
 }

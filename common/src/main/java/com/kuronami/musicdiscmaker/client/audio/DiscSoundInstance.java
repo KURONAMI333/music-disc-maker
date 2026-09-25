@@ -262,7 +262,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
      * engine がこの instance の stream を一度でも作った = 受理の証拠。
      * {@link #getCustomStream()} が立てる (全 loader・全 band で stream 生成はここ 1 箇所に
      * 集約されるので、{@code SoundManager#play} を直接叩く boombox / speaker 子 / compat の
-     * 経路でも必ず来る)。書き込み = sound engine thread / 読み = main thread。
+     * 経路でも必ず来る)。書き込み・読みとも main thread ({@code SoundEngine#play} が
+     * 呼び出し thread で同期的に stream を作る) — volatile は防御的公開として残す。
      * {@link #isVoiceStopped()} が「受理後に channel を失った」= 自然終了を見るのに使う。
      */
     private volatile boolean engineAccepted;

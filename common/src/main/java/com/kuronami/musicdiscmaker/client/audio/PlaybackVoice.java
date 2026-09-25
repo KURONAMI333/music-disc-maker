@@ -26,6 +26,11 @@ public interface PlaybackVoice {
      * dev は named マッピングで走るので<b>開発環境では絶対に再現しない</b>
      * (2026-09-02・出荷 jar の bytecode で確認)。
      *
+     * <p><b>{@code true} を返す時点で実装は engine resource を解放済み (self-release)
+     * と見なす。</b> 現在の呼び出し側は全員「真なら畳む」経路なので安全だが、状態を
+     * 覗くだけの呼び出し (ログ・peek) に使うと音源が黙って畳まれる — そういう用途では
+     * 呼ばないこと。
+     *
      * @return 停止していれば {@code true}
      */
     boolean isVoiceStopped();
