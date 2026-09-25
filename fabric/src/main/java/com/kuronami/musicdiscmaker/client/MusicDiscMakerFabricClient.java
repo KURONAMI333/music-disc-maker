@@ -345,6 +345,16 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientPlaybackManager.get().stopAll());
 
         // B5 (混在アルバムの先読み): MDM 再生が無い区間 (vanilla / 他 MOD ディスクの再生中) でも
+        //? if >=1.21 {
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.LocalAudio.TYPE,
+                (msg, ctx) -> ctx.client().execute(() -> ModNetwork.handleLocalAudioClient(msg.inner())));
+        //?} else {
+        /*ClientPlayNetworking.registerGlobalReceiver(com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of("local_audio"),
+                (client, handler, buf, responseSender) -> {
+                    var msg = com.kuronami.musicdiscmaker.network.LocalAudioPayload.read(buf);
+                    client.execute(() -> ModNetwork.handleLocalAudioClient(msg));
+                });
+        *///?}
         // 先読み判定を回すための client tick 源。先読みを持たない帯では口が no-op になる。
         ClientTickEvents.END_CLIENT_TICK.register(client -> ClientPlaybackManager.mixedAlbumTick());
     }

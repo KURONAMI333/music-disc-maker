@@ -40,6 +40,7 @@ public record PlaybackFailure(Kind kind, String detail) {
     public enum Kind {
         /** ストリームを開けなかった (ローダーが理由なしで null を返した)。 */
         STREAM_UNAVAILABLE("stream"),
+        LOCAL_AUDIO("local_audio"),
         /** SSRF ガードが URL を拒否した (scheme 違反・解析不能・内部 IP)。 */
         BLOCKED_URL("blocked"),
         /** ホストへ到達できなかった (DNS 解決失敗・接続タイムアウト・切断)。 */
@@ -121,6 +122,7 @@ public record PlaybackFailure(Kind kind, String detail) {
          */
         public String guiKey() {
             return switch (this) {
+                case LOCAL_AUDIO -> "gui.music_disc_maker.mp3.missing";
                 // 制作機側に既訳があるもの (FailureReason.guiKey() と同一キー)。
                 case UNSUPPORTED_URL -> "gui.music_disc_maker.failed.unsupported";
                 case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.failed.private";
@@ -227,6 +229,8 @@ public record PlaybackFailure(Kind kind, String detail) {
      * JDK 型の {@code instanceof} だけでは足りない。クラス名でも拾う。
      */
     public static PlaybackFailure thrown(@Nullable Throwable thrown) {
+        if (thrown instanceof com.kuronami.musicdiscmaker.audio.local.LocalAudioException)
+            return new PlaybackFailure(Kind.LOCAL_AUDIO, "local_audio");
         if (thrown == null) {
             return new PlaybackFailure(Kind.OPEN_ERROR, "");
         }

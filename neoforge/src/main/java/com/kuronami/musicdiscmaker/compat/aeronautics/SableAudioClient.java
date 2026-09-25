@@ -108,7 +108,7 @@ public final class SableAudioClient {
         LATEST.put(actorKey, payload);
         // 周期再送は「捨てる」のではなく「現在値として取り込む」。同じ曲が鳴っていれば
         // ここで指向性・範囲・音量が反映され、ロードには進まない。
-        if (SLOTS.request(actorKey, track.url(), payload.rangeBlocks(), payload.volumePercent(),
+        if (SLOTS.request(actorKey, track.sourceKey(), payload.rangeBlocks(), payload.volumePercent(),
                 payload.directional()) != LivePlaybackRegistry.Decision.LOAD) {
             return;
         }
@@ -118,13 +118,14 @@ public final class SableAudioClient {
         // (sub-level tracking の解決漏れ / 配送) を疑う。両方出るのに無音なら SableSubLevelAnchor の座標変換側。
         MusicDiscMaker.LOGGER.debug("Received Sable sub-level playback: plotPos={}", payload.plotPos());
         // URL ロードはブロックするので別 thread、SoundManager 操作は main thread。
+        final long localRequestedAtMs = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.playbackClockMs();
         POOL.submit(() -> {
             IAudioSource source = null;
             PlaybackFailure failure = null;
             try {
-                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                if (!track.isLocal()) UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
                 // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
-                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), payload.startOffsetMs());
+                final OpenStreamResult result = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(track, payload.startOffsetMs(), localRequestedAtMs);
                 source = result.source();
                 failure = result.isOk() ? null
                         : PlaybackFailure.ofReason(result.reason(), result.detail());
@@ -149,13 +150,13 @@ public final class SableAudioClient {
                 PENDING.remove(actorKey);
                 final SubLevelPlayDiscPayload latest = LATEST.get(actorKey);
                 // in-flight ガードの解除は成否に関わらず必ず行う (残すと以後の再送が全部黙って無視される)。
-                SLOTS.loadFinished(actorKey, track.url());
+                SLOTS.loadFinished(actorKey, track.sourceKey());
                 if (resolved == null) {
                     // 無音で終わらせない。理由の分類つきでログに残す (この経路は画面を持たないのでログだけ)。
                     // 同じ URL はしばらく繋ぎ直さないが、待ちが明ければ自分で戻る (LivePlaybackRegistry)。
                     final PlaybackFailure why = reported == null
                             ? PlaybackFailure.streamUnavailable() : reported;
-                    if (SLOTS.loadFailed(actorKey, track.url(), why)) {
+                    if (SLOTS.loadFailed(actorKey, track.sourceKey(), why)) {
                         PlaybackFailureReport.report(track, why);
                     }
                     return;
@@ -180,7 +181,7 @@ public final class SableAudioClient {
                             payload.plotPos());
                     // 黙って捨てると 1 秒ごとの再送で毎回ストリームを開き直すことになる。
                     // 待ち時間を置いてから繋ぎ直す (報告はしないので理由は渡さない)。
-                    SLOTS.loadFailed(actorKey, track.url(), null);
+                    SLOTS.loadFailed(actorKey, track.sourceKey(), null);
                     resolved.close();
                     return;
                 }
@@ -190,14 +191,14 @@ public final class SableAudioClient {
                 if (PlaybackConcurrency.client().sweepAll() >= limit) {
                     resolved.close();
                     final PlaybackFailure why = PlaybackFailure.concurrentLimit(limit);
-                    if (SLOTS.loadFailed(actorKey, track.url(), why)) PlaybackFailureReport.report(track, why);
+                    if (SLOTS.loadFailed(actorKey, track.sourceKey(), why)) PlaybackFailureReport.report(track, why);
                     return;
                 }
                 final DiscSoundInstance instance = CompatPlayback.wired(
                         anchor, resolved, latest.rangeBlocks(), latest.volumePercent(),
                         latest.directional(), track);
                 // ロード中に曲が変わっていたら鳴らさずに捨てる (遅れて完了した古い曲で上書きしない)。
-                if (!SLOTS.install(actorKey, track.url(), instance)) {
+                if (!SLOTS.install(actorKey, track.sourceKey(), instance)) {
                     instance.requestStop();
                     return;
                 }
@@ -206,7 +207,7 @@ public final class SableAudioClient {
                 // ここは 1 秒ごとに再送が来る経路なので、ロード失敗と同じ待ち時間と重複抑止に乗せる
                 // (乗せないと、音量 0 のような直らない理由で毎秒チャットが埋まる)。
                 if (!SoundEngineAcceptance.start(instance, instance::stopAndRelease, rejected -> {
-                    if (SLOTS.loadFailed(actorKey, track.url(), rejected)) {
+                    if (SLOTS.loadFailed(actorKey, track.sourceKey(), rejected)) {
                         PlaybackFailureReport.report(track, rejected);
                     }
                 })) {

@@ -42,9 +42,16 @@ public final class ModNetwork {
     // 10: Sableの音源UUID・再生世代と専用停止payloadを追加。
     // 11: Createのバニラ盤を追加。12: 移動元のworld位置と固定Speakerの聴取点を追加。
     // 13: 染色Albumの新しいDataComponent/レシピ登録を持つ開発版。旧clientとの混在を防ぐ。
-    public static final String PROTOCOL_VERSION = "13";
+    public static final String PROTOCOL_VERSION = "14-mp3-dev";
 
     private static final double MAX_REACH_SQR = 64.0;
+
+    public static void handleLocalAudio(LocalAudioPayload payload, ServerPlayer player) {
+        com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.receive(payload, player);
+    }
+    public static void handleLocalAudioClient(LocalAudioPayload payload) {
+        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.receive(payload);
+    }
 
     private ModNetwork() {
     }

@@ -91,9 +91,9 @@ public final class TravelersBackpackCompatClient {
             IAudioSource source = null;
             PlaybackFailure failure = null;
             try {
-                UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                if (!track.isLocal()) UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
                 // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
-                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), 0L);
+                final OpenStreamResult result = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.open(track, 0L);
                 source = result.source();
                 failure = result.isOk() ? null : PlaybackFailure.ofReason(result.reason(), result.detail());
             } catch (final UrlBlockedException blocked) {

@@ -20,6 +20,7 @@ public final class LegacyPayloadIds {
     }
 
     public static ResourceLocation of(ModPayload payload) {
+        if (payload instanceof LocalAudioPayload) return of(LocalAudioPayload.PATH);
         return new ResourceLocation(MusicDiscMaker.MODID, path(payload));
     }
 

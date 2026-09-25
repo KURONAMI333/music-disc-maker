@@ -706,6 +706,7 @@ public final class BoomboxPlayback {
      * @param server 対象サーバー
      */
     public static void tick(MinecraftServer server) {
+        com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.tick(server);
         final long now = playbackTimeMs(server.overworld());
         if (++tickCounter >= SCAN_INTERVAL_TICKS) {
             tickCounter = 0;
@@ -919,6 +920,7 @@ public final class BoomboxPlayback {
 
     /** server 停止でセッションを破棄する (シングルプレイのワールド退出含む)。 */
     public static void clear() {
+        com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.closeAll();
         SESSIONS.clear();
         tickCounter = 0;
     }

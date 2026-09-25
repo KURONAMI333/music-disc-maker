@@ -44,6 +44,18 @@ dependencies {
 
     // slf4j-api は mod 側が提供 (隔離 classloader が org.slf4j を mod へ委譲する) → compileOnly
     compileOnly("org.slf4j:slf4j-api:2.0.17")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("org.slf4j:slf4j-simple:2.0.17")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 tasks.withType<JavaCompile>().configureEach {

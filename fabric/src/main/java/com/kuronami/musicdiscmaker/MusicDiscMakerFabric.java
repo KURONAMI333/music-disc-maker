@@ -81,12 +81,14 @@ public class MusicDiscMakerFabric implements ModInitializer {
         //? if >=26.1 {
         // payload 型を登録する。
         // 26.2 fabric-networking: playC2S/playS2C は serverboundPlay/clientboundPlay に rename。
+        PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.SeekJukebox.TYPE, ModPayloadTypes.SeekJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ShuffleJukebox.TYPE, ModPayloadTypes.ShuffleJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.Stop.TYPE, ModPayloadTypes.Stop.STREAM_CODEC);
@@ -99,12 +101,14 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.SpeakerSet.TYPE, ModPayloadTypes.SpeakerSet.STREAM_CODEC);
         //?} elif >=1.21.2 {
         /*        // payload 型を登録する。
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.SeekJukebox.TYPE, ModPayloadTypes.SeekJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ShuffleJukebox.TYPE, ModPayloadTypes.ShuffleJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.Stop.TYPE, ModPayloadTypes.Stop.STREAM_CODEC);
@@ -121,12 +125,14 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // server 受信: 強化版ジュークボックスの設定適用。
         // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
         // AA の型に触れるのはガード通過後の呼び出しだけ (AlbumProvider がこの時点で初めて class-load される)。
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.SeekJukebox.TYPE, ModPayloadTypes.SeekJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ShuffleJukebox.TYPE, ModPayloadTypes.ShuffleJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.Stop.TYPE, ModPayloadTypes.Stop.STREAM_CODEC);
@@ -169,6 +175,16 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 });
         */
         //?}
+        //? if >=1.21 {
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.LocalAudio.TYPE,
+                (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleLocalAudio(msg.inner(), ctx.player())));
+        //?} else {
+        /*ServerPlayNetworking.registerGlobalReceiver(com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of("local_audio"),
+                (server, player, handler, buf, responseSender) -> {
+                    var msg = com.kuronami.musicdiscmaker.network.LocalAudioPayload.read(buf);
+                    server.execute(() -> ModNetwork.handleLocalAudio(msg, player));
+                });
+        *///?}
         // server 受信: 強化版ジュークボックスのシークバー頭出し。
         //? if >=26.1 {
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.SeekJukebox.TYPE,

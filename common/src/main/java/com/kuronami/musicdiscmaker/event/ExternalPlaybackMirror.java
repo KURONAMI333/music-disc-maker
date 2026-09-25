@@ -74,7 +74,7 @@ public final class ExternalPlaybackMirror {
             final CustomTrackData track = mdmDisc.get(ModDataComponents.CUSTOM_TRACK.get());
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
-                if (existing != null && track.url().equals(existing.track().url())) {
+                if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
@@ -169,7 +169,7 @@ public final class ExternalPlaybackMirror {
             final CustomTrackData track = mdmDisc.get(ModDataComponents.CUSTOM_TRACK.get());
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
-                if (existing != null && track.url().equals(existing.track().url())) {
+                if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
@@ -264,7 +264,7 @@ public final class ExternalPlaybackMirror {
             final CustomTrackData track = mdmDisc.get(ModDataComponents.CUSTOM_TRACK.get());
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
-                if (existing != null && track.url().equals(existing.track().url())) {
+                if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。

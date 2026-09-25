@@ -79,6 +79,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private static final int WARNING_SIZE = 8;
 
     private EditBox urlField;
+    private Button mp3Button;
+    private Button mp3Cancel;
     private boolean urlWasFocused;
     private String lastSentUrl = "";
 
@@ -104,6 +106,18 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     protected void init() {
         super.init();
         // 金床の名前入力欄と同様に、入力欄そのものを URL の置き場として見せる。
+        this.mp3Button = addRenderableWidget(Button.builder(
+                com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.status(), b -> {
+                    if (com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.uploading()) {
+                        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.confirm();
+                    } else {
+                        urlField.setValue(""); commitUrl();
+                        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.select(menu);
+                    }
+                }).bounds(leftPos + 11, topPos + 69, 145, 16).build());
+        this.mp3Cancel = addRenderableWidget(Button.builder(Component.translatable("gui.music_disc_maker.mp3.cancel"),
+                b -> com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.cancel(menu))
+                .bounds(leftPos + 158, topPos + 69, 36, 16).build());
         this.urlField = new EditBox(this.font, leftPos + 11, topPos + 25, 98, 12,
                 Component.translatable("gui.music_disc_maker.url_placeholder"));
         this.urlField.setMaxLength(2048);
@@ -149,6 +163,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         if (url.equals(lastSentUrl)) {
             return;
         }
+        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.cancel(menu);
         lastSentUrl = url;
         Services.NETWORK.sendToServer(new ResolveUrlPayload(menu.getBlockEntity().getBlockPos(), url));
     }
@@ -156,6 +171,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     @Override
     public void onClose() {
         commitUrl(); // 入力したまま閉じた URL を取りこぼさない
+        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.cancel(menu);
         super.onClose();
     }
 
@@ -338,6 +354,10 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     //?} else {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     *///?}
+        mp3Button.setMessage(com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.status());
+        mp3Button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
+                com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.description()));
+        mp3Cancel.active = com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.uploading();
         final boolean focused = urlField.isFocused();
         if (urlWasFocused && !focused) {
             commitUrl(); // フォーカスを外した瞬間に URL をコミット

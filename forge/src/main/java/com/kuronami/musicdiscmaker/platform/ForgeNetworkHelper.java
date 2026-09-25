@@ -19,11 +19,15 @@ public class ForgeNetworkHelper implements INetworkHelper {
 
     @Override
     public void sendToPlayer(ServerPlayer player, ModPayload payload) {
+        com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.observe(player, payload);
         ForgeNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), payload);
     }
 
     @Override
     public void sendToPlayersTrackingChunk(ServerLevel level, ChunkPos chunk, ModPayload payload) {
+        for (ServerPlayer player : level.getChunkSource().chunkMap.getPlayers(chunk, false)) {
+            com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.observe(player, payload);
+        }
         ForgeNetwork.CHANNEL.send(
                 PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunk(chunk.x, chunk.z)), payload);
     }

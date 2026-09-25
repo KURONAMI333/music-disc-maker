@@ -1,8 +1,11 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +24,8 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
+import com.sedmelluq.discord.lavaplayer.container.MediaContainerRegistry;
+import com.sedmelluq.discord.lavaplayer.container.mp3.Mp3ContainerProbe;
 import com.sedmelluq.discord.lavaplayer.format.Pcm16AudioDataFormat;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
@@ -29,6 +34,7 @@ import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.bandcamp.BandcampAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.local.LocalAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataLoader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataReader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudFormatHandler;
@@ -43,6 +49,7 @@ import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioReference;
+import com.sedmelluq.discord.lavaplayer.track.AudioItem;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 
@@ -124,6 +131,14 @@ public class MusicLoaderImpl implements IMusicLoader {
     private static final long SUBSTITUTE_BUDGET_MS = 20_000L;
 
     private final AudioPlayerManager apm;
+    /**
+     * 信頼済みファイル専用。通常の {@link #apm} へは登録しない。
+     *
+     * <p>登録すると従来の {@link #resolve(String)} と {@link #openStream(String, long)} が
+     * 任意のファイルパスも解決し始め、URL 用の拒否境界を迂回できる。専用 API から
+     * {@link LocalAudioSourceManager#loadItem} を直接呼ぶことで入口を分離する。
+     */
+    private final LocalAudioSourceManager localFiles;
     /** 登録できた YouTube source manager (登録に失敗したら {@code null})。 */
     private final YoutubeAudioSourceManager youtube;
     /**
@@ -134,6 +149,10 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     public MusicLoaderImpl() {
         this.apm = new DefaultAudioPlayerManager();
+        // v3.1.0 の持込対象は MP3 だけ。既定 registry は WAV/OGG/FLAC 等も通すため、
+        // MP3 probe だけの registry に絞り、store の Validator がこの入口だけで形式を確定できるようにする。
+        this.localFiles = new LocalAudioSourceManager(
+                new MediaContainerRegistry(List.of(new Mp3ContainerProbe())));
         // lavaplayer 出力は stereo / 48kHz / S16 little-endian。mono 化は LavaAudioSource が担う
         // (lavaplayer の mono downmix はソースによって効かないため = SoundCloud slow+低音バグ)。
         this.apm.getConfiguration().setOutputFormat(
@@ -251,6 +270,25 @@ public class MusicLoaderImpl implements IMusicLoader {
         final String[] cleaned = MetadataCleaner.clean(info.title, info.author);
         return new TrackInfo(cleaned[0], cleaned[1], info.length, info.uri, info.identifier,
                 info.isStream, safe(info.artworkUrl));
+    }
+
+    @Override
+    public TrackInfo resolveTrustedFile(Path file) {
+        final AudioTrack track = loadTrustedFile(file);
+        final AudioTrackInfo info = track.getInfo();
+        final LocalMp3Index index = LocalMp3Index.read(file);
+        // LocalAudioSourceManager の uri / identifier は絶対パス。item metadata や通信へ
+        // 端末のパスを漏らさないよう、ローカル音源で不要な欄は境界で空にする。
+        // ID3 の title / artist は利用者が明示的に付けた構造化メタデータなので、動画サイト向けの
+        // MetadataCleaner ("Artist - Song" 分割や Official 除去) は掛けず、そのまま尊重する。
+        return new TrackInfo(localTag(info.title, "Unknown title"),
+                localTag(info.author, "Unknown artist"), index.durationMs(), "", "", false, "");
+    }
+
+    /** ID3 欠落時の lavaplayer placeholder を公開メタ情報へ残さない。 */
+    private static String localTag(String value, String placeholder) {
+        final String safe = safe(value);
+        return placeholder.equals(safe) ? "" : safe;
     }
 
     private TrackInfo resolveViaSpotify(String spotifyUrl) {
@@ -564,6 +602,64 @@ public class MusicLoaderImpl implements IMusicLoader {
             return OpenStreamResult.failed(ex.reason(), ex.detail());
         }
         return OpenStreamResult.ok(startPlayback(track, startMs, url));
+    }
+
+    @Override
+    public IAudioSource openTrustedFile(Path file, long startMs) {
+        try {
+            return beginLocalPlayback(file, startMs);
+        } catch (final ResolveException ex) {
+            LOGGER.warn("Failed to load a trusted local audio file [{}] {}", ex.reason(),
+                    ex.detail());
+            return null;
+        }
+    }
+
+    @Override
+    public OpenStreamResult openTrustedFileDetailed(Path file, long startMs) {
+        try {
+            return OpenStreamResult.ok(beginLocalPlayback(file, startMs));
+        } catch (final ResolveException ex) {
+            LOGGER.warn("Failed to load a trusted local audio file [{}] {}", ex.reason(),
+                    ex.detail());
+            return OpenStreamResult.failed(ex.reason(), ex.detail());
+        }
+    }
+
+    private IAudioSource beginLocalPlayback(Path file, long startMs) {
+        final AudioTrack track = loadTrustedFile(file);
+        final long correctedStartMs = startMs <= 0L ? 0L : LocalMp3Index.read(file).lavaSeekMs(startMs);
+        return beginPlayback(track, correctedStartMs);
+    }
+
+    /**
+     * 保存領域の検証を済ませたファイルを同期ロードする。
+     *
+     * <p>ここは root を知らないため、保存領域内かどうかは判定できない。呼び出し側が内容ハッシュを
+     * 検証して解決した {@link Path} だけを受け取る契約であり、元のアップロード名や任意の文字列を
+     * このメソッドへ通してはいけない。
+     */
+    private AudioTrack loadTrustedFile(Path file) {
+        Objects.requireNonNull(file, "file");
+        final Path normalized = file.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(normalized) || !Files.isReadable(normalized)) {
+            throw new ResolveException(FailureReason.UNKNOWN,
+                    "trusted local audio file is not readable");
+        }
+
+        final AudioItem item;
+        try {
+            item = localFiles.loadItem(apm, new AudioReference(normalized.toString(), null));
+        } catch (final Throwable thrown) {
+            LOGGER.warn("Failed to inspect a trusted local audio file", thrown);
+            throw new ResolveException(FailureReason.UNKNOWN,
+                    "could not inspect the local audio file");
+        }
+        if (!(item instanceof AudioTrack track)) {
+            throw new ResolveException(FailureReason.UNKNOWN,
+                    "unsupported or invalid local audio file");
+        }
+        return track;
     }
 
     /**

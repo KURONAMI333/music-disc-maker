@@ -40,6 +40,13 @@ public final class ForgeNetwork {
 
     public static void register() {
         int id = 0;
+        CHANNEL.messageBuilder(LocalAudioPayload.class, id++)
+                .encoder(LocalAudioPayload::write).decoder(LocalAudioPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    if (player != null) ModNetwork.handleLocalAudio(msg, player);
+                    else ModNetwork.handleLocalAudioClient(msg);
+                }).add();
 
         // client → server: URL コミット。
         CHANNEL.messageBuilder(ResolveUrlPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)

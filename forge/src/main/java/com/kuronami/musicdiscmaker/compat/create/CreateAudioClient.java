@@ -79,7 +79,7 @@ public final class CreateAudioClient {
     }
     private static String retryToken(ContraptionPlayDiscPayload payload) {
         return payload.identity().sourceId() + ":" + payload.identity().generation() + ":"
-                + (payload.vanilla() == null ? "custom:" + payload.track().url()
+                + (payload.vanilla() == null ? "custom:" + payload.track().sourceKey()
                         : "vanilla:" + payload.vanilla().soundEventId());
     }
     private static void failed(ActorKey key, Slot slot, PlaybackFailure failure) {
@@ -175,12 +175,13 @@ public final class CreateAudioClient {
             RETRIES.loadFinished(key, token);
             return;
         }
+        final long localRequestedAtMs = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.playbackClockMs();
         POOL.submit(() -> {
             IAudioSource source = null;
             PlaybackFailure failure = null;
             try {
-                UrlGuard.enforce(payload.track().url());
-                final var result = LoaderHolder.get().openStreamDetailed(payload.track().url(), payload.startOffsetMs());
+                if (!payload.track().isLocal()) UrlGuard.enforce(payload.track().url());
+                final var result = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(payload.track(), payload.startOffsetMs(), localRequestedAtMs);
                 source = result.source();
                 failure = result.isOk() ? null : PlaybackFailure.ofReason(result.reason(), result.detail());
             } catch (UrlBlockedException blocked) {

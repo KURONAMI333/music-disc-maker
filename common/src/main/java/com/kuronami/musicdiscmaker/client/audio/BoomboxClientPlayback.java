@@ -117,7 +117,7 @@ public final class BoomboxClientPlayback {
         final PlaybackRequestGate.Decision decision = PlaybackRequestGate.decide(
                 current == null ? null : current.url(),
                 current != null && current.instance().isVoiceStopped(),
-                PENDING.get(id), track.url(), previousGeneration, payload.audioGeneration());
+                PENDING.get(id), track.sourceKey(), previousGeneration, payload.audioGeneration());
         if (decision == PlaybackRequestGate.Decision.REFRESH) {
             current.anchor().refresh();
             current.instance().setVolumePercent(payload.volumePercent());
@@ -127,7 +127,7 @@ public final class BoomboxClientPlayback {
         if (decision == PlaybackRequestGate.Decision.IGNORE) {
             return; // 同じ曲をロード中。ここで起こし直すと 1 秒ごとに永久リトライになる。
         }
-        if (BACKOFF.isExhausted(id, track.url())) {
+        if (BACKOFF.isExhausted(id, track.sourceKey())) {
             return; // 同じ URL で 2 回落ちている。keep-alive のたびに繋ぎ直すのをここで止める
         }
         teardown(id); // 予算は畳まない (畳むと失敗 → 再送 → 予算リセットの輪が閉じない)
@@ -138,19 +138,20 @@ public final class BoomboxClientPlayback {
         if (refusedByConcurrencyLimit(id, track)) {
             return;
         }
-        PENDING.put(id, track.url());
+        PENDING.put(id, track.sourceKey());
         final long startOffsetMs = payload.startOffsetMs();
         final PlaybackSessions.StartDecision start = SESSIONS.start(id, track, startOffsetMs,
                 Config.boomboxRange(), payload.volumePercent(), false);
         final int token = start.token();
+        final long requestedAtMs = TrackAudioResolver.playbackClockMs();
         POOL.submit(() -> {
             IAudioSource source = null;
             PlaybackFailure failure = null;
             try {
                 // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
-                UrlGuard.enforce(track.url());
+                if (!track.isLocal()) UrlGuard.enforce(track.url());
                 final OpenStreamResult result =
-                        LoaderHolder.get().openStreamDetailed(track.url(), startOffsetMs);
+                        com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(track, startOffsetMs, requestedAtMs);
                 source = result.source();
                 failure = result.isOk() ? null
                         : PlaybackFailure.ofReason(result.reason(), result.detail());
@@ -167,7 +168,7 @@ public final class BoomboxClientPlayback {
                         () -> lateFailure(id, token, track,
                                 PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
             }
-            Minecraft.getInstance().execute(() -> onLoaded(payload, track, startOffsetMs, resolved,
+            Minecraft.getInstance().execute(() -> onLoaded(payload, track, TrackAudioResolver.actualOffset(resolved, startOffsetMs), resolved,
                     reported, token));
         });
     }
@@ -187,12 +188,12 @@ public final class BoomboxClientPlayback {
             long startOffsetMs, IAudioSource resolved, PlaybackFailure failure, int token) {
         final long id = payload.boomboxId();
         // 後続の要求が別の曲で走り出していたら、その記録を消さない (2 引数版の remove)。
-        PENDING.remove(id, track.url());
+        PENDING.remove(id, track.sourceKey());
         if (resolved == null) {
             // ロード失敗。ガードを外しただけだと次の keep-alive (1 秒後) が必ず繋ぎ直す。
             // 報告は予算を使い切った 1 回だけ (毎回出すと 1 Hz でチャットが埋まる)。
             SESSIONS.abandon(id, token);
-            if (BACKOFF.recordFailure(id, track.url())) {
+            if (BACKOFF.recordFailure(id, track.sourceKey())) {
                 PlaybackFailureReport.report(track,
                         failure == null ? PlaybackFailure.streamUnavailable() : failure);
             }
@@ -228,11 +229,11 @@ public final class BoomboxClientPlayback {
         instance.setDirectional(false);
         instance.setFailureSink(
                 late -> Minecraft.getInstance().execute(() -> lateFailure(id, token, track, late)));
-        if (!SESSIONS.install(id, token, track.url(), startOffsetMs, instance)) {
+        if (!SESSIONS.install(id, token, track.sourceKey(), startOffsetMs, instance)) {
             instance.requestStop();
             return;
         }
-        final Playing previous = ACTIVE.put(id, new Playing(track.url(), live, instance));
+        final Playing previous = ACTIVE.put(id, new Playing(track.sourceKey(), live, instance));
         if (previous != null && previous.instance() != instance) {
             previous.instance().stopAndRelease();
         }

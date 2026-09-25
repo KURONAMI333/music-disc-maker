@@ -270,7 +270,7 @@ public final class PlaybackSessions<K> {
             int volumePercent, boolean directional) {
         final PlaybackVoice existing = active.get(key);
         // 範囲・音量は client 側 BE から tick で live 反映されるので再ロード判定に含めない。
-        if (existing != null && !existing.isVoiceStopped() && track.url().equals(playingUrl.get(key))
+        if (existing != null && !existing.isVoiceStopped() && track.sourceKey().equals(playingUrl.get(key))
                 && !isSeekRequest(key, startOffsetMs)) {
             existing.setDirectional(directional);
             directionals.put(key, directional);
@@ -378,7 +378,10 @@ public final class PlaybackSessions<K> {
             previous.stopAndRelease();
         }
         playingUrl.put(key, url);
-        registeredMillis.put(key, requestedAtMs.getOrDefault(key, clockMs.getAsLong()));
+        // 持込曲はdecoderの実開始位置へ追従済み。要求時刻を再び足して二重補正しない。
+        final Request request = requests.get(key);
+        registeredMillis.put(key, request != null && request.track().isLocal()
+                ? clockMs.getAsLong() : requestedAtMs.getOrDefault(key, clockMs.getAsLong()));
         registeredMonotonicMs.put(key, monotonicMs.getAsLong());
         // 前の世代 (ラジオの再接続は同じ世代を持ち回る) の「鳴り始めた時刻」を持ち越さない。
         firstAudioMonotonicMs.remove(key);

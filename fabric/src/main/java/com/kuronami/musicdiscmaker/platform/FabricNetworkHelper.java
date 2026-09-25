@@ -46,6 +46,7 @@ public class FabricNetworkHelper implements INetworkHelper {
 
     @Override
     public void sendToPlayer(ServerPlayer player, ModPayload payload) {
+        com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.observe(player, payload);
         //? if >=1.21 {
         ServerPlayNetworking.send(player, ModPayloadTypes.wrap(payload));
         //?} else {
@@ -57,6 +58,7 @@ public class FabricNetworkHelper implements INetworkHelper {
     @Override
     public void sendToPlayersTrackingChunk(ServerLevel level, ChunkPos chunk, ModPayload payload) {
         for (final ServerPlayer player : PlayerLookup.tracking(level, chunk)) {
+            com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.observe(player, payload);
             //? if >=1.21 {
             ServerPlayNetworking.send(player, ModPayloadTypes.wrap(payload));
             //?} else {

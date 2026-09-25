@@ -995,7 +995,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             return;
         }
         final CustomTrackData selected = currentTrack();
-        if (selected != null && previous.url().equals(selected.url())) {
+        if (selected != null && previous.sourceKey().equals(selected.sourceKey())) {
             stopAudio();
         }
     }

@@ -169,12 +169,12 @@ public final class ClientPlaybackManager {
         }
         //? if >=1.21.2 {
         final PlaybackTiming timing =
-                new PlaybackTiming(key.toShortString(), track.url(), decision.token(), false);
+                new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), false);
         submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing);
         //?} elif >=1.21 {
-/*        final IAudioSource warm = prefetch.claim(key, track.url(), startOffsetMs);
+/*        final IAudioSource warm = prefetch.claim(key, track.sourceKey(), startOffsetMs);
         final PlaybackTiming timing =
-                new PlaybackTiming(key.toShortString(), track.url(), decision.token(), warm != null);
+                new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), warm != null);
         if (warm != null) {
             timing.resolved();
             attachFaultSink(warm, key, decision.token(), track);
@@ -189,28 +189,29 @@ public final class ClientPlaybackManager {
         if (track == null || track.isEmpty() || track.radio() || track.durationMs() <= 0L) {
             return; // ラジオ・尺ゼロは先読みしない (終わらない / 掴む先が無い)
         }
-        final PlaybackPrefetch.Ticket<BlockPos> ticket = prefetch.begin(pos.immutable(), track.url(), remainingMs);
+        if (track.isLocal()) return;
+        final PlaybackPrefetch.Ticket<BlockPos> ticket = prefetch.begin(pos.immutable(), track.sourceKey(), remainingMs);
         if (ticket == null) {
             return; // 曲が終了済み / 同じ曲を既に抱えている / 先読み枠の上限
         }
         MusicDiscMaker.LOGGER.debug("Prefetch fired [{}] url={} remaining={}ms ticket={}",
-                pos.toShortString(), track.url(), remainingMs, ticket.id());
+                pos.toShortString(), track.sourceKey(), remainingMs, ticket.id());
         pool.submit(() -> {
             IAudioSource source = null;
             try {
-                UrlGuard.enforce(track.url());
-                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(track.url(), 0L);
+                if (!track.isLocal()) UrlGuard.enforce(track.url());
+                final OpenStreamResult result = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.open(track, 0L);
                 source = result.source();
                 if (source == null) {
                     MusicDiscMaker.LOGGER.warn("Prefetch could not open {} [{}] {}",
-                            track.url(), result.reason(), result.detail());
+                            track.sourceKey(), result.reason(), result.detail());
                 }
             } catch (final Throwable t) {
                 source = null;
-                MusicDiscMaker.LOGGER.warn("Prefetch threw while opening {}", track.url(), t);
+                MusicDiscMaker.LOGGER.warn("Prefetch threw while opening {}", track.sourceKey(), t);
             }
             if (!prefetch.deliver(ticket, source) && source != null) {
-                MusicDiscMaker.LOGGER.debug("Prefetch discarded (no longer wanted) for {}", track.url());
+                MusicDiscMaker.LOGGER.debug("Prefetch discarded (no longer wanted) for {}", track.sourceKey());
                 source.close();
             }
         });
@@ -221,8 +222,8 @@ public final class ClientPlaybackManager {
     }
 
     public void cancelPrefetchUnlessMatches(BlockPos pos, CustomTrackData current, CustomTrackData next, String reason) {
-        prefetch.dropUnlessMatches(pos.immutable(), current == null ? null : current.url(),
-                next == null ? null : next.url(), reason);
+        prefetch.dropUnlessMatches(pos.immutable(), current == null ? null : current.sourceKey(),
+                next == null ? null : next.sourceKey(), reason);
     }
 
     private void logPrefetchEvent(String action, BlockPos key, String url, long id, String detail) {
@@ -280,6 +281,7 @@ public final class ClientPlaybackManager {
 /*            int volumePercent, long delayMs, int token) {
             */
             //?}
+        final long requestedAtMs = TrackAudioResolver.playbackClockMs();
         pool.submit(() -> {
             if (delayMs > 0L) {
                 try {
@@ -303,10 +305,10 @@ public final class ClientPlaybackManager {
             //?}
             try {
                 // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
-                UrlGuard.enforce(track.url());
+                if (!track.isLocal()) UrlGuard.enforce(track.url());
                 // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
                 final OpenStreamResult result =
-                        LoaderHolder.get().openStreamDetailed(track.url(), startOffsetMs);
+                        com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(track, startOffsetMs, requestedAtMs);
                 source = result.source();
                 failure = result.isOk() ? null
                         : PlaybackFailure.ofReason(result.reason(), result.detail());
@@ -316,6 +318,7 @@ public final class ClientPlaybackManager {
                 failure = PlaybackFailure.thrown(t);
             }
             final IAudioSource resolved = source;
+            final long actualStartMs = TrackAudioResolver.actualOffset(resolved, startOffsetMs);
             final PlaybackFailure reported = failure;
             //? if >=1.21.2 {
             timing.resolved();
@@ -343,15 +346,15 @@ public final class ClientPlaybackManager {
                 //?}
             }
             //? if >=1.21.2 {
-            Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, rangeBlocks,
+            Minecraft.getInstance().execute(() -> onLoaded(key, track, actualStartMs, rangeBlocks,
                     volumePercent, resolved, reported, token, timing));
             //?} elif >=1.21 {
-/*            Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, rangeBlocks,
+/*            Minecraft.getInstance().execute(() -> onLoaded(key, track, actualStartMs, rangeBlocks,
                     volumePercent, resolved, reported, token, timing));
             */
             //?} else {
 /*            Minecraft.getInstance().execute(() -> onLoaded(
-                    key, track, startOffsetMs, rangeBlocks, volumePercent, resolved, reported, token));
+                    key, track, actualStartMs, rangeBlocks, volumePercent, resolved, reported, token));
             */
             //?}
         });
@@ -481,7 +484,7 @@ public final class ClientPlaybackManager {
         // install は聴取モデルの適用も行う (鳴り始めの 1 tick を positional で鳴らさない)。
         // 世代が古ければ受け付けず、同じ座標に残っていた音源は必ず止めてから置き換える。
         final PlaybackVoice playback = new SpeakerVoiceGroup(instance, goldenAnchor, fanout, speakerSet);
-        if (!sessions.install(key, token, track.url(), startOffsetMs, playback)) {
+        if (!sessions.install(key, token, track.sourceKey(), startOffsetMs, playback)) {
             playback.stopAndRelease();
             return;
         }
@@ -612,7 +615,7 @@ public final class ClientPlaybackManager {
             return; // 鳴り始めた / 停止済み / 差し替え済み
         }
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
-                PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.url());
+                PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
         if (releaseOnFirstAudioDeadline(sessions, prefetch, key, track.radio())) {
             onRadioStreamEnded(key, token);
             return;
@@ -647,7 +650,7 @@ public final class ClientPlaybackManager {
             return; // 鳴り始めた / 停止済み / 差し替え済み
         }
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
-                PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.url());
+                PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
         if (track.radio()) {
             onRadioStreamEnded(key, token);
             return;
@@ -724,10 +727,10 @@ public final class ClientPlaybackManager {
                 submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(),
                 //? if >=1.21.2 {
                 RECONNECT_DELAY_MS, token,
-                new PlaybackTiming(key.toShortString(), req.track().url(), token, false));
+                new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false));
                 //?} elif >=1.21 {
 /*                        RECONNECT_DELAY_MS, token,
-                        new PlaybackTiming(key.toShortString(), req.track().url(), token, false));
+                        new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false));
                         */
                         //?} else {
 /*                        RECONNECT_DELAY_MS, token);
@@ -813,6 +816,7 @@ public final class ClientPlaybackManager {
 
     /** 全ての再生を止める (ワールド離脱)。失敗の記憶も持ち越さない。 */
     public void stopAll() {
+        LocalAudioClient.disconnect();
         ClientPlaybackHandler.SOURCE_OWNERS.clear();
         //? if >=1.21.2 {
         //?} elif >=1.21 {

@@ -50,7 +50,7 @@ public final class PlaybackFailureReport {
      * @param failure 分類済みの失敗
      */
     public static void report(@Nullable CustomTrackData track, PlaybackFailure failure) {
-        report(track == null ? null : track.title(), track == null ? null : track.url(), failure);
+        report(track == null ? null : track.title(), track == null ? null : track.sourceKey(), failure);
     }
 
     /** 曲データを持たない経路 (プレイリスト解決前など) 向け。 */
@@ -105,7 +105,7 @@ public final class PlaybackFailureReport {
      * "Track switch" 行に載る token と同じ値になる)。同じ再生を指すログ行同士を突き合わせるためのもの。
      ^/
     public static void report(@Nullable CustomTrackData track, BlockPos key, int token, PlaybackFailure failure) {
-        report(track == null ? null : track.title(), track == null ? null : track.url(), key, token, failure);
+        report(track == null ? null : track.title(), track == null ? null : track.sourceKey(), key, token, failure);
     }
 
     /^* {@link #report(CustomTrackData, BlockPos, int, PlaybackFailure)} の曲データを持たない版。 ^/

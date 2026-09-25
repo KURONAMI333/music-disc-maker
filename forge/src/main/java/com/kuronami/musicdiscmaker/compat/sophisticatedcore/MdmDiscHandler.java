@@ -66,6 +66,10 @@ public class MdmDiscHandler implements IDiscHandler<CustomTrackData> {
         getSongInfo(disc, serverLevel).ifPresent(track -> {
             ServerStorageSoundHandler.putSoundInfo(serverLevel, storageUuid, onFinished, soundPos,
                     serverLevel.getGameTime() + lengthTicks(track));
+            for (var listener : serverLevel.players()) {
+                if (listener.distanceToSqr(soundPos) < BROADCAST_RADIUS * BROADCAST_RADIUS)
+                    com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.allow(listener, track);
+            }
             ForgeNetwork.CHANNEL.send(
                     PacketDistributor.NEAR.with(() -> new PacketDistributor.TargetPoint(
                             soundPos.x, soundPos.y, soundPos.z, BROADCAST_RADIUS, serverLevel.dimension())),

@@ -177,6 +177,7 @@ public final class CreateAudioMovementBehaviour implements MovementBehaviour {
         for (final var player : serverLevel.players()) {
             final boolean listening = state.listeners.contains(player.getUUID());
             if (receivers.reaches(player.position(), range, volume, listening)) {
+                com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.allow(player, track);
                 PacketDistributor.sendToPlayer(player, payload);
                 present.add(player.getUUID());
             } else if (listening) {

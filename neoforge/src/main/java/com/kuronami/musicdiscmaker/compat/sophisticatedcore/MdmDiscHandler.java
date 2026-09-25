@@ -66,6 +66,10 @@ public class MdmDiscHandler implements IDiscHandler<CustomTrackData> {
             // 明示停止で SC が StopDiscPlaybackPayload を送る → client 側で MDM の DiscSoundInstance も止まる。
             ServerStorageSoundHandler.putSoundInfo(serverLevel, storageUuid, onFinished, soundPos,
                     serverLevel.getGameTime() + ticks);
+            for (var listener : serverLevel.players()) {
+                if (listener.distanceToSqr(soundPos) < BROADCAST_RADIUS * BROADCAST_RADIUS)
+                    com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.allow(listener, track);
+            }
             PacketDistributor.sendToPlayersNear(serverLevel, null, soundPos.x, soundPos.y, soundPos.z, BROADCAST_RADIUS,
                     new BackpackPlayDiscPayload(storageUuid, track, clientPos, entityId));
         });

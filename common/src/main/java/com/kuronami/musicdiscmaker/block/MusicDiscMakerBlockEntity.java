@@ -109,12 +109,25 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         super(ModBlockEntities.MUSIC_DISC_MAKER.get(), pos, state);
     }
 
+    private long localImportGeneration;
+    public long localImportGeneration() { return localImportGeneration; }
+    /** URL解決と古い持込を無効にし、確定前の再検査に使う世代を発行する。 */
+    public long beginLocalImport() {
+        localImportGeneration++;
+        currentUrl = ""; clearResolvedTrack();
+        return localImportGeneration;
+    }
+    public void cancelLocalImport(long expected) {
+        if (localImportGeneration == expected) localImportGeneration++;
+    }
+
     public String getCurrentUrl() {
         return currentUrl;
     }
 
     /** client から URL がコミットされたとき (server)。条件が揃えば自動生成を試みる。 */
     public void setCurrentUrl(String url) {
+        localImportGeneration++;
         final String u = url == null ? "" : url;
         // URL が解決済みキャッシュと異なるなら、キャッシュを無効化して再解決させる
         if (!u.equals(this.resolvedForUrl)) {

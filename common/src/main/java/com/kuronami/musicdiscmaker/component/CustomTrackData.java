@@ -45,7 +45,9 @@ public record CustomTrackData(
         String author,
         long durationMs,
         String thumbnailUrl,
-        boolean radio) {
+        boolean radio,
+        String sourceKind,
+        String localHash) {
 
     // 各文字列の上限。url/サムネは長めの実 URL を許容、曲名/アーティストは表示用に短く。
     // 上限なしだと細工された巨大メタデータで writeUtf (32767 byte 上限) が例外→同期で接続断。
@@ -53,11 +55,32 @@ public record CustomTrackData(
     private static final int MAX_TEXT = 256;
 
     public CustomTrackData {
+        sourceKind = "local".equals(sourceKind) ? "local" : "url";
+        localHash = localHash == null ? "" : localHash;
+        if ("local".equals(sourceKind) && !localHash.matches("[a-f0-9]{64}")) {
+            throw new IllegalArgumentException("Invalid local audio reference");
+        }
+        if ("local".equals(sourceKind)) { url = ""; radio = false; thumbnailUrl = ""; }
+        else localHash = "";
         url = clamp(url, MAX_URL);
         title = clamp(title, MAX_TEXT);
         author = clamp(author, MAX_TEXT);
         thumbnailUrl = clamp(thumbnailUrl, MAX_URL);
     }
+
+    /** 既存のURLディスク作成呼出と保存データを維持する。 */
+    public CustomTrackData(String url, String title, String author, long durationMs, String thumbnailUrl, boolean radio) {
+        this(url, title, author, durationMs, thumbnailUrl, radio, "url", "");
+    }
+
+    public static CustomTrackData local(String hash, String title, String author, long durationMs) {
+        return new CustomTrackData("", title, author, durationMs, "", false, "local", hash);
+    }
+
+    public boolean isLocal() { return "local".equals(sourceKind); }
+
+    /** 再生世代・重複抑止の比較鍵。URL入力として解釈しない。 */
+    public String sourceKey() { return isLocal() ? "local:" + localHash : url; }
 
     private static String clamp(String s, int max) {
         if (s == null) {
@@ -75,23 +98,21 @@ public record CustomTrackData(
             Codec.STRING.fieldOf("author").forGetter(CustomTrackData::author),
             Codec.LONG.fieldOf("duration_ms").forGetter(CustomTrackData::durationMs),
             Codec.STRING.fieldOf("thumbnail_url").forGetter(CustomTrackData::thumbnailUrl),
-            Codec.BOOL.optionalFieldOf("radio", false).forGetter(CustomTrackData::radio)
+            Codec.BOOL.optionalFieldOf("radio", false).forGetter(CustomTrackData::radio),
+            Codec.STRING.optionalFieldOf("source_kind", "url").forGetter(CustomTrackData::sourceKind),
+            Codec.STRING.optionalFieldOf("local_hash", "").forGetter(CustomTrackData::localHash)
     ).apply(instance, CustomTrackData::new));
 
     //? if >=1.21 {
-    public static final StreamCodec<ByteBuf, CustomTrackData> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.STRING_UTF8, CustomTrackData::url,
-            ByteBufCodecs.STRING_UTF8, CustomTrackData::title,
-            ByteBufCodecs.STRING_UTF8, CustomTrackData::author,
-            ByteBufCodecs.VAR_LONG, CustomTrackData::durationMs,
-            ByteBufCodecs.STRING_UTF8, CustomTrackData::thumbnailUrl,
-            ByteBufCodecs.BOOL, CustomTrackData::radio,
-            CustomTrackData::new);
+    public static final StreamCodec<ByteBuf, CustomTrackData> STREAM_CODEC = new StreamCodec<>() {
+        @Override public CustomTrackData decode(ByteBuf buf) { return read(new FriendlyByteBuf(buf)); }
+        @Override public void encode(ByteBuf buf, CustomTrackData value) { value.write(new FriendlyByteBuf(buf)); }
+    };
     //?} else {
     //?}
 
     public boolean isEmpty() {
-        return url == null || url.isBlank();
+        return !isLocal() && url.isBlank();
     }
 
     /**
@@ -99,6 +120,7 @@ public record CustomTrackData(
      * 表に出す名前を持たないホストはホスト名をそのまま返し、URL が空なら空文字を返す。
      */
     public String sourceName() {
+        if (isLocal()) return "MP3";
         final String host = host();
         if (host.isEmpty()) {
             return "";
@@ -158,6 +180,8 @@ public record CustomTrackData(
         buf.writeVarLong(durationMs);
         buf.writeUtf(thumbnailUrl);
         buf.writeBoolean(radio);
+        buf.writeUtf(sourceKind, 16);
+        buf.writeUtf(localHash, 64);
     }
 
     public static CustomTrackData read(FriendlyByteBuf buf) {
@@ -167,7 +191,9 @@ public record CustomTrackData(
                 buf.readUtf(),
                 buf.readVarLong(),
                 buf.readUtf(),
-                buf.readBoolean());
+                buf.readBoolean(),
+                buf.readUtf(16),
+                buf.readUtf(64));
     }
     //? if >=1.21 {
     //?} else {
@@ -179,6 +205,8 @@ public record CustomTrackData(
         tag.putLong("duration_ms", durationMs);
         tag.putString("thumbnail_url", thumbnailUrl);
         tag.putBoolean("radio", radio);
+        tag.putString("source_kind", sourceKind);
+        tag.putString("local_hash", localHash);
         return tag;
     }
 
@@ -192,7 +220,9 @@ public record CustomTrackData(
                 tag.getString("author"),
                 tag.getLong("duration_ms"),
                 tag.getString("thumbnail_url"),
-                tag.getBoolean("radio"));
+                tag.getBoolean("radio"),
+                tag.getString("source_kind"),
+                tag.getString("local_hash"));
     }
     */
     //?}

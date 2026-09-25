@@ -68,6 +68,7 @@ public final class DiscFabrication {
             return;
         }
 
+        final long operationGeneration = be.localImportGeneration();
         be.setResolving(true);
         POOL.submit(() -> {
             TrackInfo resolved;
@@ -121,7 +122,7 @@ public final class DiscFabrication {
                     return;
                 }
                 be.setResolving(false);
-                if (!url.equals(be.getCurrentUrl())) {
+                if (operationGeneration != be.localImportGeneration() || !url.equals(be.getCurrentUrl())) {
                     // 解決中に編集されたURLへ古い曲を書き込まない。
                     process(be);
                     return;

@@ -148,7 +148,7 @@ public final class PocketJukeboxClient {
             return;
         }
         final CustomTrackData track = PocketJukeboxTracks.mdmTrackAt(pocket, currentTrack);
-        final String url = track == null ? "" : track.url();
+        final String url = track == null ? "" : track.sourceKey();
         if (ADVANCE.handles(currentTrack, url)) {
             return;
         }
@@ -206,8 +206,8 @@ public final class PocketJukeboxClient {
             IAudioSource source = null;
             PlaybackFailure failure = null;
             try {
-                UrlGuard.enforce(url); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
-                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(url, 0L);
+                if (!track.isLocal()) UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                final OpenStreamResult result = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.open(track, 0L);
                 source = result.source();
                 failure = result.isOk() ? null
                         : PlaybackFailure.ofReason(result.reason(), result.detail());
@@ -439,7 +439,7 @@ public final class PocketJukeboxClient {
             return;
         }
         final CustomTrackData track = PocketJukeboxTracks.mdmTrackAt(pocket, currentTrack);
-        final String url = track == null ? "" : track.url();
+        final String url = track == null ? "" : track.sourceKey();
         if (ADVANCE.handles(currentTrack, url)) {
             return;
         }
@@ -497,8 +497,8 @@ public final class PocketJukeboxClient {
             IAudioSource source = null;
             PlaybackFailure failure = null;
             try {
-                UrlGuard.enforce(url); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
-                final OpenStreamResult result = LoaderHolder.get().openStreamDetailed(url, 0L);
+                if (!track.isLocal()) UrlGuard.enforce(track.url()); // SSRF 遮断: 内部 IP / 非 http(s) scheme を再生前に弾く
+                final OpenStreamResult result = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.open(track, 0L);
                 source = result.source();
                 failure = result.isOk() ? null
                         : PlaybackFailure.ofReason(result.reason(), result.detail());

@@ -57,6 +57,7 @@ public final class SophisticatedCoreCompat {
         final BackpackPlayDiscPayload payload =
                 new BackpackPlayDiscPayload(storageUuid, track, clientPos, entityId);
         for (final ServerPlayer player : PlayerLookup.around(level, soundPos, BROADCAST_RADIUS)) {
+            com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.allow(player, track);
             ServerPlayNetworking.send(player, payload);
         }
     }
@@ -108,6 +109,7 @@ public final class SophisticatedCoreCompat {
         final BackpackPlayDiscPayload payload =
                 new BackpackPlayDiscPayload(storageUuid, track, clientPos, entityId);
         for (final ServerPlayer player : PlayerLookup.around(level, soundPos, BROADCAST_RADIUS)) {
+            com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.allow(player, track);
             final FriendlyByteBuf buf = PacketByteBufs.create();
             payload.write(buf);
             ServerPlayNetworking.send(player, BackpackPlayDiscPayload.ID, buf);

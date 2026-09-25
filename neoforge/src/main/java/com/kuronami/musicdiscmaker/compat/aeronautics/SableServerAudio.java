@@ -152,6 +152,7 @@ public final class SableServerAudio {
         for (final UUID uuid : trackers) {
             final ServerPlayer player = server.getPlayerList().getPlayer(uuid);
             if (player != null) {
+                com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.allow(player, track);
                 net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, payload);
             }
         }

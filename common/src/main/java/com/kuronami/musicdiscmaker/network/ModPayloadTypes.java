@@ -30,6 +30,7 @@ public final class ModPayloadTypes {
 
     /** 中立 payload を送信可能な形に包む。未知の型は配線漏れなので例外にする。 */
     public static CustomPacketPayload wrap(ModPayload payload) {
+        if (payload instanceof LocalAudioPayload p) return new LocalAudio(p);
         if (payload instanceof PlayVanillaDiscPayload p) {
             return new PlayVanilla(p);
         }
@@ -73,6 +74,13 @@ public final class ModPayloadTypes {
             return new BoomboxState(p);
         }
         throw new IllegalArgumentException("Unregistered payload: " + payload.getClass().getName());
+    }
+
+    public record LocalAudio(LocalAudioPayload inner) implements CustomPacketPayload {
+        public static final Type<LocalAudio> TYPE = new Type<>(id(LocalAudioPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, LocalAudio> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new LocalAudio(LocalAudioPayload.read(buf)));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
     public record Play(PlayDiscPayload inner) implements CustomPacketPayload {
@@ -258,6 +266,7 @@ public final class ModPayloadTypes {
 
     /^* 中立 payload を送信可能な形に包む。未知の型は配線漏れなので例外にする。 ^/
     public static CustomPacketPayload wrap(ModPayload payload) {
+        if (payload instanceof LocalAudioPayload p) return new LocalAudio(p);
         if (payload instanceof PlayVanillaDiscPayload p) {
             return new PlayVanilla(p);
         }
@@ -301,6 +310,13 @@ public final class ModPayloadTypes {
             return new BoomboxState(p);
         }
         throw new IllegalArgumentException("Unregistered payload: " + payload.getClass().getName());
+    }
+
+    public record LocalAudio(LocalAudioPayload inner) implements CustomPacketPayload {
+        public static final Type<LocalAudio> TYPE = new Type<>(id(LocalAudioPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, LocalAudio> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new LocalAudio(LocalAudioPayload.read(buf)));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
     public record Play(PlayDiscPayload inner) implements CustomPacketPayload {

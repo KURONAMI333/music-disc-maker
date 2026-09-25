@@ -23,11 +23,15 @@ public class NeoForgeNetworkHelper implements INetworkHelper {
 
     @Override
     public void sendToPlayer(ServerPlayer player, ModPayload payload) {
+        com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.observe(player, payload);
         PacketDistributor.sendToPlayer(player, ModPayloadTypes.wrap(payload));
     }
 
     @Override
     public void sendToPlayersTrackingChunk(ServerLevel level, ChunkPos chunk, ModPayload payload) {
+        for (ServerPlayer player : level.getChunkSource().chunkMap.getPlayers(chunk, false)) {
+            com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.observe(player, payload);
+        }
         PacketDistributor.sendToPlayersTrackingChunk(level, chunk, ModPayloadTypes.wrap(payload));
     }
 }
