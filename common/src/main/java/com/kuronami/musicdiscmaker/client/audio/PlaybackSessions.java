@@ -380,7 +380,7 @@ public final class PlaybackSessions<K> {
         playingUrl.put(key, url);
         // 持込曲はdecoderの実開始位置へ追従済み。要求時刻を再び足して二重補正しない。
         final Request request = requests.get(key);
-        registeredMillis.put(key, request != null && request.track().isLocal()
+        registeredMillis.put(key, request != null && request.track() != null && request.track().isLocal()
                 ? clockMs.getAsLong() : requestedAtMs.getOrDefault(key, clockMs.getAsLong()));
         registeredMonotonicMs.put(key, monotonicMs.getAsLong());
         // 前の世代 (ラジオの再接続は同じ世代を持ち回る) の「鳴り始めた時刻」を持ち越さない。
