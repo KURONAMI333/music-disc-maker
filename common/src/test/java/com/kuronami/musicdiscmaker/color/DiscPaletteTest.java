@@ -12,6 +12,7 @@ import com.kuronami.musicdiscmaker.component.DiscDyeData;
 /**
  * {@link DiscPalette} の盤面と有彩色アクセントの主段が Python の参照実装
  * ({@code _work/stonecutter-loader-2026-08-24/assets-v3/mkauto.py}) と同じ色を返すことを固定する。
+ * 明示した有彩色が灰白になる場合だけ色名の視認性を優先して参照実装から分岐する。
  *
  * <p>無彩色アクセントだけは 2026-09-10 裁定で参照実装から分岐する。利用者が選んだ
  * black / gray / light_gray / white の明度を保持し、盤面との ΔE 床は例外にする。
@@ -95,8 +96,8 @@ class DiscPaletteTest {
                 0x4C400D, 0x625210, 0x705E13, 0x846E16, 0xB1951D, 0xBC9E1F, 0xD0AE23);
         assertAutomaticAccent(DiscDye.RED, DiscDye.WHITE, 70.8040662198,
                 0x2C2C2C, 0x393939, 0x414141, 0x4D4D4D, 0x676767, 0x6E6E6E, 0x797979);
-        assertAccent(DiscDye.LIME, DiscDye.RED, 88.7233697918,
-                0x9E8584, 0xAA9492, 0xB19D9B, 0xBBA9A8, 0xD2C7C6, 0xD8CECD, 0xE2DADA);
+        assertAccent(DiscDye.LIME, DiscDye.RED, 92.3646306491,
+                0xB85E58, 0xBF706B, 0xC47A76, 0xCB8A86, 0xDBAEAB, 0xDFB7B4, 0xE6C6C4);
         assertAccent(DiscDye.LIME, DiscDye.CYAN, 83.7488178571,
                 0x327374, 0x398586, 0x3E9091, 0x45A0A1, 0x60BABB, 0x69BDBF, 0x79C5C6);
         assertAccent(DiscDye.LIME, DiscDye.YELLOW, 52.1274583521,
@@ -144,6 +145,15 @@ class DiscPaletteTest {
         }
         assertTrue(min >= DiscPalette.FLOOR, "有彩色アクセントの最小 ΔE");
         assertTrue(max >= min, "有彩色アクセントの ΔE 範囲");
+    }
+
+    /** 橙の盤面で青系の下面がほぼ白になった報告の再発を防ぐ。 */
+    @Test
+    void explicitlyDyedChromaticAccentDoesNotTurnPaleGray() {
+        final DiscPalette.Board orange = DiscPalette.board(DiscDye.ORANGE);
+        assertEquals(0x82B2B2, DiscPalette.accent(DiscDye.CYAN, orange).main());
+        assertEquals(0xB5BCE5, DiscPalette.accent(DiscDye.BLUE, orange).main());
+        assertEquals(0x82A8B2, DiscPalette.accent(DiscDye.LIGHT_BLUE, orange).main());
     }
 
     /**

@@ -169,7 +169,7 @@ public class BoomboxBlockEntity extends BlockEntity {
     /*protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         final CompoundTag boomboxTag = new CompoundTag();
-        ContainerHelper.saveAllItems(boomboxTag, stored, registries);
+        SafeItemSaver.saveAllItems(boomboxTag, stored, registries);
         tag.put("boombox", boomboxTag);
     *///?} else {
     /*protected void saveAdditional(CompoundTag tag) {

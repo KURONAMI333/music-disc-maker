@@ -16,18 +16,30 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.TagValueInput;
 //?} else {
-/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+/*import java.util.Optional;
+
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.EitherHolder;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.JukeboxPlayable;
+import net.minecraft.world.item.JukeboxSong;
+import net.minecraft.world.item.JukeboxSongs;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -259,4 +271,58 @@ public class FailurePersistenceGameTests {
         helper.setBlock(rel, Blocks.AIR);
         helper.succeed();
     }
+
+    /**
+     * 非バインド (Holder.direct) の jukebox_song を抱える細工/他MOD由来の item が 1 個でも
+     * 混ざると、1.21.1 の vanilla {@code ContainerHelper.saveAllItems} は
+     * {@code RegistryFixedCodec} で例外を吐き、BlockEntity 全体の保存が失われる
+     * (「It will not persist」→ 中身消失)。SafeItemSaver 化後は壊れたスロットだけが落ち、
+     * 他のスロットは残ることを固定する。=1.21.1 系のみ: >=1.21.2 の ValueOutput 経路は
+     * 要素ごと skip+report で既に耐性があり、1.20.1 には component が無い。
+     */
+    //? if >=1.21 && <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void unserializableItemDoesNotDropWholeBlockEntitySave(GameTestHelper helper) {
+        final BlockPos rel = new BlockPos(1, 1, 1);
+        final MusicDiscMakerBlockEntity be = place(helper, rel);
+        if (be == null) {
+            return;
+        }
+        final HolderLookup.Provider registries = helper.getLevel().registryAccess();
+
+        // SpeakerPlaybackGameTests.shortVanillaDisc と同型: RegistryFixedCodec が
+        // value 化できない Direct holder を持つ jukebox_playable。
+        final Holder<JukeboxSong> original = registries.lookupOrThrow(Registries.JUKEBOX_SONG)
+                .get(JukeboxSongs.THIRTEEN).orElseThrow();
+        final JukeboxSong inlineSong = new JukeboxSong(original.value().soundEvent(),
+                original.value().description(), 0.05F, original.value().comparatorOutput());
+        final ItemStack crafted = new ItemStack(Items.STICK);
+        crafted.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(
+                new EitherHolder<>(Optional.of(Holder.direct(inlineSong)), JukeboxSongs.THIRTEEN), false));
+
+        be.setItem(MusicDiscMakerBlockEntity.SLOT_INPUT, crafted);
+        be.setItem(MusicDiscMakerBlockEntity.SLOT_OUTPUT, new ItemStack(ModItems.BLANK_DISC.get()));
+
+        CompoundTag saved = null;
+        try {
+            saved = be.saveWithoutMetadata(registries);
+        } catch (RuntimeException saveFailure) {
+            helper.fail("1 スロットの未保存可能 item が BlockEntity 全体の保存を落とした: " + saveFailure);
+        }
+        helper.assertTrue(saved != null, "saveWithoutMetadata が null を返した");
+
+        final ListTag savedItems = saved.getCompound("inventory").getList("Items", Tag.TAG_COMPOUND);
+        helper.assertTrue(savedItems.size() == 1,
+                "書き出せるスロットまで落ちている (残存 " + savedItems.size() + " スロット)");
+        final CompoundTag kept = savedItems.getCompound(0);
+        helper.assertTrue((kept.getByte("Slot") & 255) == MusicDiscMakerBlockEntity.SLOT_OUTPUT,
+                "残ったスロットが出力側でない (実際の Slot=" + (kept.getByte("Slot") & 255) + ")");
+        helper.assertTrue(kept.getString("id").endsWith("blank_disc"),
+                "残った item が BLANK_DISC でない (実際: " + kept.getString("id") + ")");
+
+        helper.setBlock(rel, Blocks.AIR);
+        helper.succeed();
+    }
+    *///?}
 }

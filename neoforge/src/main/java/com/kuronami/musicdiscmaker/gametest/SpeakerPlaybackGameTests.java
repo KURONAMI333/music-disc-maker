@@ -442,6 +442,9 @@ public final class SpeakerPlaybackGameTests {
             Services.swapNetwork(previous);
             speaker.clearLink();
             player.discard();
+            // 短尺曲は Holder.direct の非バインド holder であり NBT 化できない (RegistryFixedCodec)。
+            // テスト撤去時の chunk 保存で BE ごと落とされないよう、スロットを空に戻す。
+            source.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, ItemStack.EMPTY);
             level.setBlock(speakerPos, Blocks.AIR.defaultBlockState(), 3);
             level.setBlock(speakerPos.south(), Blocks.AIR.defaultBlockState(), 3);
         }

@@ -322,7 +322,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (startMillis > 0L) {
             return Math.max(0L, playbackTimeMs() - startMillis);
         }
-        if (cursor.state() == PlaybackCursor.State.PLAYING && level != null) {
+        if (cursor.state() == PlaybackCursor.State.PLAYING && level != null && playbackStartGameTime >= 0L) {
             return Math.max(0L, (level.getGameTime() - playbackStartGameTime) * 50L);
         }
         return -1L;
@@ -1266,10 +1266,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
         final CustomTrackData customTrack = currentTrack();
         final VanillaTrackData vanillaTrack = customTrack == null ? currentVanillaTrack() : null;
-        if ((customTrack == null && vanillaTrack == null) || startMillis == 0L) {
+        if (customTrack == null && vanillaTrack == null) {
             return;
         }
-        final long elapsed = Math.max(0L, playbackTimeMs() - startMillis);
+        // chunk 再ロード直後は startMillis がまだ transient の 0 のまま (最初の serverTick が
+        // resumePlaybackAfterLoad を走らせる前)。この窓では永続化済みの playbackStartGameTime から
+        // 経過を復元する (syncElapsedMs と同じ式)。-1 = 再生中でない。
+        final long elapsed = syncElapsedMs();
+        if (elapsed < 0L) {
+            return;
+        }
         final long dur = customTrack != null ? customTrack.durationMs() : vanillaTrack.durationMs();
         final boolean loopsWithinTrack = repeat && !isMdmAlbum() && getAlbumTrack() < 0;
         if (dur > 0L && elapsed >= dur && !loopsWithinTrack) {
@@ -1693,7 +1699,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 /*    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         final CompoundTag invTag = new CompoundTag();
-        ContainerHelper.saveAllItems(invTag, items, registries);
+        SafeItemSaver.saveAllItems(invTag, items, registries);
         tag.put("inventory", invTag);
         if (sourceId != null) tag.putString("source_id", sourceId.toString());
         tag.putInt("range", rangeBlocks);

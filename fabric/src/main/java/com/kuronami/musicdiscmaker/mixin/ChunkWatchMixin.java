@@ -37,10 +37,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
-//? if >=1.21 {
 import net.minecraft.world.level.chunk.LevelChunk;
+//? if >=1.21 {
 //?} else {
-
 /*import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 *///?}
 
@@ -52,6 +51,9 @@ import net.minecraft.world.level.chunk.LevelChunk;
  * を intercept する。NeoForge はこの同一 method を patch して Watch イベントを発火している。
  * ({@code (ServerPlayer, ChunkPos)} overload と区別するため full descriptor を指定。)
  *
+ * <p>1.20.1 では {@code playerLoadedChunk} の TAIL を使う。旧版の
+ * {@code updateChunkTracking} の HEAD は実際の chunk 送信より前で、送信されない場合も走る。
+ *
  * <p>処理内容は NeoForge の {@code JukeboxHandler.onChunkWatch} と同一 (common API:
  * ActiveDiscRegistry / GoldenJukeboxBlockEntity.resendTo)。
  */
@@ -62,9 +64,13 @@ public abstract class ChunkWatchMixin {
             //? if >=1.21 {
             method = "markChunkPendingToSend(Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/level/chunk/LevelChunk;)V",
             //?} else {
-            /*method = "updateChunkTracking(Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/level/ChunkPos;Lorg/apache/commons/lang3/mutable/MutableObject;ZZ)V",
+            /*method = "playerLoadedChunk(Lnet/minecraft/server/level/ServerPlayer;Lorg/apache/commons/lang3/mutable/MutableObject;Lnet/minecraft/world/level/chunk/LevelChunk;)V",
             *///?}
+            //? if >=1.21 {
             at = @At("HEAD"))
+            //?} else {
+            /*at = @At("TAIL"))
+            *///?}
     //? if >=1.21.2 {
     private static void musicDiscMaker$onChunkSend(ServerPlayer player, LevelChunk chunk, CallbackInfo ci) {
         final ServerLevel level = player.level();
@@ -74,12 +80,10 @@ public abstract class ChunkWatchMixin {
         final ServerLevel level = player.serverLevel();
         final ChunkPos chunkPos = chunk.getPos();
     *///?} else {
-    /*private void musicDiscMaker$onChunkTrack(ServerPlayer player, ChunkPos chunkPos, MutableObject<?> packetCache,
-            boolean wasLoaded, boolean load, CallbackInfo ci) {
-        if (!load || wasLoaded) {
-            return; // chunk が新規に player へ送られる瞬間のみ
-        }
+    /*private void musicDiscMaker$onChunkTrack(ServerPlayer player, MutableObject<?> packetCache,
+            LevelChunk chunk, CallbackInfo ci) {
         final ServerLevel level = player.serverLevel();
+        final ChunkPos chunkPos = chunk.getPos();
     *///?}
         ActiveDiscPersistence.hydrate(level);
         final long now = System.currentTimeMillis();
@@ -115,8 +119,7 @@ public abstract class ChunkWatchMixin {
 
         //? if >=1.21 {
         //?} else {
-        /*final var chunk = level.getChunk(chunkPos.x, chunkPos.z);
-        *///?}
+        //?}
         for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
             //? if >=26.2 {
             if (!ChunkPos.containing(bePos).equals(chunkPos)) continue;

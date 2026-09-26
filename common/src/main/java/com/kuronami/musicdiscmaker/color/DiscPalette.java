@@ -60,6 +60,8 @@ public final class DiscPalette {
     private static final double[] SEARCH_SATURATIONS = { 71.5, 64, 56, 48, 40, 32, 24, 16 };
     /** 帯に解が無い時の粗い彩度リスト。 */
     private static final double[] FALLBACK_SATURATIONS = { 71.5, 56, 40, 24, 12 };
+    /** 明示した有彩色が灰白に見えないための主色RGBチャンネル差。 */
+    private static final int EXPLICIT_CHROMA_SPREAD = 48;
 
     // 明度の探索格子: 5.0 .. 94.0 を 0.5 刻み。整数で回して 10 で割る
     // (double を加算していくと後半でずれ、参照実装と一致しなくなる)。
@@ -139,14 +141,14 @@ public final class DiscPalette {
      * @param dominant 盤面の支配色 (0xRRGGBB)
      */
     public static Accent accent(DiscDye dye, int dominant) {
-        return dye.isChromatic() ? contrastAccent(dye, dominant) : achromaticAccent(dye, dominant);
+        return dye.isChromatic() ? contrastAccent(dye, dominant, true) : achromaticAccent(dye, dominant);
     }
 
     /**
      * 未染色曲の自動配色用。選択されていない色名を優先せず、全16色で従来の可読性を保つ。
      */
     public static Accent automaticAccent(DiscDye dye, Board board) {
-        return contrastAccent(dye, board.dominant());
+        return contrastAccent(dye, board.dominant(), false);
     }
 
     private static Accent achromaticAccent(DiscDye dye, int dominant) {
@@ -161,7 +163,7 @@ public final class DiscPalette {
     }
 
     /** コントラスト探索。明示有彩色と未染色曲の自動配色の共有実装。 */
-    private static Accent contrastAccent(DiscDye dye, int dominant) {
+    private static Accent contrastAccent(DiscDye dye, int dominant, boolean explicitDye) {
         final double h = dye.hue();
         final boolean chroma = dye.isChromatic();
         final double dominantL = ColorMath.hslLightness(dominant);
@@ -238,11 +240,47 @@ public final class DiscPalette {
             }
         }
 
+        // 色差が適切でも、有彩色がほぼ灰白では選んだ染料の色名を読めない。
+        // 明示染色だけを補正し、自動配色の既存結果は変えない。
+        if (explicitDye && isPale(ColorMath.rgb(h, bestS, bestL))) {
+            boolean legible = false;
+            double nearestCeil = Double.POSITIVE_INFINITY;
+            for (double s : SEARCH_SATURATIONS) {
+                for (int l10 = L_STEP_MIN; l10 < L_STEP_MAX; l10 += L_STEP) {
+                    final double l = l10 / 10.0;
+                    final int rgb = ColorMath.rgb(h, s, l);
+                    if (channelSpread(rgb) < EXPLICIT_CHROMA_SPREAD) continue;
+                    final double e = ColorMath.deltaE(dominant, rgb);
+                    if (e < FLOOR) continue;
+                    final double distance = Math.abs(e - CEIL);
+                    if (!legible || distance < nearestCeil) {
+                        legible = true;
+                        nearestCeil = distance;
+                        bestS = s;
+                        bestL = l;
+                        bestE = e;
+                    }
+                }
+            }
+        }
+
         final int[] steps = new int[L_ACC.length];
         for (int i = 0; i < L_ACC.length; i++) {
             steps[i] = ColorMath.rgb(h, bestS, accentStepLightness(bestL, L_ACC[i]));
         }
         return new Accent(steps, bestE);
+    }
+
+    private static int channelSpread(int rgb) {
+        final int r = ColorMath.red(rgb);
+        final int g = ColorMath.green(rgb);
+        final int b = ColorMath.blue(rgb);
+        return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+    }
+
+    private static boolean isPale(int rgb) {
+        return Math.min(ColorMath.red(rgb), Math.min(ColorMath.green(rgb), ColorMath.blue(rgb))) > 160
+                && channelSpread(rgb) < EXPLICIT_CHROMA_SPREAD;
     }
 
     private static double accentStepLightness(double mainLightness, double baseLightness) {
