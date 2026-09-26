@@ -20,6 +20,8 @@ import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
 import com.kuronami.musicdiscmaker.component.BoomboxPlaybackState;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
+import com.kuronami.musicdiscmaker.network.LocalAudioPayload;
+import com.kuronami.musicdiscmaker.network.VersionPayload;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -47,6 +49,8 @@ import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
 import com.kuronami.musicdiscmaker.component.BoomboxPlaybackState;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
+import com.kuronami.musicdiscmaker.network.LocalAudioPayload;
+import com.kuronami.musicdiscmaker.network.VersionPayload;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -85,12 +89,12 @@ public class NetworkProtocolGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
-    /** Album色componentの登録を含む版。既存payloadの見本は不変。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "13";
+    /** ローカルMP3持込の双方向転送 payload (local_audio) を追加した開発版。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "14-mp3-dev";
 
     /** 上の版に対応する wire 指紋 (下の見本を全 payload の codec で符号化した結果の SHA-256)。 */
     private static final String WIRE_FINGERPRINT =
-            "ec6ae480322987e107e4c337fdbe4c9350ee52ce3624904abb446e5ec03469c1";
+            "5874d23aa19f6eaba4ebe97fa49000001f7fb397986f366ea80bdf3e33ed51de";
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、増減させないこと。 */
     private static final BlockPos SAMPLE_POS = new BlockPos(12, -37, 480);
@@ -201,6 +205,17 @@ public class NetworkProtocolGameTests {
                 new com.kuronami.musicdiscmaker.network.PlayVanillaDiscPayload(SAMPLE_POS,
                         new com.kuronami.musicdiscmaker.component.VanillaTrackData("minecraft:music_disc.cat", 185000L),
                         73000L, 96, 173, false, 7L)));
+        // 14-mp3-dev で増えた双方向転送。見本に載せないと codec を変えても指紋が動かない。
+        encoded.put("local_audio", encode(mdmCodec(LocalAudioPayload::read),
+                new LocalAudioPayload(LocalAudioPayload.DATA,
+                        java.util.UUID.fromString("3f6a2c2e-3f3a-4c01-9b6f-9f2a0b9c8d7e"),
+                        7, 123L,
+                        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                        512L, 4096L, "track.mp3", new byte[] {1, 2, 3, 4})));
+        // handshake 自体の形式も見る。運ぶ文字列は版の値ではなく固定の見本にする
+        // (current() を入れると版を上げるたびに指紋が動き、「形式が変わった」検出と混ざる)。
+        encoded.put("version", encode(mdmCodec(VersionPayload::read),
+                new VersionPayload("fingerprint-sample")));
 
         try {
             final MessageDigest digest = MessageDigest.getInstance("SHA-256");

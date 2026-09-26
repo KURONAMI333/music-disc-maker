@@ -122,7 +122,6 @@ public record PlaybackFailure(Kind kind, String detail) {
          */
         public String guiKey() {
             return switch (this) {
-                case LOCAL_AUDIO -> "gui.music_disc_maker.mp3.missing";
                 // 制作機側に既訳があるもの (FailureReason.guiKey() と同一キー)。
                 case UNSUPPORTED_URL -> "gui.music_disc_maker.failed.unsupported";
                 case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.failed.private";
@@ -135,6 +134,7 @@ public record PlaybackFailure(Kind kind, String detail) {
                 case PREVIEW_ONLY -> "gui.music_disc_maker.failed.preview";
                 case NO_ALTERNATIVE_FOUND -> "gui.music_disc_maker.failed.noalt";
                 // 再生時にしか起きないもの (制作機は URL を解決するだけなので相当する語が無い)。
+                case LOCAL_AUDIO -> "gui.music_disc_maker.failed.local_audio";
                 case CONCURRENT_LIMIT -> "gui.music_disc_maker.failed.limit";
                 case MUTED -> "gui.music_disc_maker.failed.muted";
                 // 利用者に打つ手が無い 3 つ。制作機の汎用キー gui.music_disc_maker.failed

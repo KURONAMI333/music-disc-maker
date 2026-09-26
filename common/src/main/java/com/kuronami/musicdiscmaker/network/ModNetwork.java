@@ -42,6 +42,7 @@ public final class ModNetwork {
     // 10: Sableの音源UUID・再生世代と専用停止payloadを追加。
     // 11: Createのバニラ盤を追加。12: 移動元のworld位置と固定Speakerの聴取点を追加。
     // 13: 染色Albumの新しいDataComponent/レシピ登録を持つ開発版。旧clientとの混在を防ぐ。
+    // 14-mp3-dev: ローカルMP3持込の双方向転送 payload (local_audio) を追加した開発版。
     public static final String PROTOCOL_VERSION = "14-mp3-dev";
 
     private static final double MAX_REACH_SQR = 64.0;
