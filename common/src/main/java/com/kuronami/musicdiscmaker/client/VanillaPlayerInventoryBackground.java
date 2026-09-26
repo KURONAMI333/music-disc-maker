@@ -37,4 +37,20 @@ final class VanillaPlayerInventoryBackground {
         /*graphics.blit(TEXTURE, left, firstSlotY - 14, 0.0F, 126.0F, 176, 96, 256, 256);
         *///?}
     }
+
+    /**
+     * Slice の任意矩形だけを借りる版。slice が持つ外枠 (左右3px・下3px) を外した
+     * 内側だけを重畳したい画面で使う。
+     */
+    //? if >=26.1 {
+    static void draw(GuiGraphicsExtractor graphics, int x, int y, float u, float v, int w, int h) {
+    //?} else {
+    /*static void draw(GuiGraphics graphics, int x, int y, float u, float v, int w, int h) {
+    *///?}
+        //? if >=1.21.2 {
+        graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, x, y, u, v, w, h, 256, 256);
+        //?} else {
+        /*graphics.blit(TEXTURE, x, y, u, v, w, h, 256, 256);
+        *///?}
+    }
 }

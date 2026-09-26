@@ -59,14 +59,24 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     private static final String SPRITE_REPEAT_OFF = "repeat_off.png";
     private static final String SPRITE_SHUFFLE_ON = "shuffle_on.png";
     private static final String SPRITE_SHUFFLE_OFF = "shuffle_off.png";
+    private static final String BOOMBOX_SPRITE_ROOT = "textures/gui/boombox/transport/";
+
+    //? if >=1.21.2 {
+    private static final Identifier RADIO_PANEL_TEXTURE =
+            Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/boombox.png");
+    //?} elif >=1.21 {
+    /*private static final ResourceLocation RADIO_PANEL_TEXTURE =
+            ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/boombox.png");
+    *///?} else {
+    /*private static final ResourceLocation RADIO_PANEL_TEXTURE =
+            new ResourceLocation(MusicDiscMaker.MODID, "textures/gui/boombox.png");
+    *///?}
 
     private static final int TEXT = 0xFFFFD58A;
     private static final int INVENTORY_TEXT = 0xFF404040;
     private static final int TIME_TEXT = 0xFFE5C99C;
     private static final int LIVE_TEXT = 0xFFD03030;
-    private static final int CASE = 0xFF484848;
     private static final int CASE_EDGE = 0xFF242424;
-    private static final int DISPLAY = 0xFF292723;
     private static final int LOOP_SPRITE = 16;
 
     private IconButton shuffleButton;
@@ -257,24 +267,15 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     *///?}
         final int x = leftPos;
         final int y = topPos;
-        graphics.fill(x, y + 2, x + 176, y + 128, CASE_EDGE);
-        graphics.fill(x + 2, y, x + 174, y + 126, CASE_EDGE);
-        graphics.fill(x + 3, y + 3, x + 173, y + 125, CASE);
-        graphics.fill(x + 3, y + 3, x + 173, y + 5, 0xFF858585);
-        // The media well and track display form one recessed deck.
-        graphics.fill(x + 6, y + 12, x + 170, y + 45, CASE_EDGE);
-        graphics.fill(x + 28, y + 14, x + 168, y + 43, DISPLAY);
-        final int discX = x + BoomboxScreenLayout.DISC_X;
-        final int discY = y + BoomboxScreenLayout.DISC_Y;
-        graphics.fill(discX - 1, discY - 1, discX + 17, discY + 17, 0xFF373737);
-        graphics.fill(discX, discY, discX + 17, discY + 17, 0xFFC6C6C6);
-        graphics.fill(discX, discY, discX + 16, discY + 16, 0xFF8B8B8B);
-        graphics.fill(x + 6, y + 49, x + 170, y + 68, DISPLAY);
-        // Speaker grille slots flank the transport keys.
-        for (int row = 0; row < 6; row++) {
-            graphics.fill(x + 8, y + 78 + row * 4, x + 23, y + 80 + row * 4, CASE_EDGE);
-            graphics.fill(x + 153, y + 78 + row * 4, x + 168, y + 80 + row * 4, CASE_EDGE);
-        }
+        //? if >=1.21.2 {
+        graphics.blit(RenderPipelines.GUI_TEXTURED, RADIO_PANEL_TEXTURE, x, y,
+                0.0F, 0.0F, BoomboxScreenLayout.PANEL_WIDTH, BoomboxScreenLayout.MACHINE_HEIGHT,
+                BoomboxScreenLayout.PANEL_WIDTH, BoomboxScreenLayout.MACHINE_HEIGHT);
+        //?} else {
+        /*graphics.blit(RADIO_PANEL_TEXTURE, x, y, 0.0F, 0.0F,
+                BoomboxScreenLayout.PANEL_WIDTH, BoomboxScreenLayout.MACHINE_HEIGHT,
+                BoomboxScreenLayout.PANEL_WIDTH, BoomboxScreenLayout.MACHINE_HEIGHT);
+        *///?}
         VanillaPlayerInventoryBackground.draw(graphics, leftPos,
                 topPos + BoomboxScreenLayout.INVENTORY_Y);
     }
@@ -480,44 +481,28 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             graphics.fill(getX(), getY() + height - 2, getX() + width, getY() + height, 0xFF747474);
             // Center the mark on the lit key face; the bottom two pixels are its shadow.
             final int faceHeight = height - 2;
+            // Boombox の再生/停止キーは金色/灰色の専用スプライト (active で切替)。
+            String spriteRoot = SPRITE_ROOT;
+            String spriteFile = sprite;
             if (SPRITE_PLAY.equals(sprite) || SPRITE_PAUSE.equals(sprite)) {
-                final int markY = getY() + (faceHeight - 12) / 2;
-                final boolean paused = SPRITE_PAUSE.equals(sprite);
-                // Match the neighboring transport sprites: light from above-left, dark lower edge.
-                for (int row = 0; row < 12; row++) {
-                    for (int column = 0; column < 11; column++) {
-                        if (!markPixel(paused, column, row)) continue;
-                        final boolean lowerEdge = !markPixel(paused, column, row + 1);
-                        final boolean litEdge = !markPixel(paused, column, row - 1)
-                                || !markPixel(paused, column - 1, row);
-                        final int color = active
-                                ? (lowerEdge ? 0xFF907327 : litEdge ? 0xFFE8C86E : 0xFFCEA844)
-                                : (lowerEdge ? 0xFF505050 : litEdge ? 0xFF929292 : 0xFF676767);
-                        final int pixelX = getX() + (paused ? 5 : 6) + column;
-                        graphics.fill(pixelX, markY + row, pixelX + 1, markY + row + 1, color);
-                    }
+                spriteRoot = BOOMBOX_SPRITE_ROOT;
+                if (!active) {
+                    spriteFile = sprite.substring(0, sprite.length() - ".png".length()) + "_off.png";
                 }
-                return;
             }
             final int iconX = getX() + (width - spriteSize) / 2;
             final int iconY = getY() + (faceHeight - spriteSize) / 2;
             //? if >=1.21.2 {
-            final Identifier texture = Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, SPRITE_ROOT + sprite);
+            final Identifier texture = Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, spriteRoot + spriteFile);
             graphics.blit(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY,
                     0.0F, 0.0F, spriteSize, spriteSize, spriteSize, spriteSize);
             //?} elif >=1.21 {
-            /*final ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, SPRITE_ROOT + sprite);
+            /*final ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, spriteRoot + spriteFile);
             graphics.blit(texture, iconX, iconY, 0.0F, 0.0F, spriteSize, spriteSize, spriteSize, spriteSize);
             *///?} else {
-            /*final ResourceLocation texture = new ResourceLocation(MusicDiscMaker.MODID, SPRITE_ROOT + sprite);
+            /*final ResourceLocation texture = new ResourceLocation(MusicDiscMaker.MODID, spriteRoot + spriteFile);
             graphics.blit(texture, iconX, iconY, 0.0F, 0.0F, spriteSize, spriteSize, spriteSize, spriteSize);
             *///?}
-        }
-
-        private static boolean markPixel(boolean paused, int column, int row) {
-            if (row < 0 || row >= 12 || column < 0) return false;
-            return paused ? column < 3 || (column >= 7 && column < 10)
-                    : column < 1 + Math.min(row, 11 - row) * 2;
         }
 
         @Override

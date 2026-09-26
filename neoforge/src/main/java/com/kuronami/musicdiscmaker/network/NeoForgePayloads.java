@@ -20,11 +20,24 @@ public final class NeoForgePayloads {
         // optional な channel は版が食い違うと黙って無効化され、「接続はできるのに何も鳴らない」
         // に化ける。ここでは接続を断らせる (fail-fast)。
         final PayloadRegistrar registrar = event.registrar(ModNetwork.PROTOCOL_VERSION);
+        // local_audio は双方向。1.21.11 以降の playBidirectional 単一 handler 版は
+        // client 側 handler に null を登録するだけで、client の登録検査が
+        // 「clientbound handler 未登録」で起動を止めるため、2 handler 版を使う。
+        // 1.21.1 には 2 handler 版が無く、単一 handler 版が両方向へ同じ handler を
+        // 正しく登録するので従来通り。
+        //? if >=1.21.11 {
         registrar.playBidirectional(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC,
+                (msg, context) -> context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer player) ModNetwork.handleLocalAudio(msg.inner(), player);
+                }),
+                (msg, context) -> context.enqueueWork(() -> ModNetwork.handleLocalAudioClient(msg.inner())));
+        //?} else {
+        /*registrar.playBidirectional(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC,
                 (msg, context) -> context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer player) ModNetwork.handleLocalAudio(msg.inner(), player);
                     else ModNetwork.handleLocalAudioClient(msg.inner());
                 }));
+        *///?}
 
         // client → server: URL コミット (BlockEntity に保存 → 条件が揃えば自動生成)
         registrar.playToServer(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC,

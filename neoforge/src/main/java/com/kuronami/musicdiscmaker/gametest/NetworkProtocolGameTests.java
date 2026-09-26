@@ -188,6 +188,54 @@ public class NetworkProtocolGameTests {
         helper.succeed();
     }
 
+    /**
+     * <b>これが回帰テスト。</b> local_audio は双方向 payload であり、clientbound と
+     * serverbound の両方へ handler が登録されていなければならない。
+     *
+     * <p>1.21.11 以降の {@code playBidirectional} 単一 handler 版は client 側 handler を
+     * null 登録するだけで、client の ClientNetworkRegistry 検査が「clientbound handler
+     * 未登録」で起動を止める (26.2 で実発生)。server 側の登録結果を NeoForge の
+     * registry から直接確かめる。旧 API (1.21.1) は登録 record が handler を持つ。
+     */
+    //? if <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void localAudioRegistersHandlersOnBothFlows(GameTestHelper helper) {
+        try {
+            //? if >=1.21.11 {
+            for (final String field : new String[] {"SERVERBOUND_HANDLERS", "CLIENTBOUND_HANDLERS"}) {
+                final var f = net.neoforged.neoforge.network.registration.NetworkRegistry.class
+                        .getDeclaredField(field);
+                f.setAccessible(true);
+                final var byProtocol = (Map<?, ?>) f.get(null);
+                final var handlers =
+                        (Map<?, ?>) byProtocol.get(net.minecraft.network.ConnectionProtocol.PLAY);
+                helper.assertTrue(handlers != null && handlers.containsKey(
+                        com.kuronami.musicdiscmaker.network.ModPayloadTypes.LocalAudio.TYPE.id()),
+                        "local_audio の " + field + " への登録がない"
+                                + " (26.2 client 起動を止めた clientbound 未登録の欠陥)");
+            }
+            //?} else {
+            /*final var f = net.neoforged.neoforge.network.registration.NetworkRegistry.class
+                    .getDeclaredField("PAYLOAD_REGISTRATIONS");
+            f.setAccessible(true);
+            final var byProtocol = (Map<?, ?>) f.get(null);
+            final var regs =
+                    (Map<?, ?>) byProtocol.get(net.minecraft.network.ConnectionProtocol.PLAY);
+            final var reg = regs == null
+                    ? null
+                    : regs.get(com.kuronami.musicdiscmaker.network.ModPayloadTypes.LocalAudio.TYPE.id());
+            helper.assertTrue(reg != null
+                            && reg.getClass().getMethod("handler").invoke(reg) != null,
+                    "local_audio の登録または handler がない");
+            *///?}
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("NetworkRegistry の登録内容を読めなかった", e);
+        }
+        helper.succeed();
+    }
+
     //? if <1.21.2 {
     /*/^*
      * compat 経由で登録される4つの payload が、実 codec で往復しても値を保つこと。

@@ -171,6 +171,8 @@ public final class MdmGameTestRegistration {
                 NetworkProtocolGameTests::wireFormatAndProtocolVersionMoveTogether, empty, 100);
         register(event, "directional_survives_the_round_trip",
                 NetworkProtocolGameTests::directionalSurvivesTheRoundTrip, empty, 100);
+        register(event, "local_audio_registers_handlers_on_both_flows",
+                NetworkProtocolGameTests::localAudioRegistersHandlersOnBothFlows, empty, 100);
         register(event, "stop_during_load_discards_the_pending_source",
                 PlaybackGenerationGameTests::stopDuringLoadDiscardsThePendingSource, empty, 100);
         register(event, "second_play_cancels_the_first_load",

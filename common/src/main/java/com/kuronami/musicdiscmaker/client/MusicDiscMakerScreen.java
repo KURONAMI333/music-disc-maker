@@ -185,6 +185,10 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
         graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
                 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+        // 在庫帯はバニラの generic_54 slice を外枠 (左右3px・下3px) だけ除いて重畳する。
+        // パネル200px内のスロット起点 (19,98) に slice 内セル (8,140) が一致する配置。
+        VanillaPlayerInventoryBackground.draw(graphics, leftPos + 14, topPos + 84,
+                3.0F, 126.0F, 170, 93);
     //?} elif >=1.21.2 {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
@@ -195,9 +199,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         g.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
                 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+        VanillaPlayerInventoryBackground.draw(g, leftPos + 14, topPos + 84,
+                3.0F, 126.0F, 170, 93);
     *///?} else {
     /*protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         g.blit(TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+        VanillaPlayerInventoryBackground.draw(g, leftPos + 14, topPos + 84,
+                3.0F, 126.0F, 170, 93);
     *///?}
     }
 
