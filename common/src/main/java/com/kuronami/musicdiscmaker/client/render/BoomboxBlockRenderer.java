@@ -7,7 +7,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 //? if >=1.21.2 {
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
@@ -72,8 +71,8 @@ public class BoomboxBlockRenderer
         final int light = state.lightCoords;
         poseStack.pushPose();
         BoomboxHandle.pose(poseStack, state.yaw, state.fall);
-        submitNodeCollector.submitCustomGeometry(poseStack, BoomboxHandle.renderType(),
-                (pose, buffer) -> BoomboxHandle.emit(pose, buffer, light, OverlayTexture.NO_OVERLAY));
+        DevicePartModels.submit(DevicePartModels.Part.BOOMBOX_HANDLE,
+                poseStack, submitNodeCollector, light);
         poseStack.popPose();
     }
 }
@@ -90,8 +89,7 @@ public class BoomboxBlockRenderer
                 BoomboxClientPlayback.isPlayingAt(blockEntity.getBlockPos()));
         poseStack.pushPose();
         BoomboxHandle.pose(poseStack, BoomboxHandle.yawOf(blockEntity.getBlockState()), fall);
-        BoomboxHandle.emit(poseStack.last(), buffers.getBuffer(BoomboxHandle.renderType()),
-                light, OverlayTexture.NO_OVERLAY);
+        DevicePartModels.render(DevicePartModels.Part.BOOMBOX_HANDLE, poseStack, buffers, light);
         poseStack.popPose();
     }
 }

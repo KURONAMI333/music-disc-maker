@@ -14,34 +14,92 @@ import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackManager;
 import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
 import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
 import com.kuronami.musicdiscmaker.client.render.BoomboxBlockRenderer;
+import com.kuronami.musicdiscmaker.client.render.DeviceModelPoses;
+import com.kuronami.musicdiscmaker.client.render.DevicePartModels;
 import com.kuronami.musicdiscmaker.client.render.DiscPedestalRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerBlockRenderer;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.client.model.standalone.SimpleUnbakedStandaloneModel;
+import net.neoforged.neoforge.client.model.standalone.StandaloneModelKey;
 
 // This class will not load on dedicated servers. Accessing client side code from here is safe.
 @Mod(value = MusicDiscMaker.MODID, dist = Dist.CLIENT)
 // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
 @EventBusSubscriber(modid = MusicDiscMaker.MODID, value = Dist.CLIENT)
 public class MusicDiscMakerClient {
+    //? if >=26.1 {
+    private static final java.util.Map<DevicePartModels.Part,
+            StandaloneModelKey<net.minecraft.client.renderer.block.dispatch.BlockStateModel>> PART_KEYS =
+            partKeys();
+
+    private static java.util.Map<DevicePartModels.Part,
+            StandaloneModelKey<net.minecraft.client.renderer.block.dispatch.BlockStateModel>> partKeys() {
+        final var keys = new java.util.EnumMap<DevicePartModels.Part,
+                StandaloneModelKey<net.minecraft.client.renderer.block.dispatch.BlockStateModel>>(
+                DevicePartModels.Part.class);
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            keys.put(part, new StandaloneModelKey<>(
+                    () -> MusicDiscMaker.MODID + ":" + part.path()));
+        }
+        return keys;
+    }
+    //?} else {
+    /*private static final java.util.Map<DevicePartModels.Part,
+            StandaloneModelKey<net.minecraft.client.renderer.block.model.BlockStateModel>> PART_KEYS =
+            partKeys();
+
+    private static java.util.Map<DevicePartModels.Part,
+            StandaloneModelKey<net.minecraft.client.renderer.block.model.BlockStateModel>> partKeys() {
+        final var keys = new java.util.EnumMap<DevicePartModels.Part,
+                StandaloneModelKey<net.minecraft.client.renderer.block.model.BlockStateModel>>(
+                DevicePartModels.Part.class);
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            keys.put(part, new StandaloneModelKey<>(
+                    () -> MusicDiscMaker.MODID + ":" + part.path()));
+        }
+        return keys;
+    }
+    *///?}
+
     public MusicDiscMakerClient(ModContainer container) {
         // Allows NeoForge to create a config screen for this mod's configs.
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+    }
+
+    @SubscribeEvent
+    static void onRegisterStandaloneModels(ModelEvent.RegisterStandalone event) {
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            event.register(PART_KEYS.get(part), SimpleUnbakedStandaloneModel.blockStateModel(
+                    Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, part.path())));
+        }
+        DevicePartModels.installProvider(part -> Minecraft.getInstance().getModelManager()
+                .getStandaloneModel(PART_KEYS.get(part)));
+    }
+
+    @SubscribeEvent
+    static void onAddClientReloadListeners(AddClientReloadListenersEvent event) {
+        event.addListener(
+                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_poses"),
+                DeviceModelPoses.INSTANCE);
     }
 
     @SubscribeEvent

@@ -6,6 +6,8 @@ import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackManager;
 import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
 import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
 import com.kuronami.musicdiscmaker.client.render.BoomboxBlockRenderer;
+import com.kuronami.musicdiscmaker.client.render.DeviceModelPoses;
+import com.kuronami.musicdiscmaker.client.render.DevicePartModels;
 import com.kuronami.musicdiscmaker.client.render.DiscPedestalRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOutlineRenderer;
@@ -61,7 +63,30 @@ import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallbac
 /*import net.fabricmc.fabric.api.client.rendering.v1.TooltipComponentCallback;
 */
 //?}
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.server.packs.PackType;
+//? if >=1.21.2 {
+import net.fabricmc.fabric.api.client.model.loading.v1.ExtraModelKey;
+import net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin;
+import net.fabricmc.fabric.api.client.model.loading.v1.SimpleUnbakedExtraModel;
+//?} else {
+/*import net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin;
+import net.fabricmc.fabric.api.client.model.loading.v1.FabricBakedModelManager;
+import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.minecraft.client.resources.model.BakedModel;
+*/
+//?}
+//? if >=26.2 {
+import net.fabricmc.fabric.api.client.model.loading.v1.FabricModelManager;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+//?} elif >=1.21.2 {
+/*import net.fabricmc.fabric.api.client.model.loading.v1.FabricBakedModelManager;
+import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+*/
+//?}
 //? if >=1.21.2 {
 import net.minecraft.client.color.item.ItemTintSources;
 import net.minecraft.client.renderer.item.properties.numeric.RangeSelectItemModelProperties;
@@ -79,8 +104,136 @@ import net.minecraft.resources.ResourceLocation;
  */
 public class MusicDiscMakerFabricClient implements ClientModInitializer {
 
+    //? if >=1.21.2 {
+    /* ExtraModelKey は焼き済み extra model の引き出し口。26.2 (dispatch) と 1.21.11 (block.model) で
+       BlockStateModel の置き場所が違うのでキーの型だけ版で切り替える。 */
+    //? if >=26.1 {
+    private static final java.util.Map<DevicePartModels.Part,
+            ExtraModelKey<net.minecraft.client.renderer.block.dispatch.BlockStateModel>> PART_KEYS =
+            partKeys();
+
+    private static java.util.Map<DevicePartModels.Part,
+            ExtraModelKey<net.minecraft.client.renderer.block.dispatch.BlockStateModel>> partKeys() {
+        final var keys = new java.util.EnumMap<DevicePartModels.Part,
+                ExtraModelKey<net.minecraft.client.renderer.block.dispatch.BlockStateModel>>(
+                DevicePartModels.Part.class);
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            keys.put(part, ExtraModelKey.create(
+                    () -> MusicDiscMaker.MODID + ":" + part.path()));
+        }
+        return keys;
+    }
+    //?} else {
+    /*private static final java.util.Map<DevicePartModels.Part,
+            ExtraModelKey<net.minecraft.client.renderer.block.model.BlockStateModel>> PART_KEYS =
+            partKeys();
+
+    private static java.util.Map<DevicePartModels.Part,
+            ExtraModelKey<net.minecraft.client.renderer.block.model.BlockStateModel>> partKeys() {
+        final var keys = new java.util.EnumMap<DevicePartModels.Part,
+                ExtraModelKey<net.minecraft.client.renderer.block.model.BlockStateModel>>(
+                DevicePartModels.Part.class);
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            keys.put(part, ExtraModelKey.create(
+                    () -> MusicDiscMaker.MODID + ":" + part.path()));
+        }
+        return keys;
+    }
+    *///?}
+    //?} elif >=1.21 {
+    /*private static net.minecraft.resources.ResourceLocation partLocation(DevicePartModels.Part part) {
+        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, part.path());
+    }
+    *///?} else {
+    /*private static net.minecraft.resources.ResourceLocation partLocation(DevicePartModels.Part part) {
+        return new ResourceLocation(MusicDiscMaker.MODID, part.path());
+    }
+    *///?}
+
     @Override
     public void onInitializeClient() {
+        //? if >=1.21.2 {
+        // 斜めホーンと取っ手を、パック差替え可能な extra model として登録する。
+        // provider は毎フレーム現在の ModelManager に問い合わせるので F3+T で差し替わる。
+        ModelLoadingPlugin.register(context -> {
+            for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+                context.addModel(PART_KEYS.get(part), SimpleUnbakedExtraModel.blockStateModel(
+                        Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, part.path())));
+            }
+        });
+        //? if >=26.2 {
+        DevicePartModels.installProvider(part ->
+                ((FabricModelManager) Minecraft.getInstance().getModelManager()).getModel(PART_KEYS.get(part)));
+        //?} else {
+        /*DevicePartModels.installProvider(part ->
+                ((FabricBakedModelManager) Minecraft.getInstance().getModelManager()).getModel(PART_KEYS.get(part)));
+        *///?}
+        //?} else {
+        /*ModelLoadingPlugin.register(context -> {
+            for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+                context.addModels(partLocation(part));
+            }
+        });
+        DevicePartModels.installProvider(part -> {
+            final BakedModel model =
+                    ((FabricBakedModelManager) Minecraft.getInstance().getModelManager()).getModel(partLocation(part));
+            return model == Minecraft.getInstance().getModelManager().getMissingModel() ? null : model;
+        });
+        *///?}
+
+        // device_model_pose.json のリロード口。パックを外したらデフォルトへ戻る。
+        //? if >=26.2 {
+        ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_poses"),
+                DeviceModelPoses.INSTANCE);
+        //?} elif >=1.21.2 {
+        /*ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                new IdentifiableResourceReloadListener() {
+                    @Override public Identifier getFabricId() {
+                        return Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_poses");
+                    }
+                    @Override public java.util.concurrent.CompletableFuture<Void> reload(
+                            net.minecraft.server.packs.resources.PreparableReloadListener.SharedState shared,
+                            java.util.concurrent.Executor background,
+                            net.minecraft.server.packs.resources.PreparableReloadListener.PreparationBarrier barrier,
+                            java.util.concurrent.Executor game) {
+                        return DeviceModelPoses.INSTANCE.reload(shared, background, barrier, game);
+                    }
+                });
+        *///?} elif >=1.21 {
+        /*ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                new IdentifiableResourceReloadListener() {
+                    @Override public ResourceLocation getFabricId() {
+                        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_poses");
+                    }
+                    @Override public java.util.concurrent.CompletableFuture<Void> reload(
+                            net.minecraft.server.packs.resources.PreparableReloadListener.PreparationBarrier barrier,
+                            net.minecraft.server.packs.resources.ResourceManager manager,
+                            net.minecraft.util.profiling.ProfilerFiller profiler1,
+                            net.minecraft.util.profiling.ProfilerFiller profiler2,
+                            java.util.concurrent.Executor background, java.util.concurrent.Executor game) {
+                        return DeviceModelPoses.INSTANCE.reload(barrier, manager, profiler1, profiler2,
+                                background, game);
+                    }
+                });
+        *///?} else {
+        /*ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                new IdentifiableResourceReloadListener() {
+                    @Override public ResourceLocation getFabricId() {
+                        return new ResourceLocation(MusicDiscMaker.MODID, "device_model_poses");
+                    }
+                    @Override public java.util.concurrent.CompletableFuture<Void> reload(
+                            net.minecraft.server.packs.resources.PreparableReloadListener.PreparationBarrier barrier,
+                            net.minecraft.server.packs.resources.ResourceManager manager,
+                            net.minecraft.util.profiling.ProfilerFiller profiler1,
+                            net.minecraft.util.profiling.ProfilerFiller profiler2,
+                            java.util.concurrent.Executor background, java.util.concurrent.Executor game) {
+                        return DeviceModelPoses.INSTANCE.reload(barrier, manager, profiler1, profiler2,
+                                background, game);
+                    }
+                });
+        *///?}
+
         //? if >=26.1 {
         // menu screen 登録。26.2 は vanilla MenuScreens.register が private だが fabric-api の
         // transitive access widener で mod から呼べる (旧 fabric-screen-handler-api の HandledScreens 相当)。

@@ -8,6 +8,8 @@ import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
 import com.kuronami.musicdiscmaker.compat.valkyrienskies.VS2Compat;
 import com.kuronami.musicdiscmaker.component.TrackKey;
 import com.kuronami.musicdiscmaker.client.render.BoomboxBlockRenderer;
+import com.kuronami.musicdiscmaker.client.render.DeviceModelPoses;
+import com.kuronami.musicdiscmaker.client.render.DevicePartModels;
 import com.kuronami.musicdiscmaker.client.render.DiscPedestalRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOutlineRenderer;
@@ -16,12 +18,17 @@ import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.resources.model.ModelManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.ModelEvent;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -89,6 +96,30 @@ public final class MusicDiscMakerForgeClient {
     public static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
         event.getItemColors().register(DiscDyeTint::color, ModItems.CUSTOM_MUSIC_DISC.get());
         event.getItemColors().register(AlbumDyeTint::color, ModItems.ALBUM.get());
+    }
+
+    /**
+     * 斜めスピーカーのホーンとブームボックスの取っ手を、リソースパックで差替えられる
+     * 追加モデルとして登録する。provider は毎フレーム現在の ModelManager に問い合わせるので
+     * F3+T (resources reload) で差し替わる — 焼き済みモデルは保持しない。
+     */
+    @SubscribeEvent
+    public static void onRegisterAdditionalModels(ModelEvent.RegisterAdditional event) {
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            event.register(new ResourceLocation(MusicDiscMaker.MODID, part.path()));
+        }
+        DevicePartModels.installProvider(part -> {
+            final ModelManager manager = Minecraft.getInstance().getModelManager();
+            final BakedModel model = manager.getModel(
+                    new ResourceLocation(MusicDiscMaker.MODID, part.path()));
+            return model == manager.getMissingModel() ? null : model;
+        });
+    }
+
+    /** device_model_pose.json の client リロード口。パックを外したらデフォルトへ戻る。 */
+    @SubscribeEvent
+    public static void onRegisterClientReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(DeviceModelPoses.INSTANCE);
     }
 
     /**

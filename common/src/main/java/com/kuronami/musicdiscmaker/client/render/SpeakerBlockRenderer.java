@@ -7,7 +7,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.AttachFace;
@@ -62,14 +61,7 @@ public final class SpeakerBlockRenderer
         final int light = state.lightCoords;
         poseStack.pushPose();
         SpeakerHorn.poseBlock(poseStack, state.face, state.facing, state.turn);
-        for (SpeakerHornGeometry.Element element : SpeakerHorn.elements(state.face)) {
-            poseStack.pushPose();
-            SpeakerHorn.poseElement(poseStack, element);
-            collector.submitCustomGeometry(poseStack, SpeakerHorn.renderType(),
-                    (pose, buffer) -> SpeakerHorn.emitElement(
-                            element, pose, buffer, light, OverlayTexture.NO_OVERLAY));
-            poseStack.popPose();
-        }
+        DevicePartModels.submit(SpeakerHorn.model(state.face), poseStack, collector, light);
         poseStack.popPose();
     }
 }
@@ -90,13 +82,7 @@ public final class SpeakerBlockRenderer
         final AttachFace face = state.getValue(SpeakerBlock.FACE);
         poseStack.pushPose();
         SpeakerHorn.poseBlock(poseStack, face, state.getValue(SpeakerBlock.FACING), turn);
-        for (SpeakerHornGeometry.Element element : SpeakerHorn.elements(face)) {
-            poseStack.pushPose();
-            SpeakerHorn.poseElement(poseStack, element);
-            SpeakerHorn.emitElement(element, poseStack.last(), buffers.getBuffer(SpeakerHorn.renderType()),
-                    light, OverlayTexture.NO_OVERLAY);
-            poseStack.popPose();
-        }
+        DevicePartModels.render(SpeakerHorn.model(face), poseStack, buffers, light);
         poseStack.popPose();
     }
 }

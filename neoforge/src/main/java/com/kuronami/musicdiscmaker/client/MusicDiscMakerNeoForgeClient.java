@@ -8,6 +8,8 @@ import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackManager;
 import com.kuronami.musicdiscmaker.client.jacket.JacketClientTooltip;
 import com.kuronami.musicdiscmaker.client.jacket.JacketTooltip;
 import com.kuronami.musicdiscmaker.client.render.BoomboxBlockRenderer;
+import com.kuronami.musicdiscmaker.client.render.DeviceModelPoses;
+import com.kuronami.musicdiscmaker.client.render.DevicePartModels;
 import com.kuronami.musicdiscmaker.client.render.DiscPedestalRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOutlineRenderer;
@@ -19,7 +21,11 @@ import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.resources.model.ModelManager;
+import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -30,6 +36,8 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.ModelEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
@@ -46,9 +54,47 @@ import net.neoforged.neoforge.common.NeoForge;
 @EventBusSubscriber(modid = MusicDiscMaker.MODID, value = Dist.CLIENT)
 public class MusicDiscMakerNeoForgeClient {
 
+    /^*
+     * 斜めスピーカーのホーンとブームボックスの取っ手を、リソースパックで差替えられる
+     * standalone モデルとして登録するための置き場所。
+     ^/
+    private static final java.util.Map<DevicePartModels.Part, ModelResourceLocation> PART_MODELS =
+            partModels();
+
+    private static java.util.Map<DevicePartModels.Part, ModelResourceLocation> partModels() {
+        final var models = new java.util.EnumMap<DevicePartModels.Part, ModelResourceLocation>(
+                DevicePartModels.Part.class);
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            models.put(part, ModelResourceLocation.standalone(
+                    ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, part.path())));
+        }
+        return models;
+    }
+
     public MusicDiscMakerNeoForgeClient(ModContainer container) {
         // Mods 画面 > このmod > config から開ける config 画面を登録する。
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+    }
+
+    /^*
+     * 追加モデルの登録と、毎フレーム現在の ModelManager へ問い合わせる provider の設置。
+     * provider が焼き済みモデルを保持しないので F3+T で差し替わる。
+     ^/
+    @SubscribeEvent
+    static void onRegisterAdditionalModels(ModelEvent.RegisterAdditional event) {
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            event.register(PART_MODELS.get(part));
+        }
+        DevicePartModels.installProvider(part -> {
+            final ModelManager manager = Minecraft.getInstance().getModelManager();
+            final BakedModel model = manager.getModel(PART_MODELS.get(part));
+            return model == manager.getMissingModel() ? null : model;
+        });
+    }
+
+    @SubscribeEvent
+    static void onRegisterClientReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(DeviceModelPoses.INSTANCE);
     }
 
     @SubscribeEvent
