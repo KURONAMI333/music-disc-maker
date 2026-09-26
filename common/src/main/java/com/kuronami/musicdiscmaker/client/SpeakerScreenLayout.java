@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.client;
 
-/** speaker設定画面の座標。新規テクスチャを持たず、vanilla widgetだけで構成する。 */
+/** speaker設定画面の座標。パネルは textures/gui/speaker.png、操作は vanilla widget で構成する。 */
 public final class SpeakerScreenLayout {
     public static final int WIDTH = 176;
     public static final int HEIGHT = 90;

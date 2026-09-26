@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.menu.SpeakerMenu;
 
 //? if >=26.1 {
@@ -12,14 +13,28 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 //? if >=1.21.2 {
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 //?} else {
-//?}
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 
 /** 固定speakerの音量を調整する画面。 */
 public final class SpeakerScreen extends AbstractContainerScreen<SpeakerMenu> {
+
+    //? if >=1.21.2 {
+    private static final Identifier PANEL_TEXTURE =
+            Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/speaker.png");
+    //?} elif >=1.21 {
+    /*private static final ResourceLocation PANEL_TEXTURE =
+            ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/speaker.png");
+    *///?} else {
+    /*private static final ResourceLocation PANEL_TEXTURE =
+            new ResourceLocation(MusicDiscMaker.MODID, "textures/gui/speaker.png");
+    *///?}
 
     private VolumeSlider volumeSlider;
 
@@ -95,9 +110,13 @@ public final class SpeakerScreen extends AbstractContainerScreen<SpeakerMenu> {
     //?} else {
     /*private void drawPanel(GuiGraphics graphics) {
     *///?}
-        graphics.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, 0xFF242424);
-        graphics.fill(leftPos + 2, topPos + 2, leftPos + imageWidth - 2, topPos + imageHeight - 2, 0xFF484848);
-        graphics.fill(leftPos + 2, topPos + 2, leftPos + imageWidth - 2, topPos + 4, 0xFF858585);
+        //? if >=1.21.2 {
+        graphics.blit(RenderPipelines.GUI_TEXTURED, PANEL_TEXTURE, leftPos, topPos,
+                0.0F, 0.0F, imageWidth, imageHeight, imageWidth, imageHeight);
+        //?} else {
+        /*graphics.blit(PANEL_TEXTURE, leftPos, topPos, 0.0F, 0.0F,
+                imageWidth, imageHeight, imageWidth, imageHeight);
+        *///?}
     }
 
     private final class VolumeSlider extends AbstractSliderButton {
