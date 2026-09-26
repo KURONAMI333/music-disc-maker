@@ -44,7 +44,7 @@ public final class LocalAudioServer {
         MinecraftServer server = player.level().getServer();
         if (server == null) return;
         State s = state(server);
-        if (p.operation() == LocalAudioPayload.BEGIN || p.operation() == LocalAudioPayload.FETCH) {
+        if (p.operation() == LocalAudioPayload.BEGIN) {
             long previous = s.requests.getOrDefault(player.getUUID(), 0L);
             if (now() - previous < 250) { error(player, p, "busy"); return; }
             s.requests.put(player.getUUID(), now());
@@ -243,7 +243,12 @@ public final class LocalAudioServer {
         if (s == null) return;
         for (Upload u : List.copyOf(s.uploads.values())) {
             if (!u.cancelled && (!valid(u) || now() - u.touched > 60_000)) {
-                u.cancelled = true; error(u.player, u.request, "expired"); s.io.execute(() -> discard(s, u));
+                u.cancelled = true;
+                // 通知は最善 effort。送信失敗が tick ループへ伝播して残りの掃除や
+                // サーバー tick を止めないよう飲み込み、slot 解放は必ず進める。
+                try { error(u.player, u.request, "expired"); }
+                catch (RuntimeException ignored) { /* 送信不能でも解放は行う */ }
+                s.io.execute(() -> discard(s, u));
             }
         }
         for (Download d : List.copyOf(s.downloads.values())) {

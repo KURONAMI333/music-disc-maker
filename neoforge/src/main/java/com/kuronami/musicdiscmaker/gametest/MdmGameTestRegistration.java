@@ -487,6 +487,14 @@ public final class MdmGameTestRegistration {
                 GoldenRedstoneGameTests::vanillaJukeboxSongNaturallyEndsAndExtracts, empty, 520);
         register(event, "speaker_reload_reindexes_and_defaults_volume",
                 SpeakerCoreGameTests::reloadReindexesLinkAndDefaultsMissingVolume, empty, 100);
+        // local MP3 の転送境界は Services.NETWORK を差し替えて観測するので、他テストと送信経路を
+        // 共有しないよう固有 environment (= 1.21.1 の batch) へ隔離する。
+        register(event, "same_tick_fetch_of_distinct_hashes_is_not_throttled",
+                LocalAudioTransferGameTests::sameTickFetchOfDistinctHashesIsNotThrottled,
+                env(event, "local_audio_fetch"), 200);
+        register(event, "expired_uploads_release_slot_when_notification_fails",
+                LocalAudioTransferGameTests::expiredUploadsReleaseTheirSlotWhenNotificationFails,
+                env(event, "local_audio_upload"), 400);
     }
 
     //? if >=26.1 {
