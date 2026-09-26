@@ -496,6 +496,9 @@ public final class MdmGameTestRegistration {
         register(event, "expired_uploads_release_slot_when_notification_fails",
                 LocalAudioTransferGameTests::expiredUploadsReleaseTheirSlotWhenNotificationFails,
                 env(event, "local_audio_upload"), 400);
+        register(event, "invalid_begin_is_answered_with_error",
+                LocalAudioTransferGameTests::invalidBeginIsAnsweredWithError,
+                env(event, "local_audio_begin"), 200);
     }
 
     //? if >=26.1 {

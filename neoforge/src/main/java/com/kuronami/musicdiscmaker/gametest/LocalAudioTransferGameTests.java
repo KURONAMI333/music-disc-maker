@@ -118,6 +118,52 @@ public final class LocalAudioTransferGameTests {
     }
 
     /**
+     * メニュー無し・不正 hash の BEGIN が黙って捨てられず ERROR で応答されること。
+     * 応答が無いと client は transferring のまま残る。
+     */
+    //? if <1.21.2 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", batch = "localAudioBegin", timeoutTicks = 200)
+    */
+    //?}
+    public static void invalidBeginIsAnsweredWithError(GameTestHelper helper) {
+        final MusicDiscMakerBlockEntity maker = maker(helper);
+        final BlockPos absolute = helper.absolutePos(MAKER_POS);
+        // BEGIN は 250ms の per-player 入口制限があるので、各腕は別 player で打つ。
+        final FakePlayer playerA = FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "local-audio-begin-a"));
+        final FakePlayer playerB = FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "local-audio-begin-b"));
+        playerA.setPos(absolute.getX() + 0.5D, absolute.getY() + 0.5D, absolute.getZ() + 1.5D);
+        playerB.setPos(absolute.getX() + 0.5D, absolute.getY() + 0.5D, absolute.getZ() + 1.5D);
+        final CapturingNetwork network = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(network);
+        try {
+            // (a) メニューを開いていない状態の BEGIN → disc
+            LocalAudioServer.receive(begin(999, 1L, hashOf("no-menu")), playerA);
+            // (b) メニューは有効だが hash が形式違反の BEGIN → disc
+            playerB.containerMenu = new MusicDiscMakerMenu(55, playerB.getInventory(), maker);
+            LocalAudioServer.receive(LocalAudioPayload.control(LocalAudioPayload.BEGIN,
+                    LocalAudioPayload.NONE, 55, 2L, "not-a-hex-hash", 0, 1024, "fixture"), playerB);
+            final List<LocalAudioPayload> errors = network.of(LocalAudioPayload.class).stream()
+                    .map(CapturingNetwork.Sent::payload).map(LocalAudioPayload.class::cast)
+                    .filter(p -> p.operation() == LocalAudioPayload.ERROR).toList();
+            helper.assertTrue(errors.stream()
+                            .anyMatch(p -> p.generation() == 1L && "disc".equals(p.name())),
+                    "メニューの無い BEGIN が disc で応答されなかった");
+            helper.assertTrue(errors.stream()
+                            .anyMatch(p -> p.generation() == 2L && "disc".equals(p.name())),
+                    "hash 不正の BEGIN が disc で応答されなかった");
+            helper.assertTrue(errors.size() == 2, "BEGIN 拒否の応答がちょうど2件でない: " + errors.size());
+        } finally {
+            Services.swapNetwork(previous);
+            playerA.discard();
+            playerB.discard();
+        }
+        helper.succeed();
+    }
+
+    /**
      * 期限切れ upload の解放が、ERROR 通知の送信成功に依存しないこと。送信が投げても
      * upload slot と store 側の仮転送が解放され、次の BEGIN が受理されること。
      */

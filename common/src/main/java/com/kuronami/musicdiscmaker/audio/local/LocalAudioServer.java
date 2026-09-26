@@ -31,10 +31,13 @@ public final class LocalAudioServer {
     public static void allow(ServerPlayer player, CustomTrackData track) {
         if (track == null || !track.isLocal()) return;
         State s = state(player.level().getServer());
-        Map<String, Long> grants = s.grants.computeIfAbsent(player.getUUID(), key -> new LinkedHashMap<>());
-        grants.values().removeIf(expiry -> expiry < now());
-        if (grants.size() >= 64) grants.remove(grants.keySet().iterator().next());
-        grants.put(track.localHash(), now() + 120_000);
+        // 送出経路の thread を継承する呼び出しがありうるので、grants の更新は s で直列化する。
+        synchronized (s) {
+            Map<String, Long> grants = s.grants.computeIfAbsent(player.getUUID(), key -> new LinkedHashMap<>());
+            grants.values().removeIf(expiry -> expiry < now());
+            if (grants.size() >= 64) grants.remove(grants.keySet().iterator().next());
+            grants.put(track.localHash(), now() + 120_000);
+        }
     }
     public static void observe(ServerPlayer player, ModPayload payload) {
         if (payload instanceof PlayDiscPayload p) allow(player, p.track());
@@ -45,9 +48,11 @@ public final class LocalAudioServer {
         if (server == null) return;
         State s = state(server);
         if (p.operation() == LocalAudioPayload.BEGIN) {
-            long previous = s.requests.getOrDefault(player.getUUID(), 0L);
-            if (now() - previous < 250) { error(player, p, "busy"); return; }
-            s.requests.put(player.getUUID(), now());
+            synchronized (s) {
+                long previous = s.requests.getOrDefault(player.getUUID(), 0L);
+                if (now() - previous < 250) { error(player, p, "busy"); return; }
+                s.requests.put(player.getUUID(), now());
+            }
         }
         if (p.operation() == LocalAudioPayload.BEGIN) begin(s, p, player);
         else if (p.operation() == LocalAudioPayload.CHUNK) append(s, p, player);
@@ -64,7 +69,10 @@ public final class LocalAudioServer {
     }
     private static void begin(State s, LocalAudioPayload p, ServerPlayer player) {
         MusicDiscMakerMenu menu = maker(player, p.containerId());
-        if (menu == null || !p.hash().matches("[a-f0-9]{64}") || p.size() <= 0 || p.size() > FILE_LIMIT) return;
+        // 拒否は必ず client へ返す。黙って捨てると相手は transferring のまま残る。
+        if (menu == null || !p.hash().matches("[a-f0-9]{64}") || p.size() <= 0 || p.size() > FILE_LIMIT) {
+            error(player, p, "disc"); return;
+        }
         if (s.uploads.size() >= 2 || s.uploads.containsKey(player.getUUID())) {
             error(player, p, "busy"); return;
         }
@@ -192,7 +200,8 @@ public final class LocalAudioServer {
         return false;
     }
     private static void fetch(State s, LocalAudioPayload p, ServerPlayer player) {
-        Long expires = s.grants.getOrDefault(player.getUUID(), Map.of()).get(p.hash());
+        Long expires;
+        synchronized (s) { expires = s.grants.getOrDefault(player.getUUID(), Map.of()).get(p.hash()); }
         if ((expires == null || expires < now()) && !canView(player, p.hash())) { error(player, p, "missing"); return; }
         if (s.downloads.size() >= 4 || s.downloads.values().stream().anyMatch(d -> d.player == player && d.hash.equals(p.hash()))) {
             error(player, p, "busy"); return;
@@ -256,8 +265,10 @@ public final class LocalAudioServer {
                 d.closed = true; s.io.execute(() -> closeDownload(s, d));
             }
         }
-        s.grants.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
-        s.requests.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
+        synchronized (s) {
+            s.grants.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
+            s.requests.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
+        }
         if (now() - s.lastSweep > 10_000 && s.sweeping.compareAndSet(false, true)) {
             s.lastSweep = now();
             s.io.execute(() -> {
