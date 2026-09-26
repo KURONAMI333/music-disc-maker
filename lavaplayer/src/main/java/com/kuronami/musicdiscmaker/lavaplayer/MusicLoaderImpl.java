@@ -600,8 +600,13 @@ public class MusicLoaderImpl implements IMusicLoader {
                     title, author, watch.shortDescription());
             if (distributed.isPresent()) {
                 final YoutubeMusicMetadata.Value value = distributed.orElseThrow();
-                final String artists = String.join(" · ", value.artists());
-                return new SourceMetadata(value.title(), artists, value.title(), artists);
+                if (!allGenericNames(value.artists())) {
+                    final String artists = String.join(" · ", value.artists());
+                    // 検索語は先頭アーティストに絞る: 「A · B · C」全文を投げると
+                    // 区切り文字が検索語を汚しうるため、主アーティスト+曲名で引く
+                    return new SourceMetadata(value.title(), artists,
+                            value.title(), value.artists().get(0));
+                }
             }
         }
 
@@ -625,8 +630,26 @@ public class MusicLoaderImpl implements IMusicLoader {
             return false;
         }
         final String prefix = author.trim().substring(0,
-                author.trim().length() - " - Topic".length()).trim().toLowerCase(Locale.ROOT);
-        return prefix.equals("release") || prefix.equals("various artists");
+                author.trim().length() - " - Topic".length()).trim();
+        return isGenericName(prefix);
+    }
+
+    /** 配信クレジットのアーティスト列が全部「仮置き名」なら真 (実名として採用しない)。 */
+    private static boolean allGenericNames(java.util.List<String> artists) {
+        if (artists == null || artists.isEmpty()) {
+            return true;
+        }
+        for (final String artist : artists) {
+            if (!isGenericName(artist)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isGenericName(String name) {
+        final String n = name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
+        return n.equals("release") || n.equals("various artists");
     }
 
     private static boolean isNormalizedWatchUrl(String url) {

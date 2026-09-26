@@ -82,9 +82,22 @@ class YoutubeMusicMetadataTest {
     }
 
     @Test
-    void rejectsLeadingCreditWithoutDeclaredArtistLine() {
-        assertTrue(YoutubeMusicMetadata.fromDescription(
-                "Song", "Artist - Topic", generatedDescription("Song · Artist")).isEmpty());
+    void acceptsCreditOnlyDescriptionWithoutDeclaredArtistLine() {
+        // 2026-09-26 実測: 現在の自動生成説明欄は Artist: 行を持たず、
+        // 「曲名 · アーティスト( · アーティスト)」のクレジット行だけが配信情報を持つ
+        // (The Weeknd - Topic / Various Artists - Topic の実 watch 本文)。
+        // 冒頭クレジットは動画タイトルとの一致が要求済みなので、Artist: 行が無い形式は採用する。
+        var single = YoutubeMusicMetadata.fromDescription(
+                "Song", "Artist - Topic", generatedDescription("Song · Artist")).orElseThrow();
+        assertEquals(List.of("Artist"), single.artists());
+
+        // 実測形: The Weeknd「Timeless」(OMaM4TkCasQ) は2名クレジットをそのまま持つ
+        var multiple = YoutubeMusicMetadata.fromDescription(
+                        "Timeless",
+                        "The Weeknd - Topic",
+                        generatedDescription("Timeless · The Weeknd · Playboi Carti"))
+                .orElseThrow();
+        assertEquals(List.of("The Weeknd", "Playboi Carti"), multiple.artists());
     }
 
     @Test

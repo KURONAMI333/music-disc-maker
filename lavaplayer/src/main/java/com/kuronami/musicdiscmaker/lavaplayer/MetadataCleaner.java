@@ -111,12 +111,13 @@ public final class MetadataCleaner {
         final boolean topic = author.toLowerCase(Locale.ROOT).endsWith("- topic");
         if (topic) {
             author = author.substring(0, author.length() - "- topic".length()).trim();
-            return new String[] {title, author};
+            return new String[] {stripArtistPrefix(title, author), author};
         }
 
         author = cleanAuthor(author);
         final String original = title;
         title = stripDisplayNoise(title);
+        title = stripPipeCredit(title, author);
         // 【Ado】うっせぇわのように、投稿者と完全一致する先頭クレジットだけを分離する。
         final Matcher credit = LEADING_CREDIT.matcher(title);
         if (credit.find() && credit.group(1).trim().equalsIgnoreCase(author)) {
@@ -131,20 +132,21 @@ public final class MetadataCleaner {
             final String artist = quoted.group(1).trim();
             if (song != null && !song.isBlank() && !artist.isBlank()) {
                 final String suffix = title.substring(quoted.end()).trim();
-                return new String[] {song.trim() + (suffix.isEmpty() ? "" : " " + suffix), cleanAuthor(artist)};
+                return new String[] {song.trim() + (suffix.isEmpty() ? "" : " " + suffix),
+                        coverArtist(title, author, cleanAuthor(artist))};
             }
         }
 
-        final Matcher separator = SEPARATOR.matcher(title);
-        if (separator.find() && separator.start() > 0 && separator.end() < title.length()) {
-            final String artist = title.substring(0, separator.start()).trim();
-            final String song = title.substring(separator.end()).trim();
-            // Song - Live のような版の注記をアーティスト／曲名と取り違えない。
-            if (!artist.isEmpty() && !song.isEmpty() && !RECORDING_SUFFIX.matcher(song).find()) {
-                return new String[] {song, cleanAuthor(artist)};
-            }
+        final String[] split = separatorSplit(title, author, separatorFlips(title, author));
+        // Song - Live のような版の注記をアーティスト／曲名と取り違えない。
+        if (split != null && !RECORDING_SUFFIX.matcher(split[0]).find()) {
+            return new String[] {split[0], coverArtist(title, author, cleanAuthor(split[1]))};
         }
-        return new String[] {title, author};
+        title = stripSlashMvSuffix(stripTrailingCredit(title));
+        if (title.isBlank()) {
+            title = original;
+        }
+        return new String[] {title, coverArtist(original, author, author)};
     }
 
     /**
@@ -160,12 +162,259 @@ public final class MetadataCleaner {
     private static final Pattern LEADING_CREDIT = Pattern.compile("^【([^】]+)】");
     private static final Pattern RECORDING_SUFFIX = Pattern.compile(
             "(?i)^(?:live|remix|cover|remaster(?:ed)?|acoustic|instrumental)(?:\\b|$)");
+    /**
+     * 末尾の / 区切り列挙括弧。【周防パトラ / ハニスト】や (A/B) のような
+     * 投稿者・レーベルのクレジット列挙を対象にする。<b>版の目印を含む括弧は除く</b> —
+     * {@code (Live/Acoustic)} や {@code (A/B mix)} は曲の情報なので消さない。
+     */
+    private static final Pattern TRAILING_CREDIT = Pattern.compile(
+            "\\s*" + OPEN + "([^" + CLOSED + "]*[/／][^" + CLOSED + "]*)[" + CLOSED + "]\\s*$");
+    /**
+     * 末尾の " / 〜MV" 型の宣伝尾 (例: "…クレーター / 1stアルバムスペシャルMV")。
+     * 「…スペシャルMV」のように和文に直付きする形も末尾とみなす。
+     * {@code \\b} には頼らない — 語境界の文字クラス定義は JDK17 (Unicode 準拠) と
+     * JDK21+ (ASCII 基準) で異なり、カタカナ直後の MV が帯で揃わない (2026-09-26 実測)。
+     */
+    private static final Pattern SLASH_MV = Pattern.compile(
+            "(?i)\\s*[/／]\\s*[^/／]*?(?:music\\s+video|mv)\\s*$");
+    /**
+     * "(Cover by X)" / "(Covered by X)" のクレジット。X が投稿者自身を指す時、
+     * アーティスト表示を投稿者 (カバー実行者) に寄せるために使う。
+     */
+    private static final Pattern COVER_BY = Pattern.compile(
+            "(?i)" + OPEN + "[^" + CLOSED + "]*\\bcover(?:ed)?\\s+by\\s+([^" + CLOSED + "]{1,80})["
+                    + CLOSED + "]");
+    /**
+     * 版を表す語 (ASCII)。クレジット列挙の中に現れたら、その括弧は「どの版」の
+     * 情報として残す。語の両側を英数字でない境界で囲む ({@link TrackMatch} と同じ規則)。
+     */
+    private static final String[] VERSION_MARKERS_ASCII = {
+        "cover", "live", "remix", "rmx", "mix", "version", "ver", "edit", "edition",
+        "deluxe", "demo", "karaoke", "instrumental", "acoustic", "unplugged",
+        "nightcore", "slowed", "reverb", "reverbed", "sped up", "spedup", "8d",
+        "off vocal", "remaster", "remastered", "feat", "ft", "featuring", "bootleg",
+        "mashup", "reprise", "orchestral", "piano", "extended", "session", "flip",
+        "vip", "rework", "radio edit", "single", "album", "ep",
+    };
+    /**
+     * 版を表す語 (CJK)。{@link TrackMatch} の照合では部分一致で足りるが、ここでは
+     * <b>直前がカタカナなら長い語の一部</b>とみなす — 「ホロライブ」の中の
+     * 「ライブ」を目印にしないため (2026-09-26 実測の実タイトル)。
+     */
+    private static final String[] VERSION_MARKERS_CJK = {
+        "カバー", "歌ってみた", "弾いてみた", "演奏してみた", "ライブ", "ライヴ",
+        "リミックス", "インスト", "アコースティック", "オフボーカル", "生演奏",
+        "バージョン",
+    };
 
     private static String stripDisplayNoise(String title) {
         String cleaned = DISPLAY_NOISE_BRACKET.matcher(title).replaceAll(" ");
         cleaned = DISPLAY_NOISE_TAIL.matcher(cleaned).replaceAll("");
         cleaned = MULTISPACE.matcher(cleaned).replaceAll(" ").trim();
         return cleaned.isEmpty() ? title : cleaned;
+    }
+
+    /**
+     * Topic 動画の曲名が "アーティスト - 曲名" 形の時、冗長な前置きだけを落とす
+     * (例: "Adele - Hello" on "Adele - Topic" → "Hello" — 2026-09-26 実測)。
+     * 区切り位置がアーティスト名の直後にある時に限る。
+     */
+    private static String stripArtistPrefix(String title, String artist) {
+        if (artist.isEmpty()) {
+            return title;
+        }
+        final Matcher separator = SEPARATOR.matcher(title);
+        if (separator.find() && separator.start() == artist.length()
+                && title.regionMatches(true, 0, artist, 0, artist.length())) {
+            final String rest = title.substring(separator.end()).trim();
+            if (!rest.isEmpty()) {
+                return rest;
+            }
+        }
+        return title;
+    }
+
+    /**
+     * "A - B" の区切りを分解して [曲名, アーティスト] を返す。割れなければ null。
+     * {@code flip} が立つ時は "SONG - ARTIST【credit】" 型とみなして左右を入れ替える。
+     * 向きの判定は {@link #separatorFlips} に集約する — 呼び出し側が
+     * ノイズ除去で括弧が消える前に判定できるよう分けてある。
+     */
+    private static String[] separatorSplit(String title, String author, boolean flip) {
+        final Matcher separator = SEPARATOR.matcher(title);
+        if (!(separator.find() && separator.start() > 0 && separator.end() < title.length())) {
+            return null;
+        }
+        final String left = title.substring(0, separator.start()).trim();
+        final String right = title.substring(separator.end()).trim();
+        final String rightCore = stripSlashMvSuffix(stripTrailingCredit(right));
+        if (flip) {
+            return new String[] {left, rightCore};
+        }
+        if (left.isEmpty() || rightCore.isEmpty()) {
+            return null;
+        }
+        return new String[] {rightCore, left};
+    }
+
+    /**
+     * "A - B" 型が "SONG - ARTIST【credit】" (曲名が左) か。
+     * 右側の末尾が / 区切りの列挙クレジット括弧で、括弧を除いた右側がチャンネル名と
+     * 名を共有する時に限る (例: "ぽ - Omaru Polka【尾丸ポルカ/ホロライブ/4K】"
+     * — 2026-09-26 実測)。<b>括弧が消える前のタイトル</b>に掛けること。
+     */
+    private static boolean separatorFlips(String title, String author) {
+        final Matcher separator = SEPARATOR.matcher(title);
+        if (!(separator.find() && separator.start() > 0 && separator.end() < title.length())) {
+            return false;
+        }
+        final String right = title.substring(separator.end()).trim();
+        final String rightBracketless = stripTrailingCredit(right);
+        final String rightCore = stripSlashMvSuffix(rightBracketless);
+        return !rightBracketless.equals(right)
+                && !RECORDING_SUFFIX.matcher(rightCore).find()
+                && namesShare(rightCore, author);
+    }
+
+    /**
+     * 末尾の "|| クレジット" が投稿者名の再掲なら落とす
+     * (例: "R x R x R || HAKOS BAELZ" — 2026-09-26 実測)。
+     */
+    private static String stripPipeCredit(String title, String author) {
+        final int at = title.indexOf("||");
+        if (at < 0) {
+            return title;
+        }
+        final String tail = title.substring(at + 2).trim();
+        final String head = title.substring(0, at).trim();
+        final String tailCompact = compact(tail);
+        final String authorCompact = compact(author);
+        if (!tail.isEmpty() && !head.isEmpty() && tailCompact.length() >= 4
+                && !authorCompact.isEmpty()
+                && (authorCompact.contains(tailCompact) || tailCompact.contains(authorCompact))) {
+            return head;
+        }
+        return title;
+    }
+
+    /**
+     * 末尾の / 区切り列挙括弧を落とす。版の目印を含む括弧は曲の情報なので残す。
+     */
+    private static String stripTrailingCredit(String title) {
+        final Matcher matcher = TRAILING_CREDIT.matcher(title);
+        if (!matcher.find() || hasVersionMarker(matcher.group(1))) {
+            return title;
+        }
+        final String head = title.substring(0, matcher.start()).trim();
+        return head.isEmpty() ? title : head;
+    }
+
+    private static String stripSlashMvSuffix(String title) {
+        final Matcher matcher = SLASH_MV.matcher(title);
+        if (!matcher.find()) {
+            return title;
+        }
+        final String head = title.substring(0, matcher.start()).trim();
+        return head.isEmpty() ? title : head;
+    }
+
+    /**
+     * "(Cover by X)" の X が投稿者自身を指す時、アーティストを投稿者に寄せる
+     * (例: "Adele - Hello (Cover by Taka from ONE OK ROCK)" on ONE OK ROCK — 実測)。
+     * 名の一致は双方向の内包で判断し、部分語一致より厳しくする。
+     */
+    private static String coverArtist(String title, String channelAuthor, String artist) {
+        final Matcher matcher = COVER_BY.matcher(title);
+        if (!matcher.find() || channelAuthor.isEmpty()) {
+            return artist;
+        }
+        final String name = compact(matcher.group(1));
+        final String channel = compact(channelAuthor);
+        if (name.length() >= 4 && !channel.isEmpty()
+                && (name.contains(channel) || channel.contains(name))) {
+            return channelAuthor;
+        }
+        return artist;
+    }
+
+    /** 括弧の中身に版の目印 (live/remix/mix/edition 等) が現れるか。 */
+    private static boolean hasVersionMarker(String bracketContent) {
+        final String folded = java.text.Normalizer
+                .normalize(bracketContent, java.text.Normalizer.Form.NFKC)
+                .toLowerCase(Locale.ROOT);
+        for (final String marker : VERSION_MARKERS_ASCII) {
+            if (containsMarkerWord(folded, marker, true)) {
+                return true;
+            }
+        }
+        for (final String marker : VERSION_MARKERS_CJK) {
+            if (containsMarkerWord(folded, marker, false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 目印が語として現れるか。ASCII は両側を英数字でない境界に、CJK は
+     * 両側をカタカナでない境界に制限する ({@link TrackMatch#containsWord} と
+     * 同じ考え方で、CJK 側だけ「ホロライブ」「ライブリー」型の内包を除くよう
+     * 厳しくした版)。
+     */
+    private static boolean containsMarkerWord(String folded, String marker, boolean ascii) {
+        int from = 0;
+        while (from <= folded.length() - marker.length()) {
+            final int at = folded.indexOf(marker, from);
+            if (at < 0) {
+                return false;
+            }
+            final int end = at + marker.length();
+            final boolean leftOk = at == 0 || !markerAdjacent(folded.charAt(at - 1), ascii);
+            final boolean rightOk = end >= folded.length()
+                    || !markerAdjacent(folded.charAt(end), ascii);
+            if (leftOk && rightOk) {
+                return true;
+            }
+            from = at + 1;
+        }
+        return false;
+    }
+
+    private static boolean markerAdjacent(char c, boolean ascii) {
+        return ascii ? Character.isLetterOrDigit(c)
+                : Character.UnicodeScript.of(c) == Character.UnicodeScript.KATAKANA;
+    }
+
+    /**
+     * 2つの名前が少なくとも1つの実質語を共有するか。
+     * 誤爆を避けるため ASCII 語は4字以上・非 ASCII 語は2字以上を要求する。
+     */
+    private static boolean namesShare(String a, String b) {
+        final String aCompact = compact(a);
+        final String bCompact = compact(b);
+        if (aCompact.isEmpty() || bCompact.isEmpty()) {
+            return false;
+        }
+        for (final String token : TrackMatch.wordList(a)) {
+            if (substantial(token) && bCompact.contains(token)) {
+                return true;
+            }
+        }
+        for (final String token : TrackMatch.wordList(b)) {
+            if (substantial(token) && aCompact.contains(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean substantial(String token) {
+        return token.length() >= 4
+                || (token.length() >= 2 && !token.codePoints().allMatch(cp -> cp < 128));
+    }
+
+    private static String compact(String s) {
+        return String.join("", TrackMatch.wordList(s));
     }
 
     /** @return [title, author] の整形済み配列。 */
@@ -176,8 +425,10 @@ public final class MetadataCleaner {
         final boolean topic = author.toLowerCase(Locale.ROOT).endsWith("- topic");
         if (topic) {
             author = author.substring(0, author.length() - "- topic".length()).trim();
+            title = stripArtistPrefix(title, author);
         }
         author = cleanAuthor(author);
+        final String channelAuthor = author;
 
         // 1. 引用型 (ARTIST「SONG」… 等) を最優先で分解
         final Matcher q = QUOTED.matcher(title);
@@ -193,19 +444,28 @@ public final class MetadataCleaner {
         }
 
         // 2. 括弧/末尾ノイズ除去 → "Artist - Song" 分割 → 曲名側の客演表記を除去
+        // 向き判定は生タイトルで先に済ませる: 【尾丸ポルカ/ホロライブ/4K】のような
+        // クレジット括弧は 4K 等を含むため stripNoise で消え、反転の根拠が失われる。
+        final boolean flipped = separatorFlips(title, author);
         title = stripNoise(title);
+        // 動画種別の見出し (【オリジナル曲】等) と、投稿者名の再掲だけの先頭クレジットは
+        // 検索でも曲名にしない — 候補側も同じ規則で整形されるので対称な正規化。
+        title = DISPLAY_NOISE_BRACKET.matcher(title).replaceAll(" ").trim();
+        title = stripPipeCredit(title, author);
+        final Matcher leading = LEADING_CREDIT.matcher(title);
+        if (leading.find() && leading.group(1).trim().equalsIgnoreCase(author)) {
+            title = title.substring(leading.end()).trim();
+        }
         if (!topic) {
-            final Matcher sep = SEPARATOR.matcher(title);
-            if (sep.find() && sep.start() > 0 && sep.end() < title.length()) {
-                final String artistPart = title.substring(0, sep.start()).trim();
-                final String songPart = title.substring(sep.end()).trim();
-                if (!artistPart.isEmpty() && !songPart.isEmpty()) {
-                    // 客演表記が前半に付いていたら、それはアーティスト側の情報なので残す。
-                    author = cleanAuthor(artistPart);
-                    title = songPart;
-                }
+            final String[] split = separatorSplit(title, author, flipped);
+            if (split != null) {
+                // 客演表記が前半に付いていたら、それはアーティスト側の情報なので残す。
+                author = cleanAuthor(split[1]);
+                title = split[0];
             }
         }
+        title = stripSlashMvSuffix(stripTrailingCredit(title));
+        author = coverArtist(title, channelAuthor, author);
         return finish(stripFeature(title), author, rawTitle);
     }
 

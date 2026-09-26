@@ -9,7 +9,9 @@ import java.util.Optional;
  *
  * <p>説明欄は利用者に見える文字列なので、それだけで真正性を保証することはできない。
  * この parser は複数の信号を同時に要求し、1つでも欠けた場合は結果を返さない。
- * 冒頭の曲クレジットと一致しない自由記述の {@code Artist:} 行は採用しない。</p>
+ * 手がかりは {@code 曲名 · アーティスト( · アーティスト)} 形の冒頭クレジット行で、
+ * {@code Artist:} 行が並ぶ旧形式では両者の完全一致を要求する
+ * (2026-09-26 実測: 現在の説明欄は {@code Artist:} 行を持たない形式が主流)。</p>
  */
 public final class YoutubeMusicMetadata {
     static final int MAX_TITLE_LENGTH = 512;
@@ -55,7 +57,12 @@ public final class YoutubeMusicMetadata {
         String artistCredit = creditLine.substring(creditPrefix.length());
         List<String> creditedArtists = parseArtists(artistCredit);
         List<String> declaredArtists = declaredArtists(lines);
-        if (creditedArtists.isEmpty() || !creditedArtists.equals(declaredArtists)) {
+        // 2026-09-26 実測: 現在の自動生成説明欄は Artist: 行を持たず、
+        // 「曲名 · アーティスト( · アーティスト)」のクレジット行だけが配信情報を持つ
+        // (The Weeknd / Macarena 等の実 watch 本文)。Artist: 行が存在する旧形式では
+        // クレジットとの完全一致を引き続き要求し、行が無い新形式はクレジット行を採用する。
+        if (creditedArtists.isEmpty()
+                || (!declaredArtists.isEmpty() && !creditedArtists.equals(declaredArtists))) {
             return Optional.empty();
         }
         return Optional.of(new Value(title, creditedArtists));
