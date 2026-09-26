@@ -426,9 +426,12 @@ public final class TrackMatch {
 
     /**
      * 語として現れているか。目印は複数語 ({@code "off vocal"}) もあるので、単純な部分一致では
-     * なく前後が英数字でないことを見る (CJK の目印は語境界を持たないので部分一致で足りる)。
+     * なく前後を見る。ASCII の目印は両側が英数字でない境界を要求し、CJK の目印は両側が
+     * <b>カタカナでない</b>境界を要求する ({@link MetadataCleaner#containsMarkerWord} と
+     * 同じ規則) — {@code ホロライブ} の中の {@code ライブ} を版の目印としないため。
      */
     private static boolean containsWord(String haystack, String needle) {
+        final boolean ascii = isAscii(needle);
         int from = 0;
         while (from <= haystack.length() - needle.length()) {
             final int at = haystack.indexOf(needle, from);
@@ -436,9 +439,9 @@ public final class TrackMatch {
                 return false;
             }
             final int end = at + needle.length();
-            final boolean leftOk = at == 0 || !isWordChar(haystack.charAt(at - 1));
-            final boolean rightOk = end >= haystack.length() || !isWordChar(haystack.charAt(end));
-            if ((leftOk && rightOk) || !isAscii(needle)) {
+            final boolean leftOk = at == 0 || !markerAdjacent(haystack.charAt(at - 1), ascii);
+            final boolean rightOk = end >= haystack.length() || !markerAdjacent(haystack.charAt(end), ascii);
+            if (leftOk && rightOk) {
                 return true;
             }
             from = at + 1;
@@ -446,8 +449,9 @@ public final class TrackMatch {
         return false;
     }
 
-    private static boolean isWordChar(char c) {
-        return Character.isLetterOrDigit(c);
+    private static boolean markerAdjacent(char c, boolean ascii) {
+        return ascii ? Character.isLetterOrDigit(c)
+                : Character.UnicodeScript.of(c) == Character.UnicodeScript.KATAKANA;
     }
 
     private static boolean isAscii(String text) {

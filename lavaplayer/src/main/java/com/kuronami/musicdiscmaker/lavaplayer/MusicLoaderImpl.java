@@ -602,10 +602,14 @@ public class MusicLoaderImpl implements IMusicLoader {
                 final YoutubeMusicMetadata.Value value = distributed.orElseThrow();
                 if (!allGenericNames(value.artists())) {
                     final String artists = String.join(" · ", value.artists());
+                    // cleaner 経路と同じ前置き除去を掛け、説明欄の有無で表示・検索が
+                    // 変わらないようにする ("Adele - Hello" on "Adele - Topic" → "Hello")
+                    final String valueTitle = MetadataCleaner.stripArtistPrefix(
+                            value.title(), value.artists().get(0));
                     // 検索語は先頭アーティストに絞る: 「A · B · C」全文を投げると
                     // 区切り文字が検索語を汚しうるため、主アーティスト+曲名で引く
-                    return new SourceMetadata(value.title(), artists,
-                            value.title(), value.artists().get(0));
+                    return new SourceMetadata(valueTitle, artists,
+                            valueTitle, value.artists().get(0));
                 }
             }
         }
