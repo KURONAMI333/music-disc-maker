@@ -10,9 +10,9 @@
     "curseforge_verified_file": "https://www.curseforge.com/minecraft/mc-mods/sophisticated-core/files/8145747",
     "nested_jar_evidence": "Sable Companion SHA-1/SHA-256 exactly matched the nested JAR in the Modrinth-resolved Sable 2.0.3 file"
   },
-  "destination_count": 36,
-  "unique_blob_count": 34,
-  "resolved_blob_count": 34,
+  "destination_count": 41,
+  "unique_blob_count": 39,
+  "resolved_blob_count": 39,
   "unresolved_blob_count": 0,
   "blobs": [
     {
@@ -151,6 +151,23 @@
       "fresh_environment_retrieval_status": "verified"
     },
     {
+      "sha1": "418fcd42e3a7844c9bdc71c9b6401fdb3894e0c4",
+      "sha256": "a45df2125c26219974aba7507ffc9afe7b83acc941a386af3faacb1cc0056fde",
+      "size": 410690,
+      "destinations": [
+        "neoforge/compat-libs-1.21.1/curios-neoforge-9.5.1+1.21.1.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "vvuO3ImH",
+      "version_id": "yohfFbgD",
+      "version_number": "9.5.1+1.21.1",
+      "date_published": "2025-05-14T13:34:47.415840Z",
+      "download_filename": "curios-neoforge-9.5.1+1.21.1.jar",
+      "download_url": "https://cdn.modrinth.com/data/vvuO3ImH/versions/yohfFbgD/curios-neoforge-9.5.1%2B1.21.1.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
       "sha1": "43a95dfa338a2a6ba3ea33a5efa0ac040331e50c",
       "sha256": "3c71a04d5b03cdf9d9fe50e71849fdf11291dd1fab149621e35688ef6e516054",
       "size": 2996065,
@@ -165,6 +182,23 @@
       "date_published": "2025-12-17T16:24:48.625119Z",
       "download_filename": "sophisticatedcore-1.21.1-1.2.9.21.168.jar",
       "download_url": "https://cdn.modrinth.com/data/9jxwkYQL/versions/ZLVrtF0Q/sophisticatedcore-1.21.1-1.2.9.21.168.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "452175b95ad3db6ff58bb8968f6bf7a9d1e0f480",
+      "sha256": "1e817919a35b37cf30524aaec73f0ca5130452f23f168f844854df282eb8e51f",
+      "size": 398066,
+      "destinations": [
+        "forge/compat-libs-1.20.1/curios-forge-5.14.1+1.20.1.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "vvuO3ImH",
+      "version_id": "IPQlZkz1",
+      "version_number": "5.14.1+1.20.1",
+      "date_published": "2025-04-13T13:09:28.168539Z",
+      "download_filename": "curios-forge-5.14.1+1.20.1.jar",
+      "download_url": "https://cdn.modrinth.com/data/vvuO3ImH/versions/IPQlZkz1/curios-forge-5.14.1%2B1.20.1.jar",
       "fresh_environment_retrieval_status": "verified"
     },
     {
@@ -219,6 +253,23 @@
       "fresh_environment_retrieval_status": "verified"
     },
     {
+      "sha1": "7d9d228d1224238750fd3924737c6734b58eb344",
+      "sha256": "ea1e92cd9dbfb93d2d363e2aced406a1749a4ed3e47bf06cce463903a99fd267",
+      "size": 441630,
+      "destinations": [
+        "neoforge/compat-libs-26.1.2/curios-neoforge-15.0.0+26.1.2.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "vvuO3ImH",
+      "version_id": "dRnRThvD",
+      "version_number": "15.0.0+26.1.2",
+      "date_published": "2026-07-19T09:02:12.956461Z",
+      "download_filename": "curios-neoforge-15.0.0+26.1.2.jar",
+      "download_url": "https://cdn.modrinth.com/data/vvuO3ImH/versions/dRnRThvD/curios-neoforge-15.0.0%2B26.1.2.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
       "sha1": "807abb93594588b695f9eb2c3617b41e9a702d4d",
       "sha256": "b1992c9722c181f8f158f5c3bd407f344b997e9d48c4a5912d16a3f1f8330166",
       "size": 1454477,
@@ -233,6 +284,23 @@
       "date_published": "2026-08-09T11:21:30.149503Z",
       "download_filename": "travelersbackpack-neoforge-26.2-11.3.2.jar",
       "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/17LVlxGN/travelersbackpack-neoforge-26.2-11.3.2.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "82d14ef68875a9801c7b11de5b284439c89e5a82",
+      "sha256": "e42512164dc4b00fe1ec180700b49e2aaff319fd6a1280f230e0418cf71bda1d",
+      "size": 438685,
+      "destinations": [
+        "neoforge/compat-libs-1.21.11/curios-neoforge-14.0.0+1.21.11.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "vvuO3ImH",
+      "version_id": "MPGhs9Rw",
+      "version_number": "14.0.0+1.21.11",
+      "date_published": "2026-02-18T03:23:46.911546Z",
+      "download_filename": "curios-neoforge-14.0.0+1.21.11.jar",
+      "download_url": "https://cdn.modrinth.com/data/vvuO3ImH/versions/MPGhs9Rw/curios-neoforge-14.0.0%2B1.21.11.jar",
       "fresh_environment_retrieval_status": "verified"
     },
     {
@@ -612,6 +680,23 @@
       "date_published": "2026-03-13T16:07:47.343499Z",
       "download_filename": "letsdo-furniture-neoforge-1.1.4.jar",
       "download_url": "https://cdn.modrinth.com/data/3JQDJrYW/versions/aYYcQFNB/letsdo-furniture-neoforge-1.1.4.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "fc8b4596dbeca2a9f516eeb632d8a5ad039e540a",
+      "sha256": "5cb4a8b45301c5c32279ad80c24d4da8ebcd9879b140ffdb3057fc7c331b8500",
+      "size": 441696,
+      "destinations": [
+        "neoforge/compat-libs-26.2/curios-neoforge-16.0.0+26.2.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": true,
+      "project_id": "vvuO3ImH",
+      "version_id": "BI7D0sbK",
+      "version_number": "16.0.0+26.2",
+      "date_published": "2026-07-21T06:20:54.178708Z",
+      "download_filename": "curios-neoforge-16.0.0+26.2.jar",
+      "download_url": "https://cdn.modrinth.com/data/vvuO3ImH/versions/BI7D0sbK/curios-neoforge-16.0.0%2B26.2.jar",
       "fresh_environment_retrieval_status": "verified"
     }
   ]

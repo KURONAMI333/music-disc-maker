@@ -32,6 +32,12 @@ public class MusicDiscMakerForge {
         // SimpleChannel に payload を登録する。
         ForgeNetwork.register();
 
+        // Curios 互換: 導入時だけ adapter を install する。call site を導入判定で守り、
+        // 未導入時は Curios API を参照する adapter class をロードしない。
+        if (com.kuronami.musicdiscmaker.platform.Services.PLATFORM.isModLoaded("curios")) {
+            com.kuronami.musicdiscmaker.compat.curios.CuriosBoomboxAdapter.install();
+        }
+
         // creative タブ内容: 1.20.1 は common の displayItems generator が流し込む。
         // ここで BuildCreativeModeTabContentsEvent でも TAB_ITEMS を足すと generator 分と重複する。
 

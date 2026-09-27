@@ -113,5 +113,7 @@
   "gui.music_disc_maker.mp3.notice": "32 MiBまでのMP3をこのワールド／サーバーへ取り込み、聞く人へ配信します。選んだファイルのパスは送信しません。",
   "gui.music_disc_maker.mp3.share": "「%s」をこのワールド／サーバーに保存し、聞く人へ配信します。取込ボタンで確定します。",
   "gui.music_disc_maker.mp3.picker_title": "このワールド／サーバーで共有するMP3を選択",
+  "curios.identifier.boombox": "ブームボックス",
+  "key.music_disc_maker.open_equipped_boombox": "装備中のブームボックスを開く",
   "music_disc_maker.playback_failed.reason.local_audio": "MP3が欠損・破損しています。このワールドで再取込してください"
 }

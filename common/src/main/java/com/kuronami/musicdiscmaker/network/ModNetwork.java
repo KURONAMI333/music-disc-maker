@@ -4,7 +4,11 @@ import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.block.BoomboxBlockEntity;
+import com.kuronami.musicdiscmaker.component.BoomboxContents;
+import com.kuronami.musicdiscmaker.compat.curios.CuriosEquipmentAccess;
+import com.kuronami.musicdiscmaker.event.BoomboxCarry;
 import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
+import com.kuronami.musicdiscmaker.menu.BoomboxSource;
 import com.kuronami.musicdiscmaker.platform.Services;
 import net.minecraft.server.level.ServerLevel;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
@@ -43,7 +47,9 @@ public final class ModNetwork {
     // 11: Createのバニラ盤を追加。12: 移動元のworld位置と固定Speakerの聴取点を追加。
     // 13: 染色Albumの新しいDataComponent/レシピ登録を持つ開発版。旧clientとの混在を防ぐ。
     // 14-mp3-dev: ローカルMP3持込の双方向転送 payload (local_audio) を追加した開発版。
-    public static final String PROTOCOL_VERSION = "14-mp3-dev";
+    // 14-mp3-curios-dev: BoomboxSource に装備参照 (slot/index/機体id) を追加し、
+    // 装備機体を開く C2S payload (open_equipped_boombox) を足した開発版。
+    public static final String PROTOCOL_VERSION = "14-mp3-curios-dev";
 
     private static final double MAX_REACH_SQR = 64.0;
 
@@ -131,6 +137,35 @@ public final class ModNetwork {
     public static void handleShuffleJukebox(ShuffleJukeboxPayload payload, ServerPlayer player) {
         final GoldenJukeboxBlockEntity be = openedJukebox(payload.pos(), payload.containerId(), payload.generation(), player);
         if (be != null) be.setShuffle(payload.enabled());
+    }
+
+    /**
+     * Curios の機能スロットに装備された機体の GUI 要求。client の送った slot/index/id は
+     * 参照候補でしかないので、server は現在の handler を引き直し、専用 slot・index・機体 ID が
+     * 一致した実物だけを開く。Curios 未導入の loader では provider が無く resolve が空を返す。
+     */
+    public static void handleOpenEquippedBoombox(OpenEquippedBoomboxPayload payload, ServerPlayer player) {
+        if (!payload.isDedicatedSlot()) return;
+        final CuriosEquipmentAccess.Entry equipped = CuriosEquipmentAccess.resolve(
+                player, payload.slotId(), payload.slotIndex());
+        if (equipped == null) return;
+        final var stack = equipped.stack();
+        if (!BoomboxCarry.isBoombox(stack) || BoomboxCarry.idOf(stack) != payload.boomboxId()) return;
+
+        final long id = payload.boomboxId() == BoomboxContents.UNASSIGNED
+                ? BoomboxPlayback.identify(stack) : payload.boomboxId();
+        final BoomboxSource source = BoomboxSource.equipped(payload.slotId(), payload.slotIndex(), id);
+        // identify 後にも同じ slot/index が同じ実物を指すことを確認する。途中で差し替わっていれば
+        // 別機体の menu を開かず、以後も Menu 側が参照同一性を継続して検査する。
+        final CuriosEquipmentAccess.Entry current = CuriosEquipmentAccess.resolve(
+                player, payload.slotId(), payload.slotIndex());
+        if (current == null || current.stack() != stack || BoomboxCarry.idOf(current.stack()) != id) return;
+        if (!BoomboxMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
+                    "message.music_disc_maker.boombox.open_too_large"), true);
+            return;
+        }
+        Services.MENU.openBoomboxMenu(player, source);
     }
 
     private static GoldenJukeboxBlockEntity openedJukebox(BlockPos pos, int containerId, long generation, ServerPlayer player) {

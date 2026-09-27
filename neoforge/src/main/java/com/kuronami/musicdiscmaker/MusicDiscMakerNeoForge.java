@@ -57,6 +57,12 @@ public class MusicDiscMakerNeoForge {
         // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
         modEventBus.addListener(com.kuronami.musicdiscmaker.compat.additionaladditions.AlbumCompat::onCommonSetup);
 
+        // Curios 互換: 導入時だけ adapter を install する。call site を導入判定で守り、
+        // 未導入時は Curios API を参照する adapter class をロードしない。
+        if (com.kuronami.musicdiscmaker.platform.Services.PLATFORM.isModLoaded("curios")) {
+            com.kuronami.musicdiscmaker.compat.curios.CuriosBoomboxAdapter.install();
+        }
+
         modContainer.registerConfig(ModConfig.Type.CLIENT, NeoForgeConfigHelper.SPEC);
     }
 

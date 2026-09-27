@@ -14,6 +14,8 @@ import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.MediaSequence;
 import com.kuronami.musicdiscmaker.component.MediaSequenceResolver;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
+import com.kuronami.musicdiscmaker.compat.curios.CuriosEquipmentAccess;
+import com.kuronami.musicdiscmaker.event.BoomboxCarry;
 import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 //? if >=1.21 {
@@ -90,7 +92,7 @@ public class BoomboxMenu extends AbstractContainerMenu {
         this.placedEntity = source.isPlaced() && owner.level().getBlockEntity(source.pos()) instanceof BoomboxBlockEntity be
                 ? be : null;
         this.machine = resolveMachine(owner, source, placedEntity);
-        this.sourceInventorySlot = !source.isPlaced() && source.heldHand() == net.minecraft.world.InteractionHand.MAIN_HAND
+        this.sourceInventorySlot = source.isHeld() && source.heldHand() == net.minecraft.world.InteractionHand.MAIN_HAND
                 ? findInventorySlot(playerInventory, machine) : -1;
         this.contents = new SimpleContainer(1) {
             @Override public void setChanged() { super.setChanged(); save(); }
@@ -123,7 +125,7 @@ public class BoomboxMenu extends AbstractContainerMenu {
         final BoomboxBlockEntity placed = source.isPlaced()
                 && player.level().getBlockEntity(source.pos()) instanceof BoomboxBlockEntity be ? be : null;
         final ItemStack machine = resolveMachine(player, source, placed);
-        if (!isBoombox(machine)) return false;
+        if (!isBoombox(machine) || !matchesExpectedId(source, machine)) return false;
         final List<ItemStack> initial = new ArrayList<>(1 + Inventory.INVENTORY_SIZE);
         initial.add(contentsOf(machine).disc().copy());
         for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) initial.add(ItemStack.EMPTY);
@@ -321,13 +323,32 @@ public class BoomboxMenu extends AbstractContainerMenu {
             return !authoritative || (isBoombox(machine) && current == placedEntity && current.getStored() == machine);
         }
         if (!isBoombox(machine)) return false;
+        if (source.isEquipped()) {
+            final CuriosEquipmentAccess.Entry equipped = CuriosEquipmentAccess.resolve(
+                    owner, source.equipmentSlot(), source.equipmentIndex());
+            if (equipped == null || !matchesExpectedId(source, equipped.stack())) return false;
+            // client側ではItemStack参照がmenuを開いた時点と一致する保証がない。server側だけ、開いた
+            // 実物と現在のslot実物が同じ参照であることまで要求し、差し替え後の別機体へ書かない。
+            return !authoritative || (equipped.stack() == machine && matchesExpectedId(source, machine));
+        }
+        if (!source.isHeld()) return false;
         final ItemStack held = owner.getItemInHand(source.heldHand());
         return isBoombox(held) && (!authoritative || held == machine);
     }
 
     private static ItemStack resolveMachine(Player owner, BoomboxSource source, @Nullable BoomboxBlockEntity placed) {
-        return source.isPlaced() ? placed == null ? ItemStack.EMPTY : placed.getStored()
-                : owner.getItemInHand(source.heldHand());
+        if (source.isPlaced()) return placed == null ? ItemStack.EMPTY : placed.getStored();
+        if (source.isHeld()) return owner.getItemInHand(source.heldHand());
+        if (source.isEquipped()) {
+            final CuriosEquipmentAccess.Entry entry = CuriosEquipmentAccess.resolve(
+                    owner, source.equipmentSlot(), source.equipmentIndex());
+            return entry == null ? ItemStack.EMPTY : entry.stack();
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static boolean matchesExpectedId(BoomboxSource source, ItemStack stack) {
+        return !source.isEquipped() || BoomboxCarry.idOf(stack) == source.expectedId();
     }
 
     private static boolean isBoombox(ItemStack stack) { return !stack.isEmpty() && stack.is(ModItems.BOOMBOX.get()); }
@@ -365,7 +386,7 @@ public class BoomboxMenu extends AbstractContainerMenu {
 
     private boolean isSourceSwapButton(int button) {
         if (sourceInventorySlot >= 0) return button == sourceInventorySlot;
-        return !source.isPlaced() && source.heldHand() == net.minecraft.world.InteractionHand.OFF_HAND && button == 40;
+        return source.isHeld() && source.heldHand() == net.minecraft.world.InteractionHand.OFF_HAND && button == 40;
     }
 
     private final class MediaSlot extends Slot {

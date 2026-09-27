@@ -95,8 +95,8 @@ public class NetworkProtocolGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
-    /** ローカルMP3持込の双方向転送 payload (local_audio) を追加した開発版。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "14-mp3-dev";
+    /** Curios 装備参照を BoomboxSource と open_equipped_boombox へ追加した開発版。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "14-mp3-curios-dev";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -105,10 +105,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "086ca1a5580aa7a9fb9a65afbe95cf4ffebfae08e6a08b9efbac17721f0a4709";
+            "c6850e400be63b43b1097c87fd7a8b2609df9c2b2a4a3ba71be4ad33b19bf703";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "5874d23aa19f6eaba4ebe97fa49000001f7fb397986f366ea80bdf3e33ed51de";
+            "c479658dd8f18a0a5e3d4f36dd4f9d977e9aa4dad5bcfe4ee8a8e940be5c7915";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -313,6 +313,16 @@ public class NetworkProtocolGameTests {
                 new com.kuronami.musicdiscmaker.network.PlayVanillaDiscPayload(SAMPLE_POS,
                         new com.kuronami.musicdiscmaker.component.VanillaTrackData("minecraft:music_disc.cat", 185000L),
                         73000L, 96, 173, false, 7L)));
+        // 14-mp3-curios-dev で増えた装備機体の open 要求。見本に載せないと codec を変えても指紋が動かない。
+        encoded.put("open_equipped_boombox",
+                encode(mdmCodec(com.kuronami.musicdiscmaker.network.OpenEquippedBoomboxPayload::read),
+                        new com.kuronami.musicdiscmaker.network.OpenEquippedBoomboxPayload(
+                                "boombox", 0, 42L)));
+        // BoomboxSource は menu open の extended buf に載る wire 型。装備参照 (slot/index/機体id)
+        // の追加がこの見本で検出できる。
+        encoded.put("boombox_source", encode(
+                com.kuronami.musicdiscmaker.menu.BoomboxSource.STREAM_CODEC,
+                com.kuronami.musicdiscmaker.menu.BoomboxSource.equipped("boombox", 0, 42L)));
         // 14-mp3-dev で増えた双方向転送。見本に載せないと codec を変えても指紋が動かない。
         encoded.put("local_audio", encode(mdmCodec(LocalAudioPayload::read),
                 new LocalAudioPayload(LocalAudioPayload.DATA,

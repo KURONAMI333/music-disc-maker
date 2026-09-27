@@ -61,6 +61,9 @@ public final class ModPayloadTypes {
         if (payload instanceof ControlBoomboxPayload p) {
             return new ControlBoombox(p);
         }
+        if (payload instanceof OpenEquippedBoomboxPayload p) {
+            return new OpenEquippedBoombox(p);
+        }
         if (payload instanceof VersionPayload p) {
             return new Version(p);
         }
@@ -239,6 +242,19 @@ public final class ModPayloadTypes {
             return TYPE;
         }
     }
+
+    /** C2S: Curios 装備中の機体を開く要求。Curios 型は持たない中立形。 */
+    public record OpenEquippedBoombox(OpenEquippedBoomboxPayload inner) implements CustomPacketPayload {
+        public static final Type<OpenEquippedBoombox> TYPE = new Type<>(id(OpenEquippedBoomboxPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, OpenEquippedBoombox> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf),
+                buf -> new OpenEquippedBoombox(OpenEquippedBoomboxPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
 }
 
 //?} elif >=1.21 {
@@ -296,6 +312,9 @@ public final class ModPayloadTypes {
         }
         if (payload instanceof ControlBoomboxPayload p) {
             return new ControlBoombox(p);
+        }
+        if (payload instanceof OpenEquippedBoomboxPayload p) {
+            return new OpenEquippedBoombox(p);
         }
         if (payload instanceof VersionPayload p) {
             return new Version(p);
@@ -468,6 +487,19 @@ public final class ModPayloadTypes {
         public static final Type<BoomboxState> TYPE = new Type<>(id(BoomboxStatePayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, BoomboxState> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new BoomboxState(BoomboxStatePayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /^* C2S: Curios 装備中の機体を開く要求。Curios 型は持たない中立形。 ^/
+    public record OpenEquippedBoombox(OpenEquippedBoomboxPayload inner) implements CustomPacketPayload {
+        public static final Type<OpenEquippedBoombox> TYPE = new Type<>(id(OpenEquippedBoomboxPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, OpenEquippedBoombox> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf),
+                buf -> new OpenEquippedBoombox(OpenEquippedBoomboxPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

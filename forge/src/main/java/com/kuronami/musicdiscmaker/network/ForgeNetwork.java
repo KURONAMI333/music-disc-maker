@@ -181,5 +181,16 @@ public final class ForgeNetwork {
                 .decoder(PlayVanillaDiscPayload::read)
                 .consumerMainThread((msg, ctx) -> ModNetwork.handleVanillaPlay(msg))
                 .add();
+
+        // client → server: Curios 装備中の機体を開く。既存 id を動かさないよう末尾へ追加する。
+        // Curios 未導入でも wire 表は同じにし、ハンドラ側の再解決が no-op にする。
+        CHANNEL.messageBuilder(OpenEquippedBoomboxPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(OpenEquippedBoomboxPayload::write)
+                .decoder(OpenEquippedBoomboxPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    final ServerPlayer sender = ctx.get().getSender();
+                    if (sender != null) ModNetwork.handleOpenEquippedBoombox(msg, sender);
+                })
+                .add();
     }
 }

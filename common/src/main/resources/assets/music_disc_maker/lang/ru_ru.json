@@ -113,5 +113,7 @@
   "gui.music_disc_maker.mp3.notice": "Import an MP3 (up to 32 MiB) into this world/server and share it with listeners. Your original file path is never sent.",
   "gui.music_disc_maker.mp3.share": "Import and share “%s” with listeners in this world/server. Click Import to continue.",
   "gui.music_disc_maker.mp3.picker_title": "Choose MP3 to share in this world/server",
+  "curios.identifier.boombox": "Бумбокс",
+  "key.music_disc_maker.open_equipped_boombox": "Открыть надетый бумбокс",
   "music_disc_maker.playback_failed.reason.local_audio": "MP3 missing or damaged; import it again in this world"
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
+import com.kuronami.musicdiscmaker.compat.curios.CuriosEquipmentAccess;
 //? if >=1.21 {
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 //?}
@@ -28,6 +29,9 @@ import net.minecraft.world.item.ItemStack;
  *       「インベントリの中にある」の自然な解釈としてカーソルも含めた
  *       (MDM_DECISIONS 未裁定 1「カーソルに掴んだスタックも鳴ってよい場所に含める」は
  *       「インベントリ全体で鳴る」に吸収済み)</li>
+ *   <li><b>鳴る</b>: Curios の専用 {@code boombox} slot の機能側。cosmetic stack は含めない。
+ *       インベントリとの間で動かしても同じ ItemStack の機体 ID / 再生世代を使うので、別 session を
+ *       開始せず既存 session の打刻先だけが移る</li>
  *   <li><b>止まる</b>: 地面 (ドロップ) / チェスト / エンダーチェスト / バックパック / 死亡ドロップ /
  *       クラフト格子。いずれもここの集合に現れないので、走査で見つからなくなり停止する</li>
  * </ul>
@@ -57,6 +61,12 @@ public final class BoomboxCarry {
      */
     public static List<ItemStack> carried(Player player) {
         final List<ItemStack> found = new ArrayList<>();
+        // 専用 slot を先に列挙する。同じ機体 id が slot とインベントリに割れた時
+        // (creative 複製 / /give / NBT 書き込み)、走査で先に見つかった側が id を守るので、
+        // 装備中 = 再生中の画面を開いている機体が迷子の複製に id を譲らない。
+        for (final CuriosEquipmentAccess.Entry entry : CuriosEquipmentAccess.equipped(player)) {
+            add(found, entry.stack());
+        }
         final Container inventory = player.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             add(found, inventory.getItem(slot));

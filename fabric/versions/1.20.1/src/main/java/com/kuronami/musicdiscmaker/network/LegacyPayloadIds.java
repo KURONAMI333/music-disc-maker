@@ -52,6 +52,9 @@ public final class LegacyPayloadIds {
         if (payload instanceof ControlBoomboxPayload) {
             return ControlBoomboxPayload.PATH;
         }
+        if (payload instanceof OpenEquippedBoomboxPayload) {
+            return OpenEquippedBoomboxPayload.PATH;
+        }
         if (payload instanceof BoomboxPlayPayload) {
             return BoomboxPlayPayload.PATH;
         }

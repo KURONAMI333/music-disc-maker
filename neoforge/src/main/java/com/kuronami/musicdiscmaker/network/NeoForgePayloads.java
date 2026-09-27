@@ -56,6 +56,11 @@ public final class NeoForgePayloads {
                 NeoForgePayloads::handleShuffleJukebox);
         registrar.playToServer(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC,
                 NeoForgePayloads::handleControlBoombox);
+        // client → server: Curios 装備中の機体を開く。Curios 未導入でも wire 表は同じにし、
+        // ハンドラ側で実機体の再解決に失敗して no-op になる。
+        registrar.playToServer(ModPayloadTypes.OpenEquippedBoombox.TYPE,
+                ModPayloadTypes.OpenEquippedBoombox.STREAM_CODEC,
+                NeoForgePayloads::handleOpenEquippedBoombox);
 
         // server → client (再生制御)。
         registrar.playToClient(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC,
@@ -126,6 +131,14 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleControlBoombox(msg.inner(), player));
+    }
+
+    private static void handleOpenEquippedBoombox(
+            ModPayloadTypes.OpenEquippedBoombox msg, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), player));
     }
 }
 

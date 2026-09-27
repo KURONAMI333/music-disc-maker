@@ -32,7 +32,9 @@ import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -86,6 +88,25 @@ public final class MusicDiscMakerForgeClient {
         // サーバ離脱時に全再生を止める game-bus listener を登録する。
         MinecraftForge.EVENT_BUS.addListener(MusicDiscMakerForgeClient::onLoggingOut);
         MinecraftForge.EVENT_BUS.addListener(MusicDiscMakerForgeClient::onRenderLevel);
+        // Curios 専用 slot のブームボックスを開く key の押下処理。Curios 未導入では tick() が即 return する。
+        MinecraftForge.EVENT_BUS.addListener(MusicDiscMakerForgeClient::onClientTick);
+    }
+
+    /**
+     * Curios 専用 slot に装備したブームボックスを開く key。Curios 未導入では登録しない
+     * (押しても何も起きない dead keybind を操作設定へ並べないため)。
+     */
+    @SubscribeEvent
+    public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+        if (CuriosBoomboxKey.isAvailable()) {
+            event.register(CuriosBoomboxKey.mapping());
+        }
+    }
+
+    private static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            CuriosBoomboxKey.tick();
+        }
     }
 
     /**

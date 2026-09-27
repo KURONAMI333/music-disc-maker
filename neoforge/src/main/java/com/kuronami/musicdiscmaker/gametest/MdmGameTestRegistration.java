@@ -106,6 +106,12 @@ public final class MdmGameTestRegistration {
                 BoomboxMenuGameTests::insertingMediumStartsCarriedAndPlacedAndCanPause, empty, 200);
         register(event, "boombox_main_hand_menu_sync", BoomboxHeldMenuSyncGameTests::mainHandOpenKeepsIdentityAcrossCursorUpdates, empty, 200);
         register(event, "boombox_stale_generation_recovery", BoomboxHeldMenuSyncGameTests::staleInitialGenerationIsRejectedThenCurrentAccepted, empty, 200);
+        // Curios 専用 slot: adapter が中立参照を返す口だけを使うので、実 Curios jar なしで機構を検証する。
+        register(event, "curios_equipped_open_authorization", CuriosBoomboxGameTests::equippedOpenAuthorizesOnlyDedicatedSlot, empty, 200);
+        register(event, "curios_equipped_exchange_invalidation", CuriosBoomboxGameTests::equippedExchangeInvalidatesOpenMenu, empty, 200);
+        register(event, "curios_equipped_duplicate_separation", CuriosBoomboxGameTests::duplicateIdInInventoryIsSeparatedFromEquipped, empty, 200);
+        register(event, "curios_equipped_carry_continuity", CuriosBoomboxGameTests::equippedStackStaysCarriedAcrossMove, empty, 100);
+        register(event, "curios_absent_provider_noop", CuriosBoomboxGameTests::absentProviderKeepsVanillaBehavior, empty, 100);
         register(event, "boombox_menu_stale_and_reverse_swap_preserve_source", BoomboxMenuGameTests::staleAndReverseSwapPreserveSource, empty, 200);
         register(event, "boombox_menu_initial_sync_budget", BoomboxMenuGameTests::initialSyncIgnoresPlayerInventoryButRejectsOversizedMedium, empty, 200);
         register(event, "boombox_menu_placed_source_and_storage_rejection_preserve_stacks", BoomboxMenuGameTests::placedSourceAndStorageRejectionPreserveStacks, empty, 200);

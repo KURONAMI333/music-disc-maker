@@ -40,6 +40,7 @@ import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
@@ -197,6 +198,18 @@ public class MusicDiscMakerNeoForgeClient {
     @SubscribeEvent
     static void onClientTick(ClientTickEvent.Post event) {
         ClientPlaybackManager.mixedAlbumTick();
+        CuriosBoomboxKey.tick();
+    }
+
+    /^*
+     * Curios 専用 slot に装備したブームボックスを開く key。Curios 未導入では登録しない
+     * (押しても何も起きない dead keybind を操作設定へ並べないため)。
+     ^/
+    @SubscribeEvent
+    static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+        if (CuriosBoomboxKey.isAvailable()) {
+            event.register(CuriosBoomboxKey.mapping());
+        }
     }
 }
 

@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker;
 //? if >=1.21.2 {
 import com.kuronami.musicdiscmaker.client.BoomboxPlayingItemModelProperty;
 import com.kuronami.musicdiscmaker.client.BoomboxScreen;
+import com.kuronami.musicdiscmaker.client.CuriosBoomboxKey;
 import com.kuronami.musicdiscmaker.client.AlbumScreen;
 import com.kuronami.musicdiscmaker.client.SpeakerScreen;
 import com.kuronami.musicdiscmaker.client.DiscDyeingTableScreen;
@@ -34,6 +35,7 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
@@ -163,6 +165,18 @@ public class MusicDiscMakerClient {
     @SubscribeEvent
     static void onClientTick(ClientTickEvent.Post event) {
         ClientPlaybackManager.mixedAlbumTick();
+        CuriosBoomboxKey.tick();
+    }
+
+    /**
+     * Curios 専用 slot に装備したブームボックスを開く key。Curios 未導入では登録しない
+     * (押しても何も起きない dead keybind を操作設定へ並べないため)。
+     */
+    @SubscribeEvent
+    static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+        if (CuriosBoomboxKey.isAvailable()) {
+            event.register(CuriosBoomboxKey.mapping());
+        }
     }
 }
 

@@ -88,6 +88,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ShuffleJukebox.TYPE, ModPayloadTypes.ShuffleJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC);
+        // Curios 用 wire 型は Curios 型を持たないので Fabric でも表だけは同一に保つ
+        // (送信は Curios 導入 Forge/NeoForge client だけで、受信時の再解決は provider 未 install なら no-op)。
+        PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.OpenEquippedBoombox.TYPE, ModPayloadTypes.OpenEquippedBoombox.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
@@ -108,6 +111,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ShuffleJukebox.TYPE, ModPayloadTypes.ShuffleJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.OpenEquippedBoombox.TYPE, ModPayloadTypes.OpenEquippedBoombox.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
@@ -132,6 +136,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ShuffleJukebox.TYPE, ModPayloadTypes.ShuffleJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.OpenEquippedBoombox.TYPE, ModPayloadTypes.OpenEquippedBoombox.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
@@ -195,6 +200,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleShuffleJukebox(msg.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ControlBoombox.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlBoombox(msg.inner(), ctx.player())));
+        // Curios 専用 slot の機体を開く要求。Fabric では provider 未 install なので常に no-op。
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.OpenEquippedBoombox.TYPE,
+                (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), ctx.player())));
 
         // creative タブ内容: common は tab の identity のみ作る (26.2 の Output が protected)。
         // 26.2 fabric-api は旧 ItemGroupEvents を廃し CreativeModeTabEvents に統合。表示順で TAB_ITEMS を流す。
@@ -220,6 +228,8 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleShuffleJukebox(msg.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ControlBoombox.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlBoombox(msg.inner(), ctx.player())));
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.OpenEquippedBoombox.TYPE,
+                (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), ctx.player())));
 
         ItemGroupEvents.modifyEntriesEvent(
                         ResourceKey.create(Registries.CREATIVE_MODE_TAB, ModCreativeTab.MAIN.getId()))
@@ -238,6 +248,8 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleShuffleJukebox(payload.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ControlBoombox.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlBoombox(payload.inner(), ctx.player())));
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.OpenEquippedBoombox.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(payload.inner(), ctx.player())));
 
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("additionaladditions")) {
             com.kuronami.musicdiscmaker.compat.additionaladditions.AlbumProvider.install();
@@ -263,6 +275,15 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (server, player, handler, buf, responseSender) -> {
                     final ControlBoomboxPayload payload = ControlBoomboxPayload.read(buf);
                     server.execute(() -> ModNetwork.handleControlBoombox(payload, player));
+                });
+        // Curios 専用 slot の機体を開く要求。wire 表を他 loader と揃えるため受け口だけは付ける。
+        // provider 未 install なのでハンドラ内部の再解決が落ちて常に no-op。
+        ServerPlayNetworking.registerGlobalReceiver(
+                com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                        com.kuronami.musicdiscmaker.network.OpenEquippedBoomboxPayload.PATH),
+                (server, player, handler, buf, responseSender) -> {
+                    final var payload = com.kuronami.musicdiscmaker.network.OpenEquippedBoomboxPayload.read(buf);
+                    server.execute(() -> ModNetwork.handleOpenEquippedBoombox(payload, player));
                 });
         */
         //?}
