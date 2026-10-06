@@ -5,7 +5,7 @@ import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 
 import net.minecraft.core.registries.Registries;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -24,7 +24,7 @@ public final class ModSounds {
     public static final RegistryHolder<SoundEvent> CUSTOM_DISC_PLAYBACK =
             SOUNDS.register("custom_disc_playback",
                     () -> SoundEvent.createVariableRangeEvent(
-                            //? if >=1.21.2 {
+                            //? if >=1.21.11 {
                             Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "custom_disc_playback")));
                             //?} elif >=1.21 {
                             /*ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "custom_disc_playback")));
@@ -39,7 +39,7 @@ public final class ModSounds {
     public static final RegistryHolder<SoundEvent> SILENCE =
             SOUNDS.register("silence",
                     () -> SoundEvent.createVariableRangeEvent(
-                            //? if >=1.21.2 {
+                            //? if >=1.21.11 {
                             Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "silence")));
                             //?} elif >=1.21 {
                             /*ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "silence")));

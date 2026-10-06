@@ -8,7 +8,7 @@ import com.kuronami.musicdiscmaker.recipe.AlbumDyeRecipe;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 //? if >=26.1 {
-//?} elif >=1.21.11 {
+//?} elif >=1.21.4 {
 //?} else {
 /*import net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer;
 *///?}
@@ -28,7 +28,7 @@ public final class ModRecipeSerializers {
                         com.mojang.serialization.MapCodec.unit(recipe),
                         net.minecraft.network.codec.StreamCodec.unit(recipe));
             });
-            //?} elif >=1.21.11 {
+            //?} elif >=1.21.4 {
             /*SERIALIZERS.register("album_dyeing", () -> new net.minecraft.world.item.crafting.CustomRecipe.Serializer<>(AlbumDyeRecipe::new));
             *///?} elif >=1.21 {
             /*SERIALIZERS.register("album_dyeing", () -> new SimpleCraftingRecipeSerializer<>(AlbumDyeRecipe::new));

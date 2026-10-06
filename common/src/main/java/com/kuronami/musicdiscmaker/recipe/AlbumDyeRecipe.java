@@ -70,7 +70,7 @@ public final class AlbumDyeRecipe extends CustomRecipe {
         return result;
     }
 
-    //? if <1.21.11 {
+    //? if <1.21.2 {
     /*@Override
     public boolean canCraftInDimensions(int width, int height) {
         return width * height >= 2;

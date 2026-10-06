@@ -20,6 +20,8 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
     private final Map<BlockPos, SpeakerEmitterAnchor> anchors = new HashMap<>();
     private final Map<BlockPos, FanoutAudioSource.Branch> branches = new HashMap<>();
     private SpeakerSetPayload latestSet;
+    /** 枠不足でまだ始めていない子だけ。自然終了した子はここへ戻さない。 */
+    private final java.util.Set<BlockPos> deferred = new java.util.HashSet<>();
     private boolean initialUpdate = true;
     private volatile boolean stopped;
 
@@ -51,13 +53,38 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
                 anchors.get(pos).update(set, entry);
             }
         }
+        deferred.removeIf(pos -> set.speakers().stream().noneMatch(entry -> entry.pos().equals(pos)
+                && !entry.muted() && entry.volumePercent() > 0));
         for (SpeakerEntry entry : incoming.values()) {
-            if (!stopped && entry.volumePercent() > 0 && !entry.muted()
-                    && PlaybackConcurrency.client().sweepAll() < Config.maxConcurrent()) {
-                startSpeaker(set, entry, initialUpdate);
+            if (!stopped && entry.volumePercent() > 0 && !entry.muted()) {
+                if (PlaybackConcurrency.client().sweepAll() < Config.maxConcurrent()) {
+                    deferred.remove(entry.pos());
+                    startSpeaker(set, entry, initialUpdate);
+                } else deferred.add(entry.pos());
             }
         }
         initialUpdate = false;
+    }
+
+    /**
+     * 枠不足で未開始だった子を、client END tickで現在のPCM位置から補充する。
+     * sweep/isVoiceStoppedから呼ばない。掃除中の再帰計数を避け、自然EOFや意図停止は再開しない。
+     */
+    void retryDeferredSpeakers() {
+        if (stopped || deferred.isEmpty()) return;
+        if (source.isVoiceStopped() || !sourceAnchor.isValid()) { stopAndRelease(); return; }
+        for (BlockPos pos : new ArrayList<>(deferred)) {
+            final SpeakerEntry entry = latestSet.speakers().stream()
+                    .filter(candidate -> candidate.pos().equals(pos)).findFirst().orElse(null);
+            if (entry == null || entry.muted() || entry.volumePercent() <= 0 || voices.containsKey(pos)) {
+                deferred.remove(pos);
+                continue;
+            }
+            if (PlaybackConcurrency.client().sweepAll() >= Config.maxConcurrent()) break;
+            if (stopped) return; // sweep中にmaster終了を拾った場合は補充しない。
+            deferred.remove(pos);
+            startSpeaker(latestSet, entry, false);
+        }
     }
 
     private void startSpeaker(SpeakerSetPayload set, SpeakerEntry entry, boolean initial) {
@@ -70,7 +97,9 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
         branches.put(entry.pos(), branch);
         // Child end/fault is never a second user-facing playback failure; the Golden master owns reporting.
         voice.setFailureSink(ignored -> {});
-        branch.onDesynchronised(() -> Minecraft.getInstance().execute(() -> recreateDesynchronised(entry.pos())));
+        final Runnable recreate = () -> Minecraft.getInstance().execute(() -> recreateSpeaker(entry.pos(), branch));
+        branch.onDesynchronised(recreate);
+        branch.onUnexpectedClose(recreate);
         try {
             Minecraft.getInstance().getSoundManager().play(voice);
         } catch (RuntimeException failure) {
@@ -79,22 +108,32 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
         }
     }
 
-    private void recreateDesynchronised(BlockPos pos) {
-        final FanoutAudioSource.Branch branch = branches.get(pos);
-        if (stopped || branch == null || !branch.desynchronised()) return;
+    /**
+     * 同期喪失と、EOF を伴わない子 channel の close を現在の master 位置へ接続し直す。
+     * 古い branch の遅延通知は同座標の後継を触らない。掃除中にも呼ぶので sweepAll を再帰しない。
+     * 既存の子枠を1本置換するだけで、同時再生数は増やさない。
+     */
+    private void recreateSpeaker(BlockPos pos, FanoutAudioSource.Branch branch) {
+        if (stopped || branches.get(pos) != branch || !branch.needsRecreation()) return;
+        if (source.isVoiceStopped()) {
+            stopAndRelease();
+            return;
+        }
         final SpeakerEntry entry = latestSet == null ? null : latestSet.speakers().stream()
                 .filter(candidate -> candidate.pos().equals(pos)).findFirst().orElse(null);
         removeSpeaker(pos);
-        if (entry != null && !entry.muted() && entry.volumePercent() > 0
-                && PlaybackConcurrency.client().sweepAll() < Config.maxConcurrent()) startSpeaker(latestSet, entry, false);
+        if (sourceAnchor.isValid() && entry != null && !entry.muted() && entry.volumePercent() > 0) {
+            startSpeaker(latestSet, entry, false);
+        }
     }
 
     private void removeSpeaker(BlockPos pos) {
         final SpeakerEmitterAnchor anchor = anchors.remove(pos);
         if (anchor != null) anchor.remove();
         final DiscSoundInstance voice = voices.remove(pos);
-        if (voice != null) voice.stopAndRelease();
+        // main thread の execute は即時実行もある。停止が branch.close を呼ぶ前に所有を外す。
         final FanoutAudioSource.Branch branch = branches.remove(pos);
+        if (voice != null) voice.stopAndRelease();
         if (branch != null) branch.close();
     }
 
@@ -104,11 +143,15 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
             return true;
         }
         for (BlockPos pos : new ArrayList<>(voices.keySet())) {
-            if (voices.get(pos).isVoiceStopped()) {
+            if (stopped) return true;
+            final FanoutAudioSource.Branch branch = branches.get(pos);
+            if (branch != null && branch.needsRecreation()) {
+                recreateSpeaker(pos, branch);
+            } else if ((branch != null && branch.isClosed()) || voices.get(pos).isVoiceStopped()) {
                 removeSpeaker(pos);
             }
         }
-        return false;
+        return stopped;
     }
     @Override public int voiceCount() { return stopped ? 0 : 1 + voices.size(); }
     @Override public void setDirectional(boolean value) { source.setDirectional(value); voices.values().forEach(v -> v.setDirectional(value)); }
@@ -117,6 +160,7 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
     @Override public void stopAndRelease() {
         if (stopped) return;
         stopped = true;
+        deferred.clear();
         for (BlockPos pos : new ArrayList<>(voices.keySet())) removeSpeaker(pos);
         source.stopAndRelease();
     }

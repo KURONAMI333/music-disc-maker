@@ -7,7 +7,11 @@ import com.kuronami.musicdiscmaker.client.audio.BoomboxClientPlayback;
 
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.item.properties.numeric.RangeSelectItemModelProperty;
+//? if >=1.21.11 {
 import net.minecraft.world.entity.ItemOwner;
+//?} else {
+/*import net.minecraft.world.entity.LivingEntity;
+*///?}
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -23,7 +27,11 @@ public record BoomboxPlayingItemModelProperty() implements RangeSelectItemModelP
             MapCodec.unit(new BoomboxPlayingItemModelProperty());
 
     @Override
+    //? if >=1.21.11 {
     public float get(ItemStack stack, ClientLevel level, ItemOwner owner, int seed) {
+    //?} else {
+    /*public float get(ItemStack stack, ClientLevel level, LivingEntity owner, int seed) {
+    *///?}
         return BoomboxClientPlayback.isPlaying(stack) ? 1.0F : 0.0F;
     }
 

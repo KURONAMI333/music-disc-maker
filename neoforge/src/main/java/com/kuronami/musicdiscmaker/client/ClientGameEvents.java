@@ -24,6 +24,7 @@ public final class ClientGameEvents {
 
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.resetProtocolMismatchOnDisconnect();
         ClientPlaybackManager.get().stopAll();
     }
 

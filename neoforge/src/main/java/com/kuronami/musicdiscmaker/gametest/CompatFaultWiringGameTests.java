@@ -49,6 +49,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class CompatFaultWiringGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -60,7 +68,7 @@ public class CompatFaultWiringGameTests {
      * この窓を毎回取り落とす (詳細は {@code PlaybackFaultDeliveryGameTests})。compat の
      * 6 経路はその pull すら差していなかった。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -82,7 +90,7 @@ public class CompatFaultWiringGameTests {
     }
 
     /** push と pull の両方が同じ失敗を運んでも、利用者に出るのは 1 回だけであること。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -103,7 +111,7 @@ public class CompatFaultWiringGameTests {
      * push の口を持たないソースでは、pull だけで届くこと。
      * v3 の派生ソース・キャッシュ済み PCM を返す実装がこちら側に居る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -120,7 +128,7 @@ public class CompatFaultWiringGameTests {
     }
 
     /** 届け先を差す前に既に壊れていた場合も取り落とさないこと (差した瞬間に 1 回流れる)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

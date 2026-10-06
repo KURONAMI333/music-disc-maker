@@ -50,12 +50,22 @@ public class LavaPlayerAudioStream implements AudioStream {
         if (!(source instanceof FanoutAudioSource.Branch branch)) return;
         nativeSource = sourceId;
         queueStart = branch.attachNativePlayback(this::nativePlaybackCursor);
+        publishNativePosition();
     }
 
     private long nativePlaybackCursor() {
         if (AL10.alGetSourcei(nativeSource, AL10.AL_SOURCE_STATE) == AL10.AL_STOPPED) return -1L;
         return queueStart + removedBytes
                 + (long) AL10.alGetSourcei(nativeSource, AL11.AL_SAMPLE_OFFSET) * format.getFrameSize();
+    }
+
+    /** Sample the real OpenAL cursor. Call only from the SoundEngine thread. */
+    public void publishNativePosition() {
+        if (nativeSource == 0) return;
+        long cursorBytes = nativePlaybackCursor();
+        if (cursorBytes < 0 || format.getFrameSize() <= 0) return;
+        source.reportAudioOutputPosition(cursorBytes / format.getFrameSize(),
+                (long) format.getSampleRate(), System.nanoTime());
     }
 
     public void nativeBuffersProcessed(int count) {
@@ -68,7 +78,8 @@ public class LavaPlayerAudioStream implements AudioStream {
     }
 
     public boolean prepareNativePlay() {
-        if (!(source instanceof FanoutAudioSource.Branch branch) || branch.isMaster()) return true;
+        if (!(source instanceof FanoutAudioSource.Branch branch)) return true;
+        if (branch.isMaster()) { publishNativePosition(); return true; }
         final long offset = branch.playbackOffsetBytes(queueStart + removedBytes, queuedBytes);
         if (queueStart < 0L || offset < 0L) return false;
         AL10.alSourcei(nativeSource, AL11.AL_SAMPLE_OFFSET, (int) (offset / format.getFrameSize()));

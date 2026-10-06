@@ -35,7 +35,7 @@ import net.minecraft.world.level.block.Blocks;
 //?} else {
 /*import net.minecraft.world.item.EitherHolder;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -47,7 +47,7 @@ public final class SpeakerPlaybackGameTests {
     private SpeakerPlaybackGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty64x3x8", timeoutTicks = 200, batch = "speakerPlayback")
     *///?}
@@ -55,11 +55,10 @@ public final class SpeakerPlaybackGameTests {
         final ServerLevel level = helper.getLevel();
         final BlockPos sourceRel = new BlockPos(1, 1, 1);
         helper.setBlock(sourceRel, ModBlocks.GOLDEN_JUKEBOX.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel);
         *///?} else {
-        final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel,
-                GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity source = GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
         //?}
         helper.assertTrue(source != null, "Golden sourceを生成できていない");
         final BlockPos sourcePos = source.getBlockPos();
@@ -235,7 +234,7 @@ public final class SpeakerPlaybackGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty64x3x8", timeoutTicks = 200, batch = "speakerPlayback")
     *///?}
@@ -243,11 +242,10 @@ public final class SpeakerPlaybackGameTests {
         final ServerLevel level = helper.getLevel();
         final BlockPos sourceRel = new BlockPos(1, 1, 1);
         helper.setBlock(sourceRel, ModBlocks.GOLDEN_JUKEBOX.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel);
         *///?} else {
-        final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel,
-                GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity source = GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
         //?}
         helper.assertTrue(source != null, "Golden sourceを生成できていない");
         final BlockPos sourcePos = source.getBlockPos();
@@ -350,7 +348,7 @@ public final class SpeakerPlaybackGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty64x3x8", timeoutTicks = 100, batch = "speakerPlayback")
     *///?}
@@ -358,11 +356,10 @@ public final class SpeakerPlaybackGameTests {
         final ServerLevel level = helper.getLevel();
         final BlockPos sourceRel = new BlockPos(1, 1, 1);
         helper.setBlock(sourceRel, ModBlocks.GOLDEN_JUKEBOX.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel);
         *///?} else {
-        final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel,
-                GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity source = GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
         //?}
         helper.assertTrue(source != null, "Golden sourceを生成できていない");
         source.setRangeBlocks(10);
@@ -397,7 +394,7 @@ public final class SpeakerPlaybackGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerPlayback")
     *///?}
@@ -405,11 +402,10 @@ public final class SpeakerPlaybackGameTests {
         final ServerLevel level = helper.getLevel();
         final BlockPos sourceRel = new BlockPos(1, 1, 1);
         helper.setBlock(sourceRel, ModBlocks.GOLDEN_JUKEBOX.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel);
         *///?} else {
-        final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel,
-                GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity source = GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
         //?}
         helper.assertTrue(source != null, "Golden sourceを生成できていない");
         final BlockPos speakerPos = source.getBlockPos().offset(2, 0, 0);
@@ -475,7 +471,7 @@ public final class SpeakerPlaybackGameTests {
                 operation + "でSet→Playを1回ずつ送っていない: " + sent);
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerPlayback")
     *///?}
@@ -573,7 +569,7 @@ public final class SpeakerPlaybackGameTests {
         final CustomTrackData track = new CustomTrackData("https://example.invalid/speaker-playback",
                 "Speaker Playback", "tester", 120_000L, "", false);
         disc.set(ModDataComponents.CUSTOM_TRACK.get(), track);
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE,
                 new JukeboxPlayable(new EitherHolder<>(SilentSongs.pick(track.durationMs())), false));
         *///?} else {

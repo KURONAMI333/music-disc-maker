@@ -38,8 +38,8 @@ public final class ClientPlaybackHandler {
     public static void vanillaPlay(com.kuronami.musicdiscmaker.network.PlayVanillaDiscPayload payload) {
         if (protocolMismatch) return;
         if (!claimWorld(payload.jukeboxPos(), payload.identity())) return;
-        ClientPlaybackManager.get().stopPlayback(payload.jukeboxPos());
-        VanillaSpeakerPlayback.play(payload);
+        ClientPlaybackManager.get().stopPlaybackBeforeNative(payload.identity(), payload.jukeboxPos(),
+                () -> VanillaSpeakerPlayback.play(payload));
     }
 
     public static void play(PlayDiscPayload payload) {
@@ -48,20 +48,32 @@ public final class ClientPlaybackHandler {
         }
         if (!claimWorld(payload.jukeboxPos(), payload.identity())) return;
         VanillaSpeakerPlayback.stop(payload.jukeboxPos());
-        ClientPlaybackManager.get().startPlayback(payload.jukeboxPos(), payload.track(), payload.startOffsetMs(),
-                payload.rangeBlocks(), payload.volumePercent(), payload.directional());
+        ClientPlaybackManager.get().startPlaybackWithIdentity(payload.jukeboxPos(), payload.track(), payload.startOffsetMs(),
+                payload.rangeBlocks(), payload.volumePercent(), payload.directional(), payload.identity());
     }
 
     public static void stop(StopDiscPayload payload) {
-        // nativeのレコード音は所有権表を通らず始まるため、圏外への停止もここで消す。
-        VanillaSpeakerPlayback.stopVanilla(payload.jukeboxPos());
         if (payload.identity().sourceId() != null) {
-            SOURCE_OWNERS.stop(payload.identity().sourceId(), payload.identity().generation(),
-                    new WorldRoute(payload.jukeboxPos().immutable()));
+            // Native record sound starts through the vanilla level event without an ownership lease.
+            // Preserve its stamped stop independently; managed AV cleanup remains route/generation guarded.
+            VanillaSpeakerPlayback.stopVanilla(payload.jukeboxPos());
+            final WorldRoute route = new WorldRoute(payload.jukeboxPos().immutable());
+            SOURCE_OWNERS.stop(payload.identity().sourceId(), payload.identity().generation(), route);
             return;
         }
+        VanillaSpeakerPlayback.stopVanilla(payload.jukeboxPos());
         VanillaSpeakerPlayback.stop(payload.jukeboxPos());
         ClientPlaybackManager.get().stopPlayback(payload.jukeboxPos());
+    }
+
+    public static void clearSourceOwnership() {
+        SOURCE_OWNERS.clear();
+    }
+
+    static boolean ownsSourceRoute(com.kuronami.musicdiscmaker.network.PlaybackSourceStamp identity,
+            net.minecraft.core.BlockPos pos) {
+        return identity != null && identity.sourceId() != null && pos != null
+                && SOURCE_OWNERS.owns(identity.sourceId(), identity.generation(), new WorldRoute(pos.immutable()));
     }
 
     /** client受信: 固定speaker集合のライブ更新。音源は読み直さない。 */
@@ -94,6 +106,38 @@ public final class ClientPlaybackHandler {
         BoomboxClientPlayback.stop(payload.boomboxId());
     }
 
+    /**
+     * client 受信: 金ジューク cart の再生 / keep-alive。
+     *
+     * @param payload 再生要求
+     */
+    public static void goldenCartPlay(com.kuronami.musicdiscmaker.network.GoldenCartPlayPayload payload) {
+        if (protocolMismatch) {
+            return; // 版不一致: 再生を始めない (黙って進ませない)
+        }
+        GoldenCartClientPlayback.play(payload);
+    }
+
+    /**
+     * client 受信: 金ジューク cart の停止。
+     *
+     * @param payload 停止要求
+     */
+    public static void goldenCartStop(com.kuronami.musicdiscmaker.network.GoldenCartStopPayload payload) {
+        GoldenCartClientPlayback.stop(payload);
+    }
+
+    /** client 受信: 開いている cart menu への再生状態 (操作直後の即時反映)。 */
+    public static void goldenCartState(com.kuronami.musicdiscmaker.network.GoldenCartStatePayload payload) {
+        final var player = Minecraft.getInstance().player;
+        if (!protocolMismatch && player != null
+                && player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu menu
+                && menu.containerId == payload.containerId()
+                && payload.entityId() == menu.cartEntityId()) {
+            menu.applyPlaybackState(payload.state());
+        }
+    }
+
     /** 版不一致で client 機能を無効化した後 true。一度立ったら接続が変わるまで戻さない。 */
     private static volatile boolean protocolMismatch;
 
@@ -111,6 +155,14 @@ public final class ClientPlaybackHandler {
     /** B5/C12: 版不一致で機能を無効化したか。画面の C2S 送出のガードにも使う。 */
     public static boolean isProtocolMismatch() {
         return protocolMismatch;
+    }
+
+    /**
+     * 現在の play 接続が終了した時にだけ、接続単位の版不一致状態を破棄する。
+     * stopAll() や一致する VersionPayload の受信では解除しない。
+     */
+    public static void resetProtocolMismatchOnDisconnect() {
+        protocolMismatch = false;
     }
 
     /**

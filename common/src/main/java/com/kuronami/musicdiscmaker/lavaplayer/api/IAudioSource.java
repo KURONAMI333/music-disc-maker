@@ -68,6 +68,10 @@ public interface IAudioSource extends AutoCloseable {
     default void onPlaybackFault(Consumer<PlaybackFault> sink) {
     }
 
+    /** Actual native output cursor, measured on the SoundEngine thread. Non-session sources may ignore it. */
+    default void reportAudioOutputPosition(long playedFrames, long sampleRate, long sampledAtNanos) {
+    }
+
     @Override
     void close();
 }

@@ -22,12 +22,13 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 //?} elif >=1.21 {
 /*import net.minecraft.core.HolderLookup;
-import net.minecraft.core.component.DataComponents;
 *///?} else {
 //?}
 import net.minecraft.core.NonNullList;
-//? if >=1.21.2 {
+//? if >=1.21 {
 import net.minecraft.core.component.DataComponents;
+//?}
+//? if >=1.21.2 {
 import net.minecraft.core.registries.Registries;
 //?} else {
 //?}
@@ -46,6 +47,7 @@ import net.minecraft.world.entity.player.Player;
 //? if >=1.21.2 {
 //?} elif >=1.21 {
 /*import net.minecraft.world.item.EitherHolder;
+import net.minecraft.world.item.component.CustomData;
 *///?} else {
 //?}
 import net.minecraft.world.item.ItemStack;
@@ -60,7 +62,7 @@ import net.minecraft.world.item.JukeboxPlayable;
 //?}
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 //?} else {
@@ -235,7 +237,11 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
             }
         }
         inventory.setChanged();
-        if (!legacy.isEmpty() && player.drop(legacy.copy(), false) == null) {
+        //? if >=26.3 {
+        if (!legacy.isEmpty() && player.drop(legacy.copy(), false, net.minecraft.util.Prediction.SERVER_ONLY) == null) {
+        //?} else {
+        /*if (!legacy.isEmpty() && player.drop(legacy.copy(), false) == null) {
+        *///?}
             // 他MODがdropを拒否した場合は、次の回収まで元の保存領域へ戻す。
             items.set(LEGACY_UPGRADE, legacy);
         }
@@ -276,6 +282,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         }
 
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
+        saveOriginalSourceUrl(disc);
         //? if >=26.1 {
         disc.set(ModDataComponents.CUSTOM_TRACK.get(), resolvedTrack);
         // バニラの「再生中」状態に乗せる: 曲長に合う無音 jukebox_song を JUKEBOX_PLAYABLE で参照
@@ -286,7 +293,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
                     .get(SilentSongs.pick(silentSongMillis(), resolvedTrack.radio()))
                     .ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(holder)));
         }
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
         /*disc.set(ModDataComponents.CUSTOM_TRACK.get(), resolvedTrack);
         // バニラの「再生中」状態に乗せる: 曲長に合う無音 jukebox_song を JUKEBOX_PLAYABLE で参照
         // (Amendments の回転・コンパレータ・ホッパー等が機能する。音声は LavaPlayer)。
@@ -313,6 +320,20 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         setItem(SLOT_OUTPUT, disc);
         removeItem(SLOT_INPUT, 1);
         return true;
+    }
+
+    /** Saves the verified fabrication input beside the resolved track without changing audio metadata. */
+    private void saveOriginalSourceUrl(ItemStack disc) {
+        if (resolvedTrack == null || resolvedTrack.isEmpty() || resolvedTrack.isLocal()
+                || resolvedForUrl == null || resolvedForUrl.isBlank()) return;
+        //? if >=1.21 {
+        CompoundTag custom = disc.getOrDefault(DataComponents.CUSTOM_DATA,
+                net.minecraft.world.item.component.CustomData.EMPTY).copyTag();
+        custom.putString("music_disc_maker:original_source_url", resolvedForUrl);
+        disc.set(DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.of(custom));
+        //?} else {
+/*        disc.getOrCreateTag().putString("music_disc_maker:original_source_url", resolvedForUrl);
+*///?}
     }
 
     public void sync() {
@@ -349,7 +370,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
     // ── persistence (26.1.2: ValueInput/ValueOutput) ──
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
     //?} elif >=1.21 {
@@ -360,7 +381,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         super.load(tag);
     *///?}
         items.clear();
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         ContainerHelper.loadAllItems(input, items);
         currentUrl = input.getStringOr("url", "");
         resolvedForUrl = input.getStringOr("resolvedForUrl", "");
@@ -402,7 +423,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         this.failureReason = FailureReason.fromName(tag.getString("failureReason"));
         *///?}
         // Discard the unpublished multi-track cache so it cannot bypass single-track resolution.
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final boolean legacyMultiTrackCache = input.read("tracks", com.mojang.serialization.Codec.PASSTHROUGH).isPresent();
         //?} else {
         /*final boolean legacyMultiTrackCache = tag.contains("tracks");
@@ -415,7 +436,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         ContainerHelper.saveAllItems(output, items);
@@ -446,12 +467,12 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         // resolveFailed/failureReason: GUI を閉じて開き直しても失敗表示が残るように永続化する
         // (resolving は意図的に含めない。server 再起動でスレッドプールごと消える一時状態なので、
         // 永続化すると「取得中…」のまま二度と終わらない spinner が固定化してしまう)。
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         output.putBoolean("resolveFailed", resolveFailed);
         output.putString("failureReason", failureReason.name());
         //?}
         if (hasResolvedTrack()) {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             output.store("track", CustomTrackData.CODEC, resolvedTrack);
             //?} elif >=1.21 {
             /*CustomTrackData.CODEC

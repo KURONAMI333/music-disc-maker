@@ -7,13 +7,16 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 
 import com.kuronami.musicdiscmaker.component.AlbumContents;
+import com.kuronami.musicdiscmaker.component.AlbumStorageBudget;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.item.AlbumItem;
 import com.kuronami.musicdiscmaker.menu.AlbumMenu;
+import com.kuronami.musicdiscmaker.menu.AlbumMenuLayout;
 import com.kuronami.musicdiscmaker.menu.BoomboxSource;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -25,7 +28,7 @@ import net.minecraft.world.inventory.ContainerInput;
 //?} else {
 /*import net.minecraft.world.inventory.ClickType;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -38,29 +41,124 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class AlbumMenuGameTests {
     private AlbumMenuGameTests() { }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
-    public static void openingAndTakingKeepsOverflow(GameTestHelper helper) {
+    public static void openingAndTakingKeepsLegacyThirteen(GameTestHelper helper) {
         final FakePlayer player = createPlayer(helper);
         final ItemStack album = new ItemStack(ModItems.ALBUM.get());
         final List<ItemStack> original = new ArrayList<>();
-        for (int i = 0; i < 10; i++) original.add(disc(i));
+        for (int i = 0; i < 13; i++) original.add(disc(i));
         AlbumItem.setContents(album, new AlbumContents(original));
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
 
         final AlbumMenu menu = new AlbumMenu(1, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
-        helper.assertTrue(AlbumItem.contents(album).size() == 10, "10枚Albumを開いただけで後半が失われた");
+        helper.assertTrue(AlbumItem.contents(album).size() == 13
+                        && menu.slots.get(9).hasItem() && menu.slots.get(12).hasItem()
+                        && "track-9".equals(AlbumItem.contents(album).discAt(9)
+                                .get(ModDataComponents.CUSTOM_TRACK.get()).title()),
+                "13枚の旧Albumが保存、10枚目の参照、または2段表示で失われた");
         menu.quickMoveStack(player, 0);
         final AlbumContents after = AlbumItem.contents(album);
-        helper.assertTrue(after.size() == 9, "先頭を取り出した後の盤数が9でない");
-        helper.assertTrue("track-9".equals(after.discAt(8).get(ModDataComponents.CUSTOM_TRACK.get()).title()),
-                "画面外10枚目が先頭取出後に失われた");
+        helper.assertTrue(after.size() == 12, "先頭を取り出した後の盤数が12でない");
+        helper.assertTrue("track-12".equals(after.discAt(11).get(ModDataComponents.CUSTOM_TRACK.get()).title()),
+                "13枚の旧Albumの最後の盤が先頭取出後に失われた");
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8")
+    *///?}
+    public static void eighteenthDiscUsesSecondRowAndRemainsTakeable(GameTestHelper helper) {
+        final FakePlayer player = createPlayer(helper);
+        final List<ItemStack> stored = new ArrayList<>();
+        for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) stored.add(disc(i));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(stored));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        final AlbumMenu menu = new AlbumMenu(2, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+
+        helper.assertTrue(menu.slots.size() == AlbumItem.GUI_CAPACITY + 36
+                        && menu.slots.get(9).hasItem()
+                        && menu.slots.get(17).hasItem()
+                        && "track-17".equals(AlbumItem.contents(album).discAt(17)
+                                .get(ModDataComponents.CUSTOM_TRACK.get()).title())
+                        && menu.quickMoveStack(player, -1).isEmpty()
+                        && menu.quickMoveStack(player, menu.slots.size()).isEmpty(),
+                "18枠menuが第二段またはplayer inventoryを正しく構成しない");
+        final ItemStack removed = menu.quickMoveStack(player, 17);
+        helper.assertTrue("track-17".equals(removed.get(ModDataComponents.CUSTOM_TRACK.get()).title())
+                        && AlbumItem.contents(album).size() == 17,
+                "18枚目をmenuの第二段から回収できない");
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8")
+    *///?}
+    public static void normalClickStoresAndTakesEighteenthDisc(GameTestHelper helper) {
+        helper.assertTrue(AlbumMenuLayout.CAPACITY == 18, "Album product capacity is no longer 18");
+        final FakePlayer player = createPlayer(helper);
+        final List<ItemStack> stored = new ArrayList<>();
+        for (int i = 0; i < 17; i++) stored.add(disc(i));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(stored));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        final AlbumMenu menu = new AlbumMenu(2, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+
+        menu.setCarried(disc(17));
+        pickup(menu, 17, player);
+        helper.assertTrue(menu.getCarried().isEmpty()
+                        && menu.slots.get(17).hasItem()
+                        && AlbumItem.contents(album).size() == 18
+                        && "track-17".equals(AlbumItem.contents(album).discAt(17)
+                                .get(ModDataComponents.CUSTOM_TRACK.get()).title()),
+                "通常クリックで18枚目を2段目の最後の枠へ保存できない");
+
+        pickup(menu, 17, player);
+        helper.assertTrue("track-17".equals(menu.getCarried().get(ModDataComponents.CUSTOM_TRACK.get()).title())
+                        && AlbumItem.contents(album).size() == 17
+                        && AlbumItem.contents(album).discAt(16).get(ModDataComponents.CUSTOM_TRACK.get()).title()
+                                .equals("track-16"),
+                "2段目の最後の枠を通常クリックで取り出すと順序または内容が壊れる");
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8")
+    *///?}
+    public static void shiftClickFillsAndTakesEighteenthDisc(GameTestHelper helper) {
+        helper.assertTrue(AlbumMenuLayout.CAPACITY == 18, "Album product capacity is no longer 18");
+        final FakePlayer player = createPlayer(helper);
+        final List<ItemStack> stored = new ArrayList<>();
+        for (int i = 0; i < 17; i++) stored.add(disc(i));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(stored));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        player.getInventory().setItem(1, disc(17));
+        final AlbumMenu menu = new AlbumMenu(3, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+
+        helper.assertTrue(!menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty()
+                        && player.getInventory().getItem(1).isEmpty()
+                        && menu.slots.get(17).hasItem()
+                        && AlbumItem.contents(album).size() == 18
+                        && "track-17".equals(AlbumItem.contents(album).discAt(17)
+                                .get(ModDataComponents.CUSTOM_TRACK.get()).title()),
+                "shift-clickで18枚目を最後の2段目枠へ保存できない");
+        final ItemStack removed = menu.quickMoveStack(player, 17);
+        helper.assertTrue("track-17".equals(removed.get(ModDataComponents.CUSTOM_TRACK.get()).title())
+                        && AlbumItem.contents(album).size() == 17
+                        && "track-16".equals(AlbumItem.contents(album).discAt(16)
+                                .get(ModDataComponents.CUSTOM_TRACK.get()).title()),
+                "最後の2段目枠をshift-clickで取り出すと順序または内容が壊れる");
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -82,7 +180,7 @@ public final class AlbumMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -92,19 +190,19 @@ public final class AlbumMenuGameTests {
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
         final AlbumMenu menu = new AlbumMenu(3, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
         player.getInventory().setItem(1, disc(0));
-        pickup(menu, 37, player);
+        pickup(menu, inventoryMenuSlot(1), player);
         pickup(menu, 0, player);
         helper.assertTrue(AlbumItem.contents(album).size() == 1, "通常クリックで盤をAlbumへ投入できない");
         helper.assertTrue(!menu.quickMoveStack(player, 0).isEmpty(), "通常投入した盤をAlbumから取り出せない");
         player.getInventory().setItem(1, disc(0));
-        helper.assertTrue(!menu.quickMoveStack(player, 37).isEmpty(), "shift-clickで盤をAlbumへ投入できない");
+        helper.assertTrue(!menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty(), "shift-clickで盤をAlbumへ投入できない");
         helper.assertTrue(AlbumItem.contents(album).size() == 1, "投入した盤が保存されない");
         player.getInventory().setItem(2, new ItemStack(ModItems.BOOMBOX.get()));
-        helper.assertTrue(menu.quickMoveStack(player, 38).isEmpty(), "BoomboxをAlbumへ投入できてしまった");
+        helper.assertTrue(menu.quickMoveStack(player, inventoryMenuSlot(2)).isEmpty(), "BoomboxをAlbumへ投入できてしまった");
         helper.assertTrue(AlbumItem.contents(album).size() == 1, "拒否入力がAlbumを変えた");
 
         player.getInventory().setItem(3, disc(1));
-        menu.quickMoveStack(player, 39);
+        menu.quickMoveStack(player, inventoryMenuSlot(3));
         pickup(menu, 0, player);
         pickup(menu, 2, player);
         pickup(menu, 1, player);
@@ -122,7 +220,7 @@ public final class AlbumMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -143,7 +241,7 @@ public final class AlbumMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -155,7 +253,7 @@ public final class AlbumMenuGameTests {
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
         player.getInventory().setItem(1, inventoryDisc);
         final AlbumMenu menu = new AlbumMenu(5, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
-        swap(menu, 37, 0, player);
+        swap(menu, inventoryMenuSlot(1), 0, player);
         helper.assertTrue(player.getItemInHand(InteractionHand.MAIN_HAND) == album,
                 "逆方向の数字キー交換で元Albumがhotbarから移動した");
         helper.assertTrue(ItemStack.matches(player.getInventory().getItem(1), inventoryDisc),
@@ -168,7 +266,7 @@ public final class AlbumMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -180,7 +278,7 @@ public final class AlbumMenuGameTests {
         player.setItemInHand(InteractionHand.OFF_HAND, offhandAlbum);
         player.getInventory().setItem(1, inventoryDisc);
         final AlbumMenu offhandMenu = new AlbumMenu(6, player.getInventory(), BoomboxSource.held(InteractionHand.OFF_HAND));
-        swap(offhandMenu, 37, 40, player);
+        swap(offhandMenu, inventoryMenuSlot(1), 40, player);
         helper.assertTrue(player.getItemInHand(InteractionHand.OFF_HAND) == offhandAlbum,
                 "逆方向のoffhand交換で元Albumが移動した");
         helper.assertTrue(ItemStack.matches(player.getInventory().getItem(1), inventoryDisc)
@@ -190,7 +288,7 @@ public final class AlbumMenuGameTests {
         final ItemStack replacement = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(replacement, new AlbumContents(List.of(disc(9))));
         player.setItemInHand(InteractionHand.OFF_HAND, replacement);
-        pickup(offhandMenu, 37, player);
+        pickup(offhandMenu, inventoryMenuSlot(1), player);
         pickup(offhandMenu, 0, player);
         helper.assertTrue(player.getItemInHand(InteractionHand.OFF_HAND) == replacement
                         && ItemStack.matches(player.getInventory().getItem(1), inventoryDisc)
@@ -202,7 +300,7 @@ public final class AlbumMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -226,7 +324,7 @@ public final class AlbumMenuGameTests {
         player.getInventory().setItem(1, oversized.copy());
         final ItemStack retainedCarried = longDisc(20_000, 1);
         menu.setCarried(retainedCarried.copy());
-        helper.assertTrue(menu.quickMoveStack(player, 37).isEmpty()
+        helper.assertTrue(menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty()
                         && ItemStack.matches(player.getInventory().getItem(1), oversized)
                         && ItemStack.matches(menu.getCarried(), retainedCarried)
                         && AlbumItem.contents(album).size() == 8,
@@ -251,42 +349,127 @@ public final class AlbumMenuGameTests {
                 "通常クリックの小さい盤を予算検証が拒否した");
         helper.assertTrue(!smallMenu.quickMoveStack(player, 0).isEmpty(), "小さい盤を取り出せない");
         player.getInventory().setItem(1, small.copy());
-        helper.assertTrue(!smallMenu.quickMoveStack(player, 37).isEmpty(), "小さい盤のshift-clickを予算検証が拒否した");
+        helper.assertTrue(!smallMenu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty(), "小さい盤のshift-clickを予算検証が拒否した");
         helper.assertTrue(!smallMenu.quickMoveStack(player, 0).isEmpty(), "shift-click投入後の小さい盤を取り出せない");
         player.getInventory().setItem(2, small.copy());
         swap(smallMenu, 0, 2, player);
         helper.assertTrue(AlbumItem.contents(smallAlbum).size() == 1
                         && player.getInventory().getItem(2).isEmpty(),
                 "小さい盤の数字キーswapを予算検証が拒否した");
+        assertUnrelatedInventoryAllowsSmallInsertion(helper);
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
     public static void menuRecoversOverflowInSameSession(GameTestHelper helper) {
         final FakePlayer player = createPlayer(helper);
         final List<ItemStack> stored = new ArrayList<>();
-        for (int i = 0; i < 12; i++) stored.add(disc(i));
+        for (int i = 0; i < 21; i++) stored.add(disc(i));
         final ItemStack album = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(album, new AlbumContents(stored));
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
         final AlbumMenu menu = new AlbumMenu(9, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
 
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 21; i++) {
             final ItemStack removed = menu.quickMoveStack(player, firstStoredSlot(menu));
             helper.assertTrue(!removed.isEmpty()
                             && ("track-" + i).equals(removed.get(ModDataComponents.CUSTOM_TRACK.get()).title())
-                            && AlbumItem.contents(album).size() == 11 - i,
+                            && AlbumItem.contents(album).size() == 20 - i,
                     "同一menuでoverflow盤を保存順に回収できない: " + i);
-            if (i < 11) {
+            if (i < 20) {
                 helper.assertTrue(("track-" + (i + 1)).equals(AlbumItem.contents(album).discAt(0)
                                 .get(ModDataComponents.CUSTOM_TRACK.get()).title()),
                         "補充後の先頭盤が保存順でない: " + i);
             }
         }
         helper.succeed();
+    }
+
+    /** 分割syncの合法な大きい所持品と、実クリックで変わる値を区別する回帰。 */
+    private static void assertUnrelatedInventoryAllowsSmallInsertion(GameTestHelper helper) {
+        final FakePlayer player = createPlayer(helper);
+        final List<ItemStack> unrelated = List.of(paddedDisc(30_000, 400 * 1024),
+                paddedDisc(30_001, 400 * 1024), paddedDisc(30_002, 400 * 1024));
+        for (int i = 0; i < unrelated.size(); i++) {
+            helper.assertTrue(AlbumStorageBudget.fits(unrelated.get(i), player.level().registryAccess()),
+                    "回帰用の所持品が単独packet予算を超えた");
+            player.getInventory().setItem(9 + i, unrelated.get(i).copy());
+        }
+        helper.assertTrue(!AlbumStorageBudget.fitsMenuSync(unrelated, ItemStack.EMPTY,
+                        player.level().registryAccess()), "回帰用の所持品合計が1MiB以下だった");
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        final AlbumMenu menu = new AlbumMenu(70, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+        final ItemStack small = disc(30_010);
+        menu.setCarried(small.copy());
+        List<ItemStack> before = menu.slots.stream().map(slot -> slot.getItem().copy()).toList();
+        helper.assertTrue(menu.slots.get(0).mayPlace(menu.getCarried()),
+                "無関係な大所持品の合計で小さい盤のmayPlaceを拒否した");
+        pickup(menu, 0, player);
+        assertChangedSlotBudget(helper, menu, before, player);
+        helper.assertTrue(menu.getCarried().isEmpty() && ItemStack.matches(AlbumItem.contents(album).discAt(0), small),
+                "大所持品があると通常投入の盤またはcursorを保存できない");
+        final AlbumMenu reopened = new AlbumMenu(71, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+        helper.assertTrue(ItemStack.matches(reopened.slots.get(0).getItem(), small), "小さい盤が再openで失われた");
+        pickup(reopened, 0, player);
+        helper.assertTrue(ItemStack.matches(reopened.getCarried(), small) && AlbumItem.contents(album).isEmpty(),
+                "大所持品があると小さい盤をcursorへ回収できない");
+        reopened.setCarried(ItemStack.EMPTY);
+        player.getInventory().setItem(1, small.copy());
+        before = reopened.slots.stream().map(slot -> slot.getItem().copy()).toList();
+        helper.assertTrue(!reopened.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty()
+                        && player.getInventory().getItem(1).isEmpty(), "大所持品があるとshift投入を拒否する");
+        assertChangedSlotBudget(helper, reopened, before, player);
+        helper.assertTrue(!reopened.quickMoveStack(player, 0).isEmpty(), "shift投入後の小さい盤を回収できない");
+        player.getInventory().setItem(2, disc(30_011));
+        before = reopened.slots.stream().map(slot -> slot.getItem().copy()).toList();
+        swap(reopened, 0, 2, player);
+        assertChangedSlotBudget(helper, reopened, before, player);
+        helper.assertTrue(player.getInventory().getItem(2).isEmpty()
+                        && "track-30011".equals(AlbumItem.contents(album).discAt(0)
+                                .get(ModDataComponents.CUSTOM_TRACK.get()).title()),
+                "大所持品があると数字キー投入を拒否する");
+        for (int i = 0; i < unrelated.size(); i++) helper.assertTrue(
+                ItemStack.matches(player.getInventory().getItem(9 + i), unrelated.get(i)),
+                "小さい盤の操作が無関係な大所持品を変えた");
+
+        final ItemStack empty = new ItemStack(ModItems.ALBUM.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, empty);
+        final AlbumMenu reject = new AlbumMenu(72, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+        final ItemStack huge = paddedDisc(30_020, 1100 * 1024);
+        helper.assertTrue(!AlbumStorageBudget.fits(huge, player.level().registryAccess()),
+                "巨大媒体の単独codec拒否がなくなった");
+        reject.setCarried(huge.copy());
+        pickup(reject, 0, player);
+        helper.assertTrue(ItemStack.matches(reject.getCarried(), huge) && AlbumItem.contents(empty).isEmpty(),
+                "巨大媒体の拒否でcursorまたはAlbumを変えた");
+        // 個別には合法でも、挿入値・更新後source・cursorの同一packet合算が過大なら拒否する。
+        final ItemStack packetLarge = paddedDisc(30_021, 600 * 1024);
+        helper.assertTrue(AlbumStorageBudget.fits(packetLarge, player.level().registryAccess()),
+                "クリック合算用媒体が単独codec予算を超えた");
+        reject.setCarried(packetLarge.copy());
+        helper.assertTrue(!reject.slots.get(0).mayPlace(reject.getCarried()),
+                "クリックのslotとcursorの合算上限を外した");
+        pickup(reject, 0, player);
+        helper.assertTrue(ItemStack.matches(reject.getCarried(), packetLarge) && AlbumItem.contents(empty).isEmpty(),
+                "クリック合算拒否でcursorまたは保存内容を失った");
+    }
+
+    private static void assertChangedSlotBudget(GameTestHelper helper, AlbumMenu menu, List<ItemStack> before, FakePlayer player) {
+        final List<ItemStack> changed = new ArrayList<>();
+        for (int i = 0; i < menu.slots.size(); i++) {
+            final ItemStack after = menu.slots.get(i).getItem();
+            if (!ItemStack.matches(before.get(i), after)) changed.add(after.copy());
+        }
+        helper.assertTrue(AlbumStorageBudget.fitsMenuSync(changed, menu.getCarried(), player.level().registryAccess()),
+                "受理したクリックのchangedSlotsとcursorが同期予算を超えた");
+    }
+
+    private static int inventoryMenuSlot(int inventorySlot) {
+        return AlbumItem.GUI_CAPACITY + 27 + inventorySlot;
     }
 
     private static int firstStoredSlot(AlbumMenu menu) {
@@ -296,7 +479,7 @@ public final class AlbumMenuGameTests {
         throw new AssertionError("Album内に取り出せる盤がない");
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -310,7 +493,7 @@ public final class AlbumMenuGameTests {
         player.getInventory().setItem(1, disc(1_000));
         final AlbumMenu menu = new AlbumMenu(9, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
 
-        helper.assertTrue(menu.quickMoveStack(player, 37).isEmpty()
+        helper.assertTrue(menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty()
                         && !player.getInventory().getItem(1).isEmpty()
                         && AlbumItem.contents(album).size() == AlbumContents.STORAGE_DECODE_LIMIT,
                 "256枚保存済みAlbumへの投入拒否で既存データまたは投入盤を失った");
@@ -320,14 +503,14 @@ public final class AlbumMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
     public static void initialSyncIgnoresPlayerInventoryButRejectsOversizedContents(GameTestHelper helper) {
         final FakePlayer player = createPlayer(helper);
         final List<ItemStack> safeDiscs = new ArrayList<>();
-        for (int i = 0; i < 9; i++) safeDiscs.add(longDisc(i, 1));
+        for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) safeDiscs.add(longDisc(i, 1));
         final ItemStack safeAlbum = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(safeAlbum, new AlbumContents(safeDiscs));
         player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
@@ -384,13 +567,46 @@ public final class AlbumMenuGameTests {
                 "強制再同期後の次のslot/cursor差分を送信しなかった");
 
         final List<ItemStack> unsafeDiscs = new ArrayList<>();
-        for (int i = 0; i < 9; i++) unsafeDiscs.add(longDisc(10_000 + i * 10, 6));
+        for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) unsafeDiscs.add(longDisc(10_000 + i * 10, 6));
         final ItemStack unsafeAlbum = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(unsafeAlbum, new AlbumContents(unsafeDiscs));
         player.setItemInHand(InteractionHand.MAIN_HAND, unsafeAlbum);
         helper.assertTrue(!AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND))
-                        && AlbumItem.contents(unsafeAlbum).size() == 9,
+                        && AlbumItem.contents(unsafeAlbum).size() == AlbumItem.GUI_CAPACITY,
                 "危険な既存Albumの初回menu同期を許可したか保存値を変えた");
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8")
+    *///?}
+    public static void nonHeldSourcesDisableMenuInsteadOfThrowing(GameTestHelper helper) {
+        final FakePlayer player = createPlayer(helper);
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(List.of(disc(0))));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        player.getInventory().setItem(1, disc(1));
+
+        // AlbumMenuを開けるsourceはheldだけ。設置・装備・wire由来の任意intが来ても
+        // heldHand()の例外でclientを切断せず、stillValid=falseで全操作を拒否することが回帰条件。
+        int id = 100;
+        for (final BoomboxSource source : List.of(
+                BoomboxSource.placed(BlockPos.ZERO),
+                BoomboxSource.equipped("back", 0, 1L),
+                new BoomboxSource(BlockPos.ZERO, 7, "", -1, 0L))) {
+            final AlbumMenu menu = new AlbumMenu(id++, player.getInventory(), source);
+            helper.assertTrue(!menu.stillValid(player), "非held sourceのmenuが有効扱いになった");
+            helper.assertTrue(menu.quickMoveStack(player, 0).isEmpty(),
+                    "非held sourceのmenuでshift-clickが盤を動かした");
+            swap(menu, inventoryMenuSlot(1), 40, player);
+            helper.assertTrue(!AlbumMenu.fitsInitialMenuSync(player.getInventory(), source),
+                    "非held sourceが初回menu同期の検証を通過した");
+        }
+        helper.assertTrue(player.getItemInHand(InteractionHand.MAIN_HAND) == album
+                        && AlbumItem.contents(album).size() == 1
+                        && player.getInventory().getItem(1).is(ModItems.CUSTOM_MUSIC_DISC.get()),
+                "非held sourceのmenuがAlbumまたは所持品を変更した");
         helper.succeed();
     }
 
@@ -452,11 +668,15 @@ public final class AlbumMenuGameTests {
     }
 
     private static ItemStack longDisc(int start, int sizeClass) {
+        return paddedDisc(start, sizeClass == 1 ? 16 * 1024 : 600 * 1024);
+    }
+
+    private static ItemStack paddedDisc(int start, int bytes) {
         final ItemStack stack = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         stack.set(ModDataComponents.CUSTOM_TRACK.get(), new CustomTrackData("https://example.invalid/" + start, "track-" + start, "test", 180_000L, "", false));
         // Extra item metadata exercises the synchronization limit without a multi-track disc.
         final net.minecraft.nbt.CompoundTag padding = new net.minecraft.nbt.CompoundTag();
-        padding.putByteArray("fixture_padding", new byte[sizeClass == 1 ? 16 * 1024 : 600 * 1024]);
+        padding.putByteArray("fixture_padding", new byte[bytes]);
         stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
                 net.minecraft.world.item.component.CustomData.of(padding));
         return stack;

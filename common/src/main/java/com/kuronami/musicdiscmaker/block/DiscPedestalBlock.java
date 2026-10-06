@@ -195,7 +195,11 @@ public class DiscPedestalBlock extends Block implements EntityBlock {
                     }
                 }
                 if (!player.addItem(previous)) {
-                    player.drop(previous, false);
+                    //? if >=26.3 {
+player.drop(previous, false, net.minecraft.util.Prediction.SERVER_ONLY);
+//?} else {
+/*player.drop(previous, false);
+*///?}
                 }
                 playPedestalSound(state, level, pos, 0.7F);
             }
@@ -230,7 +234,7 @@ public class DiscPedestalBlock extends Block implements EntityBlock {
 
     // 撤去時に飾ってあるディスクを落とす。loot table が返すのは台座そのものだけ。
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos,
             boolean movedByPiston) {
         if (level.getBlockEntity(pos) instanceof DiscPedestalBlockEntity pedestal) {

@@ -18,6 +18,8 @@ import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 //? if >=1.21.2 {
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+//?}
+//? if >=1.21.11 {
 import net.neoforged.neoforge.transfer.item.VanillaContainerWrapper;
 import net.neoforged.neoforge.transfer.item.WorldlyContainerWrapper;
 //?} else {
@@ -42,7 +44,9 @@ public class MusicDiscMakerNeoForge {
         modEventBus.addListener(this::registerCapabilities);
         //? if >=1.21.2 {
         modEventBus.addListener(this::buildCreativeTabContents);
+        //? if >=1.21.11 {
         modEventBus.addListener(com.kuronami.musicdiscmaker.gametest.MdmGameTestRegistration::register);
+        //?}
         //?} else {
         //?}
         // Sophisticated Core 互換: ロードされていれば custom disc を SB の Jukebox Upgrade で使える IDiscHandler を登録。
@@ -68,7 +72,7 @@ public class MusicDiscMakerNeoForge {
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {
         // hopper 等から空ディスク投入 / 出力取り出しを可能にする。
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         // BE は vanilla WorldlyContainer を実装している。side を渡す WorldlyContainerWrapper で橋渡しし、
         // 面ごとのスロット規則 (取り出しは出力スロットのみ) を capability 経由でも通す。
         // side を捨てる VanillaContainerWrapper だとその規則が消え、hopper が強化スロットの
@@ -88,13 +92,6 @@ public class MusicDiscMakerNeoForge {
                         return super.extract(slot, resource, amount, transaction);
                     }
                 });
-    }
-
-    private void buildCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
-        // common は tab の identity のみ作る (26.2 の Output が protected)。中身はここで表示順に流し込む。
-        if (event.getTab() == ModCreativeTab.MAIN.get()) {
-            ModCreativeTab.TAB_ITEMS.forEach(holder -> event.accept(holder.get()));
-        }
         //?} else {
         /*// BlockEntity は vanilla WorldlyContainer なので、side を渡す SidedInvWrapper で
         // IItemHandler に変換し、面ごとのスロット規則 (取り出しは出力スロットのみ) を通す。
@@ -115,4 +112,13 @@ public class MusicDiscMakerNeoForge {
                 });
         *///?}
     }
+
+    //? if >=1.21.2 {
+    private void buildCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
+        // common は tab の identity のみ作る (26.2 の Output が protected)。中身はここで表示順に流し込む。
+        if (event.getTab() == ModCreativeTab.MAIN.get()) {
+            ModCreativeTab.TAB_ITEMS.forEach(holder -> event.accept(holder.get()));
+        }
+    }
+    //?}
 }

@@ -204,7 +204,7 @@ public class GoldenJukeboxBlock extends Block implements EntityBlock {
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
         if (level.getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be) {
             be.onBlockRemoved();
@@ -235,7 +235,7 @@ public class GoldenJukeboxBlock extends Block implements EntityBlock {
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos, Direction direction) {
     //?} elif >=1.21 {
     /*protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos) {

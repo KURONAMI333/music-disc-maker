@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
@@ -26,6 +27,12 @@ class LocalAudioStoreTest {
         UUID id = store.begin(owner, hash(DATA), DATA.length, 0);
         store.append(owner, id, 0, DATA, 1);
         store.finish(owner, id, 2, path -> {});
+    }
+
+    private void put(LocalAudioStore store, UUID sender, byte[] data, long now) throws Exception {
+        UUID id = store.begin(sender, hash(data), data.length, now);
+        store.append(sender, id, 0, data, now + 1);
+        store.finish(sender, id, now + 2, path -> {});
     }
 
     @Test void restartAndDedupPreserveOriginal() throws Exception {
@@ -68,7 +75,7 @@ class LocalAudioStoreTest {
         try (var store = new LocalAudioStore(temp, LIMITS)) {
             UUID id = store.begin(owner, hash(DATA), DATA.length, 0);
             store.append(owner, id, 0, DATA, 1);
-            assertThrows(IOException.class, () -> store.finish(owner, id, 2, p -> { throw new IOException("Not MP3"); }));
+            assertThrows(IOException.class, () -> store.finish(owner, id, 2, p -> { throw new IOException("Not audio"); }));
             assertNull(store.verified(hash(DATA)));
             assertEquals(0, store.reservedBytes());
             try (var parts = Files.list(temp.resolve("incoming"))) { assertEquals(0, parts.count()); }
@@ -115,6 +122,49 @@ class LocalAudioStoreTest {
         }
     }
 
+    @Test void fullDisposableCacheEvictsOnlyOldestEntryToAcceptAnotherAudio() throws Exception {
+        byte[] first = new byte[] {1, 2, 3, 4};
+        byte[] second = new byte[] {5, 6, 7, 8};
+        byte[] third = new byte[] {9, 10, 11, 12};
+        String firstHash = hash(first);
+        String secondHash = hash(second);
+        String thirdHash = hash(third);
+        try (var cache = LocalAudioStore.clientCache(temp, new LocalAudioStore.Limits(4, 8, 2, 100))) {
+            put(cache, owner, first, 0);
+            Files.setLastModifiedTime(temp.resolve(firstHash), FileTime.fromMillis(1_000));
+            put(cache, UUID.randomUUID(), second, 3);
+            Files.setLastModifiedTime(temp.resolve(secondHash), FileTime.fromMillis(2_000));
+
+            put(cache, UUID.randomUUID(), third, 6);
+
+            assertNull(cache.verified(firstHash));
+            assertArrayEquals(second, Files.readAllBytes(cache.verified(secondHash)));
+            assertArrayEquals(third, Files.readAllBytes(cache.verified(thirdHash)));
+            assertEquals(8, cache.storedBytes());
+            assertEquals(0, cache.reservedBytes());
+        }
+    }
+
+    @Test void corruptDisposableCacheEntryIsRemovedAndCanBeRefetched() throws Exception {
+        try (var cache = LocalAudioStore.clientCache(temp, new LocalAudioStore.Limits(4, 4, 2, 100))) {
+            put(cache, owner, DATA, 0);
+            Path cached = cache.verified(hash(DATA));
+            Files.write(cached, new byte[] {9, 9, 9, 9});
+
+            var prepared = cache.prepare(owner, hash(DATA), DATA.length, 3);
+
+            assertNull(prepared.existing());
+            assertNotNull(prepared.transferId());
+            assertEquals(0, cache.storedBytes());
+            cache.append(owner, prepared.transferId(), 0, DATA, 4);
+            Path repaired = cache.finish(owner, prepared.transferId(), 5, path -> {});
+
+            assertArrayEquals(DATA, Files.readAllBytes(repaired));
+            assertEquals(DATA.length, cache.storedBytes());
+            assertEquals(0, cache.reservedBytes());
+        }
+    }
+
     @Test void deletionFailureKeepsReservationUntilCleanupSucceeds() throws Exception {
         try (var store = new LocalAudioStore(temp, LIMITS)) {
             UUID id = store.begin(owner, hash(DATA), 4, 0);
@@ -153,8 +203,12 @@ class LocalAudioStoreTest {
             assertThrows(IOException.class, () -> store.begin(owner, "../outside", 4, 0));
             assertThrows(IOException.class, () -> store.verified("../outside"));
             Path outside = Files.write(temp.resolve("outside"), DATA);
-            Files.createSymbolicLink(temp.resolve(hash(DATA) + ".mp3"), outside);
+            // hash 名(拡張子なし)と旧 hash.mp3 名のどちらのsymlinkも弾く。
+            Files.createSymbolicLink(temp.resolve(hash(DATA)), outside);
             assertThrows(IOException.class, () -> store.verified(hash(DATA)));
+            String other = hash(new byte[] {9});
+            Files.createSymbolicLink(temp.resolve(other + ".mp3"), outside);
+            assertThrows(IOException.class, () -> store.verified(other));
         }
     }
 
@@ -163,6 +217,19 @@ class LocalAudioStoreTest {
             put(store);
             Files.write(store.verified(hash(DATA)), new byte[] {0, 0, 0, 0});
             assertThrows(IOException.class, () -> store.verified(hash(DATA)));
+        }
+    }
+
+    @Test void legacyMp3NamedAudioRemainsReadableAndReusable() throws Exception {
+        // MP3専用期の hash.mp3 原本は、新しい hash 名(拡張子なし)と同一のものとして扱う。
+        Files.write(temp.resolve(hash(DATA) + ".mp3"), DATA);
+        try (var store = new LocalAudioStore(temp, LIMITS)) {
+            assertArrayEquals(DATA, Files.readAllBytes(store.verified(hash(DATA))));
+            assertEquals(DATA.length, store.storedBytes());
+            var prepared = store.prepare(owner, hash(DATA), DATA.length, 0);
+            assertNull(prepared.transferId());
+            assertNotNull(prepared.existing());
+            assertTrue(prepared.existing().getFileName().toString().endsWith(".mp3"));
         }
     }
 

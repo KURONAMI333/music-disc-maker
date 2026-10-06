@@ -17,29 +17,38 @@ plugins {
 stonecutter {
     create(rootProject) {
         // root ブランチはノードの版一覧だけを持つ (build ファイルは持たない)
+        version("26.3", "26.3")
         version("26.2", "26.2")
         version("1.21.11", "1.21.11")
+        version("1.21.4", "1.21.4")
         version("1.21.1", "1.21.1")
         version("1.20.1", "1.20.1")
 
         // モジュール = ブランチ。ノードごとに buildscript を分けてプラグイン版を出し分ける
         branch("common") {
+            version("26.3", "26.3")
             version("26.2", "26.2")
             version("26.1.2", "26.1.2")
             version("1.21.11", "1.21.11")
+            version("1.21.4", "1.21.4")
             version("1.21.1", "1.21.1")
             // 1.20.1 は legacyforge (MCP マッピング) なので別 buildscript
             version("1.20.1", "1.20.1").buildscript("build-1201.gradle.kts")
         }
         branch("neoforge") {
+            version("26.3", "26.3").buildscript("build-263.gradle.kts")
             version("26.2", "26.2").buildscript("build-262.gradle.kts")
             version("26.1.2", "26.1.2").buildscript("build-2612.gradle.kts")
             version("1.21.11", "1.21.11").buildscript("build-12111.gradle.kts")
+            version("1.21.4", "1.21.4").buildscript("build-1214.gradle.kts")
             version("1.21.1", "1.21.1").buildscript("build-1211.gradle.kts")
         }
         branch("fabric") {
+            version("26.3", "26.3").buildscript("build-263.gradle.kts")
             version("26.2", "26.2").buildscript("build-262.gradle.kts")
+            version("26.1.2", "26.1.2").buildscript("build-2612.gradle.kts")
             version("1.21.11", "1.21.11").buildscript("build-12111.gradle.kts")
+            version("1.21.4", "1.21.4").buildscript("build-1214.gradle.kts")
             version("1.21.1", "1.21.1").buildscript("build-1211.gradle.kts")
             version("1.20.1", "1.20.1").buildscript("build-1201.gradle.kts")
         }

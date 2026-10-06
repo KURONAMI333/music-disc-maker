@@ -159,13 +159,14 @@ public class BoomboxBlock extends Block implements EntityBlock {
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
                 && level.getBlockEntity(pos) instanceof BoomboxBlockEntity) {
             final BoomboxSource source = BoomboxSource.placed(pos);
-            if (BoomboxMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
+            if (syncBudget.fits()) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
             } else if (player.isSecondaryUseActive()) {
                 OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverPlacedBoombox(serverPlayer,
                         (ServerLevel) level, pos, (BoomboxBlockEntity) level.getBlockEntity(pos)));
             } else {
-                serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.boombox.open_too_large"), true);
+                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResult.SUCCESS;
@@ -175,13 +176,14 @@ public class BoomboxBlock extends Block implements EntityBlock {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
                 && level.getBlockEntity(pos) instanceof BoomboxBlockEntity) {
             final BoomboxSource source = BoomboxSource.placed(pos);
-            if (BoomboxMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
+            if (syncBudget.fits()) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
             } else if (player.isSecondaryUseActive()) {
                 OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverPlacedBoombox(serverPlayer,
                         (ServerLevel) level, pos, (BoomboxBlockEntity) level.getBlockEntity(pos)));
             } else {
-                serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.boombox.open_too_large"), true);
+                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
@@ -194,13 +196,14 @@ public class BoomboxBlock extends Block implements EntityBlock {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
                 && level.getBlockEntity(pos) instanceof BoomboxBlockEntity) {
             final BoomboxSource source = BoomboxSource.placed(pos);
-            if (BoomboxMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
+            if (syncBudget.fits()) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
             } else if (player.isSecondaryUseActive()) {
                 OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverPlacedBoombox(serverPlayer,
                         (ServerLevel) level, pos, (BoomboxBlockEntity) level.getBlockEntity(pos)));
             } else {
-                serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.boombox.open_too_large"), true);
+                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
@@ -259,7 +262,7 @@ public class BoomboxBlock extends Block implements EntityBlock {
 
     // 撤去時は「置いた時のアイテム」を 1 個だけ返す。loot table は空なので二重ドロップにならない。
     // 1.21.5+ は BlockEntity#preRemoveSideEffects。ここへ来る時点では BE が level から外れている。
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     //?} elif >=1.21 {
     /*@Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState,

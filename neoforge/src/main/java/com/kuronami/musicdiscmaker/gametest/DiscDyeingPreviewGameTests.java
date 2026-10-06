@@ -20,12 +20,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -35,7 +35,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class DiscDyeingPreviewGameTests {
     private DiscDyeingPreviewGameTests() { }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "discDyeingPreview")
     *///?}
@@ -75,7 +75,7 @@ public final class DiscDyeingPreviewGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "discDyeingPreview")
     *///?}
@@ -125,7 +125,7 @@ public final class DiscDyeingPreviewGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "discDyeingPreview")
     *///?}
@@ -170,9 +170,11 @@ public final class DiscDyeingPreviewGameTests {
     }
 
     private static ItemStack vanillaDye(String path, int count) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final var item = BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(path));
-        //?} else {
+        //?} elif >=1.21.2 {
+        /*final var item = BuiltInRegistries.ITEM.getValue(ResourceLocation.fromNamespaceAndPath("minecraft", path));
+        *///?} else {
         /*final var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", path));
         *///?}
         if (item == null) {

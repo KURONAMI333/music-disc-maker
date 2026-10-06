@@ -7,9 +7,11 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.renderer.RenderPipelines;
-//?} else {
+//?} elif >=1.21.4 {
+/*import net.minecraft.client.renderer.RenderType;
+*///?} else {
 //?}
 
 /**
@@ -50,7 +52,7 @@ public class JacketClientTooltip implements ClientTooltipComponent {
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.4 {
     public int getHeight(Font font) {
     //?} else {
     /*public int getHeight() {
@@ -68,7 +70,7 @@ public class JacketClientTooltip implements ClientTooltipComponent {
     @Override
     //? if >=26.1 {
     public void extractImage(Font font, int x, int y, int w, int h, GuiGraphicsExtractor graphics) {
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.4 {
     /*public void renderImage(Font font, int x, int y, int w, int h, GuiGraphics graphics) {
     *///?} else {
     /*public void renderImage(Font font, int x, int y, GuiGraphics g) {
@@ -78,13 +80,15 @@ public class JacketClientTooltip implements ClientTooltipComponent {
         if (j == null || fit == null) {
             return;
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         // 全体をアスペクト比維持で fit[0]×fit[1] の枠に縮小描画する (srcWidth/Height = 元寸法)。
         graphics.blit(RenderPipelines.GUI_TEXTURED, j.texture(), x, y + PAD, 0.0F, 0.0F,
                 fit[0], fit[1], j.width(), j.height(), j.width(), j.height());
-        //?} else {
+        //?} elif >=1.21.4 {
+        /*graphics.blit(RenderType::guiTextured, j.texture(), x, y + PAD,
+                0.0F, 0.0F, fit[0], fit[1], j.width(), j.height(), j.width(), j.height());
+        *///?} else {
         /*g.blit(j.texture(), x, y + PAD, fit[0], fit[1], 0.0F, 0.0F, j.width(), j.height(), j.width(), j.height());
         *///?}
     }
 }
-

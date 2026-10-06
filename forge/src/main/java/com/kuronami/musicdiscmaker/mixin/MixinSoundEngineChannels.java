@@ -4,9 +4,15 @@ import java.util.Map;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.kuronami.musicdiscmaker.client.audio.StreamingChannelPool;
 import com.kuronami.musicdiscmaker.client.audio.SoundEngineChannelAccess;
+import com.kuronami.musicdiscmaker.client.audio.DiscSoundInstance;
+import com.kuronami.musicdiscmaker.client.audio.NativeCursorAccess;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackSessionRegistry;
 import com.mojang.blaze3d.audio.Library;
 
 import net.minecraft.client.resources.sounds.SoundInstance;
@@ -30,6 +36,16 @@ public abstract class MixinSoundEngineChannels implements SoundEngineChannelAcce
 
     @Shadow
     private Library library;
+
+    @Inject(method = "tickNonPaused", at = @At("TAIL"))
+    private void mdm$sampleExtensionPlaybackCursors(CallbackInfo ci) {
+        if (!PlaybackSessionRegistry.hasActiveSessions()) return;
+        this.instanceToChannel.forEach((instance, handle) -> {
+            if (instance instanceof DiscSoundInstance disc && disc.playbackSessionId() != null) {
+                handle.execute(channel -> ((NativeCursorAccess) channel).mdm$publishPlaybackPosition());
+            }
+        });
+    }
 
     @Override
     public void mdm$updateLinearAttenuation(SoundInstance instance, float linearAttenuation) {

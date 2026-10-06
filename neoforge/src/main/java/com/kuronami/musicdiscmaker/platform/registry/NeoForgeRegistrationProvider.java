@@ -11,7 +11,7 @@ import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -73,7 +73,7 @@ public final class NeoForgeRegistrationProvider<T> implements RegistrationProvid
         }
 
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public Identifier getId() {
         //?} else {
         /*public ResourceLocation getId() {

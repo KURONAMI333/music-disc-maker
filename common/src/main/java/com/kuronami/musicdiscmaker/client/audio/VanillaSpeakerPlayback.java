@@ -82,6 +82,13 @@ public final class VanillaSpeakerPlayback {
                 : com.kuronami.musicdiscmaker.component.PauseAwarePlaybackClock.realTimeMs();
     }
 
+    /** SoundEngine走査の外側、client END tickからだけ呼ぶ。 */
+    static void retryDeferredSpeakers() {
+        for (Playing playing : List.copyOf(VOICES.values())) {
+            if (playing.voice() instanceof VanillaSpeakerVoiceGroup group) group.retryDeferredSpeakers();
+        }
+    }
+
     public static void stopVanilla(BlockPos pos) {
         final Minecraft mc = Minecraft.getInstance();
         //? if >=1.21.2 {

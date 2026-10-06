@@ -58,6 +58,7 @@ public final class SpeakerPlayback {
         Playback playback;
         long generation;
         final Set<UUID> listeners = new HashSet<>();
+        Set<UUID> audience = Set.of();
     }
 
     /** BE unload後にserver/playerをstaticに保持しない。通常の破壊経路ではremoveが先にStopを送る。 */
@@ -97,10 +98,12 @@ public final class SpeakerPlayback {
         }
         final Snapshot snapshot = snapshot(level, source);
         State state = STATES.get(source);
+        final Set<UUID> audience = SourcePlaybackAudienceRegistry.viewers(source);
         final boolean continueManagedVanilla = playback.vanilla() != null
                 && (managedVanillaRequired
+                        || !audience.isEmpty()
                         || (state != null && state.playback != null && state.playback.vanilla() != null));
-        if (snapshot.speakers().isEmpty() && !continueManagedVanilla) {
+        if (snapshot.speakers().isEmpty() && audience.isEmpty() && !continueManagedVanilla) {
             clearSpeakerSet(source, level);
             return false;
         }
@@ -115,16 +118,25 @@ public final class SpeakerPlayback {
         state.snapshot = snapshot;
         state.playback = playback;
         state.generation = source.playbackCursor().generation();
-        reconcile(level, source.getBlockPos(), state, Math.max(0L, offsetMs), true);
+        reconcile(source, level, source.getBlockPos(), state, audience, Math.max(0L, offsetMs), true);
         return true;
     }
 
     /** Speaker配送中の全listenerへStopを送り、揮発stateを破棄する。 */
     public static boolean stop(GoldenJukeboxBlockEntity source) {
+        return stop(source, true);
+    }
+
+    /** Golden本体が同次元全員へStopする直前に、重複送信せず揮発stateだけ破棄する。 */
+    public static boolean stopWithoutSend(GoldenJukeboxBlockEntity source) {
+        return stop(source, false);
+    }
+
+    private static boolean stop(GoldenJukeboxBlockEntity source, boolean notifyListeners) {
         final ServerLevel level = serverLevel(source);
         final State state = STATES.remove(source);
         final boolean hasSpeakers = level != null && !snapshot(level, source).speakers().isEmpty();
-        if (state != null && level != null) {
+        if (notifyListeners && state != null && level != null) {
             for (ServerPlayer player : level.players()) {
                 if (state.listeners.contains(player.getUUID())) {
                     Services.NETWORK.sendToPlayer(player, new StopDiscPayload(source.getBlockPos(), source.playbackIdentity()));
@@ -153,7 +165,8 @@ public final class SpeakerPlayback {
         }
         final Snapshot snapshot = snapshot(level, source);
         State state = STATES.get(source);
-        if (snapshot.speakers().isEmpty()
+        final Set<UUID> audience = SourcePlaybackAudienceRegistry.viewers(source);
+        if (snapshot.speakers().isEmpty() && audience.isEmpty()
                 && (state == null || state.playback == null || state.playback.vanilla() == null)) {
             if (playback.vanilla() != null && requiresManagedVanilla(source, level)) {
                 return play(source, playback, offsetMs, true);
@@ -167,14 +180,15 @@ public final class SpeakerPlayback {
             state.playback = playback;
             state.generation = source.playbackCursor().generation();
             STATES.put(source, state);
-            reconcile(level, source.getBlockPos(), state, Math.max(0L, offsetMs), true);
+            reconcile(source, level, source.getBlockPos(), state, audience, Math.max(0L, offsetMs), true);
             return true;
         }
         state.playback = playback;
         state.generation = source.playbackCursor().generation();
-        if (audible(player, source.getBlockPos(), snapshot)) {
+        if (player.level() == level && (audience.contains(player.getUUID())
+                || audible(player, source.getBlockPos(), snapshot))) {
             sendSet(player, source.getBlockPos(), snapshot);
-            sendPlay(player, source.getBlockPos(), state.playback, Math.max(0L, offsetMs),
+            sendPlay(source, player, source.getBlockPos(), state.playback, Math.max(0L, offsetMs),
                     state.generation, snapshot);
             state.listeners.add(player.getUUID());
         }
@@ -189,10 +203,31 @@ public final class SpeakerPlayback {
         }
         final Snapshot next = snapshot(level, source);
         State state = STATES.get(source);
+        final Set<UUID> audience = SourcePlaybackAudienceRegistry.viewers(source);
         final Playback current = currentPlayback(source);
         final boolean playing = source.playbackCursor().state() == PlaybackCursor.State.PLAYING
                 && current != null;
         if (next.speakers().isEmpty()) {
+            if (playing && !audience.isEmpty()) {
+                if (state == null) {
+                    stopLegacyListenersOutside(level, source.getBlockPos(), next, null);
+                    state = new State();
+                    STATES.put(source, state);
+                    state.snapshot = next;
+                    state.playback = current;
+                    state.generation = source.playbackCursor().generation();
+                    reconcile(source, level, source.getBlockPos(), state, audience,
+                            source.currentElapsedMs(), true);
+                    return;
+                }
+                final boolean setChanged = !next.equals(state.snapshot);
+                state.snapshot = next;
+                state.playback = current;
+                state.generation = source.playbackCursor().generation();
+                reconcile(source, level, source.getBlockPos(), state, audience,
+                        source.currentElapsedMs(), false, setChanged);
+                return;
+            }
             if (state == null && playing && current.vanilla() != null
                     && requiresManagedVanilla(source, level)) {
                 play(source, current, source.currentElapsedMs(), true);
@@ -203,7 +238,8 @@ public final class SpeakerPlayback {
                 state.snapshot = next;
                 state.playback = current;
                 state.generation = source.playbackCursor().generation();
-                reconcile(level, source.getBlockPos(), state, source.currentElapsedMs(), false, setChanged);
+                reconcile(source, level, source.getBlockPos(), state, audience,
+                        source.currentElapsedMs(), false, setChanged);
             } else if (state != null) {
                 clearSpeakerSet(source, level);
             }
@@ -222,14 +258,16 @@ public final class SpeakerPlayback {
             state.playback = current;
             state.generation = source.playbackCursor().generation();
             STATES.put(source, state);
-            reconcile(level, source.getBlockPos(), state, source.currentElapsedMs(), true);
+            reconcile(source, level, source.getBlockPos(), state, audience,
+                    source.currentElapsedMs(), true);
             return;
         }
         final boolean setChanged = !next.equals(state.snapshot);
         state.snapshot = next;
         state.playback = current;
         state.generation = source.playbackCursor().generation();
-        reconcile(level, source.getBlockPos(), state, source.currentElapsedMs(), false, setChanged);
+        reconcile(source, level, source.getBlockPos(), state, audience,
+                source.currentElapsedMs(), false, setChanged);
     }
 
     /** 破壊・chunk unload用。 */
@@ -243,25 +281,31 @@ public final class SpeakerPlayback {
                 && level.getServer() == server);
     }
 
-    private static void reconcile(ServerLevel level, BlockPos sourcePos, State state,
-            long offsetMs, boolean replayEveryone) {
-        reconcile(level, sourcePos, state, offsetMs, replayEveryone, true);
+    private static void reconcile(GoldenJukeboxBlockEntity source, ServerLevel level, BlockPos sourcePos,
+            State state, Set<UUID> audience, long offsetMs, boolean replayEveryone) {
+        reconcile(source, level, sourcePos, state, audience, offsetMs, replayEveryone, true);
     }
 
-    private static void reconcile(ServerLevel level, BlockPos sourcePos, State state,
-            long offsetMs, boolean replayEveryone, boolean setChanged) {
+    private static void reconcile(GoldenJukeboxBlockEntity source, ServerLevel level, BlockPos sourcePos,
+            State state, Set<UUID> audience, long offsetMs, boolean replayEveryone, boolean setChanged) {
         final Set<UUID> present = new HashSet<>();
+        final Set<UUID> previousAudience = state.audience;
+        state.audience = audience;
+        // Every player in this source dimension appears here even when they track no source chunk.
+        // Restricting candidates to this list preserves the existing payload dimension contract.
         for (ServerPlayer player : level.players()) {
             final UUID id = player.getUUID();
+            final boolean currentAudience = audience.contains(id);
+            final boolean newlyAddedAudience = currentAudience && !previousAudience.contains(id);
             final boolean existing = state.listeners.contains(id);
             if (existing) {
-                if (setChanged || replayEveryone) {
+                if (setChanged || replayEveryone || newlyAddedAudience) {
                     sendSet(player, sourcePos, state.snapshot);
                 }
-                if (insideRetentionEnvelope(player, sourcePos, state.snapshot)) {
+                if (currentAudience || insideRetentionEnvelope(player, sourcePos, state.snapshot)) {
                     present.add(id);
-                    if (replayEveryone && state.playback != null) {
-                        sendPlay(player, sourcePos, state.playback, Math.max(0L, offsetMs),
+                    if ((replayEveryone || newlyAddedAudience) && state.playback != null) {
+                        sendPlay(source, player, sourcePos, state.playback, Math.max(0L, offsetMs),
                                 state.generation, state.snapshot);
                     }
                 } else {
@@ -269,10 +313,7 @@ public final class SpeakerPlayback {
                 }
                 continue;
             }
-            if (!audible(player, sourcePos, state.snapshot)) {
-                if (state.listeners.remove(id)) {
-                    Services.NETWORK.sendToPlayer(player, new StopDiscPayload(sourcePos, state.snapshot.identity()));
-                }
+            if (!currentAudience && !audible(player, sourcePos, state.snapshot)) {
                 continue;
             }
             present.add(id);
@@ -281,7 +322,7 @@ public final class SpeakerPlayback {
                 sendSet(player, sourcePos, state.snapshot);
             }
             if ((entered || replayEveryone) && state.playback != null) {
-                sendPlay(player, sourcePos, state.playback, Math.max(0L, offsetMs),
+                sendPlay(source, player, sourcePos, state.playback, Math.max(0L, offsetMs),
                         state.generation, state.snapshot);
             }
         }
@@ -293,8 +334,10 @@ public final class SpeakerPlayback {
                 snapshot.sourceVolume(), snapshot.directional(), snapshot.speakers(), snapshot.identity()));
     }
 
-    private static void sendPlay(ServerPlayer player, BlockPos sourcePos, Playback playback,
+    private static void sendPlay(GoldenJukeboxBlockEntity source, ServerPlayer player,
+            BlockPos sourcePos, Playback playback,
             long offsetMs, long generation, Snapshot snapshot) {
+        SourcePlaybackAudienceRegistry.beforeCorePlay(source, player);
         if (playback.custom() != null) {
             Services.NETWORK.sendToPlayer(player,
                     new PlayDiscPayload(sourcePos, playback.custom(), offsetMs,
@@ -354,8 +397,9 @@ public final class SpeakerPlayback {
         }
         final Snapshot empty = new Snapshot(source.getRangeBlocks(), source.getVolumePercent(),
                 source.isDirectional(), List.of(), source.playbackIdentity());
-        for (ServerPlayer player : level.players()) {
-            if (state.listeners.contains(player.getUUID())) {
+        for (UUID listener : state.listeners) {
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(listener);
+            if (player != null && player.level() == level) {
                 sendSet(player, source.getBlockPos(), empty);
                 if (!insideSource(player, source.getBlockPos(), empty.range())) {
                     Services.NETWORK.sendToPlayer(player, new StopDiscPayload(source.getBlockPos(), source.playbackIdentity()));

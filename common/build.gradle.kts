@@ -17,7 +17,17 @@ java {
 }
 
 neoForge {
-    neoFormVersion = stonecutter.properties["deps.neoform"]
+    if (stonecutter.current.version == "26.3") {
+        // 26.3 の NeoForge userdev AT は HolderSet$1.contents を public にする指定を持つが、
+        // NFRT/JST 2.0.10 が再生成した匿名クラス側は protected のままになり、Minecraft 再コンパイルが失敗する。
+        // ModDevGradle 2.0.124+ の公式経路で再コンパイルだけを省き、配布の patched class を使う。
+        enable {
+            neoFormVersion = stonecutter.properties["deps.neoform"]
+            setDisableRecompilation(true)
+        }
+    } else {
+        neoFormVersion = stonecutter.properties["deps.neoform"]
+    }
     val at = file("src/main/resources/META-INF/accesstransformer.cfg")
     if (at.exists()) accessTransformers.from(at.absolutePath)
 }

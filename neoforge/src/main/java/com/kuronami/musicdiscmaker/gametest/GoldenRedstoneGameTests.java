@@ -25,14 +25,18 @@ import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.HopperBlock;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.RedStoneWireBlock;
+//? if >=26.3 {
+import net.minecraft.world.level.block.RedstoneWireBlock;
+//?} else {
+/*import net.minecraft.world.level.block.RedStoneWireBlock;
+*///?}
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 //? if >=26.1 {
 //?} else {
 /*import net.minecraft.world.item.EitherHolder;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -44,7 +48,7 @@ public final class GoldenRedstoneGameTests {
 
     private GoldenRedstoneGameTests() { }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 100, batch = "goldenRedstoneSignals")
     *///?}
@@ -74,74 +78,85 @@ public final class GoldenRedstoneGameTests {
                 .thenSucceed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 120, batch = "goldenRedstonePower")
     *///?}
-    public static void powerOwnsOnlyItsPauseAndDoesNotLockTheHopper(GameTestHelper helper) {
+    public static void risingEdgeTogglesPlaybackAndReleaseDoesNotStop(GameTestHelper helper) {
         final Circuit circuit = circuit(helper);
         final GoldenJukeboxBlockEntity golden = circuit.golden();
-        golden.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, disc(helper, "power", 120_000L, false));
+        final BlockPos input = circuit.goldenPos().above();
+        golden.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, disc(helper, "pulse", 120_000L, false));
+        tick(helper, golden);
+        helper.assertTrue(!golden.isPaused(), "無給電の新盤が自動再生しない");
 
         golden.seekTo(30_000L);
         golden.setPaused(true);
-        helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
         tick(helper, golden);
-        helper.setBlock(circuit.goldenPos().above(), Blocks.AIR.defaultBlockState());
+        helper.assertTrue(!golden.isPaused() && golden.currentElapsedMs() >= 30_000L,
+                "PAUSEDへの立ち上がりで保持位置から再生しない");
         tick(helper, golden);
-        helper.assertTrue(golden.isPaused(), "手動pauseを給電解除が勝手にresumeした");
+        helper.assertTrue(!golden.isPaused(), "HIGH保持で再びpauseした");
+        helper.setBlock(input, Blocks.AIR.defaultBlockState());
+        tick(helper, golden);
+        helper.assertTrue(!golden.isPaused(), "ボタンreleaseで停止した");
 
-        helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
-        final long heldOffset = golden.currentElapsedMs();
-        golden.setPaused(false);
-        helper.assertTrue(golden.isPaused() && Math.abs(golden.currentElapsedMs() - heldOffset) <= 50L,
-                "給電中の手動resume要求がpause位置を失った");
-        helper.setBlock(circuit.goldenPos().above(), Blocks.AIR.defaultBlockState());
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
         tick(helper, golden);
-        helper.assertTrue(!golden.isPaused() && golden.currentElapsedMs() >= heldOffset,
-                "給電解除で保持位置からresumeしない");
-
-        helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
+        helper.assertTrue(golden.isPaused(), "PLAYINGへの次の立ち上がりでpauseしない");
+        helper.setBlock(input, Blocks.AIR.defaultBlockState());
         tick(helper, golden);
-        helper.assertTrue(golden.isPaused(), "給電highが再生をpauseしない");
+        helper.assertTrue(golden.isPaused(), "LOWへ戻しただけでresumeした");
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        tick(helper, golden);
+        helper.assertTrue(!golden.isPaused(), "PAUSEDへの次の立ち上がりでresumeしない");
         helper.assertTrue(helper.getBlockState(circuit.outputPos()).getValue(HopperBlock.ENABLED),
-                "強入力がAutomation Goldenを介して下hopperをロックした");
-        helper.setBlock(circuit.goldenPos().above(), Blocks.AIR.defaultBlockState());
-        tick(helper, golden);
-        helper.assertTrue(!golden.isPaused() && golden.playbackCursor().state()
-                        == com.kuronami.musicdiscmaker.component.PlaybackCursor.State.PLAYING,
-                "給電が所有したpauseをlowでresumeしない");
+                "強入力がGoldenを介して下hopperをロックした");
 
+        golden.setPaused(true);
+        tick(helper, golden);
+        helper.assertTrue(golden.isPaused(), "HIGH保持中の手動pauseが解除された");
+        golden.setPaused(false);
+        tick(helper, golden);
+        helper.assertTrue(!golden.isPaused(), "HIGH保持中の手動resumeが阻止された");
         golden.clearContent();
-        helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
         golden.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, disc(helper, "powered-insert", 120_000L, false));
         tick(helper, golden);
-        helper.assertTrue(golden.isPaused() && golden.currentElapsedMs() == 0L,
-                "給電中に投入した盤を0秒で保持していない");
+        helper.assertTrue(!golden.isPaused(), "HIGH保持中の新盤が自動再生しない");
 
-        helper.setBlock(circuit.goldenPos().above(), Blocks.AIR.defaultBlockState());
+        helper.setBlock(input, Blocks.AIR.defaultBlockState());
         tick(helper, golden);
         golden.clearContent();
+        // The empty block has no ticker: power can change without a sample.
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        golden.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, disc(helper, "empty-gap-insert", 120_000L, false));
+        tick(helper, golden);
+        helper.assertTrue(!golden.isPaused(), "空期間の給電変化を新盤への立ち上がりと誤認した");
+
+        golden.clearContent();
         helper.setBlock(circuit.outputPos(), Blocks.AIR.defaultBlockState());
-        golden.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, disc(helper, "terminal", 1L, false));
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(golden.isStopped(), "有限曲がSTOPPEDへ到達しない"))
-                .thenExecute(() -> {
-                    helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
-                    tick(helper, golden);
-                    helper.assertTrue(golden.isStopped() && !golden.isAutomationExtractionReady(),
-                            "STOPPED後の給電で停止を変えたか給電中の搬出を許した");
-                })
-                .thenExecute(() -> {
-                    helper.setBlock(circuit.goldenPos().above(), Blocks.AIR.defaultBlockState());
-                    tick(helper, golden);
-                    helper.assertTrue(golden.isStopped() && golden.isAutomationExtractionReady(),
-                            "STOPPED後の給電解除で勝手に再生したか搬出readyへ戻らない");
-                })
-                .thenSucceed();
+        helper.setBlock(input, Blocks.AIR.defaultBlockState());
+        tick(helper, golden);
+        golden.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, disc(helper, "terminal", 1_000L, false));
+        // GameTest ticks can run faster than wall time; seek to the real track end explicitly.
+        golden.seekTo(1_000L);
+        tick(helper, golden);
+        helper.assertTrue(golden.isStopped() && golden.isAutomationExtractionReady(),
+                "有限曲が自然終端して搬出readyにならない");
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        tick(helper, golden);
+        helper.assertTrue(!golden.isStopped() && !golden.isAutomationExtractionReady()
+                        && golden.currentElapsedMs() < 1_000L,
+                "自然終端後の立ち上がりで先頭から再生しない");
+        golden.seekTo(1_000L);
+        tick(helper, golden);
+        helper.assertTrue(golden.isStopped() && golden.isAutomationExtractionReady(),
+                "HIGH保持中の自然終端が搬出readyにならない");
+        helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 600, batch = "goldenRedstoneTop")
     *///?}
@@ -149,7 +164,7 @@ public final class GoldenRedstoneGameTests {
         twoDiscAutomation(helper, true);
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 600, batch = "goldenRedstoneSide")
     *///?}
@@ -157,7 +172,7 @@ public final class GoldenRedstoneGameTests {
         twoDiscAutomation(helper, false);
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 120, batch = "goldenRedstonePauseHopper")
     *///?}
@@ -175,7 +190,7 @@ public final class GoldenRedstoneGameTests {
                 .thenSucceed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 240, batch = "goldenRedstoneContinuous")
     *///?}
@@ -205,7 +220,7 @@ public final class GoldenRedstoneGameTests {
                 .thenSucceed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 400, batch = "goldenRedstoneSequence")
     *///?}
@@ -228,37 +243,63 @@ public final class GoldenRedstoneGameTests {
                 .thenSucceed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 140, batch = "goldenRedstoneReload")
     *///?}
-    public static void redstoneAndManualPauseOwnershipSurviveReload(GameTestHelper helper) {
+    public static void inputAndLegacyPauseSurviveReloadWithoutPhantomToggle(GameTestHelper helper) {
         final Circuit circuit = circuit(helper);
         helper.setBlock(circuit.outputPos(), Blocks.AIR.defaultBlockState());
-        helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
-        circuit.golden().setItem(0, disc(helper, "owned-reload", 120_000L, false));
+        final BlockPos input = circuit.goldenPos().above();
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        circuit.golden().setItem(0, disc(helper, "powered-reload", 120_000L, false));
         tick(helper, circuit.golden());
+        helper.assertTrue(!circuit.golden().isPaused(), "給電済み位置への新盤投入で再生しない");
+
         GoldenJukeboxBlockEntity restored = reload(helper, circuit.golden());
         tick(helper, restored);
-        helper.setBlock(circuit.goldenPos().above(), Blocks.AIR.defaultBlockState());
+        helper.assertTrue(!restored.isPaused(), "HIGH状態のreloadでphantom pauseした");
+        helper.setBlock(input, Blocks.AIR.defaultBlockState());
         tick(helper, restored);
-        helper.assertTrue(!restored.isPaused() && restored.hasDisc(),
-                "保存したredstone-owned pauseをlowでresumeしない");
+        helper.assertTrue(!restored.isPaused(), "reload後のLOWで再生が止まった");
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        tick(helper, restored);
+        helper.assertTrue(restored.isPaused(), "reload後の真の立ち上がりでpauseしない");
+        final long heldOffset = restored.currentElapsedMs();
 
-        helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
-        tick(helper, restored);
-        helper.assertTrue(restored.isPaused(), "reload後のhighでpauseしない");
-        restored.setPaused(true);
         restored = reload(helper, restored);
         tick(helper, restored);
-        helper.setBlock(circuit.goldenPos().above(), Blocks.AIR.defaultBlockState());
+        helper.assertTrue(restored.isPaused(), "PAUSEDのHIGH reloadでphantom resumeした");
+        helper.setBlock(input, Blocks.AIR.defaultBlockState());
         tick(helper, restored);
-        helper.assertTrue(restored.isPaused() && restored.hasDisc(),
-                "手動へ移管し保存したpauseをlowが勝手にresumeした");
+        helper.assertTrue(restored.isPaused(), "PAUSEDのLOWで勝手にresumeした");
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        tick(helper, restored);
+        helper.assertTrue(!restored.isPaused() && restored.currentElapsedMs() >= heldOffset,
+                "reload後の新しい立ち上がりで保持位置からresumeしない");
+
+        restored.setPaused(true);
+        final long legacyOffset = restored.currentElapsedMs();
+        final CompoundTag legacySaved = restored.saveWithFullMetadata(helper.getLevel().registryAccess());
+        legacySaved.putBoolean("redstonePaused", true);
+        restored = reload(helper, restored, legacySaved);
+        tick(helper, restored);
+        helper.assertTrue(restored.isPaused() && restored.currentElapsedMs() >= legacyOffset,
+                "旧redstonePausedデータのPAUSED位置を失った");
+        helper.assertTrue(!restored.saveWithFullMetadata(helper.getLevel().registryAccess())
+                        .contains("redstonePaused"),
+                "廃止したredstonePausedを再保存した");
+        helper.setBlock(input, Blocks.AIR.defaultBlockState());
+        tick(helper, restored);
+        helper.assertTrue(restored.isPaused(), "旧保存のLOWで勝手にresumeした");
+        helper.setBlock(input, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        tick(helper, restored);
+        helper.assertTrue(!restored.isPaused() && restored.currentElapsedMs() >= legacyOffset,
+                "旧保存のpauseを次の立ち上がりでresumeできない");
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 180, batch = "goldenRedstoneBackpressure")
     *///?}
@@ -290,7 +331,7 @@ public final class GoldenRedstoneGameTests {
                 .thenSucceed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 100, batch = "goldenRedstoneLegacyStopped")
     *///?}
@@ -318,13 +359,14 @@ public final class GoldenRedstoneGameTests {
                 .thenSucceed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 120, batch = "goldenRedstoneFinishedReload")
     *///?}
     public static void naturalCompletionSurvivesReloadAndExtracts(GameTestHelper helper) {
         final Circuit circuit = circuit(helper);
         helper.setBlock(circuit.outputPos(), Blocks.AIR.defaultBlockState());
+        helper.setBlock(circuit.goldenPos().above(), Blocks.REDSTONE_BLOCK.defaultBlockState());
         circuit.golden().setItem(0, disc(helper, "finished-reload", 1L, false));
         final GoldenJukeboxBlockEntity[] restored = {null};
         helper.startSequence()
@@ -342,7 +384,7 @@ public final class GoldenRedstoneGameTests {
                 .thenSucceed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 500, batch = "goldenRedstoneVanillaEnd")
     *///?}
@@ -425,7 +467,11 @@ public final class GoldenRedstoneGameTests {
             BlockPos wirePos, int expected, String label) {
         helper.assertTrue(golden.getComparatorOutput() == expected,
                 label + "のcomparator値が" + expected + "でない");
-        helper.assertTrue(helper.getBlockState(wirePos).getValue(RedStoneWireBlock.POWER) == expected,
+        //? if >=26.3 {
+        helper.assertTrue(helper.getBlockState(wirePos).getValue(RedstoneWireBlock.POWER) == expected,
+        //?} else {
+        /*helper.assertTrue(helper.getBlockState(wirePos).getValue(RedStoneWireBlock.POWER) == expected,
+        *///?}
                 "物理comparatorが" + label + "の値" + expected + "を出さない");
     }
 
@@ -440,7 +486,11 @@ public final class GoldenRedstoneGameTests {
     }
 
     private static GoldenJukeboxBlockEntity reload(GameTestHelper helper, GoldenJukeboxBlockEntity golden) {
-        final CompoundTag saved = golden.saveWithFullMetadata(helper.getLevel().registryAccess());
+        return reload(helper, golden, golden.saveWithFullMetadata(helper.getLevel().registryAccess()));
+    }
+
+    private static GoldenJukeboxBlockEntity reload(GameTestHelper helper, GoldenJukeboxBlockEntity golden,
+            CompoundTag saved) {
         golden.onBlockRemoved();
         final GoldenJukeboxBlockEntity restored = (GoldenJukeboxBlockEntity) BlockEntity.loadStatic(
                 golden.getBlockPos(), golden.getBlockState(), saved, helper.getLevel().registryAccess());
@@ -502,7 +552,7 @@ public final class GoldenRedstoneGameTests {
         final CustomTrackData track = track(title, durationMs, radio);
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         disc.set(ModDataComponents.CUSTOM_TRACK.get(), track);
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE,
                 new JukeboxPlayable(new EitherHolder<>(SilentSongs.pick(durationMs)), false));
         *///?} else {
@@ -523,7 +573,7 @@ public final class GoldenRedstoneGameTests {
                 .getOrThrow(SilentSongs.pick(1L));
         //? if >=26.1 {
         disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(song));
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(song)));
         *///?} else {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(song), false));

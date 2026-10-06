@@ -4,6 +4,9 @@ plugins {
     id("fabric-loom") version "1.14.10"
 }
 
+// Verify the 1.21.11-specific official Tiny payload before Loom dependency verification.
+apply(from = rootProject.file("gradle/canonicalize-loom-mappings.gradle"))
+
 val mcVersion = "1.21.11"
 val fabricLoaderVersion = "0.19.3"
 val fabricApiVersion = "0.141.4+1.21.11"

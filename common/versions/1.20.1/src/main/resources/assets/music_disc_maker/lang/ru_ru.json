@@ -50,6 +50,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "Звуковой движок игры не принял этот звук",
   "music_disc_maker.playback_failed.reason.muted": "Громкость установлена на 0 (проверьте Общую громкость и Музыкальные блоки в разделе Настройки музыки и звуков)",
   "music_disc_maker.radio.reconnecting": "Переподключение к радио… (%s/%s)",
+  "music_disc_maker.playback.resuming": "Соединение прервано. Возобновляем воспроизведение… (%s/%s)",
   "music_disc_maker.radio.stopped": "Радио остановлено (не удалось переподключиться)",
   "block.music_disc_maker.golden_jukebox": "Золотой проигрыватель",
   "gui.music_disc_maker.golden_jukebox.title": "Золотой проигрыватель",
@@ -74,5 +75,6 @@
   "gui.music_disc_maker.speaker.muted": "Звук отключён сигналом редстоуна",
   "gui.music_disc_maker.speaker.active": "Нет сигнала редстоуна",
   "tooltip.music_disc_maker.album.empty": "Нет дисков",
-  "tooltip.music_disc_maker.album.contents": "%s дисков"
+  "tooltip.music_disc_maker.album.contents": "%s дисков",
+  "message.music_disc_maker.storage_sync_failed": "Не удалось синхронизировать данные пластинки. Действие отменено."
 }

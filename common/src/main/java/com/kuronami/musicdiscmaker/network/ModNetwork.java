@@ -49,7 +49,10 @@ public final class ModNetwork {
     // 14-mp3-dev: ローカルMP3持込の双方向転送 payload (local_audio) を追加した開発版。
     // 14-mp3-curios-dev: BoomboxSource に装備参照 (slot/index/機体id) を追加し、
     // 装備機体を開く C2S payload (open_equipped_boombox) を足した開発版。
-    public static final String PROTOCOL_VERSION = "14-mp3-curios-dev";
+    // 15-cart-dev: 金ジューク付きトロッコの menu 操作 (control_golden_cart) と
+    // 再生/停止/状態 (golden_cart_play/stop/state) を追加した開発版。
+    // 16-local-audio-check-dev: cache hit後、world原本の存在を検証する CHECK/AVAILABLE を追加。
+    public static final String PROTOCOL_VERSION = "16-local-audio-check-dev";
 
     private static final double MAX_REACH_SQR = 64.0;
 
@@ -160,9 +163,10 @@ public final class ModNetwork {
         final CuriosEquipmentAccess.Entry current = CuriosEquipmentAccess.resolve(
                 player, payload.slotId(), payload.slotIndex());
         if (current == null || current.stack() != stack || BoomboxCarry.idOf(current.stack()) != id) return;
-        if (!BoomboxMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+        final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
+        if (!syncBudget.fits()) {
             player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
-                    "message.music_disc_maker.boombox.open_too_large"), true);
+                    syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             return;
         }
         Services.MENU.openBoomboxMenu(player, source);
@@ -270,6 +274,85 @@ public final class ModNetwork {
             Services.NETWORK.sendToPlayer(player,
                     new BoomboxStatePayload(menu.containerId, BoomboxPlayback.stateOf(menu.currentStack())));
         }
+    }
+
+    /**
+     * client → server: 開いている金ジューク cart の操作。menu・世代・entity・生存・距離を
+     * 照合してから {@link com.kuronami.musicdiscmaker.event.GoldenCartPlayback} へ渡す。
+     * 遅れて届いた操作を閉じた menu や差し替わった機体へ適用しない。
+     */
+    public static void handleControlGoldenCart(ControlGoldenCartPayload payload, ServerPlayer player) {
+        if (!(player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu menu)
+                || menu.containerId != payload.containerId() || !menu.stillValid(player)) {
+            return;
+        }
+        final var cart = menu.getEntity();
+        if (cart == null || cart.getId() != payload.entityId() || cart.isRemoved()
+                || cart.deck().cursor().generation() != payload.generation()) {
+            sendGoldenCartState(player, menu);
+            return;
+        }
+        final int action = payload.action();
+        final long value = payload.value();
+        if (action < ControlGoldenCartPayload.PLAY || action > ControlGoldenCartPayload.DIRECTIONAL
+                || (action == ControlGoldenCartPayload.SEEK && value < 0)
+                || ((action == ControlGoldenCartPayload.REPEAT || action == ControlGoldenCartPayload.SHUFFLE
+                        || action == ControlGoldenCartPayload.DIRECTIONAL) && value != 0 && value != 1)
+                || (action == ControlGoldenCartPayload.VOLUME
+                        && (value < com.kuronami.musicdiscmaker.component.GoldenDeck.VOLUME_MIN
+                            || value > com.kuronami.musicdiscmaker.component.GoldenDeck.VOLUME_MAX))
+                || (action == ControlGoldenCartPayload.RANGE
+                        && (value < com.kuronami.musicdiscmaker.component.GoldenDeck.RANGE_MIN
+                            || value > com.kuronami.musicdiscmaker.component.GoldenDeck.RANGE_MAX))) {
+            return;
+        }
+        switch (action) {
+            case ControlGoldenCartPayload.PLAY ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.play(cart);
+            case ControlGoldenCartPayload.PAUSE ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.pause(cart);
+            case ControlGoldenCartPayload.PREVIOUS ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.previousTrack(cart);
+            case ControlGoldenCartPayload.NEXT ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.nextTrack(cart);
+            case ControlGoldenCartPayload.SEEK ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.seekTo(cart, value);
+            case ControlGoldenCartPayload.REPEAT ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.setRepeat(cart, value == 1);
+            case ControlGoldenCartPayload.SHUFFLE ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.setShuffle(cart, value == 1);
+            case ControlGoldenCartPayload.VOLUME ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.setVolume(cart, (int) value);
+            case ControlGoldenCartPayload.RANGE ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.setRange(cart, (int) value);
+            case ControlGoldenCartPayload.DIRECTIONAL ->
+                    com.kuronami.musicdiscmaker.event.GoldenCartPlayback.setDirectional(cart, value == 1);
+            default -> { return; }
+        }
+        sendGoldenCartState(player, menu);
+    }
+
+    /** menu を開いている player へ最新の cart 状態を返す (操作直後の即時反映用)。 */
+    public static void sendGoldenCartState(ServerPlayer player,
+            com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu menu) {
+        final var cart = menu.getEntity();
+        if (cart == null || player.containerMenu != menu || !menu.stillValid(player)) {
+            return;
+        }
+        Services.NETWORK.sendToPlayer(player, new GoldenCartStatePayload(menu.containerId,
+                cart.getId(), com.kuronami.musicdiscmaker.event.GoldenCartPlayback.stateOf(cart)));
+    }
+
+    public static void handleGoldenCartPlay(GoldenCartPlayPayload payload) {
+        ClientPlaybackHandler.goldenCartPlay(payload);
+    }
+
+    public static void handleGoldenCartStop(GoldenCartStopPayload payload) {
+        ClientPlaybackHandler.goldenCartStop(payload);
+    }
+
+    public static void handleGoldenCartState(GoldenCartStatePayload payload) {
+        ClientPlaybackHandler.goldenCartState(payload);
     }
 
     public static void handleSpeakerSet(SpeakerSetPayload payload) {

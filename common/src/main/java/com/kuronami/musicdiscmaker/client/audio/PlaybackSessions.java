@@ -149,6 +149,28 @@ public final class PlaybackSessions<K> {
             @Nullable PlaybackFailure why) {
     }
 
+    /**
+     * 有限曲が再生の途中で一時的な失敗に倒れた時、現在位置から開き直す上限回数。
+     * {@link #STABLE_MS} 以上鳴ってから落ちた場合は数え直す (ラジオと同じ規則)。
+     */
+    public static final int MAX_FINITE_RESUME = 2;
+    /** 残りがこれ未満なら開き直さない。末尾数秒のために接続をやり直す方が耳障り (ms)。 */
+    public static final long FINITE_RESUME_MIN_REMAINING_MS = 5_000L;
+
+    /**
+     * {@link #finiteStreamFailed} の答え。
+     *
+     * @param kind     次に何をするか
+     * @param attempt  何回目の開き直しか
+     * @param request  開き直しに使う再生要求 ({@link ReconnectKind#NONE} なら {@code null})
+     * @param offsetMs 開き直す位置。server と同じ再生時計基準の現在位置 (ms)
+     * @param superseded 通知元の voice がもう登録されていない (処理済みの重複・置き換え済みの旧 voice)。
+     *                   呼び出し側は何もせず黙る
+     */
+    public record FiniteResume(ReconnectKind kind, int attempt, @Nullable Request request, long offsetMs,
+            boolean superseded) {
+    }
+
     private final PlaybackGenerations<K> generations = new PlaybackGenerations<>();
     private final Map<K, PlaybackVoice> active = new ConcurrentHashMap<>();
     private final Map<K, String> playingUrl = new ConcurrentHashMap<>();
@@ -204,6 +226,27 @@ public final class PlaybackSessions<K> {
     private final Map<K, Long> firstAudioMonotonicMs = new ConcurrentHashMap<>();
     private final Map<K, Long> loadOffsetMs = new ConcurrentHashMap<>();
     /**
+     * {@link #requestedAtMs} と {@link #registeredMillis} を<b>再生時計</b> ({@link #positionClockMs}) で
+     * 取った値。有限曲の開き直し位置 ({@link #finiteStreamFailed}) だけが読む。
+     *
+     * <p>壁時計と分けるのは、シングルプレイの server が一時停止中に再生時計を止めるため。壁時計で
+     * 数えると、止めていた時間ぶん先の位置から開き直してしまう。
+     */
+    private final Map<K, Long> requestedAtPositionMs = new ConcurrentHashMap<>();
+    private final Map<K, Long> registeredPositionMs = new ConcurrentHashMap<>();
+    /**
+     * 最後に登録した voice とその開始位置。{@link #sweep} では消さない。
+     *
+     * <p>自然終了の掃除は {@link #active} と {@link #loadOffsetMs} を落とすが、失敗の理由は EOF より遅れて
+     * push されうる。掃除の後に届いた本物の失敗を「処理済みの旧 voice」と取り違えないよう、通知元の照合と
+     * 開き直し位置はこちらで行う。開き直し・停止の時だけ消す。
+     *
+     * <p>弱参照で持つ。終了した voice は PCM のバッファごと抱えているので、強参照だと停止が来るまで
+     * 解放されない。通知元の voice は失敗を届ける側が握っているので、照合に要る間は回収されない。
+     */
+    private final Map<K, java.lang.ref.WeakReference<PlaybackVoice>> lastInstalled = new ConcurrentHashMap<>();
+    private final Map<K, Long> lastInstalledOffsetMs = new ConcurrentHashMap<>();
+    /**
      * ラジオで拾った失敗の保留。ラジオにとって音が途切れることは再接続が引き受ける想定内の状態
      * なので、瞬断のたびにチャットへ理由を出すと再接続の表示 (アクションバー) と二重になる。
      * 再接続を諦めた時に「なぜ諦めたか」として 1 度だけ出す。
@@ -229,6 +272,7 @@ public final class PlaybackSessions<K> {
 
     private final LongSupplier clockMs;
     private final LongSupplier monotonicMs;
+    private final LongSupplier positionClockMs;
 
     /**
      * テスト用。壁時計と単調時計を同じ供給元に束ねる (時刻調整を再現しないテストはこちらでよい)。
@@ -245,11 +289,22 @@ public final class PlaybackSessions<K> {
      *                    {@link #FIRST_AUDIO_DEADLINE_MS} はこちらを読む
      */
     public PlaybackSessions(LongSupplier clockMs, LongSupplier monotonicMs) {
+        this(clockMs, monotonicMs, clockMs);
+    }
+
+    /**
+     * @param clockMs         壁時計 (ms)。{@link #isSeekRequest} の推定再生位置だけが読む
+     * @param monotonicMs     単調に進む経過時間 (ms)
+     * @param positionClockMs server と同じ基準の再生時計 (ms)。シングルプレイでは一時停止中に止まる。
+     *                        有限曲の開き直し位置だけが読む
+     */
+    public PlaybackSessions(LongSupplier clockMs, LongSupplier monotonicMs, LongSupplier positionClockMs) {
         // null をここで弾くのは、静かに通すと最初の install() まで発覚しないため。
         // 呼び出し側が static final を INSTANCE より後ろに宣言していると、構築時点では
         // まだ代入されておらず null が渡る (2026-08-23 実機で再生が丸ごと不能になった)。
         this.clockMs = java.util.Objects.requireNonNull(clockMs, "clockMs");
         this.monotonicMs = java.util.Objects.requireNonNull(monotonicMs, "monotonicMs");
+        this.positionClockMs = java.util.Objects.requireNonNull(positionClockMs, "positionClockMs");
     }
 
     /**
@@ -281,7 +336,15 @@ public final class PlaybackSessions<K> {
         directionals.put(key, directional);
         requests.put(key, new Request(track, rangeBlocks, volumePercent));
         requestedAtMs.put(key, clockMs.getAsLong()); // 起点は解決の完了時ではなく要求の到着時
+        requestedAtPositionMs.put(key, positionClockMs.getAsLong());
         return new StartDecision(true, token);
+    }
+
+    /** Read-only copy of the reload predicate so optional owners can close before {@link #start} stops a voice. */
+    boolean wouldReload(K key, CustomTrackData track, long startOffsetMs) {
+        final PlaybackVoice existing = active.get(key);
+        return existing == null || existing.isVoiceStopped() || track == null
+                || !track.sourceKey().equals(playingUrl.get(key)) || isSeekRequest(key, startOffsetMs);
     }
 
     /**
@@ -382,10 +445,14 @@ public final class PlaybackSessions<K> {
         final Request request = requests.get(key);
         registeredMillis.put(key, request != null && request.track() != null && request.track().isLocal()
                 ? clockMs.getAsLong() : requestedAtMs.getOrDefault(key, clockMs.getAsLong()));
+        registeredPositionMs.put(key, request != null && request.track() != null && request.track().isLocal()
+                ? positionClockMs.getAsLong() : requestedAtPositionMs.getOrDefault(key, positionClockMs.getAsLong()));
         registeredMonotonicMs.put(key, monotonicMs.getAsLong());
         // 前の世代 (ラジオの再接続は同じ世代を持ち回る) の「鳴り始めた時刻」を持ち越さない。
         firstAudioMonotonicMs.remove(key);
         loadOffsetMs.put(key, startOffsetMs);
+        lastInstalled.put(key, new java.lang.ref.WeakReference<>(voice));
+        lastInstalledOffsetMs.put(key, startOffsetMs);
         return true;
     }
 
@@ -543,6 +610,7 @@ public final class PlaybackSessions<K> {
         }
         playingUrl.remove(key);
         registeredMillis.remove(key);
+        registeredPositionMs.remove(key);
         registeredMonotonicMs.remove(key);
         firstAudioMonotonicMs.remove(key);
         loadOffsetMs.remove(key);
@@ -558,6 +626,101 @@ public final class PlaybackSessions<K> {
     }
 
     /**
+     * 有限曲の再生途中の失敗を受けて、開き直すかどうかを決める。
+     *
+     * <h2>これが要る理由</h2>
+     * 金ジュークの server は再生中に定期再送しない (再送は chunk 再入・範囲再入だけ)。
+     * {@code RetryingAudioSource} は PCM を渡した後の失敗を<b>頭から鳴らし直さないため</b>に開き直さず、
+     * 理由だけを上げてくる。すると途中で回線が瞬断した client は<b>曲の残りを無音で過ごし</b>、
+     * 同じ曲を他の player は聴き続ける (CF 報告「一人だけ鳴らない、他の人には聞こえる」)。
+     * ここでは頭からではなく、server と同じ壁時計基準の<b>現在位置</b>から開き直す。
+     *
+     * <h2>開き直さない場合 ({@link ReconnectKind#NONE})</h2>
+     * 停止済みの世代・ラジオ (既存の {@link #radioStreamEnded})・持込曲・尺不明・
+     * 一時的でない失敗 (非公開・地域制限など、何度開いても同じ)・残り {@link #FINITE_RESUME_MIN_REMAINING_MS}
+     * 未満。呼び出し側は従来どおり理由を利用者に出す。
+     *
+     * <p>{@link ReconnectKind#RETRY} を返した時は、途切れた voice を畳み、推定位置の起点を
+     * 「今」と返す位置に置き直す。再接続のロード完了が {@link #install} をその位置で呼べば、
+     * 以後の chunk 再入の再送も従来どおり dedup される。
+     *
+     * @param key     再生の鍵 (金ジューク = jukebox の位置)
+     * @param token   この再生の世代
+     * @param failure 分類済みの失敗
+     * @return 次に何をするか
+     */
+    public FiniteResume finiteStreamFailed(K key, int token, @Nullable PlaybackFailure failure) {
+        return finiteStreamFailed(key, token, failure, null);
+    }
+
+    /**
+     * {@link #finiteStreamFailed(Object, int, PlaybackFailure)} に通知元の voice を添える版。
+     *
+     * <p>失敗は push (ソース直結) と pull (ストリーム終端) の両方から届き、同じ失敗が 2 回来る。
+     * 開き直しを決めた時点で途切れた voice は登録から外すので、<b>通知元がもう登録中の voice でなければ</b>
+     * 処理済みの重複か置き換え済みの旧 voice として黙らせる ({@link FiniteResume#superseded})。
+     * これが無いと、開き直し中に 2 通目が失敗としてチャットへ出て、遅れた旧通知が開き直した voice を
+     * もう一度畳む。
+     *
+     * @param origin 失敗を出した voice ({@link #install} に渡したもの)。分からなければ {@code null}
+     */
+    public FiniteResume finiteStreamFailed(K key, int token, @Nullable PlaybackFailure failure,
+            @Nullable Object origin) {
+        final FiniteResume none = new FiniteResume(ReconnectKind.NONE, 0, null, 0L, false);
+        if (!isLive(key, token) || failure == null) {
+            return none;
+        }
+        final java.lang.ref.WeakReference<PlaybackVoice> installed = lastInstalled.get(key);
+        if (origin != null && (installed == null || installed.get() != origin)) {
+            return new FiniteResume(ReconnectKind.NONE, 0, null, 0L, true);
+        }
+        final Request request = requests.get(key);
+        final CustomTrackData track = request == null ? null : request.track();
+        if (track == null || track.radio() || track.isLocal() || track.durationMs() <= 0L) {
+            return none;
+        }
+        if (failure.kind() != PlaybackFailure.Kind.NETWORK
+                && failure.kind() != PlaybackFailure.Kind.STREAM_UNAVAILABLE) {
+            return none;
+        }
+        final Long started = registeredPositionMs.get(key);
+        final Long loaded = lastInstalledOffsetMs.get(key);
+        if (started == null || loaded == null) {
+            return none;
+        }
+        final long positionNow = positionClockMs.getAsLong();
+        final long position = Math.max(0L, loaded + (positionNow - started));
+        if (position >= track.durationMs() - FINITE_RESUME_MIN_REMAINING_MS) {
+            return none;
+        }
+        final Long firstAudio = firstAudioMonotonicMs.get(key);
+        if (firstAudio != null && monotonicMs.getAsLong() - firstAudio >= STABLE_MS) {
+            reconnectAttempts.remove(key);
+        }
+        final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
+        if (attempt > MAX_FINITE_RESUME) {
+            return new FiniteResume(ReconnectKind.GIVE_UP, attempt, request, position, false);
+        }
+        reconnectAttempts.put(key, attempt);
+        final PlaybackVoice broken = active.remove(key);
+        if (broken != null) {
+            broken.stopAndRelease();
+        }
+        lastInstalled.remove(key);
+        lastInstalledOffsetMs.remove(key);
+        playingUrl.remove(key);
+        registeredMillis.remove(key);
+        registeredPositionMs.remove(key);
+        registeredMonotonicMs.remove(key);
+        firstAudioMonotonicMs.remove(key);
+        loadOffsetMs.remove(key);
+        // install は推定位置の起点を要求時刻から取る。返す位置と同じ瞬間を指させる。
+        requestedAtMs.put(key, clockMs.getAsLong());
+        requestedAtPositionMs.put(key, positionNow);
+        return new FiniteResume(ReconnectKind.RETRY, attempt, request, position, false);
+    }
+
+    /**
      * この座標の再生を止める。世代を進めるので、ロード中の要求も完了時点で捨てられる。
      *
      * @param key 再生の鍵 (金ジューク = jukebox の位置)
@@ -569,6 +732,10 @@ public final class PlaybackSessions<K> {
         directionals.remove(key);
         reconnectAttempts.remove(key);
         requestedAtMs.remove(key);
+        requestedAtPositionMs.remove(key);
+        registeredPositionMs.remove(key);
+        lastInstalled.remove(key);
+        lastInstalledOffsetMs.remove(key);
         registeredMillis.remove(key);
         registeredMonotonicMs.remove(key);
         firstAudioMonotonicMs.remove(key);
@@ -591,6 +758,10 @@ public final class PlaybackSessions<K> {
         directionals.clear();
         reconnectAttempts.clear();
         requestedAtMs.clear();
+        requestedAtPositionMs.clear();
+        registeredPositionMs.clear();
+        lastInstalled.clear();
+        lastInstalledOffsetMs.clear();
         registeredMillis.clear();
         registeredMonotonicMs.clear();
         firstAudioMonotonicMs.clear();

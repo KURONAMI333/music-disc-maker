@@ -141,7 +141,7 @@ public final class GoldenSourceRegistry {
     }
 
     private static Key key(ServerLevel level, UUID id) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return new Key(level.dimension().identifier().toString(), id);
         //?} else {
         /*return new Key(level.dimension().location().toString(), id);

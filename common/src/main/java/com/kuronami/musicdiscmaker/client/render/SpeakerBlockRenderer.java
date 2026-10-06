@@ -10,7 +10,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.AttachFace;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
@@ -20,12 +20,12 @@ import net.minecraft.world.phys.Vec3;
 *///?}
 //? if >=26.1 {
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-//?} elif >=1.21.2 {
+//?} elif >=1.21.11 {
 /*import net.minecraft.client.renderer.state.CameraRenderState;
 *///?}
 
 /** Renders the horn for the two diagonal states; centered horns stay in the static block model. */
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 public final class SpeakerBlockRenderer
         implements BlockEntityRenderer<SpeakerBlockEntity, SpeakerBlockRenderer.State> {
 

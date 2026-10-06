@@ -14,7 +14,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.TagValueInput;
+//?}
 //?} else {
 /*import java.util.Optional;
 
@@ -57,19 +59,27 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class FailurePersistenceGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
     private static MusicDiscMakerBlockEntity place(GameTestHelper helper, BlockPos rel) {
         helper.setBlock(rel, ModBlocks.MUSIC_DISC_MAKER.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final MusicDiscMakerBlockEntity be = helper.getBlockEntity(rel);
         *///?} else {
-        final MusicDiscMakerBlockEntity be = helper.getBlockEntity(rel, MusicDiscMakerBlockEntity.class);
+        final MusicDiscMakerBlockEntity be = GameTestBlockEntities.get(helper, rel, MusicDiscMakerBlockEntity.class);
         //?}
         if (be == null) {
-            //? if <1.21.2 {
+            //? if <1.21.11 {
             /*helper.fail("MusicDiscMakerBlockEntity が生成されていない", rel);
             *///?} else {
             helper.fail(Component.literal("MusicDiscMakerBlockEntity が生成されていない"), rel);
@@ -87,7 +97,7 @@ public class FailurePersistenceGameTests {
      * ここが緩むと、chunk 再ロード後に GUI を開き直しても「何も起きなかった」ように見える
      * (修正前の実際の症状)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -104,7 +114,7 @@ public class FailurePersistenceGameTests {
         helper.assertTrue(be.isResolveFailed(), "前提: setResolveFailed 直後に isResolveFailed が true でない");
 
         final CompoundTag saved = be.saveWithoutMetadata(registries);
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*helper.assertTrue(saved.getBoolean("resolveFailed"),
                 "resolveFailed が saveAdditional (= saveWithoutMetadata) に書かれていない。"
                         + "getUpdateTag 経由の同期にしか乗らないと、chunk 再ロードで失敗の事実が消える");
@@ -113,7 +123,7 @@ public class FailurePersistenceGameTests {
                 "resolveFailed が saveAdditional (= saveWithoutMetadata) に書かれていない。"
                         + "getUpdateTag 経由の同期にしか乗らないと、chunk 再ロードで失敗の事実が消える");
         //?}
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*helper.assertTrue(FailureReason.PRIVATE_OR_REMOVED.name().equals(saved.getString("failureReason")),
                 "failureReason が saveAdditional に書かれていない (実際: " + saved.getString("failureReason") + ")");
         *///?} else {
@@ -123,7 +133,7 @@ public class FailurePersistenceGameTests {
 
         // 別インスタンス (= chunk 再ロード相当) へ読み込み、事実と理由の両方が復元されること。
         final MusicDiscMakerBlockEntity reloaded = new MusicDiscMakerBlockEntity(be.getBlockPos(), be.getBlockState());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*reloaded.loadWithComponents(saved, registries);
         *///?} else {
         reloaded.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registries, saved));
@@ -139,7 +149,7 @@ public class FailurePersistenceGameTests {
     }
 
     /** タグ欠落 (この修正より前のセーブ) は失敗なしとして読める (既定値へ安全に倒れる)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -157,7 +167,7 @@ public class FailurePersistenceGameTests {
         legacy.remove("failureReason");
 
         final MusicDiscMakerBlockEntity reloaded = new MusicDiscMakerBlockEntity(be.getBlockPos(), be.getBlockState());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*reloaded.loadWithComponents(legacy, registries);
         *///?} else {
         reloaded.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registries, legacy));
@@ -173,7 +183,7 @@ public class FailurePersistenceGameTests {
     }
 
     /** 新しい URL がコミットされたら、古い失敗表示は消える。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -196,7 +206,7 @@ public class FailurePersistenceGameTests {
     }
 
     /** 次の解決が始まった (resolving に入った) ら、古い失敗表示は消える。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -222,7 +232,7 @@ public class FailurePersistenceGameTests {
      * (ペンディングな attempt が無くなった状態で失敗だけ残り続けるのを防ぐ)。
      * 対照として、入力が空にならない限り (無関係なスロット変化では) 消えないことも確認する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -251,7 +261,7 @@ public class FailurePersistenceGameTests {
     }
 
     /** 解決が成功してディスクが生成されニュートラルへ戻ったら、古い失敗表示は消える。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}

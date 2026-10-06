@@ -60,7 +60,7 @@ public class SpeakerItem extends BlockItem {
             //?} else {
             /*if (!level.isClientSide) {
             *///?}
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 writeLink(context.getItemInHand(), new SpeakerLink(level.dimension().identifier().toString(), clicked.asLong(), golden.sourceIdentity()));
                 //?} else {
                 /*writeLink(context.getItemInHand(), new SpeakerLink(level.dimension().location().toString(), clicked.asLong(), golden.sourceIdentity()));
@@ -112,7 +112,7 @@ public class SpeakerItem extends BlockItem {
     }
 
     private static boolean isSameDimension(SpeakerLink link, Level level) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return link.dimensionId().equals(level.dimension().identifier().toString());
         //?} else {
         /*return link.dimensionId().equals(level.dimension().location().toString());
@@ -120,7 +120,7 @@ public class SpeakerItem extends BlockItem {
     }
 
     public static Optional<SpeakerLink> linkOf(ItemStack stack) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final CompoundTag root = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         final CompoundTag link = root.getCompound(LINK_TAG).orElse(null);
         if (link == null) {

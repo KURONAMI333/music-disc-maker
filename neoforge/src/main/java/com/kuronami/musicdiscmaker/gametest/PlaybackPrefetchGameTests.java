@@ -36,6 +36,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class PlaybackPrefetchGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -45,7 +53,7 @@ public class PlaybackPrefetchGameTests {
     private static final String URL_B = "https://example.invalid/b.mp3";
 
     /** 温めておいたソースがそのまま渡ること (これが当たると解決と 4 秒のプリバッファが丸ごと消える)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -67,7 +75,7 @@ public class PlaybackPrefetchGameTests {
      * <b>不変条件。</b> ヒットしない時は {@code null} が返るだけで、「スキップしろ」の類は返らない。
      * ロード中の先読みがあっても {@code null}。呼び出し側は従来どおり普通のロードを走らせる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -91,7 +99,7 @@ public class PlaybackPrefetchGameTests {
     }
 
     /** 次に鳴る曲が変わったら、古い先読みを閉じてから新しい枠を作ること。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -115,7 +123,7 @@ public class PlaybackPrefetchGameTests {
     }
 
     /** 同じ曲を毎 tick 頼まれてもロードを重ねないこと (先読みが 20Hz で HTTP を開かない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -138,7 +146,7 @@ public class PlaybackPrefetchGameTests {
      * 期限切れ (30 秒) の先読みは閉じて渡さないこと。lavaplayer は 60 秒 {@code provide} されない
      * player を殺すので、<b>殺されたソースを掴むと完全な無音になる</b> (元のギャップより悪い)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -166,7 +174,7 @@ public class PlaybackPrefetchGameTests {
      * シーク・再送 ({@code startOffsetMs != 0}) には当てないこと。先読みは常に頭から開くので、
      * 当ててしまうと<b>途中から鳴るはずの曲が頭から鳴る</b>。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -183,7 +191,7 @@ public class PlaybackPrefetchGameTests {
     }
 
     /** 取り消し後に届いたソースは受け取らず、呼び出し側が閉じられること (どの経路でも漏らさない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -222,7 +230,7 @@ public class PlaybackPrefetchGameTests {
      * 普通のロードを走らせる (無音にはならない)。既存の鍵の曲差し替えは枠の再利用であって新規の
      * 鍵ではないので、上限には塞がれないこと。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -259,7 +267,7 @@ public class PlaybackPrefetchGameTests {
      * {@link PlaybackPrefetch#claim} が枠を手放さない実装に変わると、単曲 repeat は 2 周目以降
      * まったく先読みされなくなる (＝無音が戻る) のに、他のテストは全部緑のまま通る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -289,7 +297,7 @@ public class PlaybackPrefetchGameTests {
      * 折り返しの BE 同期では、古い instance が 1 tick だけ新しい current を読むことがある。
      * その時に current URL と一致する先読みを捨てると、直後の claim が miss する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

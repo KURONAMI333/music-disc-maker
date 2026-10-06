@@ -38,6 +38,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class DependencyLoadGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -47,7 +56,7 @@ public class DependencyLoadGameTests {
      * スキャン等) なら、これだけで次の呼び出しが通る。ここが緩むと、最初の 1 回の失敗が
      * その起動の間ずっと「ロード済み」として固定されてしまう。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -83,7 +92,7 @@ public class DependencyLoadGameTests {
      * させない</b> — 毎回、覚えておいた原因を cause に付けて投げ直す。「黙って空で進む」が
      * 元の欠陥そのものなので、そこにだけは戻さない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -117,7 +126,7 @@ public class DependencyLoadGameTests {
      * 空の classloader が組み上がり、後段が {@code ClassNotFoundException} という
      * 原因の読めない形で落ちる (報告者のログがまさにその形だった)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -142,7 +151,7 @@ public class DependencyLoadGameTests {
      * 書かれず、個々のファイルは一時名から原子的に移されるので「書きかけが最終名で
      * 見えている」状態は起こらない。それでもサイズを 1 件ずつ突き合わせる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -166,7 +175,7 @@ public class DependencyLoadGameTests {
      * 展開先の名前が同梱 jar 一式で決まること。順序が違っても同じ場所になり
      * (再利用が効く)、依存が入れ替われば別の場所になる (古い展開を掴まない)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

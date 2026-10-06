@@ -34,7 +34,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.item.component.BundleContents;
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.TagValueInput;
+//?}
 //? if >=26.1 {
 //?} else {
 /*import net.minecraft.world.item.EitherHolder;
@@ -89,6 +91,16 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.AfterBatch;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class AdditionalAdditionsAlbumGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -117,8 +129,11 @@ public class AdditionalAdditionsAlbumGameTests {
             if (!isAlbum(stack)) {
                 return null;
             }
-            return stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY)
-                    .itemCopyStream().toList();
+            //? if >=26.3 {
+            return stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).itemCopies().toList();
+            //?} else {
+            /*return stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).itemCopyStream().toList();
+            *///?}
         }
     }
 
@@ -126,7 +141,7 @@ public class AdditionalAdditionsAlbumGameTests {
         AdditionalAdditionsAlbumSupport.install(new FakeAlbums());
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@AfterBatch(batch = BATCH)
     public static void restoreAlbums(ServerLevel level) {
         AdditionalAdditionsAlbumSupport.install(null);
@@ -156,8 +171,10 @@ public class AdditionalAdditionsAlbumGameTests {
                 .get(SilentSongs.pick(durationMs))
                 //? if >=26.1 {
                 .ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(holder)));
-                //?} else {
+                //?} elif >=1.21.11 {
                 /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder))));
+                *///?} else {
+                /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder), false)));
                 *///?}
         return disc;
     }
@@ -179,13 +196,13 @@ public class AdditionalAdditionsAlbumGameTests {
     @Nullable
     private static GoldenJukeboxBlockEntity placeJukebox(GameTestHelper helper, BlockPos rel) {
         helper.setBlock(rel, ModBlocks.GOLDEN_JUKEBOX.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel);
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, rel, GoldenJukeboxBlockEntity.class);
         //?}
         if (jukebox == null) {
-            //? if <1.21.2 {
+            //? if <1.21.11 {
             /*helper.fail("GoldenJukeboxBlockEntity が生成されていない", rel);
             *///?} else {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), rel);
@@ -199,7 +216,7 @@ public class AdditionalAdditionsAlbumGameTests {
         return track == null ? "" : track.url();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH)
     *///?}
@@ -244,7 +261,7 @@ public class AdditionalAdditionsAlbumGameTests {
      * ゲートでは 3 箇所 (canPlaceItem / 手挿し / menu) すべてで弾かれていた。ここでは容器としての
      * 受け入れと、ディスクでもアルバムでもない物を弾き続けることの両方を固定する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH)
     *///?}
@@ -282,7 +299,7 @@ public class AdditionalAdditionsAlbumGameTests {
      * あわせて、アルバムでない時は従来どおりスロットの stack そのものが返り index が -1 のままであること
      * (後方互換の契約) を同じテストで固定する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH)
     *///?}
@@ -326,7 +343,7 @@ public class AdditionalAdditionsAlbumGameTests {
      * 送りは MDM が自前で持つ (ここが動かないとアルバムは 1 曲目で止まる)。
      * 1 曲目を極短尺にして、tick が進めば必ず終わる形にしてある。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH, timeoutTicks = 200)
     *///?}
@@ -366,7 +383,7 @@ public class AdditionalAdditionsAlbumGameTests {
      * ループが 1 曲ループに化ける (repeat の意味はアルバムでは全体ループ・単曲では曲内ループ)。
      * 最終トラック以外では両者の答えが一致してしまうので、送った後で判定する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH, timeoutTicks = 200)
     *///?}
@@ -416,7 +433,7 @@ public class AdditionalAdditionsAlbumGameTests {
      * {@code playbackStartGameTime} は「現在トラック内の位置」の意味になるので、index と一緒に
      * 永続化されていないと復元時に別トラックの途中から鳴る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH, timeoutTicks = 200)
     *///?}
@@ -482,7 +499,11 @@ public class AdditionalAdditionsAlbumGameTests {
                     final GoldenJukeboxBlockEntity restored = new GoldenJukeboxBlockEntity(
                             helper.absolutePos(rel), level.getBlockState(helper.absolutePos(rel)));
                     restored.setLevel(level);
+                    //? if >=1.21.11 {
                     restored.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registries, tag));
+                    //?} else {
+                    /*restored.loadWithComponents(tag, registries);
+                    *///?}
 
                     helper.assertValueEqual(restored.getAlbumTrack(), 1, "復元後のトラック index");
                     helper.assertValueEqual(urlOf(restored), URL_B, "復元後の再生対象 URL");
@@ -509,7 +530,7 @@ public class AdditionalAdditionsAlbumGameTests {
      * false を返し、テストが正しくない理由で通る)。あわせて、アルバム保持時にはミラーが従来どおり
      * 停止もトラック送りも出せること (壊してはいけない遷移) を同じテストで固定する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = MIRROR_BATCH)
     *///?}

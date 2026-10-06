@@ -2,9 +2,11 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 import org.junit.jupiter.api.Test;
 
 class FanoutAudioSourceTest {
@@ -36,6 +38,85 @@ class FanoutAudioSourceTest {
         assertArrayEquals(new byte[] {9, 8}, readExactly(source, 2));
         source.close();
         assertTrue(upstream.closed);
+    }
+
+    @Test
+    void closedChildNeedsRecreationAndReplacementJoinsTheCurrentMasterCursor() {
+        final BytesSource upstream = new BytesSource(new byte[] {0, 1, 2, 3, 4, 5}, 1, 1, 8);
+        final FanoutAudioSource fanout = new FanoutAudioSource(upstream);
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        readExactly(master, 6);
+        final long[] audible = {2L};
+        master.attachNativePlayback(() -> audible[0]);
+        final FanoutAudioSource.Branch lost = fanout.openInitialBranch();
+        lost.attachNativePlayback(() -> 0L);
+        final int[] desyncCallbacks = {0};
+        final int[] closeCallbacks = {0};
+        lost.onDesynchronised(() -> desyncCallbacks[0]++);
+        lost.onUnexpectedClose(() -> closeCallbacks[0]++);
+        lost.close(); // SoundEngine の通常 channel disposal は desync 通知を出さない。
+        lost.close();
+
+        assertEquals(0, desyncCallbacks[0]);
+        assertEquals(1, closeCallbacks[0]);
+        assertTrue(lost.needsRecreation());
+        assertFalse(master.needsRecreation());
+        assertFalse(upstream.closed);
+        audible[0] = 4L;
+        final FanoutAudioSource.Branch replacement = fanout.openLateBranch();
+        assertEquals(4L, replacement.attachNativePlayback(() -> 0L));
+        assertArrayEquals(new byte[] {4, 5}, readExactly(replacement, 2));
+        assertFalse(replacement.needsRecreation());
+        assertFalse(upstream.closed);
+        replacement.close();
+        master.close();
+        assertTrue(upstream.closed);
+    }
+
+    @Test
+    void naturalChildEofDoesNotRequestRecreationWhileTheMasterStillOwnsTheTail() {
+        final BytesSource upstream = new BytesSource(new byte[] {1, 2}, 1, 1, 8);
+        final FanoutAudioSource fanout = new FanoutAudioSource(upstream);
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        readExactly(master, 2);
+        master.attachNativePlayback(() -> 0L);
+        final FanoutAudioSource.Branch child = fanout.openLateBranch();
+        child.attachNativePlayback(() -> 0L);
+        readExactly(child, 2);
+        final int[] closeCallbacks = {0};
+        child.onUnexpectedClose(() -> closeCallbacks[0]++);
+        assertEquals(-1, child.read(new byte[1], 0, 1));
+        child.close();
+
+        assertFalse(child.needsRecreation());
+        assertTrue(child.isClosed());
+        assertEquals(0, closeCallbacks[0]);
+        assertFalse(upstream.closed);
+        master.close();
+    }
+
+    @Test
+    void decoderFaultDoesNotRequestChildRecreation() {
+        final IAudioSource upstream = new IAudioSource() {
+            @Override public int sampleRate() { return 1; }
+            @Override public int channels() { return 1; }
+            @Override public int bitsPerSample() { return 8; }
+            @Override public boolean bigEndian() { return false; }
+            @Override public int read(byte[] dst, int off, int len) { return 0; }
+            @Override public void close() {}
+            @Override public void onPlaybackFault(java.util.function.Consumer<PlaybackFault> sink) {
+                sink.accept(new PlaybackFault(null, "decoder ended with a fault"));
+            }
+        };
+        final FanoutAudioSource fanout = new FanoutAudioSource(upstream);
+        final FanoutAudioSource.Branch master = fanout.openMasterBranch();
+        final FanoutAudioSource.Branch child = fanout.openInitialBranch();
+        final int[] closeCallbacks = {0};
+        child.onUnexpectedClose(() -> closeCallbacks[0]++);
+        child.close();
+        assertFalse(child.needsRecreation());
+        assertEquals(0, closeCallbacks[0]);
+        master.close();
     }
 
     @Test
@@ -179,6 +260,7 @@ class FanoutAudioSourceTest {
         assertTrue(speaker.masterAttached().isDone());
         assertEquals(-1L, speaker.attachNativePlayback(() -> 0L));
         assertTrue(speaker.desynchronised());
+        assertFalse(speaker.needsRecreation());
     }
 
     @Test
@@ -195,6 +277,7 @@ class FanoutAudioSourceTest {
         audible[0] = 5L;
         assertEquals(-1L, speaker.playbackOffsetBytes(0L, 4L));
         assertTrue(speaker.desynchronised());
+        assertTrue(speaker.needsRecreation());
     }
 
     @Test

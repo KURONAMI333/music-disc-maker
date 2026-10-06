@@ -91,6 +91,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // Curios 用 wire 型は Curios 型を持たないので Fabric でも表だけは同一に保つ
         // (送信は Curios 導入 Forge/NeoForge client だけで、受信時の再解決は provider 未 install なら no-op)。
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.OpenEquippedBoombox.TYPE, ModPayloadTypes.OpenEquippedBoombox.STREAM_CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ControlGoldenCart.TYPE, ModPayloadTypes.ControlGoldenCart.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
@@ -102,6 +103,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.BoomboxStop.TYPE, ModPayloadTypes.BoomboxStop.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.BoomboxState.TYPE, ModPayloadTypes.BoomboxState.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.SpeakerSet.TYPE, ModPayloadTypes.SpeakerSet.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.GoldenCartPlay.TYPE, ModPayloadTypes.GoldenCartPlay.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.GoldenCartStop.TYPE, ModPayloadTypes.GoldenCartStop.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ModPayloadTypes.GoldenCartState.TYPE, ModPayloadTypes.GoldenCartState.STREAM_CODEC);
         //?} elif >=1.21.2 {
         /*        // payload 型を登録する。
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
@@ -112,6 +116,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ShuffleJukebox.TYPE, ModPayloadTypes.ShuffleJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ControlBoombox.TYPE, ModPayloadTypes.ControlBoombox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.OpenEquippedBoombox.TYPE, ModPayloadTypes.OpenEquippedBoombox.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ControlGoldenCart.TYPE, ModPayloadTypes.ControlGoldenCart.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.PlayVanilla.TYPE, ModPayloadTypes.PlayVanilla.STREAM_CODEC);
@@ -121,6 +126,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.BoomboxStop.TYPE, ModPayloadTypes.BoomboxStop.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.BoomboxState.TYPE, ModPayloadTypes.BoomboxState.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.SpeakerSet.TYPE, ModPayloadTypes.SpeakerSet.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.GoldenCartPlay.TYPE, ModPayloadTypes.GoldenCartPlay.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.GoldenCartStop.TYPE, ModPayloadTypes.GoldenCartStop.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.GoldenCartState.TYPE, ModPayloadTypes.GoldenCartState.STREAM_CODEC);
         */
         //?} elif >=1.21 {
         /*        // payload 型を登録する。
@@ -146,6 +154,10 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.BoomboxStop.TYPE, ModPayloadTypes.BoomboxStop.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.BoomboxState.TYPE, ModPayloadTypes.BoomboxState.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ModPayloadTypes.SpeakerSet.TYPE, ModPayloadTypes.SpeakerSet.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.GoldenCartPlay.TYPE, ModPayloadTypes.GoldenCartPlay.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.GoldenCartStop.TYPE, ModPayloadTypes.GoldenCartStop.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ModPayloadTypes.GoldenCartState.TYPE, ModPayloadTypes.GoldenCartState.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ControlGoldenCart.TYPE, ModPayloadTypes.ControlGoldenCart.STREAM_CODEC);
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload();
         */
         //?} else {
@@ -203,6 +215,8 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // Curios 専用 slot の機体を開く要求。Fabric では provider 未 install なので常に no-op。
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.OpenEquippedBoombox.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), ctx.player())));
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ControlGoldenCart.TYPE,
+                (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlGoldenCart(msg.inner(), ctx.player())));
 
         // creative タブ内容: common は tab の identity のみ作る (26.2 の Output が protected)。
         // 26.2 fabric-api は旧 ItemGroupEvents を廃し CreativeModeTabEvents に統合。表示順で TAB_ITEMS を流す。
@@ -230,6 +244,8 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlBoombox(msg.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.OpenEquippedBoombox.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), ctx.player())));
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ControlGoldenCart.TYPE,
+                (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlGoldenCart(msg.inner(), ctx.player())));
 
         ItemGroupEvents.modifyEntriesEvent(
                         ResourceKey.create(Registries.CREATIVE_MODE_TAB, ModCreativeTab.MAIN.getId()))
@@ -250,6 +266,8 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlBoombox(payload.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.OpenEquippedBoombox.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(payload.inner(), ctx.player())));
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ControlGoldenCart.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleControlGoldenCart(payload.inner(), ctx.player())));
 
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("additionaladditions")) {
             com.kuronami.musicdiscmaker.compat.additionaladditions.AlbumProvider.install();
@@ -284,6 +302,13 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (server, player, handler, buf, responseSender) -> {
                     final var payload = com.kuronami.musicdiscmaker.network.OpenEquippedBoomboxPayload.read(buf);
                     server.execute(() -> ModNetwork.handleOpenEquippedBoombox(payload, player));
+                });
+        ServerPlayNetworking.registerGlobalReceiver(
+                com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                        com.kuronami.musicdiscmaker.network.ControlGoldenCartPayload.PATH),
+                (server, player, handler, buf, responseSender) -> {
+                    final var payload = com.kuronami.musicdiscmaker.network.ControlGoldenCartPayload.read(buf);
+                    server.execute(() -> ModNetwork.handleControlGoldenCart(payload, player));
                 });
         */
         //?}

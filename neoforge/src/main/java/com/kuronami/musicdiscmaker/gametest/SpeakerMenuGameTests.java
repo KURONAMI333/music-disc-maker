@@ -17,7 +17,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -27,7 +27,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class SpeakerMenuGameTests {
     private SpeakerMenuGameTests() { }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerMenu")
     *///?}
@@ -59,7 +59,7 @@ public final class SpeakerMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerMenuGuard")
     *///?}

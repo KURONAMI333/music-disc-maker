@@ -55,7 +55,7 @@ public interface PlaybackVoice {
      * @param engineAccepted engine がこの音源の stream を一度でも作った (受理の証拠)
      * @param channelActive  engine が今もこの音源の channel を抱えている
      * @param speakerChild   fanout の非 master branch — desync で自分の channel だけが外れる
-     *                       子で、再建は {@link SpeakerVoiceGroup} の desync 回復が担う。
+     *                       子で、再建は {@link SpeakerVoiceGroup} の desync / branch close 通知と掃除が担う。
      *                       ここで「止まった」と答えると group 側の掃除が branch ごと畳んで
      *                       再建が二度と効かなくなる
      * @return engine 側からもう鳴っていなければ {@code true}

@@ -33,13 +33,21 @@ public final class BoomboxHandle {
     /** Applies 0 = upright through 1 = fully lowered around the configured model-unit pivot. */
     public static void pose(PoseStack poseStack, float yaw, float fall) {
         poseStack.translate(0.5F, 0.5F, 0.5F);
-        poseStack.mulPose(Axis.YP.rotationDegrees(-yaw));
+        //? if >=26.3 {
+        poseStack.rotate(Axis.YP.rotationDegrees(-yaw));
+        //?} else {
+        /*poseStack.mulPose(Axis.YP.rotationDegrees(-yaw));
+        *///?}
         poseStack.translate(-0.5F, -0.5F, -0.5F);
         if (fall > 0.0F) {
             final DeviceModelPoses.Pose pose = DeviceModelPoses.current();
             poseStack.translate(pose.boomboxPivotX() / 16.0F,
                     pose.boomboxPivotY() / 16.0F, pose.boomboxPivotZ() / 16.0F);
-            poseStack.mulPose(Axis.XP.rotationDegrees(pose.boomboxDownAngle() * fall));
+            //? if >=26.3 {
+            poseStack.rotate(Axis.XP.rotationDegrees(pose.boomboxDownAngle() * fall));
+            //?} else {
+            /*poseStack.mulPose(Axis.XP.rotationDegrees(pose.boomboxDownAngle() * fall));
+            *///?}
             poseStack.translate(-pose.boomboxPivotX() / 16.0F,
                     -pose.boomboxPivotY() / 16.0F, -pose.boomboxPivotZ() / 16.0F);
         }

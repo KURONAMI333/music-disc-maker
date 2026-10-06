@@ -14,7 +14,7 @@ import com.kuronami.musicdiscmaker.register.ModItems;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -30,7 +30,7 @@ public final class MediaSequenceGameTests {
     private MediaSequenceGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = TEMPLATE)
     *///?}
     public static void rawAndAlbumResolveToDistinctKinds(GameTestHelper helper) {
@@ -46,7 +46,7 @@ public final class MediaSequenceGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = TEMPLATE)
     *///?}
     public static void albumKeepsDiscTrackPositionsAndDuplicateUrls(GameTestHelper helper) {
@@ -68,7 +68,7 @@ public final class MediaSequenceGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = TEMPLATE)
     *///?}
     public static void invalidDiscsAreSkippedWithoutRenumberingAlbumPositions(GameTestHelper helper) {
@@ -92,7 +92,7 @@ public final class MediaSequenceGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = TEMPLATE)
     *///?}
     public static void liveAndUnknownOnlyBlockAutomaticAdvance(GameTestHelper helper) {

@@ -50,6 +50,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "游戏的音效引擎未接受这段音频",
   "music_disc_maker.playback_failed.reason.muted": "音量被设为 0（请在音乐和声音选项中检查主音量和唱片机/音符盒）",
   "music_disc_maker.radio.reconnecting": "正在重新连接电台… (%s/%s)",
+  "music_disc_maker.playback.resuming": "连接中断，正在从中断处继续播放… (%s/%s)",
   "music_disc_maker.radio.stopped": "电台已停止（重新连接失败）",
   "block.music_disc_maker.golden_jukebox": "黄金唱片机",
   "gui.music_disc_maker.golden_jukebox.title": "黄金唱片机",
@@ -74,5 +75,6 @@
   "gui.music_disc_maker.speaker.muted": "被红石信号静音",
   "gui.music_disc_maker.speaker.active": "无红石信号",
   "tooltip.music_disc_maker.album.empty": "没有唱片",
-  "tooltip.music_disc_maker.album.contents": "%s 张唱片"
+  "tooltip.music_disc_maker.album.contents": "%s 张唱片",
+  "message.music_disc_maker.storage_sync_failed": "无法同步唱片数据，已取消此操作。"
 }

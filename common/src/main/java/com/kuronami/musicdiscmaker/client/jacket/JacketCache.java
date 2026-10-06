@@ -32,7 +32,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -88,7 +88,7 @@ public final class JacketCache {
     }
 
     /** 準備済みジャケット: texture の場所と元画像サイズ (アスペクト比の維持に使う)。 */
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     public record Jacket(Identifier texture, int width, int height) {
     //?} else {
     /*public record Jacket(ResourceLocation texture, int width, int height) {
@@ -160,7 +160,7 @@ public final class JacketCache {
             }
             // デコード前に寸法を検査してデコード爆弾を弾く (byte 上限だけでは展開後サイズを防げない)。
             if (!dimensionsWithinLimit(bytes)) {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 MusicDiscMaker.LOGGER.debug("Rejected jacket image (oversized or unknown dimensions): {}", url);
                 //?} elif >=1.21 {
                 /*MusicDiscMaker.LOGGER.debug("Rejected jacket image (oversized or unknown dimensions): {}", url);
@@ -180,7 +180,7 @@ public final class JacketCache {
             // texture 登録は render スレッドで行う (off-thread 登録は OpenGL 破壊のバグ源)。
             Minecraft.getInstance().execute(() -> register(hash, image));
         } catch (final Throwable t) {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             MusicDiscMaker.LOGGER.debug("Failed to fetch jacket image ({}): {}", url, t.toString());
             //?} elif >=1.21 {
             /*MusicDiscMaker.LOGGER.debug("Failed to fetch jacket image ({})", url, t);
@@ -195,7 +195,7 @@ public final class JacketCache {
         try {
             final int w = image.getWidth();
             final int h = image.getHeight();
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             final Identifier rl = Identifier.fromNamespaceAndPath(
             //?} elif >=1.21 {
             /*final ResourceLocation rl = ResourceLocation.fromNamespaceAndPath(
@@ -203,7 +203,7 @@ public final class JacketCache {
             /*final ResourceLocation rl = new ResourceLocation(
             *///?}
                     MusicDiscMaker.MODID, "jacket/" + hash);
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             // 26.1.2 の DynamicTexture は Supplier<String> ラベルを要求する (1.21.1 の NativeImage 単独形とは別)。
             Minecraft.getInstance().getTextureManager()
                     .register(rl, new DynamicTexture(() -> "mdm_jacket/" + hash, image));
@@ -227,7 +227,7 @@ public final class JacketCache {
             if (!it.hasNext()) {
                 break;
             }
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             final Identifier oldest = it.next().getValue().texture();
             //?} else {
             /*final ResourceLocation oldest = it.next().getValue().texture();
@@ -265,7 +265,7 @@ public final class JacketCache {
         }
         final java.awt.image.BufferedImage img = ImageIO.read(new ByteArrayInputStream(bytes));
         if (img == null) {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             throw new IOException("ImageIO could not decode the image");
             //?} elif >=1.21 {
             /*throw new IOException("ImageIO could not decode the image");
@@ -275,7 +275,7 @@ public final class JacketCache {
         }
         final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         if (!ImageIO.write(img, "png", out)) {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             throw new IOException("Failed to re-encode the image as PNG (no writer available)");
             //?} elif >=1.21 {
             /*throw new IOException("Failed to re-encode the image as PNG (no writer available)");

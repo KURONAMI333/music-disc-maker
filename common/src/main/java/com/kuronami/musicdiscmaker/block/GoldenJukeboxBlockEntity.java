@@ -88,7 +88,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 //?} elif >=1.21 {
@@ -168,8 +168,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
      * client の進捗バー計算用に同期する (wall-clock はマルチプレイで機体差があるため gameTime を使う)。
      */
     private long playbackStartGameTime = -1L;
-    /** True only while an active redstone signal owns the current pause. */
-    private boolean redstonePaused = false;
+    /** Sample the input on attachment; loading a powered chunk must not count as a new press. */
+    private boolean redstonePowerInitialized;
+    private boolean lastRedstonePower;
     /** Persisted proof that this medium reached its terminal end and may be exported. */
     private boolean automationFinished = false;
     //? if >=1.21 {
@@ -554,7 +555,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
         return songFor(disc).map(holder -> {
             final JukeboxSong song = holder.value();
-            //? if >=1.21.11 {
+            //? if >=1.21.2 {
             final String soundEventId = song.soundEvent().value().location().toString();
             //?} else {
             /*final String soundEventId = song.soundEvent().value().getLocation().toString();
@@ -637,12 +638,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     /**
-     * redstone 信号源 (再生中 = 15) の判定。
+     * 実再生状態の判定。比較器と隣接機構の更新に使う。
      *
      * <p><b>{@link #isVanillaPlaying()} で判定してはいけない</b> — あれは custom disc に貼った無音
      * バケット song の尺 (10 秒刻み・尺不明は 3600 秒・ラジオは 7200 秒) であって実曲の尺ではない。
-     * バケットで判定すると実曲が終わっても真下のホッパーが {@code ENABLED=false} のまま残り、
-     * ディスクが取り出せない (実尺 95 秒の曲でも 120 秒バケットなら 25 秒遅れる)。
+     * バケットで判定すると実曲が終わっても比較器が再生中の値を出し続け、終了通知が遅れる
+     * (実尺 95 秒の曲でも 120 秒バケットなら 25 秒遅れる)。
      *
      * <ul>
      * <li>一時停止中 → 0</li>
@@ -681,7 +682,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     /**
-     * redstone 信号が立ち上がった / 落ちた tick だけ neighbor を更新する。実尺での終了は
+     * 再生状態・比較器値が変わった tick だけ neighbor を更新する。実尺での終了は
      * {@code songPlayer} には見えず {@link #onSongChanged()} が呼ばれないので、ここが唯一の通知経路。
      * 毎 tick は撃たない。
      */
@@ -785,15 +786,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     /** 一時停止は位置を保つ。停止後の再生は先頭から始める。 */
     public void setPaused(boolean value) {
-        // A player action takes ownership from redstone, including an already-paused cursor.
-        final boolean ownershipChanged = redstonePaused;
-        redstonePaused = false;
         setPausedInternal(value);
-        if (ownershipChanged && value && isPaused()) {
-            setChanged();
-            refreshRedstoneSignal();
-            sync();
-        }
     }
 
     private void setPausedInternal(boolean value) {
@@ -816,29 +809,24 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
                 pausedOffsetMs = 0L;
             }
             startPlayback(pausedOffsetMs);
-            // A resume request while still powered is converted back into a redstone-owned hold.
-            // Preserve its seek offset until power is actually released.
             if (cursor.state() == PlaybackCursor.State.PLAYING) pausedOffsetMs = 0L;
         }
     }
 
-    /** Applies level-sensitive input and resumes only a pause created by that input. */
+    /** A rising edge toggles playback once; falling power only rearms the input. */
     private void updateRedstonePower() {
         if (!isServer()) return;
         final boolean powered = level.hasNeighborSignal(getBlockPos());
-        if (powered) {
-            if (!hasDisc() || redstonePaused || isPaused()) return;
-            if (cursor.state() == PlaybackCursor.State.PLAYING) {
-                redstonePaused = true;
-                setPausedInternal(true);
-            }
-        } else if (redstonePaused) {
-            redstonePaused = false;
-            if (hasDisc()) setPausedInternal(false);
-            else {
-                setChanged();
-                sync();
-            }
+        if (!redstonePowerInitialized) {
+            redstonePowerInitialized = true;
+            lastRedstonePower = powered;
+            return;
+        }
+        if (powered == lastRedstonePower) return;
+        lastRedstonePower = powered;
+        if (powered && hasDisc() && (!isMdmAlbum() || !mediaSequence.tracks().isEmpty())) {
+            // STOPPED and PAUSED both use the existing start/resume path; PLAYING pauses.
+            setPausedInternal(cursor.state() == PlaybackCursor.State.PLAYING);
         }
     }
 
@@ -1053,20 +1041,6 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             return;
         }
         automationFinished = false;
-        if (level.hasNeighborSignal(getBlockPos())) {
-            redstonePaused = true;
-            pausedOffsetMs = Math.max(0L, offsetMs);
-            if (cursor.state() == PlaybackCursor.State.PLAYING) {
-                stopAudio();
-                cursor = cursor.pause();
-            } else if (cursor.state() == PlaybackCursor.State.STOPPED) {
-                cursor = cursor.startAt(Math.max(0, cursor.discIndex()), Math.max(0, cursor.trackIndex())).pause();
-            }
-            refreshRedstoneSignal();
-            setChanged();
-            sync();
-            return;
-        }
         //? if >=1.21 {
         final ItemStack disc = effectiveDisc();
         //?} else {
@@ -1145,9 +1119,20 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 /*        level.levelEvent(EVENT_STOP_RECORD, getBlockPos(), 0);
         */
         //?}
-        // 旧chunk経路は常に維持する。Speaker設置直後でplayer別stateがまだ無くても既存clientを止める。
-        SpeakerPlayback.stop(this);
-        broadcast(new StopDiscPayload(getBlockPos(), playbackIdentity()));
+        // 聴取中に音源chunkの追跡を外れても、clientは有限距離の外でvoiceを保持しうる。
+        // Stopだけは同じ次元の全clientへ送る。半径判定では遠方の保持voiceを取り逃す。
+        SpeakerPlayback.stopWithoutSend(this);
+        final StopDiscPayload stop = new StopDiscPayload(getBlockPos(), playbackIdentity());
+        if (level instanceof ServerLevel serverLevel) {
+            Services.PLATFORM.sendMovingAudioStop(serverLevel, getBlockPos(), stop.identity());
+        }
+        // 従来のchunk通知は互換経路として維持。追跡者への重複Stopは同一世代で冪等。
+        broadcast(stop);
+        if (level instanceof ServerLevel serverLevel) {
+            for (ServerPlayer player : serverLevel.players()) {
+                Services.NETWORK.sendToPlayer(player, stop);
+            }
+        }
         //? if >=1.21 {
         //?} else {
 /*        if (wasPlaying) {
@@ -1165,17 +1150,22 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         automationFinished = false;
         rebuildMediaSequence();
         if (isServer()) {
+            // No ticker runs while the slot is empty. Sample power again on the next insert,
+            // so changes during the empty interval cannot become a phantom rising edge.
+            if (!hasDisc) {
+                redstonePowerInitialized = false;
+            } else if (!redstonePowerInitialized) {
+                redstonePowerInitialized = true;
+                lastRedstonePower = level.hasNeighborSignal(getBlockPos());
+            }
             final boolean keepPaused = isPaused();
-            final boolean poweredHold = hasDisc && level.hasNeighborSignal(getBlockPos());
-            if (!hasDisc) redstonePaused = false;
-            else if (poweredHold && !keepPaused) redstonePaused = true;
             cursor = cursor.clear();
             if (hasDisc) {
                 final MediaSequence.Position first = mediaSequence.first()
                         .map(MediaSequenceResolver.ResolvedTrack::position)
                         .orElse(new MediaSequence.Position(0, 0));
                 cursor = new PlaybackCursor(first.discIndex(), first.trackIndex(),
-                        keepPaused || poweredHold ? PlaybackCursor.State.PAUSED : PlaybackCursor.State.STOPPED,
+                        keepPaused ? PlaybackCursor.State.PAUSED : PlaybackCursor.State.STOPPED,
                         cursor.generation());
                 if (shuffle) {
                     setShuffleAnchor(first);
@@ -1192,7 +1182,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (!isServer()) {
             return;
         }
-        if (hasDisc && !isPaused() && !redstonePaused
+        if (hasDisc && !isPaused()
                 && (!isMdmAlbum() || !mediaSequence.tracks().isEmpty())) {
             startPlayback(0L);
         } else if (!hasDisc || (isMdmAlbum() && mediaSequence.tracks().isEmpty())) {
@@ -1226,7 +1216,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
     }
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     @Override
     public void preRemoveSideEffects(BlockPos pos, BlockState state) {
         super.preRemoveSideEffects(pos, state);
@@ -1236,6 +1226,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     @Override
     public void setRemoved() {
+        redstonePowerInitialized = false;
         GoldenSourceRegistry.unregister(this);
         SpeakerPlayback.remove(this);
         super.setRemoved();
@@ -1256,6 +1247,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     @Override
     public void clearRemoved() {
         super.clearRemoved();
+        redstonePowerInitialized = false;
         GoldenSourceRegistry.register(this);
     }
 
@@ -1531,7 +1523,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     // ── persistence (26.1.2: ValueInput/ValueOutput) ──
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
     //?} elif >=1.21 {
@@ -1544,7 +1536,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     */
     //?}
         items.clear();
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         ContainerHelper.loadAllItems(input, items);
         this.sourceId = parseSourceIdentity(input.getStringOr("source_id", ""));
         this.rangeBlocks = Mth.clamp(input.getIntOr("range", RANGE_DEFAULT), RANGE_MIN, RANGE_MAX);
@@ -1583,14 +1575,13 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         */
         //?}
         // 旧セーブ (この機能より前) には無いので、欠けていたら既定 = 従来の positional に倒す。
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         this.directional = input.getBooleanOr("directional", DIRECTIONAL_DEFAULT);
         final boolean restoredPaused = input.getBooleanOr("paused", false);
         final String restoredState = input.getStringOr("playbackState", "");
         final long generation = input.getLongOr("playbackGeneration", 0L);
         this.pausedOffsetMs = input.getLongOr("pausedOffset", 0L);
         this.playbackStartGameTime = input.getLongOr("playbackStartGameTime", -1L);
-        this.redstonePaused = input.getBooleanOr("redstonePaused", false);
         this.automationFinished = input.getBooleanOr("automationFinished", false);
         final int restoredDiscIndex = input.getIntOr("albumTrack", -1);
         final int restoredTrackIndex = input.getIntOr("playlistTrack", -1);
@@ -1602,7 +1593,6 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         this.pausedOffsetMs = tag.getLong("pausedOffset");
         this.playbackStartGameTime = tag.contains("playbackStartGameTime")
                 ? tag.getLong("playbackStartGameTime") : -1L;
-        this.redstonePaused = tag.getBoolean("redstonePaused");
         this.automationFinished = tag.getBoolean("automationFinished");
         final int restoredDiscIndex = tag.contains("albumTrack") ? tag.getInt("albumTrack") : -1;
         final int restoredTrackIndex = tag.contains("playlistTrack") ? tag.getInt("playlistTrack") : -1;
@@ -1615,7 +1605,6 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         this.pausedOffsetMs = tag.getLong("pausedOffset");
         this.playbackStartGameTime = tag.contains("playbackStartGameTime")
                 ? tag.getLong("playbackStartGameTime") : -1L;
-        this.redstonePaused = tag.getBoolean("redstonePaused");
         this.automationFinished = tag.getBoolean("automationFinished");
         final int restoredDiscIndex = tag.contains("albumTrack") ? tag.getInt("albumTrack") : 0;
         final int restoredTrackIndex = tag.contains("playlistTrack") ? tag.getInt("playlistTrack") : 0;
@@ -1646,17 +1635,18 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
         rebuildPlaybackSequence();
         if (!hasDisc()) {
-            redstonePaused = false;
             automationFinished = false;
         }
         comparatorLatch = -1;
+        // A restored block samples its current input instead of treating it as a new press.
+        redstonePowerInitialized = false;
         // アンカーに固定し、以降は client 自身の壁時計で進める。
         //? if >=26.1 {
         input.getLong(SYNC_ELAPSED_MS_KEY).ifPresent(syncElapsedMs -> {
             this.clientElapsedAnchorMs = syncElapsedMs;
             this.clientAnchorWallClockMs = playbackTimeMs();
         });
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
 /*        input.getLong(SYNC_ELAPSED_MS_KEY).ifPresent(elapsed -> {
             this.clientElapsedAnchorMs = elapsed;
             this.clientAnchorWallClockMs = playbackTimeMs();
@@ -1673,7 +1663,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         ContainerHelper.saveAllItems(output, items);
@@ -1689,7 +1679,6 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         output.putString("playbackState", cursor.state().name());
         output.putLong("playbackGeneration", cursor.generation());
         output.putBoolean("paused", isPaused());
-        output.putBoolean("redstonePaused", redstonePaused);
         output.putBoolean("automationFinished", automationFinished);
         output.putLong("pausedOffset", pausedOffsetMs);
         output.putLong("playbackStartGameTime", savedPlaybackStartGameTime());
@@ -1713,7 +1702,6 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         tag.putString("playbackState", cursor.state().name());
         tag.putLong("playbackGeneration", cursor.generation());
         tag.putBoolean("paused", isPaused());
-        tag.putBoolean("redstonePaused", redstonePaused);
         tag.putBoolean("automationFinished", automationFinished);
         tag.putLong("pausedOffset", pausedOffsetMs);
         tag.putLong("playbackStartGameTime", savedPlaybackStartGameTime());
@@ -1738,7 +1726,6 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         tag.putString("playbackState", cursor.state().name());
         tag.putLong("playbackGeneration", cursor.generation());
         tag.putBoolean("paused", isPaused());
-        tag.putBoolean("redstonePaused", redstonePaused);
         tag.putBoolean("automationFinished", automationFinished);
         tag.putLong("pausedOffset", pausedOffsetMs);
         tag.putLong("playbackStartGameTime", savedPlaybackStartGameTime());
@@ -1855,9 +1842,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     /** Only the terminal end of the whole medium may be exported. */
     public boolean isAutomationExtractionReady() {
-        return hasDisc() && automationFinished && cursor.state() == PlaybackCursor.State.STOPPED
-                && !redstonePaused && !isPaused()
-                && (level == null || !level.hasNeighborSignal(getBlockPos()));
+        return hasDisc() && automationFinished && cursor.state() == PlaybackCursor.State.STOPPED;
     }
 
     @Override

@@ -9,12 +9,12 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.renderer.RenderPipelines;
 //?} else {
 //?}
 import net.minecraft.network.chat.Component;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -30,7 +30,7 @@ import net.minecraft.world.item.ItemStack;
  */
 public class DiscDyeingTableScreen extends AbstractContainerScreen<DiscDyeingTableMenu> {
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static final Identifier TEXTURE =
             Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/disc_dyeing_table.png");
     //?} elif >=1.21 {
@@ -70,7 +70,7 @@ public class DiscDyeingTableScreen extends AbstractContainerScreen<DiscDyeingTab
         graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
                 0.0F, 0.0F, imageWidth, 99, 256, 256);
         VanillaPlayerInventoryBackground.draw(graphics, leftPos, topPos + 113);
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         // 1.21.11 の AbstractContainerScreen#render は renderTooltip を呼ばないので明示的に呼ぶ。
         super.render(g, mouseX, mouseY, partialTick);
@@ -90,7 +90,7 @@ public class DiscDyeingTableScreen extends AbstractContainerScreen<DiscDyeingTab
 
     @Override
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
-        g.blit(TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, 99, 256, 256);
+        GuiTextureBlit.blit(g, TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, 99, 256, 256);
         VanillaPlayerInventoryBackground.draw(g, leftPos, topPos + 113);
     *///?}
     }
@@ -111,7 +111,7 @@ public class DiscDyeingTableScreen extends AbstractContainerScreen<DiscDyeingTab
             g.item(preview, 0, 0);
             g.pose().popMatrix();
         }
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY);
         final ItemStack preview = menu.getPreviewStack();

@@ -57,12 +57,13 @@ public class BoomboxItem extends Item {
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
             final ItemStack stack = player.getItemInHand(hand);
             final BoomboxSource source = BoomboxSource.held(hand);
-            if (BoomboxMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
+            if (syncBudget.fits()) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
             } else if (player.isSecondaryUseActive()) {
                 OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverHeldBoombox(serverPlayer, stack));
             } else {
-                serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.boombox.open_too_large"), true);
+                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResult.SUCCESS;
@@ -72,12 +73,13 @@ public class BoomboxItem extends Item {
         final ItemStack stack = player.getItemInHand(hand);
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
             final BoomboxSource source = BoomboxSource.held(hand);
-            if (BoomboxMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
+            if (syncBudget.fits()) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
             } else if (player.isSecondaryUseActive()) {
                 OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverHeldBoombox(serverPlayer, stack));
             } else {
-                serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.boombox.open_too_large"), true);
+                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);

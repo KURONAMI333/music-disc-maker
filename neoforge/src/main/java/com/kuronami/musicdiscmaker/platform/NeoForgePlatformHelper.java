@@ -8,7 +8,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
 import net.neoforged.fml.ModList;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.neoforged.fml.loading.FMLEnvironment;
 //?} else {
 /*import net.neoforged.fml.loading.FMLLoader;
@@ -39,6 +39,17 @@ public class NeoForgePlatformHelper implements IPlatformHelper {
     }
 
     @Override
+    public void sendMovingAudioStop(net.minecraft.server.level.ServerLevel level,
+            net.minecraft.core.BlockPos pos,
+            com.kuronami.musicdiscmaker.network.PlaybackSourceStamp identity) {
+        //? if <1.21.2 {
+        /*if (isModLoaded("sable")) {
+            com.kuronami.musicdiscmaker.compat.aeronautics.SableServerAudio.stop(level, pos, identity);
+        }
+        *///?}
+    }
+
+    @Override
     public String getPlatformName() {
         return "NeoForge";
     }
@@ -50,7 +61,7 @@ public class NeoForgePlatformHelper implements IPlatformHelper {
 
     @Override
     public boolean isDevelopmentEnvironment() {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return !FMLEnvironment.isProduction();
         //?} else {
 /*        return !FMLLoader.isProduction();

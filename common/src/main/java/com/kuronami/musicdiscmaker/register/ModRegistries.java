@@ -13,6 +13,8 @@ public final class ModRegistries {
     public static void init() {
         ModBlocks.init();
         ModBlockEntities.init();
+        // entity は item より先に (GoldenJukeboxMinecartItem 生成時に entity type を参照する帯がある)
+        ModEntities.init();
         ModItems.init();
         ModRecipeSerializers.init();
         //? if >=1.21 {

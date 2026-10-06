@@ -50,6 +50,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "El motor de sonido del juego no aceptó este sonido",
   "music_disc_maker.playback_failed.reason.muted": "El volumen está en 0 (revisa Volumen general y Bloques musicales en Opciones de música y sonido)",
   "music_disc_maker.radio.reconnecting": "Reconectando a la radio… (%s/%s)",
+  "music_disc_maker.playback.resuming": "Se perdió la conexión. Reanudando la reproducción… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio detenida (fallo de reconexión)",
   "block.music_disc_maker.golden_jukebox": "Tocadiscos dorado",
   "gui.music_disc_maker.golden_jukebox.title": "Tocadiscos dorado",
@@ -74,5 +75,6 @@
   "gui.music_disc_maker.speaker.muted": "Silenciado por redstone",
   "gui.music_disc_maker.speaker.active": "Sin señal de redstone",
   "tooltip.music_disc_maker.album.empty": "Sin discos",
-  "tooltip.music_disc_maker.album.contents": "%s discos"
+  "tooltip.music_disc_maker.album.contents": "%s discos",
+  "message.music_disc_maker.storage_sync_failed": "No se pudieron sincronizar los datos del disco. Se canceló esta acción."
 }

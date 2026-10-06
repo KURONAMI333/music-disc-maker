@@ -33,6 +33,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class LivePlaybackRegistryGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -49,7 +57,7 @@ public class LivePlaybackRegistryGameTests {
      * <b>これが今回の回帰テスト。</b> 同じ曲の周期再送で、指向性・範囲・音量が鳴っている音源へ
      * 届くこと。届いた上で、鳴らし直し (再ロード) はしないこと。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -70,7 +78,7 @@ public class LivePlaybackRegistryGameTests {
     }
 
     /** 再送のたびに現在値が届き続けること (1 回だけ効いて以後固まる、にならない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -88,7 +96,7 @@ public class LivePlaybackRegistryGameTests {
     }
 
     /** 曲が変われば、古い音源を止めてから新しいロードへ進むこと。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -112,7 +120,7 @@ public class LivePlaybackRegistryGameTests {
      * ロードしている間に曲が変わっていたら、遅れて完了した古い曲は鳴らさずに捨てること。
      * ここが無いと、差し替えた直後に古い曲が上書きで鳴り出す。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -134,7 +142,7 @@ public class LivePlaybackRegistryGameTests {
      * ロード中の同じ URL の再送はロードを重ねないこと。<b>ここを世代トークンにすると</b>、
      * 再送間隔 (1 秒) より遅い音源が一度も鳴らなくなる (常に後発が先発を打ち消す)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -157,7 +165,7 @@ public class LivePlaybackRegistryGameTests {
     }
 
     /** 失敗した直後は繋ぎ直さないこと (1Hz の再送でチャットとログが埋まらない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -181,7 +189,7 @@ public class LivePlaybackRegistryGameTests {
      * 経路は閉じている (繋ぎ直さないので成功しようがない) ので、DNS の一瞬の失敗ひとつで
      * その音源は<b>恒久的に無音</b>になっていた。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -203,7 +211,7 @@ public class LivePlaybackRegistryGameTests {
     }
 
     /** 失敗が続いても諦めないこと。待ち時間は伸びるが上限で頭打ちにする。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -225,7 +233,7 @@ public class LivePlaybackRegistryGameTests {
      *
      * <p>忘れないと「失敗 → 復帰 → 同じ失敗」で 2 回目が黙る。掛け金を別の形で戻すことになる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

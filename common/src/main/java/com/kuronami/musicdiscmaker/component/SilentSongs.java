@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.component;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import java.util.ArrayList;
 import java.util.List;
 

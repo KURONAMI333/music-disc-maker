@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.gametest;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import java.util.function.Consumer;
 
 import com.mojang.serialization.MapCodec;

@@ -44,6 +44,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class PlaybackSessionGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -70,7 +79,7 @@ public class PlaybackSessionGameTests {
      * <p>座標だけで判定していた頃はここで A も鳴り始め、{@code active} は後から書いた B しか
      * 覚えていないので A は二度と止められなかった。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -104,7 +113,7 @@ public class PlaybackSessionGameTests {
      * <b>完了順の逆 (B → A)。</b> 差し替え後の B が先に鳴り始め、遅れて A が完了する順番。
      * A は捨てられ、鳴っている B は止められてはならない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -130,7 +139,7 @@ public class PlaybackSessionGameTests {
      * 世代判定をすり抜けた同時完了の防波堤。同じ世代で 2 つ登録されたら、<b>前のものは必ず
      * 止めてから</b>置き換えること。ここが素の上書きだと、覚えていない方が鳴りっぱなしになる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -150,7 +159,7 @@ public class PlaybackSessionGameTests {
     }
 
     /** 停止したら、ロード中の要求も完了時点で捨てられること (停止が空振りしない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -171,7 +180,7 @@ public class PlaybackSessionGameTests {
      * chunk 再入の再送は鳴らし直さず、聴取モデルだけその場で取り込むこと。
      * ここが「毎回ロードし直す」に倒れると、遠くから戻るたびに音が飛ぶ。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -193,7 +202,7 @@ public class PlaybackSessionGameTests {
      * 同じ URL の別の盤内位置を開始直後に選ぶと、停止なしでは chunk 再送と区別できない。
      * Golden Jukebox はこの組合せで StopDiscPayload を先に送るため、後半の start は新規ロードになる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -220,7 +229,7 @@ public class PlaybackSessionGameTests {
     }
 
     /** GUI のシーク (現在位置から大きく離れた頭出し) は dedup せず、鳴らし直すこと。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -240,7 +249,7 @@ public class PlaybackSessionGameTests {
      * ラジオの瞬断は上限まで再接続し、超えたら諦めて理由を 1 度だけ出すこと。
      * 諦めた後は世代が進むので、遅れて届く報告は黙る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -277,7 +286,7 @@ public class PlaybackSessionGameTests {
     }
 
     /** 安定して鳴っていた後の瞬断は、試行回数をリセットして数え直すこと。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -308,7 +317,7 @@ public class PlaybackSessionGameTests {
      * 一度も {@code install} されていない = どの再生マップにも現れない要求が対象なので、
      * 「鳴っているものを畳む」だけの実装では取り落とす。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -331,7 +340,7 @@ public class PlaybackSessionGameTests {
      * <p>再送は「鳴らし直さない」経路なので、ここで抑止の記憶を消してはいけない。消すと、
      * ラジオが同じ理由で落ち直すたびにチャットへ同じ行が積まれる (再送は 1 秒間隔で来る)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -353,7 +362,7 @@ public class PlaybackSessionGameTests {
     }
 
     /** 止めた再生の後始末では黙ること (鳴らしていない再生の失敗をチャットに出さない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -386,7 +395,7 @@ public class PlaybackSessionGameTests {
      * 再生要求は必ず {@code stop} を通ってから新しい世代を起こすので、chunk 再入のたびに
      * 「初めての失敗」に戻る。ここではその再入をそのまま再現している。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -412,7 +421,7 @@ public class PlaybackSessionGameTests {
     }
 
     /** 一度鳴り始めたら記憶を捨てること (直った後にまた弾かれたら、それは新しい出来事)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -447,7 +456,7 @@ public class PlaybackSessionGameTests {
      * 実 pool の上限を越えてねじ込むことになる。溢れた分はバニラが警告なしに落とすので、
      * 症状は「無言で鳴らない」。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -487,7 +496,7 @@ public class PlaybackSessionGameTests {
      * ブームボックスのロード完了が金ジュークの {@code playingUrl} を落としうる。落ちるのは
      * <b>既に止まっている音源の分だけ</b>で、鳴っている再生の再送 dedup は生き残る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -507,6 +516,146 @@ public class PlaybackSessionGameTests {
         helper.assertFalse(resend.load(),
                 "共有の掃除が金ジュークの再送 dedup を壊している (chunk 再入のたびに鳴らし直す)");
         helper.assertFalse(voice.directional, "再送の聴取モデルが反映されていない");
+        helper.succeed();
+    }
+
+    /**
+     * 有限曲が再生途中で回線障害に倒れた client は、server と同じ壁時計の現在位置から開き直す。
+     * 金ジュークの server は再生中に定期再送しないので、これが無いと曲の残りがその client だけ無音になる
+     * (CF 報告「一人だけ鳴らない、他の人には聞こえる」)。開き直した後も chunk 再入の再送は dedup される。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void midTrackNetworkDropResumesAtServerPosition(GameTestHelper helper) {
+        final AtomicLong clock = new AtomicLong(CLOCK_START);
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>(clock::get, clock::get);
+        final PlaybackSessions.StartDecision start = sessions.start(JUKEBOX, TRACK_A, 20_000L, 0, 100, true);
+        final FakeVoice first = new FakeVoice("A-first");
+        helper.assertTrue(sessions.install(JUKEBOX, start.token(), TRACK_A.url(), 20_000L, first), "install");
+        clock.addAndGet(45_000L);
+
+        final PlaybackSessions.FiniteResume resume = sessions.finiteStreamFailed(JUKEBOX, start.token(),
+                PlaybackFailure.ofReason(FailureReason.CONNECTION_FAILED, "starved"));
+        helper.assertValueEqual(resume.kind(), PlaybackSessions.ReconnectKind.RETRY, "回線断で開き直さない");
+        helper.assertValueEqual(resume.offsetMs(), 65_000L, "server と同じ現在位置から開き直していない");
+        helper.assertTrue(first.stopped, "途切れた voice が畳まれていない");
+        helper.assertTrue(sessions.isLive(JUKEBOX, start.token()), "開き直す世代が失効している");
+
+        final FakeVoice resumed = new FakeVoice("A-resumed");
+        helper.assertTrue(sessions.install(JUKEBOX, start.token(), TRACK_A.url(), resume.offsetMs(), resumed),
+                "開き直したロードが登録できない");
+        clock.addAndGet(10_000L);
+        helper.assertFalse(sessions.start(JUKEBOX, TRACK_A, 75_000L, 0, 100, true).load(),
+                "開き直した後の chunk 再送をシークと誤判定して鳴らし直した");
+        helper.succeed();
+    }
+
+    /** 開き直しは有限回。安定前に落ち続ければ諦めて従来どおり理由を出す。確定的な失敗・残り僅かは開き直さない。 */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void midTrackResumeIsBoundedAndSkipsPermanentOrEndingTracks(GameTestHelper helper) {
+        final AtomicLong clock = new AtomicLong(CLOCK_START);
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>(clock::get, clock::get);
+        final PlaybackFailure network = PlaybackFailure.ofReason(FailureReason.CONNECTION_FAILED, "starved");
+        final PlaybackSessions.StartDecision start = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        long offset = 0L;
+        for (int attempt = 1; attempt <= PlaybackSessions.MAX_FINITE_RESUME; attempt++) {
+            sessions.install(JUKEBOX, start.token(), TRACK_A.url(), offset, new FakeVoice("A" + attempt));
+            clock.addAndGet(5_000L);
+            final PlaybackSessions.FiniteResume resume = sessions.finiteStreamFailed(JUKEBOX, start.token(), network);
+            helper.assertValueEqual(resume.kind(), PlaybackSessions.ReconnectKind.RETRY, "上限内で開き直さない");
+            offset = resume.offsetMs();
+        }
+        sessions.install(JUKEBOX, start.token(), TRACK_A.url(), offset, new FakeVoice("A-last"));
+        clock.addAndGet(5_000L);
+        helper.assertValueEqual(sessions.finiteStreamFailed(JUKEBOX, start.token(), network).kind(),
+                PlaybackSessions.ReconnectKind.GIVE_UP, "上限を超えても開き直し続けた");
+
+        final PlaybackSessions.StartDecision removed = sessions.start(JUKEBOX, TRACK_B, 0L, 0, 100, true);
+        sessions.install(JUKEBOX, removed.token(), TRACK_B.url(), 0L, new FakeVoice("B"));
+        clock.addAndGet(10_000L);
+        helper.assertValueEqual(sessions.finiteStreamFailed(JUKEBOX, removed.token(),
+                PlaybackFailure.ofReason(FailureReason.PRIVATE_OR_REMOVED, null)).kind(),
+                PlaybackSessions.ReconnectKind.NONE, "非公開・削除済みを開き直した");
+
+        final PlaybackSessions.StartDecision ending = sessions.start(JUKEBOX, TRACK_A, 177_000L, 0, 100, true);
+        sessions.install(JUKEBOX, ending.token(), TRACK_A.url(), 177_000L, new FakeVoice("A-end"));
+        helper.assertValueEqual(sessions.finiteStreamFailed(JUKEBOX, ending.token(), network).kind(),
+                PlaybackSessions.ReconnectKind.NONE, "残り僅かな曲を開き直した");
+
+        final PlaybackSessions.StartDecision radio = sessions.start(JUKEBOX, RADIO, 0L, 0, 100, true);
+        sessions.install(JUKEBOX, radio.token(), RADIO.url(), 0L, new FakeVoice("radio"));
+        helper.assertValueEqual(sessions.finiteStreamFailed(JUKEBOX, radio.token(), network).kind(),
+                PlaybackSessions.ReconnectKind.NONE, "ラジオを有限曲の経路で開き直した (既存の再接続と二重になる)");
+        helper.succeed();
+    }
+
+    /**
+     * 同じ失敗は push と pull から 2 回届く。開き直しを決めた後の 2 通目と、開き直した後に遅れて届く旧 voice の
+     * 通知は黙らせる (2 通目が失敗としてチャットに出たり、開き直した voice を畳んだりしない)。
+     * 開き直し位置は再生時計で数える。シングルプレイの一時停止中は壁時計だけが進むので、その差を位置に足さない。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void midTrackResumeIgnoresDuplicateAndStaleNoticesAndPausedTime(GameTestHelper helper) {
+        final AtomicLong wall = new AtomicLong(CLOCK_START);
+        final AtomicLong playback = new AtomicLong(CLOCK_START);
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>(wall::get, wall::get, playback::get);
+        final PlaybackFailure network = PlaybackFailure.ofReason(FailureReason.CONNECTION_FAILED, "starved");
+        final PlaybackSessions.StartDecision start = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
+        final FakeVoice first = new FakeVoice("A-first");
+        sessions.install(JUKEBOX, start.token(), TRACK_A.url(), 0L, first);
+
+        wall.addAndGet(20_000L); playback.addAndGet(20_000L);   // 20 s 鳴る
+        wall.addAndGet(120_000L);                                 // ゲームを 120 s 一時停止 (再生時計は止まる)
+        final PlaybackSessions.FiniteResume resume =
+                sessions.finiteStreamFailed(JUKEBOX, start.token(), network, first);
+        helper.assertValueEqual(resume.kind(), PlaybackSessions.ReconnectKind.RETRY, "回線断で開き直さない");
+        helper.assertValueEqual(resume.offsetMs(), 20_000L, "一時停止していた時間を開き直し位置に足した");
+
+        final PlaybackSessions.FiniteResume duplicate =
+                sessions.finiteStreamFailed(JUKEBOX, start.token(), network, first);
+        helper.assertTrue(duplicate.superseded(), "同じ失敗の 2 通目を黙らせていない (開き直し中に失敗表示が出る)");
+
+        final FakeVoice resumed = new FakeVoice("A-resumed");
+        sessions.install(JUKEBOX, start.token(), TRACK_A.url(), resume.offsetMs(), resumed);
+        final PlaybackSessions.FiniteResume stale =
+                sessions.finiteStreamFailed(JUKEBOX, start.token(), network, first);
+        helper.assertTrue(stale.superseded() && !resumed.stopped,
+                "遅れて届いた旧 voice の通知が開き直した voice を畳んだ");
+        helper.assertValueEqual(sessions.finiteStreamFailed(JUKEBOX, start.token(), network, resumed).kind(),
+                PlaybackSessions.ReconnectKind.RETRY, "開き直した voice 自身の失敗は再び開き直す");
+        helper.succeed();
+    }
+
+    /**
+     * 理由なしの EOF の後、失敗理由が push で遅れて届くまでの間に、別音源のロードが共有の掃除 ({@code sweep})
+     * で止まった voice を外しても、遅れて届いた本物の失敗は開き直しへ進む (処理済みの旧 voice と取り違えない)。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void midTrackResumeSurvivesSweepBeforeLateFault(GameTestHelper helper) {
+        final AtomicLong clock = new AtomicLong(CLOCK_START);
+        final PlaybackSessions<BlockPos> sessions = new PlaybackSessions<>(clock::get, clock::get, clock::get);
+        final PlaybackSessions.StartDecision start = sessions.start(JUKEBOX, TRACK_A, 10_000L, 0, 100, true);
+        final FakeVoice voice = new FakeVoice("A");
+        sessions.install(JUKEBOX, start.token(), TRACK_A.url(), 10_000L, voice);
+        clock.addAndGet(30_000L);
+        voice.stopped = true;   // 理由なしの EOF で channel が外れた
+        sessions.sweep();       // 別音源のロード完了が共有の掃除を走らせた
+        final PlaybackSessions.FiniteResume resume = sessions.finiteStreamFailed(JUKEBOX, start.token(),
+                PlaybackFailure.ofReason(FailureReason.CONNECTION_FAILED, "late push"), voice);
+        helper.assertFalse(resume.superseded(), "掃除の後に届いた本物の失敗を処理済みとして捨てた (無音のまま残る)");
+        helper.assertValueEqual(resume.kind(), PlaybackSessions.ReconnectKind.RETRY, "掃除の後の失敗で開き直さない");
+        helper.assertValueEqual(resume.offsetMs(), 40_000L, "掃除で位置を失い、正しい位置から開き直していない");
         helper.succeed();
     }
 }

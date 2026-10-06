@@ -22,6 +22,19 @@ public final class TrackAudioResolver {
     public static OpenStreamResult openSynced(CustomTrackData track, long startMs, long requestedAtMs) throws Exception {
         return openInternal(track, startMs, requestedAtMs);
     }
+    /** Optional source-aware dispatch; the captured selection is also the prefetch decision. */
+    public static OpenStreamResult openSyncedForPlayback(CustomTrackData track, long startMs, long requestedAtMs,
+            PlaybackSessionId sessionId, PlaybackSourceContext sourceContext, PlaybackSelection selection,
+            java.util.function.Consumer<Throwable> failureSink, java.util.function.BooleanSupplier stillCurrent) throws Exception {
+        if (track == null || track.isLocal() || sessionId == null || sourceContext == null
+                || selection == null || !selection.selected()) return openInternal(track, startMs, requestedAtMs);
+        UrlGuard.enforce(track.url());
+        PlaybackSessionRequest request = new PlaybackSessionRequest(sessionId, sourceContext, track,
+                Math.max(0L, startMs), requestedAtMs);
+        var extension = PlaybackSessionRegistry.tryOpen(request, selection, failureSink, stillCurrent);
+        return extension.isPresent() ? OpenStreamResult.ok(extension.get())
+                : openInternal(track, startMs, requestedAtMs);
+    }
     public static long actualOffset(IAudioSource source, long fallback) {
         return source instanceof LocalSource local ? local.offset : fallback;
     }
@@ -35,7 +48,7 @@ public final class TrackAudioResolver {
             long elapsed = requestedAtMs < 0 ? 0 : Math.max(0, playbackClockMs() - requestedAtMs);
             long offset = Math.max(0, startMs) + elapsed;
             var result = LoaderHolder.get().openTrustedFileDetailed(path, offset);
-            if (!result.isOk()) throw new java.io.IOException("Invalid local MP3");
+            if (!result.isOk()) throw new java.io.IOException("Invalid local audio");
             return OpenStreamResult.ok(new LocalSource(result.source(), offset));
         } catch (Exception e) { throw new com.kuronami.musicdiscmaker.audio.local.LocalAudioException(e); }
     }

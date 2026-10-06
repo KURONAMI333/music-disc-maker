@@ -5,7 +5,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 //?} else {
@@ -14,7 +14,7 @@ import net.minecraft.resources.Identifier;
 
 /** Player inventory region drawn from the same resource and UVs as vanilla ContainerScreen. */
 final class VanillaPlayerInventoryBackground {
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static final Identifier TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
     //?} elif >=1.21 {
     /*private static final ResourceLocation TEXTURE = ResourceLocation.withDefaultNamespace("textures/gui/container/generic_54.png");
@@ -30,11 +30,11 @@ final class VanillaPlayerInventoryBackground {
     /*static void draw(GuiGraphics graphics, int left, int firstSlotY) {
     *///?}
         // The first slot is at source y=140; the inventory slice begins at y=126.
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, left, firstSlotY - 14,
                 0.0F, 126.0F, 176, 96, 256, 256);
         //?} else {
-        /*graphics.blit(TEXTURE, left, firstSlotY - 14, 0.0F, 126.0F, 176, 96, 256, 256);
+        /*GuiTextureBlit.blit(graphics, TEXTURE, left, firstSlotY - 14, 0.0F, 126.0F, 176, 96, 256, 256);
         *///?}
     }
 
@@ -47,10 +47,10 @@ final class VanillaPlayerInventoryBackground {
     //?} else {
     /*static void draw(GuiGraphics graphics, int x, int y, float u, float v, int w, int h) {
     *///?}
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, x, y, u, v, w, h, 256, 256);
         //?} else {
-        /*graphics.blit(TEXTURE, x, y, u, v, w, h, 256, 256);
+        /*GuiTextureBlit.blit(graphics, TEXTURE, x, y, u, v, w, h, 256, 256);
         *///?}
     }
 }

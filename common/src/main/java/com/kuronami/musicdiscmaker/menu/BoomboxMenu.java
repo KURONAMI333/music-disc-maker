@@ -63,7 +63,7 @@ public class BoomboxMenu extends AbstractContainerMenu {
     private final int sourceInventorySlot;
     private int sourceMenuSlot = -1;
     private boolean loading;
-    private boolean storageRejected;
+    private AlbumStorageBudget.Result storageFailure;
     private ItemStack resolvedMedium = ItemStack.EMPTY;
     @Nullable private MediaSequenceResolver.ResolvedSequence resolvedSequence;
     private BoomboxPlaybackState playbackState = new BoomboxPlaybackState(PlaybackCursor.initial(), 0L,
@@ -121,18 +121,22 @@ public class BoomboxMenu extends AbstractContainerMenu {
 
     /** 初回の一括packetに残す媒体枠を実codecで検査する。player inventoryはslot単位へ分ける。 */
     public static boolean fitsInitialMenuSync(Inventory inventory, BoomboxSource source) {
+        return inspectInitialMenuSync(inventory, source).fits();
+    }
+
+    public static AlbumStorageBudget.Result inspectInitialMenuSync(Inventory inventory, BoomboxSource source) {
         final Player player = inventory.player;
         final BoomboxBlockEntity placed = source.isPlaced()
                 && player.level().getBlockEntity(source.pos()) instanceof BoomboxBlockEntity be ? be : null;
         final ItemStack machine = resolveMachine(player, source, placed);
-        if (!isBoombox(machine) || !matchesExpectedId(source, machine)) return false;
+        if (!isBoombox(machine) || !matchesExpectedId(source, machine)) return AlbumStorageBudget.invalidSource();
         final List<ItemStack> initial = new ArrayList<>(1 + Inventory.INVENTORY_SIZE);
         initial.add(contentsOf(machine).disc().copy());
         for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) initial.add(ItemStack.EMPTY);
         //? if >=1.21 {
-        return AlbumStorageBudget.fitsInitialMenuSync(initial, ItemStack.EMPTY, player.level().registryAccess());
+        return AlbumStorageBudget.inspectInitialMenuSync(initial, ItemStack.EMPTY, player.level().registryAccess());
         //?} else {
-        /*return AlbumStorageBudget.fitsInitialMenuSync(initial, ItemStack.EMPTY);
+        /*return AlbumStorageBudget.inspectInitialMenuSync(initial, ItemStack.EMPTY);
         *///?}
     }
 
@@ -229,39 +233,34 @@ public class BoomboxMenu extends AbstractContainerMenu {
         final ItemStack candidate = machine.copy();
         storeContents(candidate, contentsOf(machine).withDisc(stack));
         //? if >=1.21 {
-        final boolean accepted = AlbumStorageBudget.fits(candidate, owner.level().registryAccess())
-                && AlbumStorageBudget.fitsMenuSync(prospectiveMenuSlots(candidate, stack), getCarried().copy(),
-                        owner.level().registryAccess());
+        AlbumStorageBudget.Result result = AlbumStorageBudget.inspect(candidate, owner.level().registryAccess()).at(AlbumStorageBudget.Stage.BOOMBOX);
+        if (result.fits()) result = AlbumStorageBudget.inspectMenuSync(prospectiveMenuSlots(candidate, stack), getCarried().copy(), owner.level().registryAccess());
         //?} else {
-        /*final boolean accepted = AlbumStorageBudget.fits(candidate)
-                && AlbumStorageBudget.fitsMenuSync(prospectiveMenuSlots(candidate, stack), getCarried().copy());
+        /*AlbumStorageBudget.Result result = AlbumStorageBudget.inspect(candidate).at(AlbumStorageBudget.Stage.BOOMBOX);
+        if (result.fits()) result = AlbumStorageBudget.inspectMenuSync(prospectiveMenuSlots(candidate, stack), getCarried().copy());
         *///?}
-        if (!accepted) storageRejected = true;
-        return accepted;
+        if (!result.fits()) storageFailure = result;
+        return result.fits();
     }
 
+    /**
+     * 媒体枠・入力元・更新後の機体とcursorだけをクリックpacketの保守上界に含める。
+     * 旧媒体は交換先のhotbarまたはcursorへ移るため残す。無関係な所持品は個別slot同期で送られる。
+     */
     private List<ItemStack> prospectiveMenuSlots(ItemStack candidateMachine, ItemStack inserted) {
-        final List<ItemStack> prospective = new ArrayList<>(slots.size() + 2);
-        for (int i = 0; i < slots.size(); i++) {
-            if (i == MEDIA_SLOT) prospective.add(inserted.copy());
-            else if (i == sourceMenuSlot) prospective.add(candidateMachine);
-            else prospective.add(slots.get(i).getItem().copy());
-        }
-        prospective.add(inserted.copy());
-        if (sourceMenuSlot < 0) prospective.add(candidateMachine);
-        return prospective;
+        return List.of(inserted.copy(), candidateMachine, inserted.copy(), contents.getItem(MEDIA_SLOT).copy());
     }
 
     //? if >=26.1 {
     @Override public void clicked(int slotId, int button, ContainerInput input, Player player) {
-        storageRejected = false;
+        storageFailure = null;
         if (!stillValid(player) || (input == ContainerInput.SWAP && isSourceSwapButton(button))) return;
         super.clicked(slotId, button, input, player);
         notifyStorageRejected();
     }
     //?} else {
     /*@Override public void clicked(int slotId, int button, ClickType input, Player player) {
-        storageRejected = false;
+        storageFailure = null;
         if (!stillValid(player) || (input == ClickType.SWAP && isSourceSwapButton(button))) return;
         super.clicked(slotId, button, input, player);
         notifyStorageRejected();
@@ -277,7 +276,7 @@ public class BoomboxMenu extends AbstractContainerMenu {
         if (index == MEDIA_SLOT) {
             if (!moveItemStackTo(stack, PLAYER_SLOTS_START, slots.size(), true)) return ItemStack.EMPTY;
         } else {
-            storageRejected = false;
+            storageFailure = null;
             if (!mayStore(stack) || !moveItemStackTo(stack, MEDIA_SLOT, PLAYER_SLOTS_START, false)) {
                 notifyStorageRejected();
                 return ItemStack.EMPTY;
@@ -326,9 +325,10 @@ public class BoomboxMenu extends AbstractContainerMenu {
         if (source.isEquipped()) {
             final CuriosEquipmentAccess.Entry equipped = CuriosEquipmentAccess.resolve(
                     owner, source.equipmentSlot(), source.equipmentIndex());
-            if (equipped == null || !matchesExpectedId(source, equipped.stack())) return false;
-            // client側ではItemStack参照がmenuを開いた時点と一致する保証がない。server側だけ、開いた
-            // 実物と現在のslot実物が同じ参照であることまで要求し、差し替え後の別機体へ書かない。
+            if (equipped == null || !isBoombox(equipped.stack())) return false;
+            // open要求で未採番機体にserverがIDを付けるため、clientのCurios slot同期はmenu openより
+            // 後になる場合がある。clientはslotとitem種別だけを確認し、machine IDと参照同一性は
+            // serverが現在の実物に対して再検査する。
             return !authoritative || (equipped.stack() == machine && matchesExpectedId(source, machine));
         }
         if (!source.isHeld()) return false;
@@ -373,10 +373,10 @@ public class BoomboxMenu extends AbstractContainerMenu {
     }
 
     private void notifyStorageRejected() {
-        if (storageRejected && authoritative && owner instanceof ServerPlayer player) {
-            player.sendSystemMessage(Component.translatable("message.music_disc_maker.boombox.storage_too_large"), true);
+        if (storageFailure != null && authoritative && owner instanceof ServerPlayer player) {
+            player.sendSystemMessage(Component.translatable(storageFailure.rejectionKey("message.music_disc_maker.boombox.storage_too_large")), true);
         }
-        storageRejected = false;
+        storageFailure = null;
     }
 
     private static int findInventorySlot(Inventory inventory, ItemStack stack) {

@@ -11,7 +11,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -25,7 +25,7 @@ import net.minecraft.world.entity.player.Inventory;
 /** 固定speakerの音量を調整する画面。 */
 public final class SpeakerScreen extends AbstractContainerScreen<SpeakerMenu> {
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static final Identifier PANEL_TEXTURE =
             Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/speaker.png");
     //?} elif >=1.21 {
@@ -64,7 +64,7 @@ public final class SpeakerScreen extends AbstractContainerScreen<SpeakerMenu> {
         if (volumeSlider != null && !volumeSlider.editing) volumeSlider.setFromServer(menu.getVolumePercent());
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         final var focused = getFocused();
@@ -110,11 +110,11 @@ public final class SpeakerScreen extends AbstractContainerScreen<SpeakerMenu> {
     //?} else {
     /*private void drawPanel(GuiGraphics graphics) {
     *///?}
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         graphics.blit(RenderPipelines.GUI_TEXTURED, PANEL_TEXTURE, leftPos, topPos,
                 0.0F, 0.0F, imageWidth, imageHeight, imageWidth, imageHeight);
         //?} else {
-        /*graphics.blit(PANEL_TEXTURE, leftPos, topPos, 0.0F, 0.0F,
+        /*GuiTextureBlit.blit(graphics, PANEL_TEXTURE, leftPos, topPos, 0.0F, 0.0F,
                 imageWidth, imageHeight, imageWidth, imageHeight);
         *///?}
     }
@@ -161,7 +161,7 @@ public final class SpeakerScreen extends AbstractContainerScreen<SpeakerMenu> {
         }
 
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
             final boolean handled = super.mouseClicked(event, doubleClick);
             editing = handled && event.button() == 0;

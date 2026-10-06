@@ -28,7 +28,9 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.minecraft.util.ProblemReporter;
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.TagValueInput;
+//?}
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import java.util.UUID;
@@ -36,12 +38,43 @@ import java.util.UUID;
 //?}
 
 /** 固定スピーカーの registry 経由の接続、解除、mute と支持状態を確認する。 */
+//? if >=1.21.2 && <1.21.11 {
+/*import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder("music_disc_maker")
+@PrefixGameTestTemplate(false)
+*///?}
 public final class SpeakerCoreGameTests {
 
     private SpeakerCoreGameTests() {
     }
 
     //? if >=1.21.2 {
+    private static String dimensionId(ServerLevel level) {
+        //? if >=1.21.11 {
+        return level.dimension().identifier().toString();
+        //?} else {
+        /*return level.dimension().location().toString();
+        *///?}
+    }
+
+    private static void loadState(net.minecraft.world.level.block.entity.BlockEntity entity,
+            ServerLevel level, CompoundTag tag) {
+        //? if >=1.21.11 {
+        entity.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), tag));
+        //?} else {
+        /*entity.loadWithComponents(tag, level.registryAccess());
+        *///?}
+    }
+    //?}
+
+
+    //? if >=1.21.2 {
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void fenceSupportsPlacementAndRemovalStillDropsSpeaker(GameTestHelper helper) {
         final BlockPos support = new BlockPos(4, 1, 4);
         final BlockPos speakerPos = support.above();
@@ -50,7 +83,7 @@ public final class SpeakerCoreGameTests {
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.SPEAKER.get()));
         ModItems.SPEAKER.get().useOn(new UseOnContext(player, InteractionHand.MAIN_HAND,
                 hit(helper.absolutePos(support), Direction.UP)));
-        helper.assertTrue(helper.getBlockEntity(speakerPos, SpeakerBlockEntity.class) != null,
+        helper.assertTrue(GameTestBlockEntities.get(helper, speakerPos, SpeakerBlockEntity.class) != null,
                 "Speaker cannot be placed on the center of a fence");
         helper.assertTrue(player.getMainHandItem().isEmpty(), "Placed speaker was not consumed");
         helper.setBlock(support, Blocks.AIR.defaultBlockState());
@@ -59,13 +92,16 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void linksClearsAndMutesWithoutChangingTheSource(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos source = helper.absolutePos(new BlockPos(1, 1, 1));
         final BlockPos rel = new BlockPos(3, 1, 3);
         final BlockPos pos = helper.absolutePos(rel);
         helper.setBlock(rel, ModBlocks.SPEAKER.get().defaultBlockState());
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(rel, SpeakerBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, rel, SpeakerBlockEntity.class);
         if (speaker == null) {
             helper.fail("speaker BlockEntity が registry 経由で生成されていない", rel);
             return;
@@ -93,6 +129,9 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void exposesAllFaceAndFacingStates(GameTestHelper helper) {
         final var state = ModBlocks.SPEAKER.get().defaultBlockState()
                 .setValue(SpeakerBlock.FACE, AttachFace.CEILING)
@@ -120,6 +159,9 @@ public final class SpeakerCoreGameTests {
     }
 
     /** 最後の 1 個でも、BlockItem が消費する前に捕捉した Golden リンクを設置先へ渡す。 */
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void lastSpeakerItemKeepsGoldenLinkWhenPlaced(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos sourceRel = new BlockPos(1, 1, 1);
@@ -136,7 +178,7 @@ public final class SpeakerCoreGameTests {
         player.setShiftKeyDown(false);
         ModItems.SPEAKER.get().useOn(new UseOnContext(player, InteractionHand.MAIN_HAND,
                 hit(helper.absolutePos(supportRel), Direction.UP)));
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(speakerRel, SpeakerBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, speakerRel, SpeakerBlockEntity.class);
         if (speaker == null) {
             helper.fail("最後の speaker item が設置されていない", speakerRel);
             return;
@@ -149,6 +191,9 @@ public final class SpeakerCoreGameTests {
     }
 
     /** 別次元で選んだ最後の 1 個は、無接続 block に化けず item と link を保持する。 */
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void wrongDimensionLinkRejectsPlacementWithoutConsumingItem(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos supportRel = new BlockPos(4, 0, 5);
@@ -156,7 +201,7 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(supportRel, Blocks.STONE.defaultBlockState());
         final Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         final ItemStack onlySpeaker = new ItemStack(ModItems.SPEAKER.get(), 1);
-        final String currentDimension = level.dimension().identifier().toString();
+        final String currentDimension = dimensionId(level);
         final String otherDimension = currentDimension.equals("minecraft:the_nether")
                 ? "minecraft:overworld" : "minecraft:the_nether";
         final SpeakerLink selected = new SpeakerLink(otherDimension, new BlockPos(9, 70, 9).asLong());
@@ -174,12 +219,15 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void linkAndVolumeSurviveBlockEntityRoundTrip(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos rel = new BlockPos(6, 1, 6);
         final BlockPos source = helper.absolutePos(new BlockPos(1, 1, 1));
         helper.setBlock(rel, ModBlocks.SPEAKER.get().defaultBlockState());
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(rel, SpeakerBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, rel, SpeakerBlockEntity.class);
         if (speaker == null) {
             helper.fail("保存試験の speaker が生成されていない", rel);
             return;
@@ -188,13 +236,16 @@ public final class SpeakerCoreGameTests {
         speaker.setVolumePercent(999);
         final var saved = speaker.saveCustomOnly(level.registryAccess());
         final SpeakerBlockEntity restored = new SpeakerBlockEntity(helper.absolutePos(rel), speaker.getBlockState());
-        restored.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), saved));
+        loadState(restored, level, saved);
         helper.assertTrue(restored.getLinkedSource().equals(speaker.getLinkedSource()), "音源リンクが保存往復で失われた");
         helper.assertTrue(restored.getVolumePercent() == SpeakerBlockEntity.VOLUME_MAX,
                 "音量clamp値が保存往復で失われた");
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void sourceIdentitySurvivesItemAndSpeakerRoundTrips(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos sourceRel = new BlockPos(1, 1, 1);
@@ -202,8 +253,8 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(sourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         helper.setBlock(speakerRel.below(), Blocks.STONE.defaultBlockState());
         helper.setBlock(speakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
-        final GoldenJukeboxBlockEntity golden = helper.getBlockEntity(sourceRel, GoldenJukeboxBlockEntity.class);
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(speakerRel, SpeakerBlockEntity.class);
+        final GoldenJukeboxBlockEntity golden = GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, speakerRel, SpeakerBlockEntity.class);
         if (golden == null || speaker == null) {
             helper.fail("UUID link試験のBlockEntityが生成されていない");
             return;
@@ -212,7 +263,7 @@ public final class SpeakerCoreGameTests {
         final BlockPos sourcePos = helper.absolutePos(sourceRel);
         final UUID sourceId = golden.sourceIdentity();
         final SpeakerLink expected = new SpeakerLink(
-                level.dimension().identifier().toString(), sourcePos.asLong(), sourceId);
+                dimensionId(level), sourcePos.asLong(), sourceId);
         final ItemStack linkedItem = new ItemStack(ModItems.SPEAKER.get());
         SpeakerItem.writeLink(linkedItem, expected);
         final SpeakerLink itemLink = SpeakerItem.linkOf(linkedItem).orElse(null);
@@ -228,7 +279,7 @@ public final class SpeakerCoreGameTests {
 
         final CompoundTag saved = speaker.saveCustomOnly(level.registryAccess());
         final SpeakerBlockEntity restored = new SpeakerBlockEntity(speaker.getBlockPos(), speaker.getBlockState());
-        restored.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), saved));
+        loadState(restored, level, saved);
         helper.assertTrue(restored.getLinkedSource().filter(expected::equals).isPresent(),
                 "speaker BEのUUID付きlinkが保存往復で変化した");
 
@@ -247,20 +298,22 @@ public final class SpeakerCoreGameTests {
         final CompoundTag malformedSaved = saved.copy();
         malformedSaved.putString("source_id", "invalid-uuid");
         final SpeakerBlockEntity recovered = new SpeakerBlockEntity(speaker.getBlockPos(), speaker.getBlockState());
-        recovered.loadWithComponents(TagValueInput.create(
-                ProblemReporter.DISCARDING, level.registryAccess(), malformedSaved));
+        loadState(recovered, level, malformedSaved);
         helper.assertTrue(recovered.getLinkedSource().filter(legacy::equals).isPresent(),
                 "BEの不正source IDが位置linkまで失わせた");
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void sourceIdentityIndexExcludesOtherAndLegacyLinks(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos speakerRel = new BlockPos(5, 1, 5);
         final BlockPos sourcePos = helper.absolutePos(new BlockPos(1, 1, 1));
         helper.setBlock(speakerRel.below(), Blocks.STONE.defaultBlockState());
         helper.setBlock(speakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(speakerRel, SpeakerBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, speakerRel, SpeakerBlockEntity.class);
         if (speaker == null) {
             helper.fail("UUID索引試験のspeakerが生成されていない", speakerRel);
             return;
@@ -268,7 +321,7 @@ public final class SpeakerCoreGameTests {
 
         final UUID sourceId = UUID.randomUUID();
         final UUID otherId = UUID.randomUUID();
-        final String dimension = level.dimension().identifier().toString();
+        final String dimension = dimensionId(level);
         final String otherDimension = dimension.equals("minecraft:the_nether")
                 ? "minecraft:overworld" : "minecraft:the_nether";
         speaker.replaceLinkedSource(new SpeakerLink(otherDimension, sourcePos.asLong(), sourceId));
@@ -305,6 +358,9 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void sourceAwareLookupPromotesMovesRejectsReuseAndConflict(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos oldSourceRel = new BlockPos(1, 1, 1);
@@ -318,17 +374,17 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(legacySpeakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
         helper.setBlock(identifiedSpeakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
         final GoldenJukeboxBlockEntity original =
-                helper.getBlockEntity(oldSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, oldSourceRel, GoldenJukeboxBlockEntity.class);
         final SpeakerBlockEntity legacySpeaker =
-                helper.getBlockEntity(legacySpeakerRel, SpeakerBlockEntity.class);
+                GameTestBlockEntities.get(helper, legacySpeakerRel, SpeakerBlockEntity.class);
         final SpeakerBlockEntity identifiedSpeaker =
-                helper.getBlockEntity(identifiedSpeakerRel, SpeakerBlockEntity.class);
+                GameTestBlockEntities.get(helper, identifiedSpeakerRel, SpeakerBlockEntity.class);
         if (original == null || legacySpeaker == null || identifiedSpeaker == null) {
             helper.fail("source-aware lookup試験の実world BEを生成できていない");
             return;
         }
 
-        final String dimension = level.dimension().identifier().toString();
+        final String dimension = dimensionId(level);
         final BlockPos oldSourcePos = helper.absolutePos(oldSourceRel);
         final UUID sourceId = original.sourceIdentity();
         legacySpeaker.replaceLinkedSource(new SpeakerLink(dimension, oldSourcePos.asLong()));
@@ -343,7 +399,7 @@ public final class SpeakerCoreGameTests {
         final CompoundTag sharedState = original.saveCustomOnly(level.registryAccess());
         helper.setBlock(movedSourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity moved =
-                helper.getBlockEntity(movedSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, movedSourceRel, GoldenJukeboxBlockEntity.class);
         if (moved == null) {
             helper.fail("移設先Goldenを実worldへ生成できていない");
             return;
@@ -354,7 +410,7 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(oldSourceRel, Blocks.AIR.defaultBlockState());
         helper.setBlock(oldSourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity replacement =
-                helper.getBlockEntity(oldSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, oldSourceRel, GoldenJukeboxBlockEntity.class);
         if (replacement == null) {
             helper.fail("旧座標の別UUID Goldenを生成できていない");
             return;
@@ -376,7 +432,7 @@ public final class SpeakerCoreGameTests {
 
         helper.setBlock(duplicateSourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity duplicate =
-                helper.getBlockEntity(duplicateSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, duplicateSourceRel, GoldenJukeboxBlockEntity.class);
         if (duplicate == null) {
             helper.fail("重複UUID Goldenを実worldへ生成できていない");
             return;
@@ -388,10 +444,12 @@ public final class SpeakerCoreGameTests {
     }
 
     private static void loadGoldenState(ServerLevel level, GoldenJukeboxBlockEntity target, CompoundTag state) {
-        target.loadWithComponents(TagValueInput.create(
-                ProblemReporter.DISCARDING, level.registryAccess(), state));
+        loadState(target, level, state);
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void destroyedSourceRelinksReplacementAtSamePosition(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos sourceRel = new BlockPos(1, 1, 1);
@@ -400,8 +458,8 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(speakerRel.below(), Blocks.STONE.defaultBlockState());
         helper.setBlock(speakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
         final GoldenJukeboxBlockEntity source =
-                helper.getBlockEntity(sourceRel, GoldenJukeboxBlockEntity.class);
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(speakerRel, SpeakerBlockEntity.class);
+                GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, speakerRel, SpeakerBlockEntity.class);
         if (source == null || speaker == null) {
             helper.fail("実破壊復帰試験のworld BEを生成できていない");
             return;
@@ -415,7 +473,7 @@ public final class SpeakerCoreGameTests {
 
         helper.setBlock(sourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity replacement =
-                helper.getBlockEntity(sourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
         if (replacement == null) {
             helper.fail("同位置の復帰Goldenを生成できていない");
             return;
@@ -430,6 +488,9 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void removedSourceDoesNotRelinkAndRevivalClearsRetirement(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos oldRel = new BlockPos(1, 1, 1);
@@ -440,8 +501,8 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(speakerRel.below(), Blocks.STONE.defaultBlockState());
         helper.setBlock(speakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
         final GoldenJukeboxBlockEntity original =
-                helper.getBlockEntity(oldRel, GoldenJukeboxBlockEntity.class);
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(speakerRel, SpeakerBlockEntity.class);
+                GameTestBlockEntities.get(helper, oldRel, GoldenJukeboxBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, speakerRel, SpeakerBlockEntity.class);
         if (original == null || speaker == null) {
             helper.fail("非破壊移設試験のworld BEを生成できていない");
             return;
@@ -458,7 +519,7 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(oldRel, Blocks.AIR.defaultBlockState());
         helper.setBlock(oldRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity unrelated =
-                helper.getBlockEntity(oldRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, oldRel, GoldenJukeboxBlockEntity.class);
         if (unrelated == null) {
             helper.fail("旧位置の別Goldenを生成できていない");
             return;
@@ -468,7 +529,7 @@ public final class SpeakerCoreGameTests {
 
         helper.setBlock(movedRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity moved =
-                helper.getBlockEntity(movedRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, movedRel, GoldenJukeboxBlockEntity.class);
         if (moved == null) {
             helper.fail("同UUIDの移設Goldenを生成できていない");
             return;
@@ -483,7 +544,7 @@ public final class SpeakerCoreGameTests {
 
         helper.setBlock(revivedRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity revived =
-                helper.getBlockEntity(revivedRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, revivedRel, GoldenJukeboxBlockEntity.class);
         if (revived == null) {
             helper.fail("別位置の同UUID復活Goldenを生成できていない");
             return;
@@ -499,13 +560,16 @@ public final class SpeakerCoreGameTests {
                 "同UUID復活後に旧位置の別Goldenへspeakerを渡した");
         helper.setBlock(movedRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity movedReplacement =
-                helper.getBlockEntity(movedRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, movedRel, GoldenJukeboxBlockEntity.class);
         helper.assertTrue(movedReplacement != null
                         && SpeakerNetwork.findLinkedSpeakers(level, movedReplacement).isEmpty(),
                 "forget後もretirement旧位置の新Goldenへspeakerを渡した");
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void lateLegacySpeakerFollowsClaimedSuccessorNotOldPosition(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos oldSourceRel = new BlockPos(1, 1, 1);
@@ -518,11 +582,11 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(onlineSpeakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
         helper.setBlock(offlineSpeakerRel, ModBlocks.SPEAKER.get().defaultBlockState());
         final GoldenJukeboxBlockEntity original =
-                helper.getBlockEntity(oldSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, oldSourceRel, GoldenJukeboxBlockEntity.class);
         final SpeakerBlockEntity onlineSpeaker =
-                helper.getBlockEntity(onlineSpeakerRel, SpeakerBlockEntity.class);
+                GameTestBlockEntities.get(helper, onlineSpeakerRel, SpeakerBlockEntity.class);
         final SpeakerBlockEntity offlineSpeaker =
-                helper.getBlockEntity(offlineSpeakerRel, SpeakerBlockEntity.class);
+                GameTestBlockEntities.get(helper, offlineSpeakerRel, SpeakerBlockEntity.class);
         if (original == null || onlineSpeaker == null || offlineSpeaker == null) {
             helper.fail("late speaker successor試験のworld BEを生成できていない");
             return;
@@ -539,7 +603,7 @@ public final class SpeakerCoreGameTests {
 
         helper.setBlock(oldSourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity successorAtOldPosition =
-                helper.getBlockEntity(oldSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, oldSourceRel, GoldenJukeboxBlockEntity.class);
         if (successorAtOldPosition == null) {
             helper.fail("旧位置のsuccessor Goldenを生成できていない");
             return;
@@ -555,7 +619,7 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(oldSourceRel, Blocks.AIR.defaultBlockState());
         helper.setBlock(movedSourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity movedSuccessor =
-                helper.getBlockEntity(movedSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, movedSourceRel, GoldenJukeboxBlockEntity.class);
         if (movedSuccessor == null) {
             helper.fail("移設先successor Goldenを生成できていない");
             return;
@@ -566,7 +630,7 @@ public final class SpeakerCoreGameTests {
 
         helper.setBlock(oldSourceRel, ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
         final GoldenJukeboxBlockEntity unrelatedAtOldPosition =
-                helper.getBlockEntity(oldSourceRel, GoldenJukeboxBlockEntity.class);
+                GameTestBlockEntities.get(helper, oldSourceRel, GoldenJukeboxBlockEntity.class);
         if (unrelatedAtOldPosition == null) {
             helper.fail("旧位置の無関係Goldenを生成できていない");
             return;
@@ -596,6 +660,9 @@ public final class SpeakerCoreGameTests {
         return stack;
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void breakingEverySupportFaceRemovesSpeakerAndIndex(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos source = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -608,12 +675,15 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void staleBlockEntityAtTheSamePositionIsExcluded(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos rel = new BlockPos(9, 1, 9);
         final BlockPos source = helper.absolutePos(new BlockPos(1, 1, 1));
         helper.setBlock(rel, ModBlocks.SPEAKER.get().defaultBlockState());
-        final SpeakerBlockEntity live = helper.getBlockEntity(rel, SpeakerBlockEntity.class);
+        final SpeakerBlockEntity live = GameTestBlockEntities.get(helper, rel, SpeakerBlockEntity.class);
         if (live == null) {
             helper.fail("stale 試験の speaker が生成されていない", rel);
             return;
@@ -628,6 +698,9 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void unloadedSpeakerIsDroppedWithoutLoadingItsChunk(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos source = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -642,13 +715,16 @@ public final class SpeakerCoreGameTests {
         helper.succeed();
     }
 
+    //? if >=1.21.2 && <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
     public static void reloadReindexesLinkAndDefaultsMissingVolume(GameTestHelper helper) {
         final ServerLevel level = helper.getLevel();
         final BlockPos rel = new BlockPos(12, 1, 12);
         final BlockPos sourceA = helper.absolutePos(new BlockPos(1, 1, 1));
         final BlockPos sourceB = helper.absolutePos(new BlockPos(2, 1, 1));
         helper.setBlock(rel, ModBlocks.SPEAKER.get().defaultBlockState());
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(rel, SpeakerBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, rel, SpeakerBlockEntity.class);
         if (speaker == null) {
             helper.fail("reload 試験の speaker が生成されていない", rel);
             return;
@@ -662,23 +738,23 @@ public final class SpeakerCoreGameTests {
         speaker.clearLink();
         final var savedEmpty = speaker.saveCustomOnly(level.registryAccess());
 
-        speaker.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), savedA));
+        loadState(speaker, level, savedA);
         helper.assertTrue(SpeakerNetwork.findLinkedSpeakers(level, sourceA).contains(speaker),
                 "同一BEへのreload Aで索引に登録されない");
         helper.assertFalse(SpeakerNetwork.findLinkedSpeakers(level, sourceB).contains(speaker),
                 "同一BEへのreload Aで古いB索引が残る");
-        speaker.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), savedB));
+        loadState(speaker, level, savedB);
         helper.assertFalse(SpeakerNetwork.findLinkedSpeakers(level, sourceA).contains(speaker),
                 "同一BEへのreload BでA索引が残る");
         helper.assertTrue(SpeakerNetwork.findLinkedSpeakers(level, sourceB).contains(speaker),
                 "同一BEへのreload Bで索引に登録されない");
-        speaker.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), savedEmpty));
+        loadState(speaker, level, savedEmpty);
         helper.assertFalse(SpeakerNetwork.findLinkedSpeakers(level, sourceB).contains(speaker),
                 "空リンクのreload後にB索引が残る");
 
         final var missingVolume = savedA.copy();
         missingVolume.remove("volume");
-        speaker.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), missingVolume));
+        loadState(speaker, level, missingVolume);
         helper.assertTrue(speaker.getVolumePercent() == SpeakerBlockEntity.VOLUME_DEFAULT,
                 "volumeキーが無い旧保存で既定100へ戻らない");
         helper.succeed();
@@ -690,7 +766,7 @@ public final class SpeakerCoreGameTests {
         helper.setBlock(supportRel, Blocks.STONE.defaultBlockState());
         helper.setBlock(rel, ModBlocks.SPEAKER.get().defaultBlockState()
                 .setValue(SpeakerBlock.FACE, face).setValue(SpeakerBlock.FACING, facing));
-        final SpeakerBlockEntity speaker = helper.getBlockEntity(rel, SpeakerBlockEntity.class);
+        final SpeakerBlockEntity speaker = GameTestBlockEntities.get(helper, rel, SpeakerBlockEntity.class);
         if (speaker == null) {
             helper.fail(label + "支持面試験の speaker が生成されていない", rel);
             return;

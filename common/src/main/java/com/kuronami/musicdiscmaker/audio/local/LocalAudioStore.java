@@ -20,10 +20,11 @@ import java.util.UUID;
 /**
  * 明示的に持ち込んだ音源の分割受信と永続化。音声本体はアイテムに入れない。
  *
- * <p>ワールドごとに一つだけ所有し、全メソッドをIOワーカーから呼ぶ。Minecraftの
+ * <p>既定のインスタンスはワールド原本を一つだけ所有し、全メソッドをIOワーカーから呼ぶ。Minecraftの
  * menu/再生権限検査は呼び出し側の責務。この層は送信者、順序、容量、内容を検証する。
  * ファイル名はSHA-256だけから作り、クライアントのパスを一切受け取らない。
- * 完了原本は未ロードのチェストからも参照されうるため、自動削除しない。
+ * 完了原本は未ロードのチェストからも参照されうるため、自動削除しない。clientCache factory
+ * だけが再取得可能なクライアント複製を破損修復・容量整理の対象にする。
  */
 public final class LocalAudioStore implements AutoCloseable {
     public static final int CHUNK_BYTES = 16 * 1024;
@@ -47,6 +48,8 @@ public final class LocalAudioStore implements AutoCloseable {
     private final Path root;
     private final Path incoming;
     private final Limits limits;
+    /** True only for disposable client copies; world-owned originals use the preserving default. */
+    private final boolean recoverableCache;
     private final FileChannel lockChannel;
     private final FileLock lock;
     private final Map<UUID, Upload> uploads = new HashMap<>();
@@ -55,7 +58,17 @@ public final class LocalAudioStore implements AutoCloseable {
     private boolean closed;
 
     public LocalAudioStore(Path root, Limits limits) throws IOException {
+        this(root, limits, false);
+    }
+
+    /** A client-only store that can discard corrupt entries and evict old entries at its quota. */
+    public static LocalAudioStore clientCache(Path root, Limits limits) throws IOException {
+        return new LocalAudioStore(root, limits, true);
+    }
+
+    private LocalAudioStore(Path root, Limits limits, boolean recoverableCache) throws IOException {
         this.limits = limits;
+        this.recoverableCache = recoverableCache;
         Files.createDirectories(root);
         this.root = root.toRealPath();
         incoming = this.root.resolve("incoming");
@@ -81,9 +94,13 @@ public final class LocalAudioStore implements AutoCloseable {
             }
             try (var entries = Files.list(this.root)) {
                 for (Path entry : entries.toList()) {
-                    if (entry.getFileName().toString().matches("[a-f0-9]{64}\\.mp3")) {
-                        if (!Files.isRegularFile(entry, LinkOption.NOFOLLOW_LINKS)) {
-                            throw new IOException("Invalid audio store entry");
+                    // hash名(新形式)と hash.mp3(MP3専用期の旧形式)を同一の原本として数える。
+                    if (entry.getFileName().toString().matches("[a-f0-9]{64}(\\.mp3)?")) {
+                        if (!Files.isRegularFile(entry, LinkOption.NOFOLLOW_LINKS)
+                                || (recoverableCache && Files.size(entry) > limits.fileBytes())) {
+                            if (!recoverableCache) throw new IOException("Invalid audio store entry");
+                            Files.delete(entry);
+                            continue;
                         }
                         storedBytes = Math.addExact(storedBytes, Files.size(entry));
                     }
@@ -119,7 +136,9 @@ public final class LocalAudioStore implements AutoCloseable {
             throw new IOException("Transfer limit reached");
         }
         // 受信中の一時ファイルも予約する。重複音源でも検査前に容量を無制限に使わせない。
-        if (size > limits.totalBytes() - storedBytes - reservedBytes) throw new IOException("Audio storage full");
+        while (size > limits.totalBytes() - storedBytes - reservedBytes) {
+            if (!recoverableCache || !evictOldestCacheEntry()) throw new IOException("Audio storage full");
+        }
         UUID id = UUID.randomUUID();
         Path path = Files.createTempFile(incoming, "upload-", ".part");
         try {
@@ -153,7 +172,7 @@ public final class LocalAudioStore implements AutoCloseable {
         }
     }
 
-    /** ハッシュ・MP3検査後にだけ完成原本として公開する。 */
+    /** ハッシュ・音声検査後にだけ完成原本として公開する。 */
     public synchronized Path finish(UUID owner, UUID id, long nowMillis, Validator validator) throws IOException {
         Upload upload = require(owner, id);
         try {
@@ -163,36 +182,47 @@ public final class LocalAudioStore implements AutoCloseable {
                 throw new IOException("Incomplete or corrupt audio upload");
             }
             validator.validate(upload.path);
-            Path destination = root.resolve(upload.hash + ".mp3");
-            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
-                // 既存ファイルの破損を成功扱いしない。欠損修復は別の明示操作にする。
-                if (verified(upload.hash) == null) throw new IOException("Corrupt stored audio");
-            } else {
-                // 同一ファイルシステム内。ATOMIC_MOVE不可なら部分原本を作らず失敗させる。
-                Files.move(upload.path, destination, StandardCopyOption.ATOMIC_MOVE);
-                storedBytes += upload.size;
+            Path destination = root.resolve(upload.hash);
+            Path existing = existingStoredPath(upload.hash);
+            if (existing != null) {
+                // 既存ファイルの破損を成功扱いしない。
+                Path ok = verified(upload.hash);
+                if (ok != null) return ok;
+                // Cache mode may have removed a corrupt entry in verified(); its replacement
+                // upload is now the repair, while authoritative stores still throw above.
+                if (existingStoredPath(upload.hash) != null) throw new IOException("Corrupt stored audio");
             }
+            // 同一ファイルシステム内。ATOMIC_MOVE不可なら部分原本を作らず失敗させる。
+            Files.move(upload.path, destination, StandardCopyOption.ATOMIC_MOVE);
+            storedBytes += upload.size;
             return destination;
         } finally {
             discard(id, upload);
         }
     }
 
-    /** ハッシュまで検査した原本。欠損はnull、破損・リンクは例外。IOワーカー専用。 */
+    /** ハッシュまで検査した原本。欠損はnull、world storeの破損・リンクは例外。IOワーカー専用。 */
     public synchronized Path verified(String hash) throws IOException {
         ensureOpen();
         checkHash(hash);
-        Path path = root.resolve(hash + ".mp3");
-        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return null;
+        Path path = existingStoredPath(hash);
+        if (path == null) return null;
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.size(path) > limits.fileBytes()) {
-            throw new IOException("Invalid stored audio");
+            return discardCorruptCacheEntry(path, "Invalid stored audio");
         }
         MessageDigest digest = sha256();
         try (var in = Files.newInputStream(path)) {
             byte[] bytes = new byte[CHUNK_BYTES];
             for (int n; (n = in.read(bytes)) >= 0;) digest.update(bytes, 0, n);
         }
-        if (!HexFormat.of().formatHex(digest.digest()).equals(hash)) throw new IOException("Corrupt stored audio");
+        if (!HexFormat.of().formatHex(digest.digest()).equals(hash)) {
+            return discardCorruptCacheEntry(path, "Corrupt stored audio");
+        }
+        if (recoverableCache) {
+            // Use filesystem age as a small LRU signal. Failure to update it must not invalidate a hit.
+            try { Files.setLastModifiedTime(path, java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis())); }
+            catch (IOException ignored) { }
+        }
         return path;
     }
 
@@ -243,6 +273,47 @@ public final class LocalAudioStore implements AutoCloseable {
     }
 
     private void ensureOpen() throws IOException { if (closed) throw new IOException("Audio store closed"); }
+
+    /**
+     * hash名(拡張子なし)を優先し、無ければMP3専用期の {@code hash.mp3} を旧名として認める。
+     * 旧名で既に保存済みの曲も参照・再利用できるようにするための互換経路。
+     */
+    private Path existingStoredPath(String hash) {
+        Path modern = root.resolve(hash);
+        if (Files.exists(modern, LinkOption.NOFOLLOW_LINKS)) return modern;
+        Path legacy = root.resolve(hash + ".mp3");
+        return Files.exists(legacy, LinkOption.NOFOLLOW_LINKS) ? legacy : null;
+    }
+
+    /** Delete only an entry inside a recoverable client cache. Authoritative stores retain failures. */
+    private Path discardCorruptCacheEntry(Path path, String message) throws IOException {
+        if (!recoverableCache) throw new IOException(message);
+        long size = Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) ? Files.size(path) : 0;
+        Files.deleteIfExists(path);
+        storedBytes -= size;
+        return null;
+    }
+
+    /** Free quota only in a client cache; complete world originals are never auto-evicted. */
+    private boolean evictOldestCacheEntry() throws IOException {
+        record Candidate(Path path, long modified) {}
+        var candidates = new java.util.ArrayList<Candidate>();
+        try (var entries = Files.list(root)) {
+            for (Path entry : entries.toList()) {
+                if (!entry.getFileName().toString().matches("[a-f0-9]{64}(\\.mp3)?")
+                        || !Files.isRegularFile(entry, LinkOption.NOFOLLOW_LINKS)) continue;
+                candidates.add(new Candidate(entry, Files.getLastModifiedTime(entry, LinkOption.NOFOLLOW_LINKS).toMillis()));
+            }
+        }
+        candidates.sort(java.util.Comparator.comparingLong(Candidate::modified));
+        for (Candidate candidate : candidates) {
+            long size = Files.size(candidate.path());
+            Files.delete(candidate.path());
+            storedBytes -= size;
+            return true;
+        }
+        return false;
+    }
 
     private static void checkHash(String hash) throws IOException {
         if (hash == null || !hash.matches("[a-f0-9]{64}")) throw new IOException("Invalid audio id");

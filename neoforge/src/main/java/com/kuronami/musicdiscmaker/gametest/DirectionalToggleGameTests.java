@@ -28,7 +28,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.level.block.Blocks;
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.TagValueInput;
+//?}
 //? if >=26.1 {
 //?} else {
 /*import net.minecraft.world.item.EitherHolder;
@@ -91,6 +93,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class DirectionalToggleGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -126,8 +136,10 @@ public class DirectionalToggleGameTests {
                 .get(SilentSongs.pick(DURATION_MS))
                 //? if >=26.1 {
                 .ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(holder)));
-                //?} else {
+                //?} elif >=1.21.11 {
                 /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder))));
+                *///?} else {
+                /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder), false)));
                 *///?}
         return disc;
     }
@@ -156,7 +168,7 @@ public class DirectionalToggleGameTests {
      * フラットで飛ぶこと。ここを落とすと、client は BE を読み直す次の tick まで立体音響で鳴る
      * (= 鳴り始めだけ設定が効かない) し、BE を読めない client では永久に効かない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -164,14 +176,14 @@ public class DirectionalToggleGameTests {
         final BlockPos rel = new BlockPos(1, 1, 1);
         helper.setBlock(rel, ModBlocks.GOLDEN_JUKEBOX.get());
         final BlockPos pos = helper.absolutePos(rel);
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel);
         if (jukebox == null) {
             helper.fail("GoldenJukeboxBlockEntity が生成されていない", rel);
             return;
         }
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, rel, GoldenJukeboxBlockEntity.class);
         if (jukebox == null) {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), rel);
             return;
@@ -196,7 +208,7 @@ public class DirectionalToggleGameTests {
     }
 
     /** 何も触っていない金ジュークは従来どおり positional で飛ぶこと (既定を変えていないこと)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -204,14 +216,14 @@ public class DirectionalToggleGameTests {
         final BlockPos rel = new BlockPos(3, 1, 1);
         helper.setBlock(rel, ModBlocks.GOLDEN_JUKEBOX.get());
         final BlockPos pos = helper.absolutePos(rel);
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel);
         if (jukebox == null) {
             helper.fail("GoldenJukeboxBlockEntity が生成されていない", rel);
             return;
         }
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, rel, GoldenJukeboxBlockEntity.class);
         if (jukebox == null) {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), rel);
             return;
@@ -235,7 +247,7 @@ public class DirectionalToggleGameTests {
     }
 
     /** 強化版ジューク本体の再生 payload が指向性を wire 越しに保つこと。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -362,14 +374,14 @@ public class DirectionalToggleGameTests {
      * 後者が本命 — ここが false へ倒れると、この機能より前に置かれた全ての金ジュークが黙って
      * フラットになる (additive でなくなる)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
     public static void nbtRoundTripsDirectionalAndDefaultsToTrue(GameTestHelper helper) {
         final BlockPos rel = new BlockPos(5, 1, 1);
         helper.setBlock(rel, ModBlocks.GOLDEN_JUKEBOX.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel);
         if (jukebox == null) {
             helper.fail("GoldenJukeboxBlockEntity が生成されていない", rel);
@@ -385,7 +397,7 @@ public class DirectionalToggleGameTests {
         jukebox.setDirectional(true);
         jukebox.loadWithComponents(flat, registries);
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, rel, GoldenJukeboxBlockEntity.class);
         if (jukebox == null) {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), rel);
             return;
@@ -405,7 +417,7 @@ public class DirectionalToggleGameTests {
         // true を保存 → 復元
         jukebox.setDirectional(true);
         final CompoundTag positional = jukebox.saveWithoutMetadata(registries);
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*helper.assertTrue(positional.getBoolean("directional"), "positional 設定が NBT に保存されていない");
         jukebox.setDirectional(false);
         jukebox.loadWithComponents(positional, registries);
@@ -420,7 +432,7 @@ public class DirectionalToggleGameTests {
         jukebox.setDirectional(false);
         final CompoundTag legacy = jukebox.saveWithoutMetadata(registries);
         legacy.remove("directional");
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*jukebox.loadWithComponents(legacy, registries);
         *///?} else {
         jukebox.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registries, legacy));

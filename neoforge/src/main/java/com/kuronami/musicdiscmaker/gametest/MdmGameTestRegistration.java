@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.gametest;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 
 import net.minecraft.core.Holder;
@@ -61,6 +61,7 @@ public final class MdmGameTestRegistration {
         register(event, "maker_single_disc_atomicity", MusicDiscMakerSingleDiscGameTests::createsOnlyCanonicalSingleDiscAndKeepsInputsAtomic, empty, 100);
         register(event, "maker_menu_legacy_materials", MusicDiscMakerSingleDiscGameTests::menuOnlyExposesTwoMachineSlotsAndRecoversLegacyMaterialOnce, empty, 100);
         register(event, "maker_single_disc_save_reload", MusicDiscMakerSingleDiscGameTests::singleDiscAndResolvedCacheSurviveSaveReload, empty, 100);
+        register(event, "maker_fabricated_disc_fits_storage", MusicDiscMakerSingleDiscGameTests::fabricatedDiscFitsBoomboxAndAlbumAfterSaveReload, empty, 100);
         register(event, "maker_destroy_drops", MusicDiscMakerSingleDiscGameTests::destroyingMakerDropsEveryStoredStackExactlyOnce, empty, 100);
         register(event, "album_recipe_assembles_and_rejects_wrong_grid",
                 RecipeAssemblyGameTests::albumRecipeAssemblesAndRejectsWrongGrid, empty, 100);
@@ -112,6 +113,10 @@ public final class MdmGameTestRegistration {
         register(event, "curios_equipped_duplicate_separation", CuriosBoomboxGameTests::duplicateIdInInventoryIsSeparatedFromEquipped, empty, 200);
         register(event, "curios_equipped_carry_continuity", CuriosBoomboxGameTests::equippedStackStaysCarriedAcrossMove, empty, 100);
         register(event, "curios_absent_provider_noop", CuriosBoomboxGameTests::absentProviderKeepsVanillaBehavior, empty, 100);
+        // provider と NETWORK の global を交換する lifecycle test は固有 environment で直列隔離する。
+        register(event, "curios_equipped_move_disconnect_lifecycle",
+                CuriosBoomboxGameTests::equippedMoveAndDisconnectPreserveOnlyTheOwnedLifecycle,
+                env(event, "curios_move_lifecycle"), 200);
         register(event, "boombox_menu_stale_and_reverse_swap_preserve_source", BoomboxMenuGameTests::staleAndReverseSwapPreserveSource, empty, 200);
         register(event, "boombox_menu_initial_sync_budget", BoomboxMenuGameTests::initialSyncIgnoresPlayerInventoryButRejectsOversizedMedium, empty, 200);
         register(event, "boombox_menu_placed_source_and_storage_rejection_preserve_stacks", BoomboxMenuGameTests::placedSourceAndStorageRejectionPreserveStacks, empty, 200);
@@ -136,6 +141,17 @@ public final class MdmGameTestRegistration {
         register(event, "boombox_unclaimed_placed_duplicate_removal",
                 BoomboxPlaybackStateGameTests::removingUnclaimedPlacedDuplicateDoesNotStopOwner,
                 empty, 200);
+        // CF調査で確認した失効経路: NETWORK/global状態を固有environmentで隔離する。
+        register(event, "boombox_stale_all_scan_phases", BoomboxPlaybackStateGameTests::stalledTickKeepsCarriedSessionInEveryScanPhase,
+                env(event, "boombox_stale_all_scan_phases"), 100);
+        register(event, "boombox_stale_absent_carriers", BoomboxPlaybackStateGameTests::staleRescanStillStopsDroppedAndDisconnectedCarriers,
+                env(event, "boombox_stale_absent_carriers"), 100);
+        register(event, "boombox_stale_dimension_duplicate", BoomboxPlaybackStateGameTests::staleRescanKeepsDimensionHandoffAndSplitsDuplicate,
+                env(event, "boombox_stale_dimension_duplicate"), 100);
+        register(event, "boombox_stale_pause_natural_end", BoomboxPlaybackStateGameTests::staleRescanDoesNotRestartPausedOrNaturallyEndedPlayback,
+                env(event, "boombox_stale_pause_natural_end"), 100);
+        register(event, "boombox_stale_placed_copy", BoomboxPlaybackStateGameTests::stalePlacedSessionCannotBeRescuedByCarriedCopy,
+                env(event, "boombox_stale_placed_copy"), 100);
         register(event, "boombox_tail_grace", BoomboxPlaybackStateGameTests::tailGraceDelaysSequenceAdvance, empty, 200);
         register(event, "boombox_manual_wrap", BoomboxPlaybackStateGameTests::manualNavigationWrapsBothDirectionsAndPreservesPause, empty, 200);
         register(event, "boombox_natural_tail_repeat", BoomboxPlaybackStateGameTests::naturalTailStillUsesRepeatSetting, empty, 200);
@@ -143,31 +159,50 @@ public final class MdmGameTestRegistration {
         register(event, "boombox_control_guard", BoomboxControlGameTests::controlsRequireCurrentMenuSourceAndGeneration, empty, 100);
         register(event, "golden_shuffle_missing_saved_fields", GoldenMediaSequenceGameTests::shuffleMissingSavedSeedAndAnchorFallsBackSafely, empty, 400);
         register(event, "playback_same_url_logical_position", PlaybackSessionGameTests::sameUrlAtAnotherLogicalPositionNeedsStopBeforePlay, empty, 100);
+        register(event, "playback_mid_track_resume", PlaybackSessionGameTests::midTrackNetworkDropResumesAtServerPosition, empty, 100);
+        register(event, "playback_mid_track_resume_bounds", PlaybackSessionGameTests::midTrackResumeIsBoundedAndSkipsPermanentOrEndingTracks, empty, 100);
+        register(event, "playback_mid_track_resume_dedup_clock", PlaybackSessionGameTests::midTrackResumeIgnoresDuplicateAndStaleNoticesAndPausedTime, empty, 100);
+        register(event, "playback_mid_track_resume_after_sweep", PlaybackSessionGameTests::midTrackResumeSurvivesSweepBeforeLateFault, empty, 100);
         register(event, "golden_navigation_menu_generation", GoldenNavigationGameTests::navigationRequiresOpenMenuAndCurrentGeneration, empty, 400);
         register(event, "album_menu_storage_decode_limit", AlbumMenuGameTests::storageDecodeLimitRejectsInsertionButKeepsExistingContents, empty, 400);
         register(event, "album_menu_initial_sync_budget", AlbumMenuGameTests::initialSyncIgnoresPlayerInventoryButRejectsOversizedContents, empty, 400);
         register(event, "codec_round_trip_keeps_disc_metadata", AlbumContentsGameTests::codecRoundTripKeepsDiscMetadata, empty, 100);
+        register(event, "album_old_nine_and_expanded_eighteen_persist_stream_resolve",
+                AlbumContentsGameTests::oldNineAndExpandedEighteenAlbumsKeepOrderAndResolveByPosition, empty, 100);
+        register(event, "album_persisted_overflow_beyond_eighteen_keeps_order",
+                AlbumContentsGameTests::persistedOverflowBeyondEighteenKeepsOrder, empty, 100);
         register(event, "album_dyeing_keeps_metadata_and_contents",
                 AlbumDyeingGameTests::dyeingKeepsAlbumMetadataAndContents, empty, 100);
         register(event, "album_dyeing_rejects_extra_wrong_and_same_color",
                 AlbumDyeingGameTests::dyeingRejectsExtraWrongAndSameColorInputs, empty, 100);
         register(event, "stack_copies_do_not_share_mutable_ownership", AlbumContentsGameTests::stackCopiesDoNotShareMutableOwnership, empty, 100);
         register(event, "nested_album_is_rejected_before_recursive_codec_expansion", AlbumContentsGameTests::nestedAlbumIsRejectedBeforeRecursiveCodecExpansion, empty, 100);
+        register(event, "album_storage_defense_limit_remains_256",
+                AlbumContentsGameTests::storageDefenseLimitRemains256IndependentOfProductCapacity, empty, 100);
         register(event, "malformed_wire_limits_fail_before_item_expansion", AlbumContentsGameTests::malformedWireLimitsFailBeforeItemExpansion, empty, 100);
-        register(event, "album_menu_opening_and_taking_keeps_overflow", AlbumMenuGameTests::openingAndTakingKeepsOverflow, empty, 100);
+        register(event, "album_menu_opening_and_taking_keeps_legacy_thirteen",
+                AlbumMenuGameTests::openingAndTakingKeepsLegacyThirteen, empty, 100);
+        register(event, "album_menu_eighteenth_disc_second_row_takeable",
+                AlbumMenuGameTests::eighteenthDiscUsesSecondRowAndRemainsTakeable, empty, 100);
         register(event, "album_menu_recovers_overflow_same_session", AlbumMenuGameTests::menuRecoversOverflowInSameSession, empty, 400);
         register(event, "album_menu_storage_budget_all_insert_paths", AlbumMenuGameTests::storageBudgetRejectsEveryInsertPathWithoutLoss, empty, 400);
         register(event, "album_and_boombox_size_measurements", AlbumSizeGameTests::albumAndBoomboxCodecMeasurements, empty, 400);
         register(event, "album_long_metadata_wire_boundary", AlbumSizeGameTests::fullLengthMetadataIsRejectedAtAlbumWireBoundary, empty, 400);
+        register(event, "supplementary_metadata_storage_budget", AlbumSizeGameTests::supplementaryMetadataFitsStorageBudget, empty, 100);
         register(event, "media_raw_album_kinds", MediaSequenceGameTests::rawAndAlbumResolveToDistinctKinds, empty, 100);
         register(event, "media_album_positions_duplicate_urls", MediaSequenceGameTests::albumKeepsDiscTrackPositionsAndDuplicateUrls, empty, 100);
         register(event, "media_invalid_discs_keep_positions", MediaSequenceGameTests::invalidDiscsAreSkippedWithoutRenumberingAlbumPositions, empty, 100);
         register(event, "media_live_unknown_manual_advance", MediaSequenceGameTests::liveAndUnknownOnlyBlockAutomaticAdvance, empty, 100);
         register(event, "album_menu_moved_source_cannot_save_into_replacement", AlbumMenuGameTests::movedSourceCannotSaveIntoReplacement, empty, 100);
         register(event, "album_menu_stores_takes_and_reorders", AlbumMenuGameTests::storesTakesAndReordersThroughMenu, empty, 100);
+        register(event, "album_menu_normal_click_stores_takes_eighteenth_disc",
+                AlbumMenuGameTests::normalClickStoresAndTakesEighteenthDisc, empty, 100);
+        register(event, "album_menu_shift_click_fills_takes_eighteenth_disc",
+                AlbumMenuGameTests::shiftClickFillsAndTakesEighteenthDisc, empty, 100);
         register(event, "album_menu_source_slot_rejects_all_move_clicks", AlbumMenuGameTests::sourceSlotRejectsAllMoveClicks, empty, 100);
         register(event, "album_menu_reverse_hotbar_swap_preserves_source", AlbumMenuGameTests::reverseHotbarSwapPreservesSourceAndMetadata, empty, 100);
         register(event, "album_menu_reverse_offhand_swap_preserves_all", AlbumMenuGameTests::reverseOffhandSwapAndInvalidClicksPreserveAll, empty, 100);
+        register(event, "album_menu_non_held_sources_stay_invalid", AlbumMenuGameTests::nonHeldSourcesDisableMenuInsteadOfThrowing, empty, 100);
         register(event, "active_disc_save_data_survives_the_nbt_round_trip",
                 ActiveDiscReleaseGameTests::activeDiscSaveDataSurvivesTheNbtRoundTrip, empty, 100);
         register(event, "repeat_restart_marker_forces_stop_then_play_resend",
@@ -179,6 +214,8 @@ public final class MdmGameTestRegistration {
                 NetworkProtocolGameTests::directionalSurvivesTheRoundTrip, empty, 100);
         register(event, "local_audio_registers_handlers_on_both_flows",
                 NetworkProtocolGameTests::localAudioRegistersHandlersOnBothFlows, empty, 100);
+        register(event, "local_audio_check_and_available_survive_registered_round_trip",
+                NetworkProtocolGameTests::localAudioCheckAndAvailableSurviveRegisteredRoundTrip, empty, 100);
         register(event, "stop_during_load_discards_the_pending_source",
                 PlaybackGenerationGameTests::stopDuringLoadDiscardsThePendingSource, empty, 100);
         register(event, "second_play_cancels_the_first_load",
@@ -472,8 +509,8 @@ public final class MdmGameTestRegistration {
                 SpeakerCoreGameTests::unloadedSpeakerIsDroppedWithoutLoadingItsChunk, empty, 100);
         register(event, "golden_redstone_comparator_and_signals_follow_unified_contract",
                 GoldenRedstoneGameTests::comparatorAndSignalsFollowUnifiedContract, empty, 400);
-        register(event, "golden_redstone_power_owns_only_its_pause_and_does_not_lock_the_hopper",
-                GoldenRedstoneGameTests::powerOwnsOnlyItsPauseAndDoesNotLockTheHopper, empty, 400);
+        register(event, "golden_redstone_rising_edge_toggles_and_release_does_not_stop",
+                GoldenRedstoneGameTests::risingEdgeTogglesPlaybackAndReleaseDoesNotStop, empty, 400);
         register(event, "golden_redstone_top_input_moves_a_to_chest_while_b_plays",
                 GoldenRedstoneGameTests::topInputMovesAToChestWhileBPlays, empty, 400);
         register(event, "golden_redstone_side_input_moves_a_to_chest_while_b_plays",
@@ -484,8 +521,8 @@ public final class MdmGameTestRegistration {
                 GoldenRedstoneGameTests::repeatRadioAndUnknownStayInserted, empty, 400);
         register(event, "golden_redstone_mdm_album_advances_without_extraction",
                 GoldenRedstoneGameTests::mdmAlbumAdvancesWithoutExtraction, empty, 400);
-        register(event, "golden_redstone_redstone_and_manual_pause_ownership_survive_reload",
-                GoldenRedstoneGameTests::redstoneAndManualPauseOwnershipSurviveReload, empty, 400);
+        register(event, "golden_redstone_input_and_legacy_pause_reload_without_phantom_toggle",
+                GoldenRedstoneGameTests::inputAndLegacyPauseSurviveReloadWithoutPhantomToggle, empty, 400);
         register(event, "golden_redstone_full_output_hopper_releases_finished_disc_exactly_once",
                 GoldenRedstoneGameTests::fullOutputHopperReleasesFinishedDiscExactlyOnce, empty, 400);
         register(event, "golden_redstone_restored_stopped_state_is_not_natural_completion",
@@ -494,6 +531,8 @@ public final class MdmGameTestRegistration {
                 GoldenRedstoneGameTests::naturalCompletionSurvivesReloadAndExtracts, empty, 400);
         register(event, "golden_redstone_vanilla_jukebox_song_naturally_ends_and_extracts",
                 GoldenRedstoneGameTests::vanillaJukeboxSongNaturallyEndsAndExtracts, empty, 520);
+        register(event, "golden_cart_playback_offset_pause_resume_seek_natural_end",
+                GoldenCartPlaybackOffsetGameTests::playingSeekAndPauseResumeUseThePausedOffsetAsBase, empty, 100);
         register(event, "speaker_reload_reindexes_and_defaults_volume",
                 SpeakerCoreGameTests::reloadReindexesLinkAndDefaultsMissingVolume, empty, 100);
         // local MP3 の転送境界は Services.NETWORK を差し替えて観測するので、他テストと送信経路を
@@ -507,6 +546,9 @@ public final class MdmGameTestRegistration {
         register(event, "invalid_begin_is_answered_with_error",
                 LocalAudioTransferGameTests::invalidBeginIsAnsweredWithError,
                 env(event, "local_audio_begin"), 200);
+        register(event, "local_audio_download_timeout_and_read_failure_keep_request_generation",
+                LocalAudioTransferGameTests::downloadTimeoutAndReadFailureKeepRequestGeneration,
+                env(event, "local_audio_download"), 700);
     }
 
     //? if >=26.1 {

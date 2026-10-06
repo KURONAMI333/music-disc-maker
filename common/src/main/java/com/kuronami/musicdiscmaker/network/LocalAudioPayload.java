@@ -4,7 +4,7 @@ import java.util.UUID;
 import net.minecraft.network.FriendlyByteBuf;
 
 /**
- * MP3専用の小分け転送。各方向で許可されたopcodeだけをハンドラが受理する。
+ * ローカル音源の小分け転送 (形式中立)。各方向で許可されたopcodeだけをハンドラが受理する。
  * パスは存在せず、hashは固定長、曲名はベース名だけ、chunkは最大16KiB。
  */
 public record LocalAudioPayload(int operation, UUID id, int containerId, long generation,
@@ -13,8 +13,10 @@ public record LocalAudioPayload(int operation, UUID id, int containerId, long ge
     public static final UUID NONE = new UUID(0, 0);
     public static final int BEGIN = 0, CHUNK = 1, CANCEL = 2, FETCH = 3, NEXT = 4;
     public static final int READY = 5, ACK = 6, DONE = 7, ERROR = 8, DATA = 9;
+    /** Validate that a cached copy still has its world-owned original, without retransferring bytes. */
+    public static final int CHECK = 10, AVAILABLE = 11;
     public LocalAudioPayload {
-        if (operation < BEGIN || operation > DATA || hash.length() > 64 || name.length() > 256
+        if (operation < BEGIN || operation > AVAILABLE || hash.length() > 64 || name.length() > 256
                 || bytes.length > 16384) throw new IllegalArgumentException("Invalid audio packet");
         bytes = bytes.clone();
     }

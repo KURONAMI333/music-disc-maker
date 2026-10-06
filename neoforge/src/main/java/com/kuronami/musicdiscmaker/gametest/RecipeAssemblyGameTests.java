@@ -14,11 +14,14 @@ import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 //? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?}
+//? if >=1.21.2 {
 import net.minecraft.resources.ResourceKey;
-//?} else {
+//?}
+//? if <1.21.11 {
 /*import net.minecraft.resources.ResourceLocation;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -33,7 +36,7 @@ public final class RecipeAssemblyGameTests {
     private RecipeAssemblyGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -54,7 +57,7 @@ public final class RecipeAssemblyGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -82,9 +85,13 @@ public final class RecipeAssemblyGameTests {
         final var id = ResourceKey.<net.minecraft.world.item.crafting.Recipe<?>>create(
                 Registries.RECIPE, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, path));
         final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
-        //?} else {
+        //?} elif >=1.21.2 {
+        /*final var id = ResourceKey.<net.minecraft.world.item.crafting.Recipe<?>>create(
+                Registries.RECIPE, ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, path));
+        final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
+        *///?} else {
         /*final var id = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
-        final var holder = helper.getLevel().getRecipeManager().byKey(id).orElse(null);
+        final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
         *///?}
         helper.assertTrue(holder != null, "RecipeManager に " + path + " が読み込まれていない");
         helper.assertTrue(holder != null && holder.value() instanceof CraftingRecipe,

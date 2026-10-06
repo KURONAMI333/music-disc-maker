@@ -52,6 +52,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "ゲームのサウンドエンジンがこの音を受理しませんでした",
   "music_disc_maker.playback_failed.reason.muted": "音量が0に設定されています（サウンド設定の主音量とジュークボックス／音符ブロックを確認してください）",
   "music_disc_maker.radio.reconnecting": "ラジオに再接続中… (%s/%s)",
+  "music_disc_maker.playback.resuming": "接続が途切れました。続きから再生し直しています… (%s/%s)",
   "music_disc_maker.radio.stopped": "ラジオを停止しました (再接続に失敗)",
   "block.music_disc_maker.golden_jukebox": "金のジュークボックス",
   "gui.music_disc_maker.golden_jukebox.title": "金のジュークボックス",
@@ -78,5 +79,6 @@
   "gui.music_disc_maker.speaker.muted": "レッドストーン信号でミュート中",
   "gui.music_disc_maker.speaker.active": "レッドストーン信号なし",
   "tooltip.music_disc_maker.album.empty": "ディスクなし",
-  "tooltip.music_disc_maker.album.contents": "%s枚のディスク"
+  "tooltip.music_disc_maker.album.contents": "%s枚のディスク",
+  "message.music_disc_maker.storage_sync_failed": "ディスクのデータを同期できないため、この操作を中止しました。"
 }

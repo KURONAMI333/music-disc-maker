@@ -8,7 +8,7 @@ import com.kuronami.musicdiscmaker.speaker.SpeakerPlacement;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-//? if >=1.21.1 {
+//? if >=1.21.1 && <26.3 {
 import com.mojang.serialization.MapCodec;
 //?} else {
 //?}
@@ -71,7 +71,7 @@ public class SpeakerBlock extends FaceAttachedHorizontalDirectionalBlock impleme
         }
     }
 
-    //? if >=1.21.1 {
+    //? if >=1.21.1 && <26.3 {
     private static final MapCodec<SpeakerBlock> CODEC = simpleCodec(SpeakerBlock::new);
     //?} else {
     //?}
@@ -137,7 +137,7 @@ public class SpeakerBlock extends FaceAttachedHorizontalDirectionalBlock impleme
         case CENTER -> HornTurn.CENTER; case LEFT -> HornTurn.LEFT; case RIGHT -> HornTurn.RIGHT;
     }; }
 
-    //? if >=1.21.1 {
+    //? if >=1.21.1 && <26.3 {
     @Override
     protected MapCodec<? extends FaceAttachedHorizontalDirectionalBlock> codec() {
         return CODEC;

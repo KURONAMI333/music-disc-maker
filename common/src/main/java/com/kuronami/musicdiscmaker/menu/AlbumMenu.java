@@ -36,7 +36,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 /*import net.minecraft.network.FriendlyByteBuf;
 *///?}
 
-/** Album の9枠収納 menu。永続値への反映は server 側 container の変更時だけに行う。 */
+/** Album の2段収納 menu。永続値への反映は server 側 container の変更時だけに行う。 */
 public class AlbumMenu extends AbstractContainerMenu {
     private static final int ALBUM_SLOTS = AlbumItem.GUI_CAPACITY;
     private final BoomboxSource source;
@@ -49,7 +49,7 @@ public class AlbumMenu extends AbstractContainerMenu {
     private int sourceMenuSlot = -1;
     private boolean loading;
     private boolean handlingClick;
-    private boolean storageRejected;
+    private AlbumStorageBudget.Result storageFailure;
     private boolean deferFullSyncValues;
 
     //? if >=1.21 {
@@ -66,11 +66,16 @@ public class AlbumMenu extends AbstractContainerMenu {
         super(ModMenus.ALBUM.get(), id);
         this.source = source;
         this.owner = inventory.player;
-        this.album = inventory.player.getItemInHand(source.heldHand());
+        // AlbumMenuを開けるのは手持ちのAlbumだけ。wire経由では設置・装備・任意intのsourceが
+        // 届き得るので、ここでheldHand()を無条件に呼ぶとmenu生成中に例外になりclientが切断される。
+        // 非held sourceは空のAlbumとして生成し、stillValid=falseで無効なmenuとして扱う。
+        this.album = source != null && source.isHeld()
+                ? inventory.player.getItemInHand(source.heldHand()) : ItemStack.EMPTY;
         this.authoritative = !inventory.player.level().isClientSide();
         // 選択hotbar番号の公開APIは版によって異なる。保持中stackの同一参照で探せば、
         // menuを開いた元Albumだけを全対応帯でロックできる。
-        this.sourceInventorySlot = source.heldHand() == net.minecraft.world.InteractionHand.MAIN_HAND
+        this.sourceInventorySlot = source != null && source.isHeld()
+                && source.heldHand() == net.minecraft.world.InteractionHand.MAIN_HAND
                 ? findInventorySlot(inventory, album) : -1;
         this.overflow = new ArrayList<>();
         this.contents = new SimpleContainer(ALBUM_SLOTS) {
@@ -83,14 +88,21 @@ public class AlbumMenu extends AbstractContainerMenu {
             for (int i = ALBUM_SLOTS; i < saved.size(); i++) overflow.add(saved.get(i).copy());
             loading = false;
         }
-        for (int i = 0; i < ALBUM_SLOTS; i++) addSlot(new AlbumSlot(contents, i, 8 + (i % 9) * 18, 18));
-        for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++)
-            addSlot(new DeferredInitialInventorySlot(inventory, col + row * 9 + 9, 8 + col * 18,
-                    49 + row * 18, () -> deferFullSyncValues));
-        for (int col = 0; col < 9; col++) addSlot(col == sourceInventorySlot
-                ? new LockedSourceSlot(inventory, col, 8 + col * 18, 107, () -> deferFullSyncValues)
-                : new DeferredInitialInventorySlot(inventory, col, 8 + col * 18, 107,
-                        () -> deferFullSyncValues));
+        for (int i = 0; i < ALBUM_SLOTS; i++) {
+            addSlot(new AlbumSlot(contents, i, AlbumMenuLayout.albumSlotX(i), AlbumMenuLayout.albumSlotY(i)));
+        }
+        for (int row = 0; row < 3; row++) for (int col = 0; col < AlbumMenuLayout.COLUMNS; col++) {
+            addSlot(new DeferredInitialInventorySlot(inventory, col + row * AlbumMenuLayout.COLUMNS + 9,
+                    AlbumMenuLayout.albumSlotX(col), AlbumMenuLayout.playerInventoryY(row),
+                    () -> deferFullSyncValues));
+        }
+        for (int col = 0; col < AlbumMenuLayout.COLUMNS; col++) {
+            addSlot(col == sourceInventorySlot
+                    ? new LockedSourceSlot(inventory, col, AlbumMenuLayout.albumSlotX(col),
+                            AlbumMenuLayout.HOTBAR_Y, () -> deferFullSyncValues)
+                    : new DeferredInitialInventorySlot(inventory, col, AlbumMenuLayout.albumSlotX(col),
+                            AlbumMenuLayout.HOTBAR_Y, () -> deferFullSyncValues));
+        }
         for (int i = ALBUM_SLOTS; i < slots.size(); i++) {
             if (slots.get(i).container == inventory && slots.get(i).getContainerSlot() == sourceInventorySlot) {
                 sourceMenuSlot = i;
@@ -100,12 +112,17 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 初回の一括packetに残す内部9枠を、実ItemStack codecで先に検証する。
+     * 初回の一括packetに残す内部Album枠を、実ItemStack codecで先に検証する。
      * player inventoryは{@link #sendAllDataToRemote()}が直後のslot単位packetへ分割する。
      */
     public static boolean fitsInitialMenuSync(Inventory inventory, BoomboxSource source) {
+        return inspectInitialMenuSync(inventory, source).fits();
+    }
+
+    public static AlbumStorageBudget.Result inspectInitialMenuSync(Inventory inventory, BoomboxSource source) {
+        if (source == null || !source.isHeld()) return AlbumStorageBudget.invalidSource();
         final ItemStack heldAlbum = inventory.player.getItemInHand(source.heldHand());
-        if (!heldAlbum.is(ModItems.ALBUM.get())) return false;
+        if (!heldAlbum.is(ModItems.ALBUM.get())) return AlbumStorageBudget.invalidSource();
         final List<ItemStack> initialSlots = new ArrayList<>(ALBUM_SLOTS);
         final List<ItemStack> saved = AlbumItem.contents(heldAlbum).discs();
         for (int i = 0; i < ALBUM_SLOTS; i++) {
@@ -113,10 +130,10 @@ public class AlbumMenu extends AbstractContainerMenu {
         }
         for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) initialSlots.add(ItemStack.EMPTY);
         //? if >=1.21 {
-        return AlbumStorageBudget.fitsInitialMenuSync(initialSlots, ItemStack.EMPTY,
+        return AlbumStorageBudget.inspectInitialMenuSync(initialSlots, ItemStack.EMPTY,
                 inventory.player.level().registryAccess());
         //?} else {
-        /*return AlbumStorageBudget.fitsInitialMenuSync(initialSlots, ItemStack.EMPTY);
+        /*return AlbumStorageBudget.inspectInitialMenuSync(initialSlots, ItemStack.EMPTY);
         *///?}
     }
 
@@ -196,52 +213,46 @@ public class AlbumMenu extends AbstractContainerMenu {
         }
         for (final ItemStack saved : overflow) prospective.add(saved.copy());
         if (prospective.size() >= AlbumContents.STORAGE_DECODE_LIMIT) {
-            storageRejected = true;
+            storageFailure = AlbumStorageBudget.entryLimit(AlbumStorageBudget.Stage.ALBUM);
             return false;
         }
         prospective.add(stack.copy());
         final ItemStack candidateAlbum = album.copy();
         AlbumItem.setContents(candidateAlbum, new AlbumContents(prospective));
         //? if >=1.21 {
-        final boolean accepted = AlbumStorageBudget.fits(candidateAlbum, owner.level().registryAccess())
-                && fitsBoomboxOuter(candidateAlbum)
-                && AlbumStorageBudget.fitsMenuSync(prospectiveMenuSlots(stack, candidateAlbum), getCarried().copy(),
-                        owner.level().registryAccess());
+        AlbumStorageBudget.Result result = AlbumStorageBudget.inspect(candidateAlbum, owner.level().registryAccess()).at(AlbumStorageBudget.Stage.ALBUM);
+        if (result.fits()) result = inspectBoomboxOuter(candidateAlbum);
+        if (result.fits()) result = AlbumStorageBudget.inspectMenuSync(prospectiveMenuSlots(stack, candidateAlbum), getCarried().copy(), owner.level().registryAccess());
         //?} else {
-        /*final boolean accepted = AlbumStorageBudget.fits(candidateAlbum)
-                && fitsBoomboxOuter(candidateAlbum)
-                && AlbumStorageBudget.fitsMenuSync(prospectiveMenuSlots(stack, candidateAlbum), getCarried().copy());
+        /*AlbumStorageBudget.Result result = AlbumStorageBudget.inspect(candidateAlbum).at(AlbumStorageBudget.Stage.ALBUM);
+        if (result.fits()) result = inspectBoomboxOuter(candidateAlbum);
+        if (result.fits()) result = AlbumStorageBudget.inspectMenuSync(prospectiveMenuSlots(stack, candidateAlbum), getCarried().copy());
         *///?}
-        if (!accepted) storageRejected = true;
-        return accepted;
+        if (!result.fits()) storageFailure = result;
+        return result.fits();
     }
 
-    private boolean fitsBoomboxOuter(ItemStack candidateAlbum) {
+    private AlbumStorageBudget.Result inspectBoomboxOuter(ItemStack candidateAlbum) {
         final ItemStack candidateBoombox = new ItemStack(ModItems.BOOMBOX.get());
         //? if >=1.21 {
-        candidateBoombox.set(ModDataComponents.BOOMBOX_CONTENTS.get(),
-                new BoomboxContents(candidateAlbum, 1L));
-        return AlbumStorageBudget.fits(candidateBoombox, owner.level().registryAccess());
+        candidateBoombox.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(candidateAlbum, 1L));
+        return AlbumStorageBudget.inspect(candidateBoombox, owner.level().registryAccess()).at(AlbumStorageBudget.Stage.BOOMBOX_OUTER);
         //?} else {
         /*BoomboxContents.store(candidateBoombox, new BoomboxContents(candidateAlbum, 1L));
-        return AlbumStorageBudget.fits(candidateBoombox);
+        return AlbumStorageBudget.inspect(candidateBoombox).at(AlbumStorageBudget.Stage.BOOMBOX_OUTER);
         *///?}
     }
 
+    /**
+     * 内部枠のfull syncと、挿入クリックで変わり得る値だけを保守的に合算する。
+     * 無関係なplayer inventoryはslot単位で同期され、クリックのchangedSlotsにも入らない。
+     * 交換で外へ出る旧盤は内部枠に残し、入力元・cursor・更新後の元Albumも予算から落とさない。
+     */
     private List<ItemStack> prospectiveMenuSlots(ItemStack inserted, ItemStack candidateAlbum) {
-        final List<ItemStack> prospective = new ArrayList<>(slots.size());
-        for (int i = 0; i < slots.size(); i++) {
-            final ItemStack current = slots.get(i).getItem();
-            if (i == sourceMenuSlot) {
-                prospective.add(candidateAlbum);
-            } else {
-                prospective.add(current.copy());
-            }
-        }
-        // 入力元を消さず、Album slotの交換後に見える候補を必ず足す保守上界にする。
-        // 通常クリックのcursorはgetCarried()側にも残しており、拒否判定が実同期量を過小評価しない。
+        final List<ItemStack> prospective = new ArrayList<>(ALBUM_SLOTS + 2);
+        for (int i = 0; i < ALBUM_SLOTS; i++) prospective.add(contents.getItem(i).copy());
+        prospective.add(candidateAlbum);
         prospective.add(inserted.copy());
-        if (sourceMenuSlot < 0) prospective.add(candidateAlbum);
         return prospective;
     }
 
@@ -251,7 +262,7 @@ public class AlbumMenu extends AbstractContainerMenu {
 
     //? if >=26.1 {
     @Override public void clicked(int slotId, int button, ContainerInput input, Player player) {
-        storageRejected = false;
+        storageFailure = null;
         if (!stillValid(player) || (input == ContainerInput.SWAP && isSourceSwapButton(button))) return;
         handlingClick = true;
         try {
@@ -264,7 +275,7 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
     //?} else {
     /*@Override public void clicked(int slotId, int button, ClickType input, Player player) {
-        storageRejected = false;
+        storageFailure = null;
         if (!stillValid(player) || (input == ClickType.SWAP && isSourceSwapButton(button))) return;
         handlingClick = true;
         try {
@@ -279,7 +290,7 @@ public class AlbumMenu extends AbstractContainerMenu {
 
     @Override public @NotNull ItemStack quickMoveStack(Player player, int index) {
         // 閉じたmenuから遅れて届くshift-clickは、保存先が同一stackでない時点で一切処理しない。
-        if (!stillValid(player)) return ItemStack.EMPTY;
+        if (!stillValid(player) || index < 0 || index >= slots.size()) return ItemStack.EMPTY;
         if (index == sourceMenuSlot) return ItemStack.EMPTY;
         final Slot slot = slots.get(index);
         if (slot == null || !slot.hasItem()) return ItemStack.EMPTY;
@@ -288,7 +299,7 @@ public class AlbumMenu extends AbstractContainerMenu {
         if (index < ALBUM_SLOTS) {
             if (!moveItemStackTo(stack, ALBUM_SLOTS, slots.size(), true)) return ItemStack.EMPTY;
         } else {
-            storageRejected = false;
+            storageFailure = null;
             if (!mayStore(stack)) {
                 notifyStorageRejected();
                 return ItemStack.EMPTY;
@@ -309,10 +320,10 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
 
     private void notifyStorageRejected() {
-        if (storageRejected && authoritative && owner instanceof ServerPlayer serverPlayer) {
-            serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.album.storage_too_large"), true);
+        if (storageFailure != null && authoritative && owner instanceof ServerPlayer serverPlayer) {
+            serverPlayer.sendSystemMessage(Component.translatable(storageFailure.rejectionKey("message.music_disc_maker.album.storage_too_large")), true);
         }
-        storageRejected = false;
+        storageFailure = null;
     }
 
     /** 開いているAlbumの元stackを画面内で移動できないようにする。 */
@@ -326,6 +337,7 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
 
     private boolean isOriginalAlbumHeld() {
+        if (source == null || !source.isHeld()) return false;
         final ItemStack held = owner.getItemInHand(source.heldHand());
         // Slot同期はclientのItemStack参照を差し替える。保存先の参照同一性はserverだけで検証する。
         return !held.isEmpty() && held.is(ModItems.ALBUM.get()) && (!authoritative || album == held);
@@ -341,7 +353,8 @@ public class AlbumMenu extends AbstractContainerMenu {
     /** SWAPはクリックしたslotの反対側（hotbar/offhand）も移動させるため、source側を別途保護する。 */
     private boolean isSourceSwapButton(int button) {
         if (sourceInventorySlot >= 0) return button == sourceInventorySlot;
-        return source.heldHand() == net.minecraft.world.InteractionHand.OFF_HAND && button == 40;
+        return source != null && source.isHeld()
+                && source.heldHand() == net.minecraft.world.InteractionHand.OFF_HAND && button == 40;
     }
 }
 

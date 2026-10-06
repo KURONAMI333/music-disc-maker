@@ -19,6 +19,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public final class GoldenEmitterAnchorGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -26,7 +34,7 @@ public final class GoldenEmitterAnchorGameTests {
     private GoldenEmitterAnchorGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -51,7 +59,7 @@ public final class GoldenEmitterAnchorGameTests {
     }
 
     /** Wrapper越しでも、Speakerなし固定Goldenの同期済みclient BE設定を優先する。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -77,7 +85,7 @@ public final class GoldenEmitterAnchorGameTests {
     }
 
     /** Speaker有りでは遠隔でも整合するserver snapshotを正本とし、client BEへ戻らない。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

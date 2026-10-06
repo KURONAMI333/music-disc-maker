@@ -49,6 +49,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class PlaybackFaultDeliveryGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -59,7 +67,7 @@ public class PlaybackFaultDeliveryGameTests {
      * <p>終端で {@code playbackFault()} を pull するだけの設計はここで落ちる — 引いた時点では
      * まだ {@code null} なので、その後いくら理由が付いても誰も見に来ない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -98,7 +106,7 @@ public class PlaybackFaultDeliveryGameTests {
      * 再生開始から 1 秒足らずで来るのでこの窓に落ちる方が普通。どちらの順番でも 1 回だけ届く、
      * が受け口の規約。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -130,7 +138,7 @@ public class PlaybackFaultDeliveryGameTests {
      * push の口を持たない実装が壊れないこと ({@code false} を返し、pull の経路が残る)。
      * v3 の派生ソース・キャッシュ済み PCM を返す実装はこちら側に居る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

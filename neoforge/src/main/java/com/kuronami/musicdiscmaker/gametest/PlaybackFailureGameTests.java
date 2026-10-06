@@ -72,6 +72,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class PlaybackFailureGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -82,7 +90,7 @@ public class PlaybackFailureGameTests {
      * 片方の player だけ無音になる典型がこれ。ここを {@code BLOCKED_URL} に混ぜると、
      * 利用者は自分の回線を疑う手がかりを失う。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -111,7 +119,7 @@ public class PlaybackFailureGameTests {
      * {@code ConnectException} は {@code SocketException} の子) と、隔離 classloader 側の
      * 独自例外をクラス名で拾う分の両方を固定する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -133,7 +141,7 @@ public class PlaybackFailureGameTests {
     }
 
     /** ネットワーク以外の例外は {@link Kind#OPEN_ERROR}。詳細に例外の実体が残ること。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -149,7 +157,7 @@ public class PlaybackFailureGameTests {
     }
 
     /** 自己参照する cause chain で無限ループしないこと (ローダー由来の例外は形を保証できない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -166,7 +174,7 @@ public class PlaybackFailureGameTests {
      * 同じ文面になって切り分けの役に立たなくなる ({@code ResolveFailureText} と同じ規律 —
      * 対応表は 1 箇所に閉じ、{@code name().toLowerCase()} を書かない)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -201,7 +209,7 @@ public class PlaybackFailureGameTests {
      * <b>失敗として扱う</b> — 黙って 0 件を検査して緑になると、このテストを足した意味が消える。
      * ロケールは決め打ちせずディレクトリを走査するので、15 番目の言語を足した時も自動で入る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -233,7 +241,7 @@ public class PlaybackFailureGameTests {
      * 鳴らせなかった状態 = 利用者に言うことが違う。名前空間だけを見る検査では、両者を束ねる
      * 編集が素通りする。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -275,7 +283,7 @@ public class PlaybackFailureGameTests {
      * ので、覚えたものは上の 3 つの点で消されるまで残る。直っていない失敗が黙って消えると、
      * 利用者が画面を見に行った時に何も無い状態へ戻る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -351,7 +359,7 @@ public class PlaybackFailureGameTests {
      * 検証は <b>ローダー境界の型から</b>始める — {@code ClientAudioStreams} 経由だと、
      * キャッシュ命中の枝が理由を持たないぶんだけ検証が素通りしてしまう。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -372,7 +380,7 @@ public class PlaybackFailureGameTests {
      * 「対応外の URL」「動画が消えた」「地域制限」「年齢制限」「ログイン要求」は、
      * どれ 1 つとして {@link Kind#STREAM_UNAVAILABLE} に落ちてはならない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -409,7 +417,7 @@ public class PlaybackFailureGameTests {
      * 橋渡し interface だけ新しく、impl が {@code openStreamDetailed} を持たない組み合わせでも
      * 壊れないこと。既定実装が {@code openStream} に落ちて、理由は従来どおりの粒度になる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -435,7 +443,7 @@ public class PlaybackFailureGameTests {
      * 各 client の失敗理由を自分のメッセージへ連結して持つ。つまり「login 要求」は例外の
      * メッセージ 1 本の中に現れる = 隔離 classloader の型を触らずに分類できる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -465,7 +473,7 @@ public class PlaybackFailureGameTests {
      * (理由 + 短い文字列) だけ、というのがこの経路の設計。ここが緩むと、解決に成功して再生だけが
      * 落ちる失敗は再び無音に戻る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -504,7 +512,7 @@ public class PlaybackFailureGameTests {
      * 何度試しても同じ理由で落ちる失敗 (bot 判定が典型) は抑えないとチャットを埋める。
      * 忘れるのは停止した時だけ — 再接続のたびに忘れるなら何も抑えていない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

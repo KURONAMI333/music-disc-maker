@@ -61,6 +61,10 @@ public final class NeoForgePayloads {
         registrar.playToServer(ModPayloadTypes.OpenEquippedBoombox.TYPE,
                 ModPayloadTypes.OpenEquippedBoombox.STREAM_CODEC,
                 NeoForgePayloads::handleOpenEquippedBoombox);
+        // client → server: 開いている金ジューク cart の操作 (menu + entity + 世代を照合する)
+        registrar.playToServer(ModPayloadTypes.ControlGoldenCart.TYPE,
+                ModPayloadTypes.ControlGoldenCart.STREAM_CODEC,
+                NeoForgePayloads::handleControlGoldenCart);
 
         // server → client (再生制御)。
         registrar.playToClient(ModPayloadTypes.Play.TYPE, ModPayloadTypes.Play.STREAM_CODEC,
@@ -79,6 +83,14 @@ public final class NeoForgePayloads {
                 (msg, context) -> context.enqueueWork(() -> ModNetwork.handleBoomboxState(msg.inner())));
         registrar.playToClient(ModPayloadTypes.SpeakerSet.TYPE, ModPayloadTypes.SpeakerSet.STREAM_CODEC,
                 (msg, context) -> context.enqueueWork(() -> ModNetwork.handleSpeakerSet(msg.inner())));
+
+        // server → client: 金ジューク cart (1 秒ごとの keep-alive を兼ねる)。
+        registrar.playToClient(ModPayloadTypes.GoldenCartPlay.TYPE, ModPayloadTypes.GoldenCartPlay.STREAM_CODEC,
+                (msg, context) -> context.enqueueWork(() -> ModNetwork.handleGoldenCartPlay(msg.inner())));
+        registrar.playToClient(ModPayloadTypes.GoldenCartStop.TYPE, ModPayloadTypes.GoldenCartStop.STREAM_CODEC,
+                (msg, context) -> context.enqueueWork(() -> ModNetwork.handleGoldenCartStop(msg.inner())));
+        registrar.playToClient(ModPayloadTypes.GoldenCartState.TYPE, ModPayloadTypes.GoldenCartState.STREAM_CODEC,
+                (msg, context) -> context.enqueueWork(() -> ModNetwork.handleGoldenCartState(msg.inner())));
 
         // Sophisticated Backpacks の Jukebox Upgrade 互換 (SC 非依存ペイロード、無条件登録)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerPayload(registrar);
@@ -139,6 +151,14 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), player));
+    }
+
+    private static void handleControlGoldenCart(
+            ModPayloadTypes.ControlGoldenCart msg, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleControlGoldenCart(msg.inner(), player));
     }
 }
 

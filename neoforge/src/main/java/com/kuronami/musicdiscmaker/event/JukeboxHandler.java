@@ -113,7 +113,11 @@ public final class JukeboxHandler {
                 final ItemStack disc = jukebox.getTheItem().copy();
                 jukebox.setTheItem(ItemStack.EMPTY);
                 if (!player.addItem(disc)) {
-                    player.drop(disc, false);
+                    //? if >=26.3 {
+player.drop(disc, false, net.minecraft.util.Prediction.SERVER_ONLY);
+//?} else {
+/*player.drop(disc, false);
+*///?}
                 //?} else {
                 //?}
                 }

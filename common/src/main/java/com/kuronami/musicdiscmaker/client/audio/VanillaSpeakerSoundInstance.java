@@ -76,7 +76,7 @@ public final class VanillaSpeakerSoundInstance extends AbstractTickableSoundInst
     }
 
     private static SoundEvent soundEvent(String id) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return SoundEvent.createVariableRangeEvent(net.minecraft.resources.Identifier.parse(id));
         //?} elif >=1.21 {
         /*return SoundEvent.createVariableRangeEvent(net.minecraft.resources.ResourceLocation.parse(id));
@@ -142,8 +142,13 @@ public final class VanillaSpeakerSoundInstance extends AbstractTickableSoundInst
     }
 
     @Override
-    public net.minecraft.client.sounds.WeighedSoundEvents resolve(SoundManager manager) {
+    //? if >=26.3 {
+public net.minecraft.client.sounds.WeighedSoundEvents getOrResolve(SoundManager manager) {
+        final net.minecraft.client.sounds.WeighedSoundEvents result = super.getOrResolve(manager);
+//?} else {
+/*public net.minecraft.client.sounds.WeighedSoundEvents resolve(SoundManager manager) {
         final net.minecraft.client.sounds.WeighedSoundEvents result = super.resolve(manager);
+*///?}
         if (this.sound != null && this.sound != SoundManager.EMPTY_SOUND) {
             final Sound base = this.sound;
             // SoundEngine samples this provider once when it creates the channel. Pin the same sample for

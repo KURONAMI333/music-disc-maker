@@ -24,7 +24,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.world.item.ItemStack;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -49,7 +49,7 @@ public final class AlbumSizeGameTests {
     private AlbumSizeGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = TEMPLATE, timeoutTicks = 400)
     *///?}
     public static void albumAndBoomboxCodecMeasurements(GameTestHelper helper) {
@@ -75,7 +75,7 @@ public final class AlbumSizeGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = TEMPLATE, timeoutTicks = 400)
     *///?}
     public static void fullLengthMetadataIsRejectedAtAlbumWireBoundary(GameTestHelper helper) {
@@ -112,15 +112,89 @@ public final class AlbumSizeGameTests {
         helper.succeed();
     }
 
+    /** 補助文字が上限を跨いでも、小さい通常盤を容量エラーとして拒否しない。 */
+    //? if <1.21.11 {
+    /*@GameTest(template = TEMPLATE, timeoutTicks = 100)
+    *///?}
+    public static void supplementaryMetadataFitsStorageBudget(GameTestHelper helper) {
+        final net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(1, 1, 1);
+        helper.setBlock(pos, com.kuronami.musicdiscmaker.register.ModBlocks.MUSIC_DISC_MAKER.get());
+        final var maker = (com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity)
+                helper.getLevel().getBlockEntity(helper.absolutePos(pos));
+        helper.assertTrue(maker != null, "metadata fixture Maker missing");
+        final String emoji = "\ud83c\udfb5";
+        final String text = "x".repeat(255) + emoji;
+        final String url = "x".repeat(2047) + emoji;
+        final List<CustomTrackData> cases = List.of(
+                new CustomTrackData("https://example.invalid/track", text, "artist", 1000L, "", false),
+                new CustomTrackData("https://example.invalid/track", "title", text, 1000L, "", false),
+                new CustomTrackData(url, "title", "artist", 1000L, "", false),
+                new CustomTrackData("https://example.invalid/track", "title", "artist", 1000L, url, false),
+                CustomTrackData.local("a".repeat(64), text, text, 1000L));
+        try {
+            for (int index = 0; index < cases.size(); index++) {
+                maker.clearContent();
+                maker.setResolvedTrack(cases.get(index), "metadata-only");
+                maker.setItem(com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_INPUT,
+                        new ItemStack(ModItems.BLANK_DISC.get()));
+                helper.assertTrue(maker.createDisc(), "metadata fixture did not create disc " + index);
+                final ItemStack disc = maker.getItem(
+                        com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_OUTPUT).copy();
+                helper.assertTrue(com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity.isPlayableInSlot(disc),
+                        "created metadata disc is not accepted by Golden " + index);
+                helper.assertTrue(disc.has(DataComponents.JUKEBOX_PLAYABLE),
+                        "created metadata disc lacks vanilla playable component " + index);
+                helper.assertTrue(com.kuronami.musicdiscmaker.component.AlbumStorageBudget.fits(
+                        disc, helper.getLevel().registryAccess()),
+                        "small supplementary metadata disc was rejected as oversize " + index);
+                final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+                album.set(ModDataComponents.ALBUM_CONTENTS.get(), new AlbumContents(List.of(disc)));
+                final ItemStack boombox = new ItemStack(ModItems.BOOMBOX.get());
+                boombox.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(album, 4242L));
+                helper.assertTrue(com.kuronami.musicdiscmaker.component.AlbumStorageBudget.fits(
+                        album, helper.getLevel().registryAccess())
+                                && com.kuronami.musicdiscmaker.component.AlbumStorageBudget.fits(
+                                        boombox, helper.getLevel().registryAccess()),
+                        "small supplementary metadata container was rejected as oversize " + index);
+                helper.assertTrue(cases.get(index).title().equals(disc.getHoverName().getString()),
+                        "created disc lost its metadata title " + index);
+                measureStack(helper, "supplementary_" + index, "custom_disc", disc, 1, 1, false, true);
+                measureStack(helper, "supplementary_" + index, "album", album, 1, 1, false, true);
+                measureStack(helper, "supplementary_" + index, "boombox", boombox, 1, 1, false, true);
+            }
+        } finally {
+            maker.clearContent();
+            helper.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR);
+        }
+        helper.succeed();
+    }
+
     private static void measureStack(GameTestHelper helper, String fixture, String outer, ItemStack original,
             int discCount, int trackCount, boolean expectsLimit) {
+        measureStack(helper, fixture, outer, original, discCount, trackCount, expectsLimit, false);
+    }
+
+    private static void measureStack(GameTestHelper helper, String fixture, String outer, ItemStack original,
+            int discCount, int trackCount, boolean expectsLimit, boolean realMakerFixture) {
         final RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, helper.getLevel().registryAccess());
         final Tag encoded = ItemStack.CODEC.encodeStart(ops, original).result().orElse(null);
         helper.assertTrue(encoded != null, fixture + " persistent ItemStack codec encode failed");
         final ItemStack persisted = encoded == null
                 ? ItemStack.EMPTY
                 : ItemStack.CODEC.parse(ops, encoded).result().orElse(ItemStack.EMPTY);
-        final boolean persistentEqual = ItemStack.matches(original, persisted);
+        final boolean strictPersistentEqual = ItemStack.matches(original, persisted);
+        final boolean persistentEqual;
+        if (realMakerFixture) {
+            final Tag reencoded = ItemStack.CODEC.encodeStart(ops, persisted).result().orElseThrow();
+            final boolean encodedEqual = encoded.equals(reencoded);
+            MusicDiscMaker.LOGGER.info("ALBUM_SIZE_NORMALIZATION fixture={} outer={} strictEquals={} encodedEqual={} originalComponents={} persistedComponents={}",
+                    fixture, outer, strictPersistentEqual, encodedEqual, original.getComponents(), persisted.getComponents());
+            helper.assertTrue(encodedEqual, fixture + " persistent encoded data changed");
+            final ItemStack normalized = normalizeOnlyKeyToHolder(helper, original, persisted, fixture);
+            persistentEqual = ItemStack.matches(original, normalized);
+        } else {
+            persistentEqual = strictPersistentEqual;
+        }
         helper.assertTrue(persistentEqual, fixture + " persistent ItemStack codec changed contents");
 
         final RegistryFriendlyByteBuf wire = new RegistryFriendlyByteBuf(Unpooled.buffer(), helper.getLevel().registryAccess());
@@ -146,6 +220,60 @@ public final class AlbumSizeGameTests {
             helper.assertTrue(failure == null, fixture + " ItemStack sync codec threw " + failureSummary(failure));
             helper.assertTrue(wireEqual, fixture + " menu ItemStack sync codec changed contents");
         }
+    }
+
+    /**
+     * 実Maker盤の1.21.1保存ではEitherHolder(key)が参照Holderへ正規化される。
+     * 同じsong key/tooltipだけを同一化し、metadataと他の全componentは厳密matchesを維持する。
+     * 同期codecは左右を保持するため、wireの厳密matchesはこの処理を使わない。
+     */
+    private static ItemStack normalizeOnlyKeyToHolder(GameTestHelper helper, ItemStack original,
+            ItemStack persisted, String fixture) {
+        final ItemStack normalized = persisted.copy();
+        if (original.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            helper.assertTrue(java.util.Objects.equals(original.get(ModDataComponents.CUSTOM_TRACK.get()),
+                            persisted.get(ModDataComponents.CUSTOM_TRACK.get()))
+                            && original.getHoverName().equals(persisted.getHoverName()),
+                    fixture + " disc track/title changed during persistence");
+        }
+        //? if <1.21.2 {
+        /*final var oldPlayable = original.get(DataComponents.JUKEBOX_PLAYABLE);
+        final var newPlayable = persisted.get(DataComponents.JUKEBOX_PLAYABLE);
+        if (!java.util.Objects.equals(oldPlayable, newPlayable)) {
+            helper.assertTrue(oldPlayable != null && newPlayable != null
+                            && oldPlayable.song().holder().isEmpty() && newPlayable.song().holder().isPresent()
+                            && oldPlayable.song().key().equals(newPlayable.song().key())
+                            && newPlayable.song().holder().orElseThrow().unwrapKey().orElseThrow()
+                                    .equals(oldPlayable.song().key())
+                            && oldPlayable.showInTooltip() == newPlayable.showInTooltip(),
+                    fixture + " playable changed beyond key-to-holder normalization");
+            normalized.set(DataComponents.JUKEBOX_PLAYABLE, oldPlayable);
+        }
+        *///?}
+        if (original.is(ModItems.ALBUM.get())) {
+            final AlbumContents before = original.get(ModDataComponents.ALBUM_CONTENTS.get());
+            final AlbumContents after = persisted.get(ModDataComponents.ALBUM_CONTENTS.get());
+            helper.assertTrue(before != null && after != null && before.size() == after.size(),
+                    fixture + " Album disc count changed");
+            final List<ItemStack> discs = new ArrayList<>();
+            for (int index = 0; index < before.size(); index++) {
+                discs.add(normalizeOnlyKeyToHolder(helper, before.discAt(index), after.discAt(index),
+                        fixture + "/disc" + index));
+            }
+            normalized.set(ModDataComponents.ALBUM_CONTENTS.get(), new AlbumContents(discs));
+        }
+        if (original.is(ModItems.BOOMBOX.get())) {
+            final BoomboxContents before = original.get(ModDataComponents.BOOMBOX_CONTENTS.get());
+            final BoomboxContents after = persisted.get(ModDataComponents.BOOMBOX_CONTENTS.get());
+            helper.assertTrue(before != null && after != null, fixture + " Boombox contents disappeared");
+            final ItemStack disc = normalizeOnlyKeyToHolder(helper, before.disc(), after.disc(), fixture + "/medium");
+            normalized.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(disc, after.id(),
+                    after.cursor(), after.pausedOffsetMs(), after.repeat(), after.shuffle(), after.shuffleSeed(),
+                    after.shuffleAnchorDisc(), after.shuffleAnchorTrack(), after.volumePercent()));
+        }
+        helper.assertTrue(ItemStack.matches(original, normalized),
+                fixture + " item fields/components changed beyond key-to-holder normalization");
+        return normalized;
     }
 
     private static int nbtBytes(GameTestHelper helper, ItemStack stack) {

@@ -30,7 +30,7 @@ import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 //?}
@@ -122,7 +122,7 @@ public class DiscPedestalBlockEntity extends BlockEntity {
                     .map(net.minecraft.network.chat.Component::getString)
                     .filter(value -> !value.isBlank())
                     .orElse(null);
-            *///?} elif >=1.21.2 {
+            *///?} elif >=1.21.11 {
             /*
             final var playable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
             if (playable != null) {
@@ -206,7 +206,7 @@ public class DiscPedestalBlockEntity extends BlockEntity {
     // ── persistence ──
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
         stored.clear();
@@ -228,7 +228,7 @@ public class DiscPedestalBlockEntity extends BlockEntity {
     *///?}
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         ContainerHelper.saveAllItems(output, stored);

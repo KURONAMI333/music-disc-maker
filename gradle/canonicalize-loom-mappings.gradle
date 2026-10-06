@@ -1,0 +1,134 @@
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+import java.time.LocalDateTime
+import java.util.zip.CRC32
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
+def mappingConfiguration = configurations.findByName("mappings")
+if (mappingConfiguration == null) {
+    throw new GradleException("Loom mappings configuration is missing; cannot verify its generated archive.")
+}
+
+mappingConfiguration.incoming.beforeResolve {
+    def mappingDependency = mappingConfiguration.dependencies.find {
+        it.group == "loom" && it.name == "mappings"
+    }
+    if (mappingDependency == null || !mappingDependency.version?.startsWith("layered+hash.")) {
+        throw new GradleException("Expected Loom's layered mappings dependency before resolving the mappings configuration.")
+    }
+
+    def version = mappingDependency.version
+    File artifact = new File(
+        new File(gradle.gradleUserHomeDir, "caches/fabric-loom/minecraftMaven/loom/mappings/${version}"),
+        "mappings-${version}.jar"
+    )
+    if (!artifact.isFile()) {
+        throw new GradleException("Loom generated mappings artifact is missing before dependency verification: ${artifact}")
+    }
+
+    // Loom hash.2198 is shared by multiple Minecraft versions; bind payload pins to the exact leaf.
+    final String pinKey = "${project.path}|${version}"
+    final Map<String, String> expectedMappingsSha256ByProjectAndVersion = [
+        ":fabric:1.20.1|layered+hash.1899487486": "681dbdcc23fe81926120984d1114d5883798a7789a103304a7f17523428c0bc7",
+        ":fabric:1.21.1|layered+hash.2198": "e2ccb07abfc7f4a045c638fa746f36be44240fcca3346974c9a0894037342fe7",
+        ":fabric:1.21.4|layered+hash.2198": "c285ffc5a9ab27e3c1399aa0c97a6c0df0a65511ae32a26d40d9572d0cc7a5a3",
+        ":fabric:1.21.11|layered+hash.2198": "27768369f33df3b3d8b68713e40a6252287a1477aeeeb56288c7dde74fc1da43",
+    ]
+    final Map<String, String> expectedCanonicalArchiveSha256ByPayload = [
+        "681dbdcc23fe81926120984d1114d5883798a7789a103304a7f17523428c0bc7": "589dbe43abdfc0fe9d1b73a9652acd197a8d7adb885c268d73f6740b5a13e7e5",
+        "e2ccb07abfc7f4a045c638fa746f36be44240fcca3346974c9a0894037342fe7": "a9f1dab8240f6d0b551e80c7d06bf82bac5edb8d0472f6f066d1aa3313326a58",
+        "c285ffc5a9ab27e3c1399aa0c97a6c0df0a65511ae32a26d40d9572d0cc7a5a3": "4239438729f0a8e710be3b583e77c5f0c13bd4f4cd7d01bc19f44191b896bbc0",
+        "27768369f33df3b3d8b68713e40a6252287a1477aeeeb56288c7dde74fc1da43": "12bb086da26514bd80ae10c392081e25aa4f36d47a6200acce9cac93a45f454b",
+    ]
+    final String expectedMappingsSha256 = expectedMappingsSha256ByProjectAndVersion[pinKey]
+    final String expectedCanonicalArchiveSha256 = expectedCanonicalArchiveSha256ByPayload[expectedMappingsSha256]
+    if (expectedMappingsSha256 == null || expectedCanonicalArchiveSha256 == null) {
+        throw new GradleException("No reviewed canonical mapping pins for ${version}.")
+    }
+    File temporary = File.createTempFile("${artifact.name}-", ".canonical", artifact.parentFile)
+    try {
+        List<Map> payloads = []
+        ZipFile input = new ZipFile(artifact)
+        try {
+            def entries = Collections.list(input.entries())
+            def names = entries.collect { it.name }
+            if (names != ["mappings/", "mappings/mappings.tiny"]) {
+                throw new GradleException("Unexpected Loom mappings ZIP entries/order for ${version}: ${names}")
+            }
+            entries.each { entry ->
+                byte[] bytes = input.getInputStream(entry).withCloseable { it.readAllBytes() }
+                if (entry.name == "mappings/" && bytes.length != 0) {
+                    throw new GradleException("Loom mappings directory entry unexpectedly contains data: ${version}")
+                }
+                if (entry.name == "mappings/mappings.tiny") {
+                    String actualMappingsSha256 = MessageDigest.getInstance("SHA-256").digest(bytes).encodeHex().toString()
+                    if (actualMappingsSha256 != expectedMappingsSha256) {
+                        throw new GradleException("Loom mappings payload changed for ${version}: ${actualMappingsSha256}; review mapping source/version before updating its checksum.")
+                    }
+                }
+                payloads << [name: entry.name, bytes: bytes]
+            }
+        } finally {
+            input.close()
+        }
+
+        ZipOutputStream output = new ZipOutputStream(new FileOutputStream(temporary))
+        try {
+            payloads.each { payload ->
+                byte[] bytes = payload.bytes
+                CRC32 crc = new CRC32()
+                crc.update(bytes)
+                ZipEntry entry = new ZipEntry(payload.name)
+                entry.setTimeLocal(LocalDateTime.of(1980, 1, 1, 0, 0))
+                entry.setExtra(new byte[0])
+                entry.setComment(null)
+                entry.setMethod(ZipEntry.STORED)
+                entry.setSize(bytes.length)
+                entry.setCompressedSize(bytes.length)
+                entry.setCrc(crc.getValue())
+                output.putNextEntry(entry)
+                output.write(bytes)
+                output.closeEntry()
+            }
+        } finally {
+            output.close()
+        }
+
+        ZipFile normalized = new ZipFile(temporary)
+        try {
+            def normalizedEntries = Collections.list(normalized.entries())
+            if (normalizedEntries.collect { it.name } != payloads.collect { it.name }) {
+                throw new GradleException("Canonical Loom mappings ZIP changed entry order for ${version}.")
+            }
+            normalizedEntries.eachWithIndex { entry, index ->
+                byte[] actual = normalized.getInputStream(entry).withCloseable { it.readAllBytes() }
+                if (!Arrays.equals(actual, (byte[]) payloads[index].bytes)) {
+                    throw new GradleException("Canonical Loom mappings ZIP changed payload bytes for ${entry.name}.")
+                }
+            }
+        } finally {
+            normalized.close()
+        }
+
+        byte[] canonicalBytes = Files.readAllBytes(temporary.toPath())
+        String canonicalSha256 = MessageDigest.getInstance("SHA-256").digest(canonicalBytes).encodeHex().toString()
+        if (canonicalSha256 != expectedCanonicalArchiveSha256) {
+            throw new GradleException("Canonical Loom mappings archive changed for ${version}: ${canonicalSha256}; review archive construction before updating its pin.")
+        }
+        byte[] originalBytes = Files.readAllBytes(artifact.toPath())
+        if (!Arrays.equals(originalBytes, canonicalBytes)) {
+            try {
+                Files.move(temporary.toPath(), artifact.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary.toPath(), artifact.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
+        logger.lifecycle("Canonicalized Loom mappings ${version}: sha256=${canonicalSha256}; mappings.tiny sha256=${expectedMappingsSha256}")
+    } finally {
+        if (temporary.exists()) temporary.delete()
+    }
+}

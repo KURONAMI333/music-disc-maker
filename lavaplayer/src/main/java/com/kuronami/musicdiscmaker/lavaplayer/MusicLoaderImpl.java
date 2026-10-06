@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -24,8 +25,14 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
+import com.sedmelluq.discord.lavaplayer.container.MediaContainerProbe;
 import com.sedmelluq.discord.lavaplayer.container.MediaContainerRegistry;
+import com.sedmelluq.discord.lavaplayer.container.adts.AdtsContainerProbe;
+import com.sedmelluq.discord.lavaplayer.container.flac.FlacContainerProbe;
+import com.sedmelluq.discord.lavaplayer.container.matroska.MatroskaContainerProbe;
+import com.sedmelluq.discord.lavaplayer.container.mpeg.MpegContainerProbe;
 import com.sedmelluq.discord.lavaplayer.container.mp3.Mp3ContainerProbe;
+import com.sedmelluq.discord.lavaplayer.container.wav.WavContainerProbe;
 import com.sedmelluq.discord.lavaplayer.format.Pcm16AudioDataFormat;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
@@ -35,6 +42,7 @@ import com.sedmelluq.discord.lavaplayer.source.AudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.bandcamp.BandcampAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.local.LocalAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.local.LocalAudioTrack;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataLoader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataReader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudFormatHandler;
@@ -130,6 +138,36 @@ public class MusicLoaderImpl implements IMusicLoader {
      */
     private static final long SUBSTITUTE_BUDGET_MS = 20_000L;
 
+    /**
+     * 保存領域へ入れてよいコンテナの probe。保存したバイトは後で全 client が
+     * {@link #openTrustedFile} 経由でそのまま鳴らすため、<b>音声だけで完結し、
+     * かつシークが機能するコンテナ種別だけ</b>に絞る。ADTS 等のシーク不能入力や
+     * mp4 系 ({@link MpegContainerProbe}) はここには入れない (stage 3 の normalize が
+     * {@link #INPUT_PROBES} で読み、MKA へ変換してから保存する)。
+     *
+     * <p><b>matroska の追加検査</b>: {@link MatroskaContainerProbe} は DocType や
+     * track 種別を見ないため、映像 track を含む MKV もこの probe で受理される。
+     * 映像バイトが原本ごと保存領域へ入らないよう、{@link #loadTrustedFile} は検出が
+     * matroska だった trusted file の track 一覧を {@link MatroskaTrackScanner} で
+     * 調べ、VIDEO が 1 本でもあれば拒否する (音声のみ MKA / WebM は受理される)。
+     *
+     * <p>順序は構造化コンテナ (magic byte 確定) を先、mp3 (frame sync 走査) を最後。
+     * プレイリスト系 probe (M3U/PLS/plain) は参照先を辿るため両 registry とも入れない。
+     */
+    static final List<MediaContainerProbe> SAVE_PROBES =
+            List.of(new MatroskaContainerProbe(), new WavContainerProbe(), new FlacContainerProbe(),
+                    new Mp3ContainerProbe());
+    static final MediaContainerRegistry SAVE_REGISTRY = new MediaContainerRegistry(SAVE_PROBES);
+    /**
+     * 入力側の probe。利用者が選ぶファイルを decode するだけなら decodable なコンテナを
+     * 広く受理してよい (映像トラックは読み捨て)。stage 3 の normalizeLocalFile が使う。
+     */
+    static final List<MediaContainerProbe> INPUT_PROBES =
+            List.of(new MatroskaContainerProbe(), new MpegContainerProbe(), new ClosingOggContainerProbe(),
+                    new WavContainerProbe(), new FlacContainerProbe(), new AdtsContainerProbe(),
+                    new Mp3ContainerProbe());
+    static final MediaContainerRegistry INPUT_REGISTRY = new MediaContainerRegistry(INPUT_PROBES);
+
     private final AudioPlayerManager apm;
     /**
      * 信頼済みファイル専用。通常の {@link #apm} へは登録しない。
@@ -137,8 +175,15 @@ public class MusicLoaderImpl implements IMusicLoader {
      * <p>登録すると従来の {@link #resolve(String)} と {@link #openStream(String, long)} が
      * 任意のファイルパスも解決し始め、URL 用の拒否境界を迂回できる。専用 API から
      * {@link LocalAudioSourceManager#loadItem} を直接呼ぶことで入口を分離する。
+     * こちらは保存形式だけを認める {@link #SAVE_REGISTRY} 側。
      */
     private final LocalAudioSourceManager localFiles;
+    /**
+     * stage 3 の normalize が持込ファイルを decode する時に使う入力側 manager。
+     * 保存境界 ({@link #localFiles}) とは別 registry なので、入力として読めても
+     * 保存形式でないもの (mp4 等) がそのまま store へ入ることはない。
+     */
+    private final LocalAudioSourceManager localInputs;
     /** 登録できた YouTube source manager (登録に失敗したら {@code null})。 */
     private final YoutubeAudioSourceManager youtube;
     /**
@@ -149,10 +194,11 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     public MusicLoaderImpl() {
         this.apm = new DefaultAudioPlayerManager();
-        // v3.1.0 の持込対象は MP3 だけ。既定 registry は WAV/OGG/FLAC 等も通すため、
-        // MP3 probe だけの registry に絞り、store の Validator がこの入口だけで形式を確定できるようにする。
-        this.localFiles = new LocalAudioSourceManager(
-                new MediaContainerRegistry(List.of(new Mp3ContainerProbe())));
+        // 既定 registry は M3U/PLS 等のプレイリスト probe を含むため流用しない。
+        // 保存側は音声だけでシーク可能なコンテナ種別、入力側は decode できるコンテナ全体に分ける。
+        // (matroska probe は DocType を見ず動画入り MKV も通る点は SAVE_PROBES の javadoc 参照)
+        this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
+        this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
         // lavaplayer 出力は stereo / 48kHz / S16 little-endian。mono 化は LavaAudioSource が担う
         // (lavaplayer の mono downmix はソースによって効かないため = SoundCloud slow+低音バグ)。
         this.apm.getConfiguration().setOutputFormat(
@@ -280,13 +326,30 @@ public class MusicLoaderImpl implements IMusicLoader {
     public TrackInfo resolveTrustedFile(Path file) {
         final AudioTrack track = loadTrustedFile(file);
         final AudioTrackInfo info = track.getInfo();
-        final LocalMp3Index index = LocalMp3Index.read(file);
+        // MP3 だけは実 frame 索引側で尺を確定する (既存 seeker が MPEG-2/2.5 の Xing を
+        // 見落とすため)。Matroska/WAV/FLAC 等の他コンテナは probe が返す尺が正しい。
+        final long durationMs = isMp3Container(track)
+                ? LocalMp3Index.read(file).durationMs() : info.length;
         // LocalAudioSourceManager の uri / identifier は絶対パス。item metadata や通信へ
         // 端末のパスを漏らさないよう、ローカル音源で不要な欄は境界で空にする。
         // ID3 の title / artist は利用者が明示的に付けた構造化メタデータなので、動画サイト向けの
         // MetadataCleaner ("Artist - Song" 分割や Official 除去) は掛けず、そのまま尊重する。
         return new TrackInfo(localTag(info.title, "Unknown title"),
-                localTag(info.author, "Unknown artist"), index.durationMs(), "", "", false, "");
+                localTag(info.author, "Unknown artist"), durationMs, "", "", false, "");
+    }
+
+    @Override
+    public TrackInfo normalizeLocalFile(Path input, Path output) {
+        return new LocalFileNormalizer(this).normalize(input, output);
+    }
+
+    /**
+     * 検出されたコンテナが MP3 か。{@link LocalMp3Index} の尺/seek 補正は MP3 frame
+     * 構造を前提とするため、検出形式が MP3 の時だけ適用する。
+     */
+    private static boolean isMp3Container(AudioTrack track) {
+        return track instanceof LocalAudioTrack local
+                && local.getContainerTrackFactory().probe instanceof Mp3ContainerProbe;
     }
 
     /** ID3 欠落時の lavaplayer placeholder を公開メタ情報へ残さない。 */
@@ -724,7 +787,9 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     private IAudioSource beginLocalPlayback(Path file, long startMs) {
         final AudioTrack track = loadTrustedFile(file);
-        final long correctedStartMs = startMs <= 0L ? 0L : LocalMp3Index.read(file).lavaSeekMs(startMs);
+        // seek 位置の補正も MP3 だけ。他コンテナはコンテナ側 seeker が正確なので生の値を渡す。
+        final long correctedStartMs = startMs <= 0L ? 0L
+                : isMp3Container(track) ? LocalMp3Index.read(file).lavaSeekMs(startMs) : startMs;
         return beginPlayback(track, correctedStartMs);
     }
 
@@ -755,6 +820,24 @@ public class MusicLoaderImpl implements IMusicLoader {
             throw new ResolveException(FailureReason.UNKNOWN,
                     "unsupported or invalid local audio file");
         }
+        // matroska probe は DocType や track 種別を見ないため、映像 track を含む MKV も
+        // 音声として受理してしまう。映像バイトが原本ごと保存・転送される経路を閉じるため、
+        // 保存境界では track 一覧に VIDEO が無いことをここで確認する (音声のみの
+        // MKA / WebM はそのまま通る)。検査不能な構造も拒否側に倒す。
+        if (track instanceof LocalAudioTrack local
+                && local.getContainerTrackFactory().probe instanceof MatroskaContainerProbe) {
+            final boolean audioOnly;
+            try {
+                audioOnly = MatroskaTrackScanner.isAudioOnly(normalized);
+            } catch (final IOException e) {
+                throw new ResolveException(FailureReason.UNKNOWN,
+                        "could not verify the matroska track list");
+            }
+            if (!audioOnly) {
+                throw new ResolveException(FailureReason.UNKNOWN,
+                        "video tracks cannot be stored as audio");
+            }
+        }
         return track;
     }
 
@@ -778,8 +861,18 @@ public class MusicLoaderImpl implements IMusicLoader {
                 REOPEN_RETRIES, RetryingAudioSource.DEFAULT_GRACE_MS);
     }
 
+    /** normalize が入力 decode に使う、保存用と分離した入力 registry。 */
+    LocalAudioSourceManager inputFiles() {
+        return localInputs;
+    }
+
+    /** normalize が decode 用 player を立てる manager。 */
+    AudioPlayerManager playerManager() {
+        return apm;
+    }
+
     /** player を作ってトラックを流し始める (包む前の素のソース)。 */
-    private LavaAudioSource beginPlayback(AudioTrack track, long startMs) {
+    LavaAudioSource beginPlayback(AudioTrack track, long startMs) {
         // 後から chunk に入った player へ途中から同期再生させるための seek。
         // seek 不可トラック (ライブ配信等) は先頭/ライブ端のまま再生する。
         if (startMs > 0L && track.isSeekable()) {

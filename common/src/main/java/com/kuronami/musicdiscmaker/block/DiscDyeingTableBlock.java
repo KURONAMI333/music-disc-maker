@@ -7,7 +7,7 @@ import com.kuronami.musicdiscmaker.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} elif >=1.21 {
 /*import net.minecraft.world.Containers;
 *///?} else {
@@ -116,7 +116,7 @@ public class DiscDyeingTableBlock extends Block implements EntityBlock {
 
     // 撤去時の中身ドロップ: >=1.21.2 は BlockEntity#preRemoveSideEffects の既定 (Container を自動ドロップ)
     // に任せる。それ未満は onRemove で自分で落とす。
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     //?} elif >=1.21 {
     /*@Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {

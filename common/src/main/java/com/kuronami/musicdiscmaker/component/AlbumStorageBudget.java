@@ -26,89 +26,154 @@ public final class AlbumStorageBudget {
     private AlbumStorageBudget() {
     }
 
+    /** 拒否動作を変えず、容量と同期形式の失敗を分ける内部診断。 */
+    public enum Reason { ACCEPTED, BYTE_BUDGET, ENTRY_LIMIT, ENCODE, DECODE, ROUNDTRIP_MISMATCH, TRAILING, INVALID_SOURCE }
+    public enum Stage { ITEM, ALBUM, BOOMBOX_OUTER, BOOMBOX, CLICK_MENU, INITIAL_MENU }
+
+    public record Result(Reason reason, Stage stage, int bytes, int budget) {
+        public boolean fits() { return reason == Reason.ACCEPTED; }
+        public boolean capacityExceeded() { return reason == Reason.BYTE_BUDGET || reason == Reason.ENTRY_LIMIT; }
+        public Result at(Stage value) { return new Result(reason, value, bytes, budget); }
+        /** 表示する拒否だけを記録する。曲・URL・component値・例外本文は記録しない。 */
+        public String rejectionKey(String capacityKey) {
+            com.kuronami.musicdiscmaker.MusicDiscMaker.LOGGER.warn(
+                    "Disc storage rejected: reason={} stage={} bytes={} budget={}", reason, stage, bytes, budget);
+            return capacityExceeded() ? capacityKey : "message.music_disc_maker.storage_sync_failed";
+        }
+    }
+
+    public static Result entryLimit(Stage stage) { return new Result(Reason.ENTRY_LIMIT, stage, 0, INSERT_WIRE_BYTE_BUDGET); }
+    public static Result invalidSource() { return new Result(Reason.INVALID_SOURCE, Stage.INITIAL_MENU, 0, INITIAL_MENU_WIRE_BYTE_BUDGET); }
+
+    // Nettyの書込み容量検査と数値が一致した場合だけ容量超過とする。
+    // codec自身の添字例外・読取り不足は容量超過と断定しない。
+    private static final java.util.regex.Pattern CAPACITY_ERROR = java.util.regex.Pattern.compile(
+            "^writerIndex\\((\\d+)\\) \\+ minWritableBytes\\((\\d+)\\) exceeds maxCapacity\\((\\d+)\\)");
+
+    private static boolean exceededWireBudget(RuntimeException failure, io.netty.buffer.ByteBuf wire) {
+        Throwable current = failure;
+        for (int depth = 0; current != null && depth < 8; depth++, current = current.getCause()) {
+            if (!(current instanceof IndexOutOfBoundsException) || current.getMessage() == null) continue;
+            final java.util.regex.Matcher match = CAPACITY_ERROR.matcher(current.getMessage());
+            if (!match.find()) continue;
+            try {
+                final long writer = Long.parseLong(match.group(1));
+                final long wanted = Long.parseLong(match.group(2));
+                final long maximum = Long.parseLong(match.group(3));
+                if (writer == wire.writerIndex() && maximum == wire.maxCapacity()
+                        && wanted > maximum - writer) return true;
+            } catch (NumberFormatException ignored) { /* 判定不能はcodec失敗として扱う。 */ }
+        }
+        return false;
+    }
+
     //? if >=1.21 {
-    /** 実際の DataComponent 同期 codec で、AlbumまたはBoombox ItemStack全体を事前検証する。 */
-    public static boolean fits(ItemStack stack, RegistryAccess registryAccess) {
-        final RegistryFriendlyByteBuf wire = new RegistryFriendlyByteBuf(
-                Unpooled.buffer(256, INSERT_WIRE_BYTE_BUDGET), registryAccess);
-        try {
-            ItemStack.OPTIONAL_STREAM_CODEC.encode(wire, stack);
-            final ItemStack restored = ItemStack.OPTIONAL_STREAM_CODEC.decode(wire);
-            return wire.readableBytes() == 0 && ItemStack.matches(stack, restored);
-        } catch (RuntimeException rejected) {
-            return false;
-        } finally {
-            wire.release();
-        }
+    /** 既存boolean APIを保持する。 */
+    public static boolean fits(ItemStack stack, RegistryAccess registryAccess) { return inspect(stack, registryAccess).fits(); }
+    public static Result inspect(ItemStack stack, RegistryAccess registryAccess) {
+        return inspectValues(List.of(stack), ItemStack.EMPTY, registryAccess, INSERT_WIRE_BYTE_BUDGET, Stage.ITEM, false);
     }
 
-    /**
-     * Album menu が同期する各slotとcursorの ItemStack codec 合計を検証する。
-     * packet headerはここへ含めず、合計を1 MiBに留めてその分の余白を確保する。
-     */
+    /** changedSlotsとcursorのみ。無関係な所持品を予算へ追加しない。 */
     public static boolean fitsMenuSync(List<ItemStack> slots, ItemStack carried, RegistryAccess registryAccess) {
-        return fitsMenuSync(slots, carried, registryAccess, INSERT_WIRE_BYTE_BUDGET);
+        return inspectMenuSync(slots, carried, registryAccess).fits();
     }
-
-    /** 初回openで送る全slotとcursorを、packet外側の余白を残して往復検証する。 */
+    public static Result inspectMenuSync(List<ItemStack> slots, ItemStack carried, RegistryAccess registryAccess) {
+        return inspectValues(slots, carried, registryAccess, INSERT_WIRE_BYTE_BUDGET, Stage.CLICK_MENU, true);
+    }
     public static boolean fitsInitialMenuSync(List<ItemStack> slots, ItemStack carried, RegistryAccess registryAccess) {
-        return fitsMenuSync(slots, carried, registryAccess, INITIAL_MENU_WIRE_BYTE_BUDGET);
+        return inspectInitialMenuSync(slots, carried, registryAccess).fits();
+    }
+    public static Result inspectInitialMenuSync(List<ItemStack> slots, ItemStack carried, RegistryAccess registryAccess) {
+        return inspectValues(slots, carried, registryAccess, INITIAL_MENU_WIRE_BYTE_BUDGET, Stage.INITIAL_MENU, true);
     }
 
-    private static boolean fitsMenuSync(List<ItemStack> slots, ItemStack carried, RegistryAccess registryAccess,
-            int byteBudget) {
-        final RegistryFriendlyByteBuf wire = new RegistryFriendlyByteBuf(
-                Unpooled.buffer(256, byteBudget), registryAccess);
+    private static Result inspectValues(List<ItemStack> slots, ItemStack carried, RegistryAccess registryAccess,
+            int budget, Stage stage, boolean menu) {
+        final RegistryFriendlyByteBuf wire = new RegistryFriendlyByteBuf(Unpooled.buffer(256, budget), registryAccess);
         try {
-            for (final ItemStack stack : slots) ItemStack.OPTIONAL_STREAM_CODEC.encode(wire, stack);
-            ItemStack.OPTIONAL_STREAM_CODEC.encode(wire, carried);
-            for (final ItemStack stack : slots) {
-                if (!ItemStack.matches(stack, ItemStack.OPTIONAL_STREAM_CODEC.decode(wire))) return false;
+            try {
+                for (final ItemStack stack : slots) ItemStack.OPTIONAL_STREAM_CODEC.encode(wire, stack);
+                if (menu) {
+                    final ItemStack stack = carried;
+                    ItemStack.OPTIONAL_STREAM_CODEC.encode(wire, stack);
+                }
+            } catch (RuntimeException rejected) {
+                return new Result(exceededWireBudget(rejected, wire) ? Reason.BYTE_BUDGET : Reason.ENCODE,
+                        stage, wire.writerIndex(), budget);
             }
-            return ItemStack.matches(carried, ItemStack.OPTIONAL_STREAM_CODEC.decode(wire))
-                    && wire.readableBytes() == 0;
-        } catch (RuntimeException rejected) {
-            return false;
-        } finally {
-            wire.release();
-        }
+            try {
+                for (final ItemStack stack : slots) {
+                    final ItemStack restored = ItemStack.OPTIONAL_STREAM_CODEC.decode(wire);
+                    // 単体の既存判定は残余bytesを先に確認する。
+                    if (!menu && wire.readableBytes() != 0) return new Result(Reason.TRAILING, stage, wire.writerIndex(), budget);
+                    if (!ItemStack.matches(stack, restored))
+                        return new Result(Reason.ROUNDTRIP_MISMATCH, stage, wire.writerIndex(), budget);
+                }
+                if (menu) {
+                    final ItemStack restored = ItemStack.OPTIONAL_STREAM_CODEC.decode(wire);
+                    if (!ItemStack.matches(carried, restored)) return new Result(Reason.ROUNDTRIP_MISMATCH, stage, wire.writerIndex(), budget);
+                }
+                return new Result(wire.readableBytes() == 0 ? Reason.ACCEPTED : Reason.TRAILING,
+                        stage, wire.writerIndex(), budget);
+            } catch (RuntimeException rejected) {
+                return new Result(Reason.DECODE, stage, wire.writerIndex(), budget);
+            }
+        } finally { wire.release(); }
     }
     //?} else {
-    /*/^** Forge 1.20.1 の実際の NBT ItemStack 同期 codec で事前検証する。 ^/
-    public static boolean fits(ItemStack stack) {
-        final FriendlyByteBuf wire = new FriendlyByteBuf(Unpooled.buffer(256, INSERT_WIRE_BYTE_BUDGET));
-        try {
-            wire.writeItem(stack);
-            return ItemStack.matches(stack, wire.readItem()) && wire.readableBytes() == 0;
-        } catch (RuntimeException rejected) {
-            return false;
-        } finally {
-            wire.release();
-        }
+    /*/^** 既存boolean APIを保持する。 ^/
+    public static boolean fits(ItemStack stack) { return inspect(stack).fits(); }
+    public static Result inspect(ItemStack stack) {
+        return inspectValues(List.of(stack), ItemStack.EMPTY, INSERT_WIRE_BYTE_BUDGET, Stage.ITEM, false);
     }
 
-    /^** Forge 1.20.1 のmenu同期を構成する全slotとcursorを、実Nbt codecで往復して検証する。 ^/
+    /^** changedSlotsとcursorのみ。無関係な所持品を予算へ追加しない。 ^/
     public static boolean fitsMenuSync(List<ItemStack> slots, ItemStack carried) {
-        return fitsMenuSync(slots, carried, INSERT_WIRE_BYTE_BUDGET);
+        return inspectMenuSync(slots, carried).fits();
     }
-
-    /^** Forge 1.20.1の初回menu同期を、2 MiB packet枠の余白を残して往復検証する。 ^/
+    public static Result inspectMenuSync(List<ItemStack> slots, ItemStack carried) {
+        return inspectValues(slots, carried, INSERT_WIRE_BYTE_BUDGET, Stage.CLICK_MENU, true);
+    }
     public static boolean fitsInitialMenuSync(List<ItemStack> slots, ItemStack carried) {
-        return fitsMenuSync(slots, carried, INITIAL_MENU_WIRE_BYTE_BUDGET);
+        return inspectInitialMenuSync(slots, carried).fits();
+    }
+    public static Result inspectInitialMenuSync(List<ItemStack> slots, ItemStack carried) {
+        return inspectValues(slots, carried, INITIAL_MENU_WIRE_BYTE_BUDGET, Stage.INITIAL_MENU, true);
     }
 
-    private static boolean fitsMenuSync(List<ItemStack> slots, ItemStack carried, int byteBudget) {
-        final FriendlyByteBuf wire = new FriendlyByteBuf(Unpooled.buffer(256, byteBudget));
+    private static Result inspectValues(List<ItemStack> slots, ItemStack carried,
+            int budget, Stage stage, boolean menu) {
+        final FriendlyByteBuf wire = new FriendlyByteBuf(Unpooled.buffer(256, budget));
         try {
-            for (final ItemStack stack : slots) wire.writeItem(stack);
-            wire.writeItem(carried);
-            for (int i = 0; i <= slots.size(); i++) wire.readItem();
-            return wire.readableBytes() == 0;
-        } catch (RuntimeException rejected) {
-            return false;
-        } finally {
-            wire.release();
-        }
+            try {
+                for (final ItemStack stack : slots) wire.writeItem(stack);
+                if (menu) {
+                    final ItemStack stack = carried;
+                    wire.writeItem(stack);
+                }
+            } catch (RuntimeException rejected) {
+                return new Result(exceededWireBudget(rejected, wire) ? Reason.BYTE_BUDGET : Reason.ENCODE,
+                        stage, wire.writerIndex(), budget);
+            }
+            try {
+                for (final ItemStack stack : slots) {
+                    final ItemStack restored = wire.readItem();
+                    // Forgeの旧menu判定はdecode成功のみ。新しい拒否を増やさない。
+                    
+                    if (!menu && !ItemStack.matches(stack, restored))
+                        return new Result(Reason.ROUNDTRIP_MISMATCH, stage, wire.writerIndex(), budget);
+                }
+                if (menu) {
+                    final ItemStack restored = wire.readItem();
+                    // 従来どおり復号可能性だけを検査する。
+                }
+                return new Result(wire.readableBytes() == 0 ? Reason.ACCEPTED : Reason.TRAILING,
+                        stage, wire.writerIndex(), budget);
+            } catch (RuntimeException rejected) {
+                return new Result(Reason.DECODE, stage, wire.writerIndex(), budget);
+            }
+        } finally { wire.release(); }
     }
     *///?}
 }

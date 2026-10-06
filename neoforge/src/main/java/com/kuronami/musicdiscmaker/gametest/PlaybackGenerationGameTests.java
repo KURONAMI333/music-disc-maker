@@ -28,12 +28,20 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class PlaybackGenerationGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
     /** 再生 → 即停止。ロードが後から完了しても鳴らしてはならない。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -47,7 +55,7 @@ public class PlaybackGenerationGameTests {
     }
 
     /** 再生 A → 再生 B。両方のロードが完了しても、鳴ってよいのは B だけ。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -66,7 +74,7 @@ public class PlaybackGenerationGameTests {
      * 鍵が違えば干渉しないこと。SC は backpack(storageUuid) ごとに独立して鳴るので、
      * ここが混ざると別のバックパックの再生が互いを止め合う。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -82,7 +90,7 @@ public class PlaybackGenerationGameTests {
     }
 
     /** 一度も再生していない鍵は「最新」を持たない (未初期化を有効と読まない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

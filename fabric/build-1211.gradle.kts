@@ -4,6 +4,9 @@ plugins {
     id("fabric-loom") version "1.14.10"
 }
 
+// Normalize Loom's mapping ZIP only after verifying the version's exact Tiny payload.
+apply(from = rootProject.file("gradle/canonicalize-loom-mappings.gradle"))
+
 val mcVersion = "1.21.1"
 val fabricLoaderVersion = "0.16.9"
 val fabricApiVersion = "0.109.0+1.21.1"
@@ -48,8 +51,9 @@ val commonMain = commonProject.extensions.getByType<SourceSetContainer>()["main"
 val commonGenerate = commonProject.tasks.named("stonecutterGenerate")
 
 loom {
-    val aw = commonProject.file("src/main/resources/${rootProject.property("mod_id")}.accesswidener")
-    if (aw.exists()) accessWidenerPath.set(aw)
+    val aw = rootProject.file("fabric/versions/$mcVersion/src/main/resources/${rootProject.property("mod_id")}.accesswidener")
+    check(aw.isFile) { "Missing version-specific access widener: $aw" }
+    accessWidenerPath.set(aw)
     // loom.mixin ブロックは置かない (1.14.10 は remapJar 時に静的 remap・26.x は難読化解除済み)
 }
 

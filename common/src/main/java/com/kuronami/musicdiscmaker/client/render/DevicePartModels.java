@@ -15,7 +15,7 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
-//?} elif >=1.21.2 {
+//?} elif >=1.21.11 {
 /*import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.block.model.BlockStateModel;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -72,7 +72,7 @@ public final class DevicePartModels {
         collector.submitBlockModel(poseStack, RenderTypes.solidMovingBlock(), parts,
                 new int[0], light, OverlayTexture.NO_OVERLAY, 0);
     }
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*public static void submit(Part part, PoseStack poseStack, SubmitNodeCollector collector, int light) {
         final Object loaded = provider.apply(part);
         if (!(loaded instanceof BlockStateModel model)) {

@@ -21,6 +21,7 @@ import com.kuronami.musicdiscmaker.component.BoomboxPlaybackState;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.network.LocalAudioPayload;
+import com.kuronami.musicdiscmaker.network.ModPayloadTypes;
 import com.kuronami.musicdiscmaker.network.VersionPayload;
 
 import io.netty.buffer.ByteBuf;
@@ -54,6 +55,7 @@ import com.kuronami.musicdiscmaker.component.BoomboxPlaybackState;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
 import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.network.LocalAudioPayload;
+import com.kuronami.musicdiscmaker.network.ModPayloadTypes;
 import com.kuronami.musicdiscmaker.network.VersionPayload;
 
 import io.netty.buffer.ByteBuf;
@@ -91,12 +93,21 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class NetworkProtocolGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
-    /** Curios 装備参照を BoomboxSource と open_equipped_boombox へ追加した開発版。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "14-mp3-curios-dev";
+    /** ローカル音源のcache検証 CHECK/AVAILABLE を追加した開発版。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "16-local-audio-check-dev";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -125,7 +136,7 @@ public class NetworkProtocolGameTests {
      * <p>失敗したときのメッセージは「何を直すか」まで書く — 指紋が動いた = 版を上げる、
      * 版が動いた = 指紋を採り直す。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -147,7 +158,7 @@ public class NetworkProtocolGameTests {
      * 指向性が実際に wire に載っていること (指紋が「たまたま一致した」で通らないようにする対照)。
      * ここが落ちるのは指向性が codec から抜けた時なので、症状は「トグルが同期されない」。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -197,7 +208,7 @@ public class NetworkProtocolGameTests {
      * 未登録」で起動を止める (26.2 で実発生)。server 側の登録結果を NeoForge の
      * registry から直接確かめる。旧 API (1.21.1) は登録 record が handler を持つ。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -234,6 +245,86 @@ public class NetworkProtocolGameTests {
             throw new IllegalStateException("NetworkRegistry の登録内容を読めなかった", e);
         }
         helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    /** CHECK/AVAILABLE のopcodeと全フィールドのwire順を、登録codecの実往復で固定する。 */
+    public static void localAudioCheckAndAvailableSurviveRegisteredRoundTrip(GameTestHelper helper) {
+        final var requestId = java.util.UUID.fromString("01234567-89ab-cdef-fedc-ba9876543210");
+        final String hash = "a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0fedcba9876543210";
+        final byte[] data = new byte[] {0, 127, (byte) 128, (byte) 255, 42};
+
+        // production定数は別にliteralで固定し、wire goldens側は常に独立したliteral期待値にする。
+        helper.assertTrue(LocalAudioPayload.CHECK == 10, "CHECK opcode定数が10から変わった");
+        helper.assertTrue(LocalAudioPayload.AVAILABLE == 11, "AVAILABLE opcode定数が11から変わった");
+        final LocalAudioPayload check = new LocalAudioPayload(LocalAudioPayload.CHECK, requestId, 173,
+                0x0102030405060708L, hash, 0x1122334455667788L, 0x1020304050607080L,
+                "cache-check-contract.mp3", data);
+        final LocalAudioPayload available = new LocalAudioPayload(LocalAudioPayload.AVAILABLE, requestId, 173,
+                0x0102030405060708L, hash, 0x1122334455667788L, 0x1020304050607080L,
+                "cache-check-contract.mp3", data);
+
+        final String checkWire = "0a0123456789abcdeffedcba9876543210ad01010203040506070840"
+                + "61316232633364346535663630373138323933613462356336643765386639303132333435363738396162636465663066656463626139383736353433323130"
+                + "1122334455667788102030405060708018"
+                + "63616368652d636865636b2d636f6e74726163742e6d703305007f80ff2a";
+        final String availableWire = "0b" + checkWire.substring(2);
+
+        assertLocalAudioContract(helper, check, 10, checkWire);
+        assertLocalAudioContract(helper, available, 11, availableWire);
+        helper.succeed();
+    }
+
+    private static void assertLocalAudioContract(GameTestHelper helper, LocalAudioPayload expected,
+            int expectedOpcode, String expectedWireHex) {
+        final byte[] encoded = encodeRegisteredLocalAudio(expected);
+        helper.assertTrue(java.util.HexFormat.of().formatHex(encoded).equals(expectedWireHex),
+                "local_audio opcode " + expectedOpcode + " のregistry codec wire bytesまたはfield順が変わった: "
+                        + java.util.HexFormat.of().formatHex(encoded));
+
+        final LocalAudioPayload decoded = decodeRegisteredLocalAudio(encoded);
+        helper.assertTrue(decoded.operation() == expectedOpcode,
+                "local_audio opcodeが " + expectedOpcode + " から " + decoded.operation() + " に変わった");
+        helper.assertTrue(decoded.id().equals(java.util.UUID.fromString("01234567-89ab-cdef-fedc-ba9876543210")),
+                "local_audio request UUIDがwire往復で変わった");
+        helper.assertTrue(decoded.containerId() == 173, "local_audio container idがwire往復で変わった");
+        helper.assertTrue(decoded.generation() == 0x0102030405060708L,
+                "local_audio generationがwire往復で変わった");
+        helper.assertTrue(decoded.hash().equals(
+                        "a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0fedcba9876543210"),
+                "local_audio hashがwire往復で変わった");
+        helper.assertTrue(decoded.offset() == 0x1122334455667788L, "local_audio offsetがwire往復で変わった");
+        helper.assertTrue(decoded.size() == 0x1020304050607080L, "local_audio sizeがwire往復で変わった");
+        helper.assertTrue(decoded.name().equals("cache-check-contract.mp3"),
+                "local_audio nameがwire往復で変わった");
+        helper.assertTrue(java.util.Arrays.equals(decoded.bytes(), new byte[] {0, 127, (byte) 128, (byte) 255, 42}),
+                "local_audio bytesがwire往復で変わった");
+    }
+
+    private static byte[] encodeRegisteredLocalAudio(LocalAudioPayload payload) {
+        final ByteBuf raw = Unpooled.buffer();
+        try {
+            ModPayloadTypes.LocalAudio.STREAM_CODEC.encode(new net.minecraft.network.FriendlyByteBuf(raw),
+                    new ModPayloadTypes.LocalAudio(payload));
+            final byte[] encoded = new byte[raw.readableBytes()];
+            raw.getBytes(raw.readerIndex(), encoded);
+            return encoded;
+        } finally {
+            raw.release();
+        }
+    }
+
+    private static LocalAudioPayload decodeRegisteredLocalAudio(byte[] encoded) {
+        final ByteBuf raw = Unpooled.wrappedBuffer(encoded);
+        try {
+            return ModPayloadTypes.LocalAudio.STREAM_CODEC
+                    .decode(new net.minecraft.network.FriendlyByteBuf(raw)).inner();
+        } finally {
+            raw.release();
+        }
     }
 
     //? if <1.21.2 {

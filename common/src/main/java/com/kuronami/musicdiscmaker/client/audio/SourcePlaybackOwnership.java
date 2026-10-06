@@ -57,6 +57,25 @@ public final class SourcePlaybackOwnership<R> {
         return lease != null && owners.get(lease.source) == lease;
     }
 
+    /** Read-only check; unlike claim(), this never replaces a route or runs cleanup. */
+    public boolean owns(UUID source, long generation, R route) {
+        final Lease<R> owner = owners.get(source);
+        return owner != null && owner.generation == generation && Objects.equals(owner.route, route);
+    }
+
+    /** Advances a live route's generation without cleanup when the same source keeps the same route. */
+    public boolean advance(UUID source, long generation, R route) {
+        if (generation < 0) return false;
+        final Lease<R> owner = owners.get(source);
+        if (owner == null || !Objects.equals(owner.route, route) || generation < owner.generation) return false;
+        if (generation == owner.generation) return true;
+        final Lease<R> advanced = new Lease<>(source, generation, owner.route, owner.stop);
+        generations.put(source, generation);
+        owners.put(source, advanced);
+        routes.put(advanced.route, advanced);
+        return true;
+    }
+
     /** 旧座標/旧actorからの停止は、移動後の別経路を止めない。 */
     public boolean stop(UUID source, long generation, R route) {
         final Lease<R> owner = owners.get(source);

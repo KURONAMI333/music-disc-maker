@@ -18,7 +18,7 @@ import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -35,14 +35,14 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
  * 「専用 slot 認可 / wire 値の再解決 / 装備中交換 / 走査の複製分離 / 所持⇔装備の連続性」で、
  * いずれも Curios 本体ではなく common 側の機構。
  */
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*@GameTestHolder("music_disc_maker")
 *///?}
 public final class CuriosBoomboxGameTests {
     private CuriosBoomboxGameTests() { }
 
     /** 専用 slot の正当な要求だけが menu を開く。偽造 slot/index/古い機体idは全て拒否する。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 200)
     *///?}
@@ -75,12 +75,27 @@ public final class CuriosBoomboxGameTests {
             final BoomboxMenu menu = (BoomboxMenu) player.containerMenu;
             helper.assertTrue(menu.currentStack() == box && menu.stillValid(player),
                     "開いた menu が装備中の実物を指していない");
+
+            // 初回openでは未採番IDをserverが付与する。そのIDをmenuへ固定した後も、同じslot実物を
+            // server側が参照し続け、操作対象を検証できることを確認する。
+            player.containerMenu = player.inventoryMenu;
+            final ItemStack unassigned = new ItemStack(ModItems.BOOMBOX.get());
+            slot.set(List.of(new CuriosEquipmentAccess.Entry("boombox", 0, unassigned)));
+            ModNetwork.handleOpenEquippedBoombox(new OpenEquippedBoomboxPayload(
+                    "boombox", 0, BoomboxContents.UNASSIGNED), player);
+            helper.assertTrue(player.containerMenu instanceof BoomboxMenu,
+                    "未採番の装備機体を開けなかった");
+            final BoomboxMenu identifiedMenu = (BoomboxMenu) player.containerMenu;
+            helper.assertTrue(BoomboxCarry.idOf(unassigned) != BoomboxContents.UNASSIGNED
+                            && identifiedMenu.source().expectedId() == BoomboxCarry.idOf(unassigned)
+                            && identifiedMenu.currentStack() == unassigned && identifiedMenu.stillValid(player),
+                    "未採番機体に付与したIDとmenu参照が揃っていない");
         }, player);
         helper.succeed();
     }
 
     /** 装備中に slot の実物が差し替わったら menu は無効になり、別機体へ書かない。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 200)
     *///?}
@@ -97,8 +112,8 @@ public final class CuriosBoomboxGameTests {
             final BoomboxMenu menu = (BoomboxMenu) player.containerMenu;
             final long generation = BoomboxPlayback.stateOf(box).cursor().generation();
 
-            // 別の機体へ差し替える (id も別)。
-            final ItemStack other = box(12L);
+            // 同じidを持つ複製スタックへ差し替える。idだけの照合では旧menuが通ってしまう。
+            final ItemStack other = box(11L);
             slot.set(List.of(new CuriosEquipmentAccess.Entry("boombox", 0, other)));
             helper.assertTrue(!menu.stillValid(player) && menu.currentStack().isEmpty(),
                     "slot 交換後も menu が旧実物を有効と見なした");
@@ -117,7 +132,7 @@ public final class CuriosBoomboxGameTests {
     }
 
     /** 装備中機体が鳴っている間、インベントリの同 id 複製は走査で別個体へ分離される。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 200)
     *///?}
@@ -156,7 +171,7 @@ public final class CuriosBoomboxGameTests {
     }
 
     /** 装備⇔インベントリの移動で同じスタックが見失われない (session 打刻先が連続する条件)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -186,8 +201,58 @@ public final class CuriosBoomboxGameTests {
         helper.succeed();
     }
 
+    /** 装備↔持ち物移動は再生中も同じsessionを保ち、退出後はstale猶予で止まり再参加で勝手に再開しない。 */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 200)
+    *///?}
+    public static void equippedMoveAndDisconnectPreserveOnlyTheOwnedLifecycle(GameTestHelper helper) {
+        final ServerPlayer player = networkedPlayer(helper);
+        final ItemStack box = box(BoomboxContents.mintId());
+        final long id = BoomboxCarry.idOf(box);
+        final AtomicReference<List<CuriosEquipmentAccess.Entry>> slot =
+                new AtomicReference<>(List.of(new CuriosEquipmentAccess.Entry("boombox", 0, box)));
+        withProvider(slot, () -> {
+            helper.assertTrue(BoomboxPlayback.startCarried(player, box),
+                    "装備中機体の再生開始に失敗した");
+            final long generation = BoomboxPlayback.stateOf(box).cursor().generation();
+            helper.assertTrue(BoomboxPlayback.isPlaying(id), "装備中sessionが開始していない");
+
+            // Curiosから持ち物へ同じ実物を移し、online scanで同じsessionを引き継ぐ。
+            slot.set(List.of());
+            player.getInventory().setItem(10, box);
+            final long moveTime = System.currentTimeMillis() + 10L;
+            BoomboxPlayback.scan(List.of(player), moveTime);
+            helper.assertTrue(BoomboxPlayback.isPlaying(id)
+                            && BoomboxCarry.idOf(player.getInventory().getItem(10)) == id
+                            && BoomboxPlayback.stateOf(box).cursor().generation() == generation,
+                    "装備から持ち物への移動でsession・機体ID・再生世代が変わった");
+
+            // 切断後はonline scanから外れ、stale猶予が経過した時点でsessionだけが止まる。
+            player.getInventory().setItem(10, ItemStack.EMPTY);
+            BoomboxPlayback.scan(List.of(), moveTime + 1L);
+            BoomboxPlayback.sweep(helper.getLevel().getServer(),
+                    moveTime + BoomboxPlayback.STALE_MS + 2L);
+            helper.assertFalse(BoomboxPlayback.isPlaying(id), "退出した機体のstale sessionが残った");
+            helper.assertTrue(BoomboxCarry.idOf(box) == id
+                            && BoomboxPlayback.stateOf(box).cursor().generation() == generation,
+                    "退出処理が保存スタックの機体IDまたは再生世代を壊した");
+            helper.assertTrue(BoomboxPlayback.stateOf(box).cursor().state() == PlaybackCursor.State.STOPPED
+                            && BoomboxPlayback.stateOf(box).cursor().generation() == generation,
+                    "stale sweep後の公開再生状態が停止へ正規化されない、または世代が変わった");
+
+            // 同じ保存スタックが再参加してもscanは新規再生を起こさない。再生操作はGUIから行う。
+            player.getInventory().setItem(10, box);
+            BoomboxPlayback.scan(List.of(player), moveTime + BoomboxPlayback.STALE_MS + 3L);
+            helper.assertFalse(BoomboxPlayback.isPlaying(id), "再参加scanだけで再生sessionが復活した");
+            helper.assertTrue(BoomboxCarry.idOf(player.getInventory().getItem(10)) == id,
+                    "再参加後に同じ機体IDが保たれなかった");
+        }, player);
+        helper.succeed();
+    }
+
     /** provider 未 install (Curios 未導入) では専用 slot の解決も走査の列挙も起きない。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -233,24 +298,27 @@ public final class CuriosBoomboxGameTests {
         try {
             body.run();
         } finally {
-            CuriosEquipmentAccess.install(null);
-            Services.swapNetwork(previous);
-            cleanup(player);
+            try {
+                cleanup(player);
+            } finally {
+                CuriosEquipmentAccess.install(null);
+                Services.swapNetwork(previous);
+            }
         }
     }
 
     private static void cleanup(ServerPlayer player) {
         try {
+            // providerが有効なうちに専用slotを含めて止める。Curios上の機体はInventory走査に
+            // 含まれないため、先にproviderを外すとGameTest間にsessionが漏れる。
+            for (final CuriosEquipmentAccess.Entry entry : CuriosEquipmentAccess.equipped(player)) {
+                stopIfIdentified(player, entry.stack());
+            }
             // 走査対象から外して session の再着火を防いでから止める。
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                 final ItemStack stack = player.getInventory().getItem(i);
                 if (BoomboxCarry.isBoombox(stack)) {
-                    final BoomboxContents contents = stack.getOrDefault(
-                            ModDataComponents.BOOMBOX_CONTENTS.get(), BoomboxContents.EMPTY);
-                    if (contents.hasId()) {
-                        BoomboxPlayback.stop((net.minecraft.server.level.ServerLevel) player.level(),
-                                player.chunkPosition(), contents.id());
-                    }
+                    stopIfIdentified(player, stack);
                     player.getInventory().setItem(i, ItemStack.EMPTY);
                 }
             }
@@ -260,6 +328,15 @@ public final class CuriosBoomboxGameTests {
             } finally {
                 player.discard();
             }
+        }
+    }
+
+    private static void stopIfIdentified(ServerPlayer player, ItemStack stack) {
+        final BoomboxContents contents = stack.getOrDefault(
+                ModDataComponents.BOOMBOX_CONTENTS.get(), BoomboxContents.EMPTY);
+        if (contents.hasId()) {
+            BoomboxPlayback.stop((net.minecraft.server.level.ServerLevel) player.level(),
+                    player.chunkPosition(), contents.id());
         }
     }
 

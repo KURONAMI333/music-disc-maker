@@ -24,6 +24,8 @@ final class VanillaSpeakerVoiceGroup implements PlaybackVoice {
     private final Map<BlockPos, SpeakerEmitterAnchor> anchors = new HashMap<>();
     /** The set applied just after the Golden source starts must share its exact payload offset. */
     private boolean initialUpdate = true;
+    private SpeakerSetPayload latestSet;
+    private final java.util.Set<BlockPos> deferred = new java.util.HashSet<>();
     private boolean stopped;
 
     VanillaSpeakerVoiceGroup(VanillaSpeakerSoundInstance source, GoldenEmitterAnchor sourceAnchor,
@@ -33,6 +35,7 @@ final class VanillaSpeakerVoiceGroup implements PlaybackVoice {
         this.playbackClockMs = playbackClockMs;
     }
     void update(SpeakerSetPayload set) {
+        latestSet = set;
         sourceAnchor.update(set);
         final Map<BlockPos, SpeakerEntry> incoming = new HashMap<>();
         for (SpeakerEntry entry : set.speakers()) incoming.put(entry.pos(), entry);
@@ -44,12 +47,36 @@ final class VanillaSpeakerVoiceGroup implements PlaybackVoice {
                 if (voice != null) voice.stopAndRelease();
             } else anchors.get(pos).update(set, entry);
         }
+        deferred.removeIf(pos -> set.speakers().stream().noneMatch(entry -> entry.pos().equals(pos)
+                && !entry.muted() && entry.volumePercent() > 0));
         for (SpeakerEntry entry : incoming.values()) {
-            if (!stopped && !entry.muted() && entry.volumePercent() > 0
-                    && PlaybackConcurrency.client().sweepAll() < Config.maxConcurrent()) start(set, entry, initialUpdate);
+            if (!stopped && !entry.muted() && entry.volumePercent() > 0) {
+                if (PlaybackConcurrency.client().sweepAll() < Config.maxConcurrent()) {
+                    deferred.remove(entry.pos());
+                    start(set, entry, initialUpdate);
+                } else deferred.add(entry.pos());
+            }
         }
         initialUpdate = false;
     }
+    /** URL子声と同じ未開始枠の補充。client END tick専用で、掃除中は再生を増やさない。 */
+    void retryDeferredSpeakers() {
+        if (stopped || deferred.isEmpty()) return;
+        if (source.isVoiceStopped() || !sourceAnchor.isValid()) { stopAndRelease(); return; }
+        for (BlockPos pos : new ArrayList<>(deferred)) {
+            final SpeakerEntry entry = latestSet.speakers().stream()
+                    .filter(candidate -> candidate.pos().equals(pos)).findFirst().orElse(null);
+            if (entry == null || entry.muted() || entry.volumePercent() <= 0 || voices.containsKey(pos)) {
+                deferred.remove(pos);
+                continue;
+            }
+            if (PlaybackConcurrency.client().sweepAll() >= Config.maxConcurrent()) break;
+            if (stopped) return; // sweep中にmaster終了を拾った場合は補充しない。
+            deferred.remove(pos);
+            start(latestSet, entry, false);
+        }
+    }
+
     private void start(SpeakerSetPayload set, SpeakerEntry entry, boolean initial) {
         final SpeakerEmitterAnchor anchor = new SpeakerEmitterAnchor(sourceAnchor, set, entry);
         final VanillaSpeakerSoundInstance voice = initial
@@ -79,7 +106,7 @@ final class VanillaSpeakerVoiceGroup implements PlaybackVoice {
     @Override public void setRangeBlocks(int value) { source.setRangeBlocks(value); }
     @Override public void setVolumePercent(int value) { source.setVolumePercent(value); }
     @Override public void stopAndRelease() {
-        if (stopped) return; stopped = true;
+        if (stopped) return; stopped = true; deferred.clear();
         anchors.values().forEach(SpeakerEmitterAnchor::remove); anchors.clear();
         voices.values().forEach(VanillaSpeakerSoundInstance::stopAndRelease); voices.clear(); source.stopAndRelease();
     }

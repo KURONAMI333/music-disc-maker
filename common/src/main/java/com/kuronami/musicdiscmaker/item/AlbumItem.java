@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.item;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import java.util.function.Consumer;
 //?} else {
 /*import java.util.List;
@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 
 import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.menu.AlbumMenu;
+import com.kuronami.musicdiscmaker.menu.AlbumMenuLayout;
 import com.kuronami.musicdiscmaker.menu.BoomboxSource;
 import com.kuronami.musicdiscmaker.platform.Services;
 //? if >=1.21 {
@@ -26,7 +27,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.DyeColor;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.item.component.TooltipDisplay;
 //?} else {
 //?}
@@ -35,9 +36,9 @@ import net.minecraft.world.item.component.TooltipDisplay;
 public class AlbumItem extends Item {
 
     /**
-     * 2026-09-09確定の製品容量9枚。保存値・通信の防御上限 ({@link AlbumContents}) とは意図的に別にする。
+     * 製品GUI容量。保存値・通信の防御上限 ({@link AlbumContents}) とは意図的に別にする。
      */
-    public static final int GUI_CAPACITY = 9;
+    public static final int GUI_CAPACITY = AlbumMenuLayout.CAPACITY;
     private static final int TOOLTIP_NAME_CODEPOINT_LIMIT = 32;
 
     public AlbumItem(Properties properties) {
@@ -46,10 +47,10 @@ public class AlbumItem extends Item {
 
     /**
      * Album を手に取った時、収納した盤を保存順で確認できるようにする。
-     * 最大9盤だけを出し、旧データなどがそれを超える場合もツールチップを無制限に育てない。
+     * 最大GUI容量分だけを出し、旧データなどがそれを超える場合もツールチップを無制限に育てない。
      */
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     public void appendHoverText(ItemStack stack, TooltipContext context, TooltipDisplay display,
                                 Consumer<Component> tooltip, TooltipFlag flag) {
     //?} elif >=1.21 {
@@ -60,7 +61,7 @@ public class AlbumItem extends Item {
     *///?}
         final AlbumContents stored = contents(stack);
         if (stored.isEmpty()) {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             tooltip.accept(Component.translatable("tooltip.music_disc_maker.album.empty")
             //?} else {
             /*tooltip.add(Component.translatable("tooltip.music_disc_maker.album.empty")
@@ -68,7 +69,7 @@ public class AlbumItem extends Item {
             //?}
                     .withStyle(ChatFormatting.DARK_GRAY));
         } else {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             tooltip.accept(Component.translatable("tooltip.music_disc_maker.album.contents", stored.size())
             //?} else {
             /*tooltip.add(Component.translatable("tooltip.music_disc_maker.album.contents", stored.size())
@@ -81,7 +82,7 @@ public class AlbumItem extends Item {
                 final Component line = Component.literal((index + 1) + ". ")
                         .withStyle(ChatFormatting.DARK_GRAY)
                         .append(Component.literal(tooltipName(disc)).withStyle(ChatFormatting.GRAY));
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 tooltip.accept(line);
                 //?} else {
                 /*tooltip.add(line);
@@ -89,7 +90,7 @@ public class AlbumItem extends Item {
                 //?}
             }
             if (stored.size() > GUI_CAPACITY) {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 tooltip.accept(Component.literal("…").withStyle(ChatFormatting.DARK_GRAY));
                 //?} else {
                 /*tooltip.add(Component.literal("…").withStyle(ChatFormatting.DARK_GRAY));
@@ -97,7 +98,7 @@ public class AlbumItem extends Item {
                 //?}
             }
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         super.appendHoverText(stack, context, display, tooltip, flag);
         //?} else {
         /*super.appendHoverText(stack, context, tooltip, flag);
@@ -121,12 +122,13 @@ public class AlbumItem extends Item {
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
             final ItemStack stack = player.getItemInHand(hand);
             final BoomboxSource source = BoomboxSource.held(hand);
-            if (AlbumMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            final var syncBudget = AlbumMenu.inspectInitialMenuSync(player.getInventory(), source);
+            if (syncBudget.fits()) {
                 Services.MENU.openAlbumMenu(serverPlayer, source);
             } else if (player.isSecondaryUseActive()) {
                 OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverAlbum(serverPlayer, stack));
             } else {
-                serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.album.open_too_large"), true);
+                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.album.open_too_large")), true);
             }
         }
         return InteractionResult.SUCCESS;
@@ -136,12 +138,13 @@ public class AlbumItem extends Item {
         final ItemStack stack = player.getItemInHand(hand);
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
             final BoomboxSource source = BoomboxSource.held(hand);
-            if (AlbumMenu.fitsInitialMenuSync(player.getInventory(), source)) {
+            final var syncBudget = AlbumMenu.inspectInitialMenuSync(player.getInventory(), source);
+            if (syncBudget.fits()) {
                 Services.MENU.openAlbumMenu(serverPlayer, source);
             } else if (player.isSecondaryUseActive()) {
                 OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverAlbum(serverPlayer, stack));
             } else {
-                serverPlayer.sendSystemMessage(Component.translatable("message.music_disc_maker.album.open_too_large"), true);
+                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.album.open_too_large")), true);
             }
         }
         return net.minecraft.world.InteractionResultHolder.sidedSuccess(stack, level.isClientSide);

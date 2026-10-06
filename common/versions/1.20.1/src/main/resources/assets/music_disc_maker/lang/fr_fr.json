@@ -50,6 +50,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "Le moteur audio du jeu n'a pas accepté ce son",
   "music_disc_maker.playback_failed.reason.muted": "Le volume est réglé sur 0 (vérifiez Volume principal et Blocs musicaux dans Options pour la musique et les sons)",
   "music_disc_maker.radio.reconnecting": "Reconnexion à la radio… (%s/%s)",
+  "music_disc_maker.playback.resuming": "Connexion interrompue. Reprise de la lecture… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio arrêtée (échec de la reconnexion)",
   "block.music_disc_maker.golden_jukebox": "Jukebox doré",
   "gui.music_disc_maker.golden_jukebox.title": "Jukebox doré",
@@ -74,5 +75,6 @@
   "gui.music_disc_maker.speaker.muted": "Muet à cause de la redstone",
   "gui.music_disc_maker.speaker.active": "Aucun signal de redstone",
   "tooltip.music_disc_maker.album.empty": "Aucun disque",
-  "tooltip.music_disc_maker.album.contents": "%s disques"
+  "tooltip.music_disc_maker.album.contents": "%s disques",
+  "message.music_disc_maker.storage_sync_failed": "Les données du disque n’ont pas pu être synchronisées. Cette action a été annulée."
 }

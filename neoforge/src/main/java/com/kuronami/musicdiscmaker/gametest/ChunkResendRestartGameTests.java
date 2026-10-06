@@ -1,6 +1,12 @@
 package com.kuronami.musicdiscmaker.gametest;
 
 //? if >=1.21.2 {
+//? if <1.21.11 {
+import com.kuronami.musicdiscmaker.component.SilentSongs;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.EitherHolder;
+import net.minecraft.world.item.JukeboxPlayable;
+//?}
 import java.util.List;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
@@ -80,6 +86,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class ChunkResendRestartGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -91,7 +106,7 @@ public class ChunkResendRestartGameTests {
         disc.set(ModDataComponents.CUSTOM_TRACK.get(),
                 new CustomTrackData("https://example.invalid/resend-disc", "Resend Disc", "tester", durationMs, "",
                         false));
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE,
                 new JukeboxPlayable(new EitherHolder<>(SilentSongs.pick(durationMs)), false));
         *///?}
@@ -106,7 +121,7 @@ public class ChunkResendRestartGameTests {
      * 「死亡 → リスポーンでトラックが頭に戻る」。起点も {@code now} に打ち直されるので、
      * その後に同じ chunk へ入った別 player は別の位置から鳴り始める = 「多重再生」の形。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "chunkResendRegistry")
     *///?}
@@ -119,13 +134,13 @@ public class ChunkResendRestartGameTests {
         final ServerLevel level = helper.getLevel();
         final ResourceKey<Level> dim = level.dimension();
 
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*if (!(helper.getBlockEntity(rel) instanceof JukeboxBlockEntity jukebox)) {
             helper.fail("JukeboxBlockEntity が生成されていない", rel);
             return;
         }
         *///?} else {
-        if (!(helper.getBlockEntity(rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
+        if (!(GameTestBlockEntities.get(helper, rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
             helper.fail(Component.literal("JukeboxBlockEntity が生成されていない"), rel);
             return;
         }
@@ -178,7 +193,7 @@ public class ChunkResendRestartGameTests {
      * mirror が同じトラックを新規扱いして起点を打ち直し、<b>chunk 内の全員へ</b> offset 0 で
      * 送り直す。別 player の死亡リスポーンが、聴いている全員のトラックを頭に戻す形。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "albumMirrorResend")
     *///?}
@@ -253,7 +268,7 @@ public class ChunkResendRestartGameTests {
      * 送られる {@link PlayDiscPayload#startOffsetMs()} なので、ここは本番の
      * {@link JukeboxHandler#onChunkWatch} を実イベントで叩き、送信そのものを捕まえて見る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = NET_BATCH)
     *///?}
@@ -264,13 +279,13 @@ public class ChunkResendRestartGameTests {
         final ServerLevel level = helper.getLevel();
         final ResourceKey<Level> dim = level.dimension();
 
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*if (!(helper.getBlockEntity(rel) instanceof JukeboxBlockEntity jukebox)) {
             helper.fail("JukeboxBlockEntity が生成されていない", rel);
             return;
         }
         *///?} else {
-        if (!(helper.getBlockEntity(rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
+        if (!(GameTestBlockEntities.get(helper, rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
             helper.fail(Component.literal("JukeboxBlockEntity が生成されていない"), rel);
             return;
         }
@@ -325,7 +340,7 @@ public class ChunkResendRestartGameTests {
      * 再生中のディスクの chunk が送り直されたら、経過分の offset を載せた payload が届くこと
      * (late-join 同期を壊していないことの確認)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = NET_BATCH)
     *///?}
@@ -336,13 +351,13 @@ public class ChunkResendRestartGameTests {
         final ServerLevel level = helper.getLevel();
         final ResourceKey<Level> dim = level.dimension();
 
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*if (!(helper.getBlockEntity(rel) instanceof JukeboxBlockEntity jukebox)) {
             helper.fail("JukeboxBlockEntity が生成されていない", rel);
             return;
         }
         *///?} else {
-        if (!(helper.getBlockEntity(rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
+        if (!(GameTestBlockEntities.get(helper, rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
             helper.fail(Component.literal("JukeboxBlockEntity が生成されていない"), rel);
             return;
         }

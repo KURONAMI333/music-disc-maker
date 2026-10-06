@@ -18,7 +18,7 @@ import com.kuronami.musicdiscmaker.network.ControlBoomboxPayload;
 import com.kuronami.musicdiscmaker.network.ModNetwork;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -30,7 +30,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import io.netty.buffer.Unpooled;
 
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*@GameTestHolder("music_disc_maker")
 *///?}
 public final class BoomboxControlGameTests {
@@ -49,7 +49,7 @@ public final class BoomboxControlGameTests {
         return box;
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -72,7 +72,7 @@ public final class BoomboxControlGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -132,7 +132,7 @@ public final class BoomboxControlGameTests {
         }
         helper.succeed();
     }
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}

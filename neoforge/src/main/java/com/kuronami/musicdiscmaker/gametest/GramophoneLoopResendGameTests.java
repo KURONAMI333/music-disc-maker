@@ -1,6 +1,12 @@
 package com.kuronami.musicdiscmaker.gametest;
 
 //? if >=1.21.2 {
+//? if <1.21.11 {
+import com.kuronami.musicdiscmaker.component.SilentSongs;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.EitherHolder;
+import net.minecraft.world.item.JukeboxPlayable;
+//?}
 import java.util.List;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
@@ -60,6 +66,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class GramophoneLoopResendGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -70,7 +85,7 @@ public class GramophoneLoopResendGameTests {
         disc.set(ModDataComponents.CUSTOM_TRACK.get(),
                 new CustomTrackData("https://example.invalid/gramophone-loop", "Gramophone Loop", "tester",
                         DURATION_MS, "", false));
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE,
                 new JukeboxPlayable(new EitherHolder<>(SilentSongs.pick(DURATION_MS)), false));
         *///?}
@@ -85,7 +100,7 @@ public class GramophoneLoopResendGameTests {
      * 連続で呼ぶ」手順が、実際に Stop→Play の resend を起こし、client 側の再生が頭から鳴り直せる
      * 形になっていることを固定する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "gramophoneLoopResend")
     *///?}

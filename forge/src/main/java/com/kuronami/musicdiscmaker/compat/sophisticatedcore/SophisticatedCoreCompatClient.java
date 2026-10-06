@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.compat.sophisticatedcore;
 
 import java.util.UUID;
+import java.lang.reflect.Field;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -46,12 +47,34 @@ public final class SophisticatedCoreCompatClient {
     private SophisticatedCoreCompatClient() {
     }
 
+    /** SC の停止 packet・通常盤への置換は、まだ音声登録前のロードも取り消す。 */
+    public static void invalidateFromPacket(Object packet) {
+        try {
+            final Field field = packet.getClass().getDeclaredField("storageUuid");
+            field.setAccessible(true);
+            GENERATIONS.invalidate((UUID) field.get(packet));
+        } catch (ReflectiveOperationException failure) {
+            com.kuronami.musicdiscmaker.MusicDiscMaker.LOGGER.debug("Sophisticated Core pending stop hook unavailable", failure);
+        }
+    }
+
+    /** ワールド退出後に完了したロードを、新しいワールドへ持ち込まない。 */
+    public static void stopAll() {
+        GENERATIONS.invalidateAll();
+    }
+
     public static void play(BackpackPlayDiscPayload payload) {
         final CustomTrackData track = payload.track();
         if (track == null || track.isEmpty()) {
             return;
         }
+        final var requestedWorld = Minecraft.getInstance().level;
+        if (requestedWorld == null) {
+            return;
+        }
         final UUID storageUuid = payload.storageUuid();
+        // 次の曲を待つ間に前の曲がEOFを送り、新しいSC callbackを進めないよう先に外す。
+        StorageSoundHandler.stopStorageSound(storageUuid);
         final int generation = GENERATIONS.begin(storageUuid);
         final long localRequestedAtMs = com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.playbackClockMs();
         POOL.submit(() -> {
@@ -71,15 +94,16 @@ public final class SophisticatedCoreCompatClient {
             final IAudioSource resolved = source;
             final PlaybackFailure reported = failure;
             Minecraft.getInstance().execute(() -> {
+                // 未登録ロードのSTOPも世代へ届く。失敗通知も古い要求からは出さない。
+                if (!GENERATIONS.isCurrent(storageUuid, generation)
+                        || Minecraft.getInstance().level != requestedWorld) {
+                    if (resolved != null) resolved.close();
+                    return;
+                }
                 if (resolved == null) {
                     // 従来ここは何も出さずに return していた (無音の silent-fail)。
                     // 無音で終わらせず、理由つきでチャットとログに残す。
                     PlaybackFailureReport.report(track, reported);
-                    return;
-                }
-                // ロード中にディスクが差し替わって新しい play() が来ていたら、この古いロードは破棄する。
-                if (!GENERATIONS.isCurrent(storageUuid, generation)) {
-                    resolved.close();
                     return;
                 }
                 final Entity entity = (payload.entityId() >= 0 && Minecraft.getInstance().level != null)

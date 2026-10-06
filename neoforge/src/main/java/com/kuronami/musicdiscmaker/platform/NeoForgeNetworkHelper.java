@@ -14,7 +14,7 @@ public class NeoForgeNetworkHelper implements INetworkHelper {
 
     @Override
     public void sendToServer(ModPayload payload) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         net.neoforged.neoforge.client.network.ClientPacketDistributor.sendToServer(ModPayloadTypes.wrap(payload));
         //?} else {
         /*PacketDistributor.sendToServer(ModPayloadTypes.wrap(payload));

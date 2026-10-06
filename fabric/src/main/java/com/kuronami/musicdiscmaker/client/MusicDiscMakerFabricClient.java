@@ -9,6 +9,7 @@ import com.kuronami.musicdiscmaker.client.render.BoomboxBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.DeviceModelPoses;
 import com.kuronami.musicdiscmaker.client.render.DevicePartModels;
 import com.kuronami.musicdiscmaker.client.render.DiscPedestalRenderer;
+import com.kuronami.musicdiscmaker.client.render.GoldenJukeboxMinecartRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOutlineRenderer;
 //? if >=1.21.2 {
@@ -39,6 +40,7 @@ import com.kuronami.musicdiscmaker.register.ModItems;
 */
 //?}
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
+import com.kuronami.musicdiscmaker.register.ModEntities;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
 import net.fabricmc.api.ClientModInitializer;
@@ -46,7 +48,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
-//? if >=26.2 {
+import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+//? if >=26.1 {
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 //?} elif >=1.21.11 {
 /*import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
@@ -66,7 +69,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallbac
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.server.packs.PackType;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.fabricmc.fabric.api.client.model.loading.v1.ExtraModelKey;
 import net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin;
 import net.fabricmc.fabric.api.client.model.loading.v1.SimpleUnbakedExtraModel;
@@ -78,7 +81,7 @@ import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.client.resources.model.BakedModel;
 */
 //?}
-//? if >=26.2 {
+//? if >=26.1 {
 import net.fabricmc.fabric.api.client.model.loading.v1.FabricModelManager;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 //?} elif >=1.21.2 {
@@ -90,7 +93,11 @@ import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 //? if >=1.21.2 {
 import net.minecraft.client.color.item.ItemTintSources;
 import net.minecraft.client.renderer.item.properties.numeric.RangeSelectItemModelProperties;
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 //?} else {
 /*import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
@@ -104,7 +111,7 @@ import net.minecraft.resources.ResourceLocation;
  */
 public class MusicDiscMakerFabricClient implements ClientModInitializer {
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     /* ExtraModelKey は焼き済み extra model の引き出し口。26.2 (dispatch) と 1.21.11 (block.model) で
        BlockStateModel の置き場所が違うのでキーの型だけ版で切り替える。 */
     //? if >=26.1 {
@@ -150,9 +157,23 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
     }
     *///?}
 
+    //? if >=1.21.11 {
+    private static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
+    }
+    //?} elif >=1.21 {
+    /*private static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
+    }
+    *///?} else {
+    /*private static ResourceLocation id(String path) {
+        return new ResourceLocation(MusicDiscMaker.MODID, path);
+    }
+    *///?}
+
     @Override
     public void onInitializeClient() {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         // 斜めホーンと取っ手を、パック差替え可能な extra model として登録する。
         // provider は毎フレーム現在の ModelManager に問い合わせるので F3+T で差し替わる。
         ModelLoadingPlugin.register(context -> {
@@ -161,7 +182,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                         Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, part.path())));
             }
         });
-        //? if >=26.2 {
+        //? if >=26.1 {
         DevicePartModels.installProvider(part ->
                 ((FabricModelManager) Minecraft.getInstance().getModelManager()).getModel(PART_KEYS.get(part)));
         //?} else {
@@ -182,11 +203,11 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         *///?}
 
         // device_model_pose.json のリロード口。パックを外したらデフォルトへ戻る。
-        //? if >=26.2 {
+        //? if >=26.1 {
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
                 Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_poses"),
                 DeviceModelPoses.INSTANCE);
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
         /*ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
                 new IdentifiableResourceReloadListener() {
                     @Override public Identifier getFabricId() {
@@ -198,6 +219,20 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                             net.minecraft.server.packs.resources.PreparableReloadListener.PreparationBarrier barrier,
                             java.util.concurrent.Executor game) {
                         return DeviceModelPoses.INSTANCE.reload(shared, background, barrier, game);
+                    }
+                });
+        *///?} elif >=1.21.2 {
+        /*ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                new IdentifiableResourceReloadListener() {
+                    @Override public ResourceLocation getFabricId() {
+                        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_poses");
+                    }
+                    @Override public java.util.concurrent.CompletableFuture<Void> reload(
+                            net.minecraft.server.packs.resources.PreparableReloadListener.PreparationBarrier barrier,
+                            net.minecraft.server.packs.resources.ResourceManager manager,
+                            java.util.concurrent.Executor background,
+                            java.util.concurrent.Executor game) {
+                        return DeviceModelPoses.INSTANCE.reload(barrier, manager, background, game);
                     }
                 });
         *///?} elif >=1.21 {
@@ -248,6 +283,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         */
         //?}
         MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
+        MenuScreens.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxCartScreen::new);
         MenuScreens.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         MenuScreens.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         MenuScreens.register(ModMenus.ALBUM.get(), AlbumScreen::new);
@@ -258,7 +294,8 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         BlockEntityRendererRegistry.register(ModBlockEntities.BOOMBOX.get(), BoomboxBlockRenderer::new);
         BlockEntityRendererRegistry.register(ModBlockEntities.DISC_PEDESTAL.get(), DiscPedestalRenderer::new);
         BlockEntityRendererRegistry.register(ModBlockEntities.SPEAKER.get(), SpeakerBlockRenderer::new);
-        //? if >=26.2 {
+        EntityRendererRegistry.register(ModEntities.GOLDEN_JUKEBOX_MINECART.get(), GoldenJukeboxMinecartRenderer::new);
+        //? if >=26.1 {
         LevelRenderEvents.COLLECT_SUBMITS.register(context -> SpeakerLinkOutlineRenderer.submitModern(
                 context.poseStack(), context.submitNodeCollector(), context.levelState().cameraRenderState.pos));
         //?} elif >=1.21.11 {
@@ -304,19 +341,19 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         // (RangeSelectItemModelProperties.ID_MAPPER・fabric-api の transitive access widener で可視) へ直接 put する。
         // client init は資源リロード (item model パース) より前に走るので put のタイミングは安全。
         RangeSelectItemModelProperties.ID_MAPPER.put(
-                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "variant"),
+                id("variant"),
                 VariantItemModelProperty.MAP_CODEC);
         // ブームボックスの ON (肩に担ぐ・取っ手が倒れる) / OFF (提げる・取っ手が立つ) の出し分け。
         RangeSelectItemModelProperties.ID_MAPPER.put(
-                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "playing"),
+                id("playing"),
                 BoomboxPlayingItemModelProperty.MAP_CODEC);
         // 染色ディスクの tint 源。items モデル JSON の tints がこの id を引く。
         // 登録し忘れると色が出ないだけで、例外もログも出ない (未登録の tintindex は白扱い)。
         ItemTintSources.ID_MAPPER.put(
-                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "disc_dye"),
+                id("disc_dye"),
                 DiscDyeTintSource.MAP_CODEC);
         ItemTintSources.ID_MAPPER.put(
-                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dye"),
+                id("album_dye"),
                 AlbumDyeTintSource.MAP_CODEC);
         //?} elif >=1.21 {
         /*        // custom disc の texture variant を曲名+アーティストから決定的に選ぶ。
@@ -386,6 +423,12 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleBoomboxState(payload.inner())));
         ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.SpeakerSet.TYPE,
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleSpeakerSet(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartPlay.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartPlay(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartStop.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartStop(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartState.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartState(payload.inner())));
         //?} elif >=1.21 {
         /*        // client 受信: 再生制御 (main thread へ enqueue)。
         ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.Play.TYPE,
@@ -406,6 +449,12 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleBoomboxState(payload.inner())));
         ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.SpeakerSet.TYPE,
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleSpeakerSet(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartPlay.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartPlay(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartStop.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartStop(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartState.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartState(payload.inner())));
         // SB Fabric port の backpack jukebox 再生受信 (port 非依存)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerClientReceiver();
         */
@@ -449,6 +498,29 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 });
 
         // client 受信: 携帯ブームボックス (1 秒ごとの keep-alive を兼ねる)。
+        // server → client: 金ジュークトロッコの再生/停止/画面状態。
+        ClientPlayNetworking.registerGlobalReceiver(
+                com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                        com.kuronami.musicdiscmaker.network.GoldenCartPlayPayload.PATH),
+                (client, handler, buf, responseSender) -> {
+                    final var payload = com.kuronami.musicdiscmaker.network.GoldenCartPlayPayload.read(buf);
+                    client.execute(() -> ModNetwork.handleGoldenCartPlay(payload));
+                });
+        ClientPlayNetworking.registerGlobalReceiver(
+                com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                        com.kuronami.musicdiscmaker.network.GoldenCartStopPayload.PATH),
+                (client, handler, buf, responseSender) -> {
+                    final var payload = com.kuronami.musicdiscmaker.network.GoldenCartStopPayload.read(buf);
+                    client.execute(() -> ModNetwork.handleGoldenCartStop(payload));
+                });
+        ClientPlayNetworking.registerGlobalReceiver(
+                com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                        com.kuronami.musicdiscmaker.network.GoldenCartStatePayload.PATH),
+                (client, handler, buf, responseSender) -> {
+                    final var payload = com.kuronami.musicdiscmaker.network.GoldenCartStatePayload.read(buf);
+                    client.execute(() -> ModNetwork.handleGoldenCartState(payload));
+                });
+
         ClientPlayNetworking.registerGlobalReceiver(
                 com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
                         com.kuronami.musicdiscmaker.network.BoomboxPlayPayload.PATH),
@@ -494,8 +566,11 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         */
         //?}
 
-        // サーバ離脱時に全再生を止める。
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientPlaybackManager.get().stopAll());
+        // サーバ離脱時に接続単位の状態と全再生を止める。
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.resetProtocolMismatchOnDisconnect();
+            ClientPlaybackManager.get().stopAll();
+        });
 
         // B5 (混在アルバムの先読み): MDM 再生が無い区間 (vanilla / 他 MOD ディスクの再生中) でも
         //? if >=1.21 {

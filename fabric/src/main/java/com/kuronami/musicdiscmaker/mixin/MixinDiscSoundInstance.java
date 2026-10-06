@@ -11,7 +11,7 @@ import com.kuronami.musicdiscmaker.client.audio.VanillaSpeakerSoundInstance;
 import net.fabricmc.fabric.api.client.sound.v1.FabricSoundInstance;
 import net.minecraft.client.sounds.AudioStream;
 import net.minecraft.client.sounds.SoundBufferLibrary;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -28,7 +28,7 @@ import net.minecraft.resources.Identifier;
 public abstract class MixinDiscSoundInstance implements FabricSoundInstance {
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     public CompletableFuture<AudioStream> getAudioStream(SoundBufferLibrary loader, Identifier id, boolean repeatInstantly) {
     //?} else {
     /*public CompletableFuture<AudioStream> getAudioStream(SoundBufferLibrary loader, ResourceLocation id, boolean repeatInstantly) {

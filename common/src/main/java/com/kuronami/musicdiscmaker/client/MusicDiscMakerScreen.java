@@ -1,17 +1,18 @@
 package com.kuronami.musicdiscmaker.client;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} else {
 
 /*import org.lwjgl.glfw.GLFW;
 *///?}
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.client.audio.LocalAudioClient;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerLayout;
 import com.kuronami.musicdiscmaker.network.ResolveUrlPayload;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} else {
 /*import com.kuronami.musicdiscmaker.platform.Services;
 *///?}
@@ -21,24 +22,30 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
+import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.InputWithModifiers;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.renderer.RenderPipelines;
 //?} else {
 //?}
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
 *///?}
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Inventory;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import com.kuronami.musicdiscmaker.platform.Services;
 //?} else {
 //?}
@@ -50,7 +57,7 @@ import net.minecraft.client.Minecraft;
  */
 public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMakerMenu> {
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static final Identifier TEXTURE =
             Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/music_disc_maker.png");
     private static final int TEXT = 0xFF404040;
@@ -64,7 +71,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private static final int TEXT = 0x404040;
     *///?}
     // 解決失敗は、主経路から外した小さな警告印とホバー詳細で示す。
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     // 出所: 正リポ mod-047 branding/b1-legibility (design review 却下後の候補シート「配置B・色4」)。
     private static final int ERROR = 0xFFB02020;
     //?} else {
@@ -73,14 +80,9 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     *///?}
     // v2.2.4 と同じく取得中表示は右端8px、主工程と同じ高さに置く。
     private static final int FETCHING_Y = 51;
-    // 失敗は常設文で主経路を塞がない小さな印とホバー詳細にする。
-    private static final int WARNING_X = 112;
-    private static final int WARNING_Y = 72;
-    private static final int WARNING_SIZE = 8;
 
     private EditBox urlField;
-    private Button mp3Button;
-    private Button mp3Cancel;
+    private IconButton clearButton;
     private boolean urlWasFocused;
     private String lastSentUrl = "";
 
@@ -105,24 +107,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     @Override
     protected void init() {
         super.init();
-        // 金床の名前入力欄と同様に、入力欄そのものを URL の置き場として見せる。
-        this.mp3Button = addRenderableWidget(Button.builder(
-                com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.status(), b -> {
-                    if (com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.uploading()) {
-                        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.confirm();
-                    } else {
-                        urlField.setValue(""); commitUrl();
-                        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.select(menu);
-                    }
-                }).bounds(leftPos + 11, topPos + 69, 145, 16).build());
-        this.mp3Cancel = addRenderableWidget(Button.builder(Component.translatable("gui.music_disc_maker.mp3.cancel"),
-                b -> com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.cancel(menu))
-                .bounds(leftPos + 158, topPos + 69, 36, 16).build());
-        this.urlField = new EditBox(this.font, leftPos + 11, topPos + 25, 98, 12,
+        this.urlField = new EditBox(this.font, leftPos + MusicDiscMakerLayout.URL_X,
+                topPos + MusicDiscMakerLayout.URL_Y, MusicDiscMakerLayout.URL_W,
+                MusicDiscMakerLayout.URL_H,
                 Component.translatable("gui.music_disc_maker.url_placeholder"));
         this.urlField.setMaxLength(2048);
         this.urlField.setBordered(false);
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         // 26.1: EditBox の hint 既定色が DARK_GRAY になり濃く見えるので、従来の薄いグレーを明示する。
         this.urlField.setHint(Component.translatable("gui.music_disc_maker.url_placeholder")
                 .withStyle(ChatFormatting.GRAY));
@@ -134,10 +125,34 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         // 1 文字ごとに自動コミットすると部分 URL の解決失敗が GUI で点滅するので行わない。
         // コミット契機 = Enter / フォーカス喪失 / PASTE / CLEAR / GUI を閉じる時。
         addRenderableWidget(this.urlField);
-        addRenderableWidget(Button.builder(Component.translatable("gui.music_disc_maker.paste"),
-                b -> pasteFromClipboard()).bounds(leftPos + 120, topPos + 20, 36, 18).build());
-        addRenderableWidget(Button.builder(Component.translatable("gui.music_disc_maker.clear"),
-                b -> clearUrl()).bounds(leftPos + 158, topPos + 20, 36, 18).build());
+        // URL 欄の右上に小さな3ボタン。左から 貼り付け / ファイル選択(取込の確認も兼ねる) / 消去+転送取消。
+        final IconButton paste = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_PASTE_X,
+                topPos + MusicDiscMakerLayout.TOOL_Y,
+                Component.translatable("gui.music_disc_maker.paste"),
+                "textures/gui/music_disc_maker/paste.png", () -> pasteFromClipboard());
+        paste.setTooltip(Tooltip.create(Component.translatable("gui.music_disc_maker.paste")));
+        addRenderableWidget(paste);
+        final IconButton folder = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_FOLDER_X,
+                topPos + MusicDiscMakerLayout.TOOL_Y,
+                Component.translatable("gui.music_disc_maker.local.select"),
+                "textures/gui/music_disc_maker/folder.png", () -> {
+                    if (LocalAudioClient.uploading()) {
+                        LocalAudioClient.confirm();
+                    } else {
+                        urlField.setValue(""); commitUrl();
+                        LocalAudioClient.select(menu);
+                    }
+                });
+        folder.setTooltip(Tooltip.create(Component.translatable("gui.music_disc_maker.local.select")));
+        addRenderableWidget(folder);
+        this.clearButton = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_CLEAR_X,
+                topPos + MusicDiscMakerLayout.TOOL_Y,
+                Component.translatable("gui.music_disc_maker.clear"),
+                "textures/gui/music_disc_maker/clear.png", () -> {
+                    LocalAudioClient.cancel(menu);
+                    clearUrl();
+                });
+        addRenderableWidget(this.clearButton);
     }
 
     private void pasteFromClipboard() {
@@ -163,7 +178,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         if (url.equals(lastSentUrl)) {
             return;
         }
-        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.cancel(menu);
+        LocalAudioClient.cancel(menu);
         lastSentUrl = url;
         Services.NETWORK.sendToServer(new ResolveUrlPayload(menu.getBlockEntity().getBlockPos(), url));
     }
@@ -171,7 +186,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     @Override
     public void onClose() {
         commitUrl(); // 入力したまま閉じた URL を取りこぼさない
-        com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.cancel(menu);
+        LocalAudioClient.cancel(menu);
         super.onClose();
     }
 
@@ -189,7 +204,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         // パネル200px内のスロット起点 (19,98) に slice 内セル (8,140) が一致する配置。
         VanillaPlayerInventoryBackground.draw(graphics, leftPos + 14, topPos + 84,
                 3.0F, 126.0F, 170, 93);
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
@@ -203,7 +218,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                 3.0F, 126.0F, 170, 93);
     *///?} else {
     /*protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
-        g.blit(TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+        GuiTextureBlit.blit(g, TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
         VanillaPlayerInventoryBackground.draw(g, leftPos + 14, topPos + 84,
                 3.0F, 126.0F, 170, 93);
     *///?}
@@ -216,7 +231,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     //? if >=26.1 {
     protected void extractLabels(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         super.extractLabels(graphics, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         super.renderLabels(graphics, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
     *///?} else {
@@ -230,7 +245,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                     .copy().append(" " + spin);
             //? if >=26.1 {
             graphics.text(font, fetching, imageWidth - 8 - font.width(fetching), FETCHING_Y, TEXT, false);
-            //?} elif >=1.21.2 {
+            //?} elif >=1.21.11 {
             /*graphics.drawString(font, fetching, imageWidth - 8 - font.width(fetching), FETCHING_Y, TEXT, false);
             *///?} else {
             /*g.drawString(font, fetching, imageWidth - 8 - font.width(fetching), FETCHING_Y, TEXT, false);
@@ -238,11 +253,23 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         } else if (menu.getBlockEntity().isResolveFailed()) {
             // 固定文で主経路を説明しない。詳細は同じ座標のホバーで出す。
             //? if >=26.1 {
-            graphics.text(font, "!", WARNING_X, WARNING_Y, ERROR, false);
-            //?} elif >=1.21.2 {
-            /*graphics.drawString(font, "!", WARNING_X, WARNING_Y, ERROR, false);
+            graphics.text(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
+            //?} elif >=1.21.11 {
+            /*graphics.drawString(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
             *///?} else {
-            /*g.drawString(font, "!", WARNING_X, WARNING_Y, ERROR, false);
+            /*g.drawString(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
+            *///?}
+        }
+        // ローカル取込の状態はツールボタン帯の行へ。idle 時は描かない。
+        if (LocalAudioClient.hasStatus()) {
+            final FormattedCharSequence statusText = Language.getInstance().getVisualOrder(
+                    font.substrByWidth(LocalAudioClient.status(), MusicDiscMakerLayout.STATUS_MAX_W));
+            //? if >=26.1 {
+            graphics.text(font, statusText, MusicDiscMakerLayout.STATUS_X, MusicDiscMakerLayout.STATUS_Y, TEXT, false);
+            //?} elif >=1.21.11 {
+            /*graphics.drawString(font, statusText, MusicDiscMakerLayout.STATUS_X, MusicDiscMakerLayout.STATUS_Y, TEXT, false);
+            *///?} else {
+            /*g.drawString(font, statusText, MusicDiscMakerLayout.STATUS_X, MusicDiscMakerLayout.STATUS_Y, TEXT, false);
             *///?}
         }
     }
@@ -263,7 +290,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     @Override
     protected void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         super.extractTooltip(graphics, mouseX, mouseY);
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*/^*
      * 小さな警告印へホバーした時だけ、失敗理由を描く。hover ツールチップのフックは
      * renderTooltip。
@@ -288,10 +315,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             return;
         }
         final FailureReason reason = menu.getBlockEntity().getFailureReason();
-        final int left = leftPos + WARNING_X;
-        final int top = topPos + WARNING_Y;
-        if (mouseX >= left && mouseX < left + WARNING_SIZE && mouseY >= top && mouseY < top + WARNING_SIZE) {
-            //? if >=1.21.2 {
+        final int left = leftPos + MusicDiscMakerLayout.WARNING_X;
+        final int top = topPos + MusicDiscMakerLayout.WARNING_Y;
+        if (mouseX >= left && mouseX < left + MusicDiscMakerLayout.WARNING_SIZE
+                && mouseY >= top && mouseY < top + MusicDiscMakerLayout.WARNING_SIZE) {
+            //? if >=1.21.11 {
             graphics.setTooltipForNextFrame(
                     font.split(failedMessage(reason), 200),
                     mouseX, mouseY);
@@ -302,7 +330,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     public boolean keyPressed(KeyEvent event) {
         if (event.isEscape()) {
     //?} else {
@@ -312,7 +340,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             this.onClose();
             return true;
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         if (event.isConfirmation() && urlField.isFocused()) {
         //?} else {
         /*if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) && urlField.isFocused()) {
@@ -321,14 +349,14 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             urlField.setFocused(false);
             return true;
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         if (this.urlField.keyPressed(event) || this.urlField.canConsumeInput()) {
         //?} else {
         /*if (this.urlField.keyPressed(keyCode, scanCode, modifiers) || this.urlField.canConsumeInput()) {
         *///?}
             return true;
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return super.keyPressed(event);
         //?} else {
         /*return super.keyPressed(keyCode, scanCode, modifiers);
@@ -336,19 +364,19 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     public boolean charTyped(CharacterEvent event) {
     //?} else {
     /*public boolean charTyped(char codePoint, int modifiers) {
     *///?}
         if (this.urlField.canConsumeInput()) {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             return this.urlField.charTyped(event);
             //?} else {
             /*return this.urlField.charTyped(codePoint, modifiers);
             *///?}
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return super.charTyped(event);
         //?} else {
         /*return super.charTyped(codePoint, modifiers);
@@ -356,16 +384,16 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void containerTick() {
         super.containerTick();
     //?} else {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     *///?}
-        mp3Button.setMessage(com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.status());
-        mp3Button.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
-                com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.description()));
-        mp3Cancel.active = com.kuronami.musicdiscmaker.client.audio.LocalAudioClient.uploading();
+        // × は進行中だけ「取消」、それ以外は「消去」。状態に合わせてツールチップを替える。
+        clearButton.setTooltip(Tooltip.create(Component.translatable(
+                LocalAudioClient.uploading()
+                        ? "gui.music_disc_maker.local.cancel" : "gui.music_disc_maker.clear")));
         final boolean focused = urlField.isFocused();
         if (urlWasFocused && !focused) {
             commitUrl(); // フォーカスを外した瞬間に URL をコミット
@@ -378,13 +406,97 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             lastSentUrl = serverUrl; // 先に更新 → 以後の commitUrl が dedup で再送しない
             urlField.setValue(serverUrl);
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         //?} else {
 
         /*super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
         renderFailedTooltip(g, mouseX, mouseY);
         *///?}
+    }
+
+    /** URL 欄右上の小ボタン。枠付きの面の中央へ16px図を1枚だけ描く。 */
+    private static final class IconButton extends AbstractButton {
+
+        private final String icon;
+        private final Runnable action;
+        private boolean mouseFocused;
+
+        IconButton(int x, int y, Component narration, String icon, Runnable action) {
+            super(x, y, MusicDiscMakerLayout.TOOL_SIZE, MusicDiscMakerLayout.TOOL_SIZE, narration);
+            this.icon = icon;
+            this.action = action;
+        }
+
+        @Override
+        //? if >=1.21.11 {
+        public void onPress(InputWithModifiers input) {
+            action.run();
+        //?} else {
+        /*public void onPress() {
+            action.run();
+        *///?}
+        }
+
+        @Override
+        //? if >=1.21.11 {
+        public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+            final boolean handled = super.mouseClicked(event, doubleClick);
+            if (handled && event.button() == 0) mouseFocused = true;
+            return handled;
+        //?} else {
+        /*public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            final boolean handled = super.mouseClicked(mouseX, mouseY, button);
+            if (handled && button == 0) mouseFocused = true;
+            return handled;
+        *///?}
+        }
+
+        @Override
+        public void setFocused(boolean focused) {
+            super.setFocused(focused);
+            if (!focused) mouseFocused = false;
+        }
+
+        private boolean hasVisibleKeyboardFocus() {
+            return isFocused() && !mouseFocused;
+        }
+
+        @Override
+        //? if >=26.1 {
+        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        //?} elif >=1.21.11 {
+        /*protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        *///?} else {
+        /*protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        *///?}
+            // 明るい vanilla パネルの上なので、面は暗め・ホバーで一段明るく。
+            final int face = !active ? 0xFF4E4E4E
+                    : isHovered() || hasVisibleKeyboardFocus() ? 0xFF8A8A8A : 0xFF6E6E6E;
+            graphics.fill(getX() - 1, getY() - 1, getX() + width + 1, getY() + height + 2,
+                    hasVisibleKeyboardFocus() ? 0xFFFFD58A : 0xFF202020);
+            graphics.fill(getX(), getY(), getX() + width, getY() + height, face);
+            graphics.fill(getX(), getY() + height - 2, getX() + width, getY() + height, 0xFF404040);
+            final int iconSize = 16;
+            final int iconX = getX() + (width - iconSize) / 2;
+            final int iconY = getY() + (height - 2 - iconSize) / 2;
+            //? if >=1.21.11 {
+            graphics.blit(RenderPipelines.GUI_TEXTURED,
+                    Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, icon),
+                    iconX, iconY, 0.0F, 0.0F, iconSize, iconSize, iconSize, iconSize);
+            //?} elif >=1.21 {
+            /*GuiTextureBlit.blit(graphics, ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, icon),
+                    iconX, iconY, 0.0F, 0.0F, iconSize, iconSize, iconSize, iconSize);
+            *///?} else {
+            /*GuiTextureBlit.blit(graphics, new ResourceLocation(MusicDiscMaker.MODID, icon),
+                    iconX, iconY, 0.0F, 0.0F, iconSize, iconSize, iconSize, iconSize);
+            *///?}
+        }
+
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput output) {
+            defaultButtonNarrationText(output);
+        }
     }
 }
 

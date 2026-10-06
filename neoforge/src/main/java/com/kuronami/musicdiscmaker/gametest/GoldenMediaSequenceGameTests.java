@@ -23,7 +23,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 //? if <26.1 {
 /*import net.minecraft.world.item.EitherHolder;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -39,7 +39,7 @@ public final class GoldenMediaSequenceGameTests {
     private GoldenMediaSequenceGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void manualTransportCrossesAlbumDiscs(GameTestHelper helper) {
@@ -70,7 +70,7 @@ public final class GoldenMediaSequenceGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void liveManualNextRepeatTailAndPausedPreviousAreDistinct(GameTestHelper helper) {
@@ -119,7 +119,7 @@ public final class GoldenMediaSequenceGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void albumDiscAndTrackPositionSurviveReload(GameTestHelper helper) {
@@ -146,7 +146,7 @@ public final class GoldenMediaSequenceGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void shufflePreservesPositionOffsetAndFixedTransportAfterReload(GameTestHelper helper) {
@@ -202,7 +202,7 @@ public final class GoldenMediaSequenceGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void shuffleMissingSavedSeedAndAnchorFallsBackSafely(GameTestHelper helper) {
@@ -228,7 +228,7 @@ public final class GoldenMediaSequenceGameTests {
     private static GoldenJukeboxBlockEntity jukebox(GameTestHelper helper) {
         helper.setBlock(POS, ModBlocks.GOLDEN_JUKEBOX.get());
         //? if >=1.21.2 {
-        return helper.getBlockEntity(POS, GoldenJukeboxBlockEntity.class);
+        return GameTestBlockEntities.get(helper, POS, GoldenJukeboxBlockEntity.class);
         //?} else {
         /*return helper.getBlockEntity(POS);
         *///?}
@@ -267,10 +267,10 @@ public final class GoldenMediaSequenceGameTests {
                 .getOrThrow(SilentSongs.pick(track.durationMs()));
         //? if >=26.1 {
         disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(song));
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(song)));
         *///?}
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(song), false));
         *///?}
         return disc;

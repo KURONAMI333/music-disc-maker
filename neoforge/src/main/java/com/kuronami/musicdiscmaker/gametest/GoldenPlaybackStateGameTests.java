@@ -27,14 +27,14 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.event.level.ChunkWatchEvent;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueInput;
 //?}
 //? if <26.1 {
 /*import net.minecraft.world.item.EitherHolder;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -45,7 +45,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class GoldenPlaybackStateGameTests {
     private static final BlockPos POS = new BlockPos(1, 1, 1);
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -67,7 +67,7 @@ public final class GoldenPlaybackStateGameTests {
         final var packet = (net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket) source.getUpdatePacket();
         final var replica = new GoldenJukeboxBlockEntity(pos, source.getBlockState());
         // 実clientで使うNeoForgeの受信入口を通す。clientの配送自体はこのheadless試験の対象外。
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         replica.onDataPacket(null, TagValueInput.create(ProblemReporter.DISCARDING,
                 helper.getLevel().registryAccess(), packet.getTag()));
         //?} else {
@@ -78,7 +78,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -164,7 +164,7 @@ public final class GoldenPlaybackStateGameTests {
     private static GoldenJukeboxBlockEntity jukebox(GameTestHelper helper) {
         helper.setBlock(POS, ModBlocks.GOLDEN_JUKEBOX.get());
         //? if >=1.21.2 {
-        return helper.getBlockEntity(POS, GoldenJukeboxBlockEntity.class);
+        return GameTestBlockEntities.get(helper, POS, GoldenJukeboxBlockEntity.class);
         //?} else {
         /*return helper.getBlockEntity(POS);
         *///?}
@@ -186,16 +186,16 @@ public final class GoldenPlaybackStateGameTests {
                 .getOrThrow(SilentSongs.pick(track.durationMs()));
         //? if >=26.1 {
         disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(song));
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(song)));
         *///?}
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(song), false));
         *///?}
         return disc;
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -213,7 +213,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -241,7 +241,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -261,7 +261,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -291,7 +291,7 @@ public final class GoldenPlaybackStateGameTests {
      * resend が飛ぶこと。実クライアントで再現した不具合: この窓で {@code resendTo} が黙って
      * return し、距離を離れて戻った client が pause/unpause まで無音のままだった。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -346,7 +346,7 @@ public final class GoldenPlaybackStateGameTests {
      * 同じ窓でも、止まった / 鳴り終わったディスクへは resend が飛ばないこと
      * (止まったディスクを頭出しで鳴らし直さない — 上のテストと合わせて窓の両側を固定)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -412,7 +412,7 @@ public final class GoldenPlaybackStateGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -428,7 +428,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -436,7 +436,7 @@ public final class GoldenPlaybackStateGameTests {
         verifyPausedReload(helper, false);
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -462,7 +462,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -474,7 +474,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.assertTrue(restored.isStopped() && !restored.isVanillaPlaying(), "legacy stopped data replayed on load");
         helper.succeed();
     }
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -506,7 +506,7 @@ public final class GoldenPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -515,7 +515,7 @@ public final class GoldenPlaybackStateGameTests {
         final GoldenJukeboxBlockEntity first = jukebox(helper);
         helper.setBlock(secondPos, ModBlocks.GOLDEN_JUKEBOX.get());
         //? if >=1.21.2 {
-        final GoldenJukeboxBlockEntity second = helper.getBlockEntity(secondPos, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity second = GameTestBlockEntities.get(helper, secondPos, GoldenJukeboxBlockEntity.class);
         //?} else {
         /*final GoldenJukeboxBlockEntity second = helper.getBlockEntity(secondPos);
         *///?}
@@ -590,7 +590,7 @@ public final class GoldenPlaybackStateGameTests {
     }
 
     private static void loadInstalled(GameTestHelper helper, GoldenJukeboxBlockEntity target, CompoundTag state) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         target.loadWithComponents(TagValueInput.create(
                 ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), state));
         //?} else {
@@ -598,7 +598,7 @@ public final class GoldenPlaybackStateGameTests {
         *///?}
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -629,7 +629,7 @@ public final class GoldenPlaybackStateGameTests {
         final CompoundTag malformed = (CompoundTag) GoldenSourceRetirements.CODEC
                 .encodeStart(NbtOps.INSTANCE, restored).result().orElse(null);
         helper.assertTrue(malformed != null, "不正UUID混入試験用retirementをencodeできない");
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final CompoundTag retired = malformed.getCompound("retired").orElse(null);
         //?} else {
         /*final CompoundTag retired = malformed.getCompound("retired");

@@ -2,7 +2,7 @@ package com.kuronami.musicdiscmaker.platform.registry;
 
 import java.util.function.Supplier;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -14,7 +14,7 @@ import net.minecraft.resources.Identifier;
  */
 public interface RegistryHolder<T> extends Supplier<T> {
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     Identifier getId();
     //?} else {
     /*ResourceLocation getId();

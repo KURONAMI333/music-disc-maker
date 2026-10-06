@@ -95,7 +95,7 @@ public final class SpeakerNetwork {
      */
     public static Set<SpeakerBlockEntity> findLinkedSpeakers(ServerLevel level, UUID sourceId) {
         if (sourceId == null) return Set.of();
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final IdentityKey key = new IdentityKey(level.dimension().identifier().toString(), sourceId);
         //?} else {
         /*final IdentityKey key = new IdentityKey(level.dimension().location().toString(), sourceId);
@@ -158,7 +158,7 @@ public final class SpeakerNetwork {
                 result.addAll(findLinkedSpeakers(level, predecessor));
             }
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final SpeakerLink current = new SpeakerLink(level.dimension().identifier().toString(),
                 source.getBlockPos().asLong(), id);
         //?} else {
@@ -171,7 +171,7 @@ public final class SpeakerNetwork {
 
     /** 現在ロード済みで指定音源を聞くスピーカーのスナップショット。 */
     public static Set<SpeakerBlockEntity> findLinkedSpeakers(ServerLevel level, BlockPos sourcePos) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final SpeakerLink source = new SpeakerLink(level.dimension().identifier().toString(), sourcePos.asLong());
         //?} else {
         /*final SpeakerLink source = new SpeakerLink(level.dimension().location().toString(), sourcePos.asLong());

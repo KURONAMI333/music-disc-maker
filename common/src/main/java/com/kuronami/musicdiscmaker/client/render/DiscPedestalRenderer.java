@@ -14,7 +14,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
@@ -27,7 +27,7 @@ import net.minecraft.client.renderer.entity.ItemRenderer;
 *///?}
 //? if >=26.1 {
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-//?} elif >=1.21.2 {
+//?} elif >=1.21.11 {
 /*import net.minecraft.client.renderer.state.CameraRenderState;
 *///?}
 
@@ -51,7 +51,7 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
  * <p><b>可視距離を縮めていない</b>ことに注意。{@code getViewDistance} を縮めるとレンダラごと
  * 消えて盤まで出なくなる。曲名だけを近くで出したいので、判定は毎フレームの距離で行う。
  */
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 public class DiscPedestalRenderer
         implements BlockEntityRenderer<DiscPedestalBlockEntity, DiscPedestalRenderer.State> {
 

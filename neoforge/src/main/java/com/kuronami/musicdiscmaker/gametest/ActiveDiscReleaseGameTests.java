@@ -1,6 +1,12 @@
 package com.kuronami.musicdiscmaker.gametest;
 
 //? if >=1.21.2 {
+//? if <1.21.11 {
+import com.kuronami.musicdiscmaker.component.SilentSongs;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.EitherHolder;
+import net.minecraft.world.item.JukeboxPlayable;
+//?}
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
 import com.kuronami.musicdiscmaker.event.ActiveDiscSaveData;
@@ -63,6 +69,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
 public class ActiveDiscReleaseGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -73,7 +87,7 @@ public class ActiveDiscReleaseGameTests {
         disc.set(ModDataComponents.CUSTOM_TRACK.get(),
                 new CustomTrackData("https://example.invalid/release-disc", "Release Disc", "tester", DURATION_MS,
                         "", false));
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*disc.set(DataComponents.JUKEBOX_PLAYABLE,
                 new JukeboxPlayable(new EitherHolder<>(SilentSongs.pick(DURATION_MS)), false));
         *///?}
@@ -164,8 +178,12 @@ public class ActiveDiscReleaseGameTests {
     /** ディスクを挿した jukebox を置いて、registry に載ったことを確かめる (26.x 版)。 */
     private static BlockPos armedJukebox(GameTestHelper helper, BlockPos rel) {
         helper.setBlock(rel, Blocks.JUKEBOX);
-        if (!(helper.getBlockEntity(rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
+        if (!(GameTestBlockEntities.get(helper, rel, JukeboxBlockEntity.class) instanceof JukeboxBlockEntity jukebox)) {
+            //? if >=1.21.11 {
             helper.fail(Component.literal("JukeboxBlockEntity が生成されていない"), rel);
+            //?} else {
+            /*helper.fail("JukeboxBlockEntity が生成されていない", rel);
+            *///?}
             return null;
         }
         // 挿入は本番と同じ経路 (setTheItem → JukeboxBlockEntityMixin → JukeboxDiscController)。
@@ -180,6 +198,10 @@ public class ActiveDiscReleaseGameTests {
      * 爆発と同じ経路 ({@code Level#destroyBlock}) でブロックが消えたら registry も解放されること。
      * プレイヤーの手作業の破壊イベントは通らないので、ここが唯一の解放点になる。
      */
+    //? if >=1.21.2 && <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, batch = "discReleaseDestroy")
+    *///?}
     public static void destroyingTheBlockReleasesTheEntry(GameTestHelper helper) {
         ActiveDiscRegistry.clear();
         final ServerLevel level = helper.getLevel();
@@ -194,6 +216,10 @@ public class ActiveDiscReleaseGameTests {
     }
 
     /** コマンドと同じ経路 ({@code /setblock air}) でも解放されること。 */
+    //? if >=1.21.2 && <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, batch = "discReleaseAir")
+    *///?}
     public static void replacingTheBlockWithAirReleasesTheEntry(GameTestHelper helper) {
         ActiveDiscRegistry.clear();
         final ServerLevel level = helper.getLevel();
@@ -213,6 +239,10 @@ public class ActiveDiscReleaseGameTests {
      * ブロック自体はまだそこにあり、ディスクも挿さったままなので、忘れると chunk 再入のたびに
      * 頭から鳴り直す。
      */
+    //? if >=1.21.2 && <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, batch = "discReleaseUnload")
+    *///?}
     public static void droppingTheBlockEntityAloneKeepsTheEntry(GameTestHelper helper) {
         ActiveDiscRegistry.clear();
         final ServerLevel level = helper.getLevel();
@@ -222,7 +252,7 @@ public class ActiveDiscReleaseGameTests {
             return;
         }
         // chunk アンロードで起きること = ブロックはそのまま、block entity だけが捨てられる。
-        final JukeboxBlockEntity jukebox = helper.getBlockEntity(rel, JukeboxBlockEntity.class);
+        final JukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, rel, JukeboxBlockEntity.class);
         if (jukebox != null) {
             jukebox.setRemoved();
         }
@@ -239,7 +269,7 @@ public class ActiveDiscReleaseGameTests {
      * 次元単位の解放。次元がアンロードされてもエントリが残ると、その次元へ戻るまで
      * (= server が止まるまで) 掃除の機会が無い。他の次元を巻き添えにしないことも見る。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = "discReleaseDimension")
     *///?}
@@ -279,7 +309,7 @@ public class ActiveDiscReleaseGameTests {
      * 「サーバー再起動でディスクが頭から鳴り直す」が直っていないことに誰も気づけない。
      * ここが緑である限り、その形には戻せない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = "discSaveDataRoundTrip")
     *///?}

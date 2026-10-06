@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.mixin;
 
 import com.kuronami.musicdiscmaker.client.audio.LavaPlayerAudioStream;
+import com.kuronami.musicdiscmaker.client.audio.NativeCursorAccess;
 import com.mojang.blaze3d.audio.Channel;
 import net.minecraft.client.sounds.AudioStream;
 import org.spongepowered.asm.mixin.Final;
@@ -13,9 +14,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /** MDM の共有 PCM だけを実 OpenAL cursor に合わせる。他の音源や vanilla の queue 操作は変えない。 */
 @Mixin(Channel.class)
-public abstract class MixinChannelPlayback {
+public abstract class MixinChannelPlayback implements NativeCursorAccess {
     @Shadow @Final private int source;
     @Shadow private AudioStream stream;
+
+    @Override
+    public void mdm$publishPlaybackPosition() {
+        if (stream instanceof LavaPlayerAudioStream lava) lava.publishNativePosition();
+    }
 
     @Inject(method = "attachBufferStream", at = @At("HEAD"))
     private void mdm$attach(AudioStream audio, CallbackInfo ci) {
@@ -25,6 +31,7 @@ public abstract class MixinChannelPlayback {
     @Inject(method = "removeProcessedBuffers", at = @At("RETURN"))
     private void mdm$removed(CallbackInfoReturnable<Integer> cir) {
         if (stream instanceof LavaPlayerAudioStream lava) lava.nativeBuffersProcessed(cir.getReturnValue());
+        if (stream instanceof LavaPlayerAudioStream lava) lava.publishNativePosition();
     }
 
     @Inject(method = "play", at = @At("HEAD"), cancellable = true)

@@ -58,15 +58,25 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class GoldenJukeboxHopperGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*private static ItemStack customDisc(long durationMs) {
         return customDisc(durationMs, SilentSongs.pick(durationMs));
     }
-    *///?} else {
+    *///?}
+    //? if >=1.21.2 {
     private static ItemStack customDisc(GameTestHelper helper, long durationMs) {
         return customDisc(helper, durationMs, SilentSongs.pick(durationMs));
     }
@@ -76,7 +86,7 @@ public class GoldenJukeboxHopperGameTests {
      * 実尺と無音バケット song を別々に指定する。実運用でも両者は一致しない (バケットは 10 秒刻みの
      * 切り上げ・尺不明は 3600 秒) ので、その乖離を意図的に大きく取ったディスクを作れるようにする。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*private static ItemStack customDisc(long durationMs, ResourceKey<JukeboxSong> silentSong) {
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         disc.set(ModDataComponents.CUSTOM_TRACK.get(),
@@ -85,7 +95,8 @@ public class GoldenJukeboxHopperGameTests {
                 new JukeboxPlayable(new EitherHolder<>(silentSong), false));
         return disc;
     }
-    *///?} else {
+    *///?}
+    //? if >=1.21.2 {
     private static ItemStack customDisc(GameTestHelper helper, long durationMs, ResourceKey<JukeboxSong> silentSong) {
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         disc.set(ModDataComponents.CUSTOM_TRACK.get(),
@@ -94,8 +105,10 @@ public class GoldenJukeboxHopperGameTests {
                 .get(silentSong)
                 //? if >=26.1 {
                 .ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(holder)));
-                //?} else {
+                //?} elif >=1.21.11 {
                 /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder))));
+                *///?} else {
+                /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder), false)));
                 *///?}
         return disc;
     }
@@ -105,7 +118,7 @@ public class GoldenJukeboxHopperGameTests {
      * ホッパー投入 → 再生開始。金ジュークの真上にホッパーを置き、ディスクを積んで自然 tick させると、
      * vanilla のホッパー機構が下 (金ジューク) へ押し込み、挿入を検知して自動再生が始まること。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -116,27 +129,27 @@ public class GoldenJukeboxHopperGameTests {
         // 既定 facing は DOWN (真下の container へ押し込む)。
         helper.setBlock(hopperRel, Blocks.HOPPER.defaultBlockState());
 
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel);
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, jukeboxRel, GoldenJukeboxBlockEntity.class);
         //?}
         if (jukebox == null) {
-            //? if <1.21.2 {
+            //? if <1.21.11 {
             /*helper.fail("GoldenJukeboxBlockEntity が生成されていない", jukeboxRel);
             *///?} else {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), jukeboxRel);
             //?}
             return;
         }
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*if (!(helper.getBlockEntity(hopperRel) instanceof HopperBlockEntity hopper)) {
             helper.fail("HopperBlockEntity が生成されていない", hopperRel);
             return;
         }
         hopper.setItem(0, customDisc(120_000L));
         *///?} else {
-        if (!(helper.getBlockEntity(hopperRel, HopperBlockEntity.class) instanceof HopperBlockEntity hopper)) {
+        if (!(GameTestBlockEntities.get(helper, hopperRel, HopperBlockEntity.class) instanceof HopperBlockEntity hopper)) {
             helper.fail(Component.literal("HopperBlockEntity が生成されていない"), hopperRel);
             return;
         }
@@ -158,7 +171,7 @@ public class GoldenJukeboxHopperGameTests {
      * 再生終了 → ホッパー取り出し。金ジュークの真下にホッパーを置き、既に再生中のディスクを
      * pause中の媒体を、vanilla のホッパー機構が吸い出さないこと。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     *///?}
@@ -170,27 +183,27 @@ public class GoldenJukeboxHopperGameTests {
         // vanilla の「ホッパーは自分の真上の container から吸い出す」既定動作がそのまま使える。
         helper.setBlock(hopperRel, Blocks.HOPPER.defaultBlockState());
 
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel);
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, jukeboxRel, GoldenJukeboxBlockEntity.class);
         //?}
         if (jukebox == null) {
-            //? if <1.21.2 {
+            //? if <1.21.11 {
             /*helper.fail("GoldenJukeboxBlockEntity が生成されていない", jukeboxRel);
             *///?} else {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), jukeboxRel);
             //?}
             return;
         }
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*if (!(helper.getBlockEntity(hopperRel) instanceof HopperBlockEntity hopper)) {
             helper.fail("HopperBlockEntity が生成されていない", hopperRel);
             return;
         }
         jukebox.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, customDisc(120_000L));
         *///?} else {
-        if (!(helper.getBlockEntity(hopperRel, HopperBlockEntity.class) instanceof HopperBlockEntity hopper)) {
+        if (!(GameTestBlockEntities.get(helper, hopperRel, HopperBlockEntity.class) instanceof HopperBlockEntity hopper)) {
             helper.fail(Component.literal("HopperBlockEntity が生成されていない"), hopperRel);
             return;
         }
@@ -225,7 +238,7 @@ public class GoldenJukeboxHopperGameTests {
      * <p>GameTest サーバは 20 TPS ではなく上限なしで回る (67 テストが実時間 3 秒弱) ので、
      * <b>tick 数を壁時計 ms の代わりに使わない</b>。待機は信号そのものの条件で書く。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 600)
     *///?}
@@ -235,20 +248,20 @@ public class GoldenJukeboxHopperGameTests {
         helper.setBlock(jukeboxRel, ModBlocks.GOLDEN_JUKEBOX.get());
         helper.setBlock(hopperRel, Blocks.HOPPER.defaultBlockState());
 
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel);
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(jukeboxRel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, jukeboxRel, GoldenJukeboxBlockEntity.class);
         //?}
         if (jukebox == null) {
-            //? if <1.21.2 {
+            //? if <1.21.11 {
             /*helper.fail("GoldenJukeboxBlockEntity が生成されていない", jukeboxRel);
             *///?} else {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), jukeboxRel);
             //?}
             return;
         }
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*if (!(helper.getBlockEntity(hopperRel) instanceof HopperBlockEntity hopper)) {
             helper.fail("HopperBlockEntity が生成されていない", hopperRel);
             return;
@@ -256,7 +269,7 @@ public class GoldenJukeboxHopperGameTests {
         // 実尺 50ms・バケット 3600 秒 (SilentSongs.pick(0) = 尺不明のディスクが選ぶバケット)。
         jukebox.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, customDisc(50L, SilentSongs.pick(0L)));
         *///?} else {
-        if (!(helper.getBlockEntity(hopperRel, HopperBlockEntity.class) instanceof HopperBlockEntity hopper)) {
+        if (!(GameTestBlockEntities.get(helper, hopperRel, HopperBlockEntity.class) instanceof HopperBlockEntity hopper)) {
             helper.fail(Component.literal("HopperBlockEntity が生成されていない"), hopperRel);
             return;
         }

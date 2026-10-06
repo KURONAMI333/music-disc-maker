@@ -121,7 +121,10 @@ final class FanoutAudioSource {
             branch.cursor += count;
             copied += count;
         }
-        return copied > 0 ? copied : ended || closed || branch.desynchronised ? -1 : 0;
+        if (copied > 0) return copied;
+        // 自然 EOF を読んだ子は、native queue が終わって close されても再建しない。
+        if (ended && !closed && !branch.desynchronised) branch.exhausted = true;
+        return ended || closed || branch.desynchronised ? -1 : 0;
     }
 
     private int fill(int wanted) {
@@ -163,15 +166,21 @@ final class FanoutAudioSource {
         if (first < count) System.arraycopy(ring, 0, dst, off + first, count - first);
     }
 
-    private synchronized void close(Branch branch) {
-        if (branch.closed) return;
-        branch.closed = true;
-        branches.remove(branch);
-        if (branch.master) {
-            nativePlaybackCursor = null;
-            masterAttached.complete(null);
+    private void close(Branch branch) {
+        final Runnable notify;
+        synchronized (this) {
+            if (branch.closed) return;
+            branch.closed = true;
+            branches.remove(branch);
+            if (branch.master) {
+                nativePlaybackCursor = null;
+                masterAttached.complete(null);
+            }
+            if (branches.isEmpty() && !closed) { closed = true; upstream.close(); }
+            notify = branch.needsRecreation() ? branch.closeSink : null;
         }
-        if (branches.isEmpty() && !closed) { closed = true; upstream.close(); }
+        // main thread の即時 callback が新 channel の生成を待っても、PCM lock を保持しない。
+        if (notify != null) notify.run();
     }
 
     final class Branch implements IAudioSource {
@@ -179,9 +188,11 @@ final class FanoutAudioSource {
         private final boolean master;
         private boolean closed;
         private boolean desynchronised;
+        private boolean exhausted;
         private boolean nativePending;
         private Consumer<PlaybackFault> faultSink;
         private Runnable desyncSink;
+        private Runnable closeSink;
 
         private Branch(long cursor, boolean master) {
             this.cursor = cursor; this.master = master; this.nativePending = !master;
@@ -234,7 +245,23 @@ final class FanoutAudioSource {
             synchronized (FanoutAudioSource.this) { faultSink = sink; current = fault; }
             if (current != null && sink != null) sink.accept(current);
         }
+        @Override public void reportAudioOutputPosition(long playedFrames, long sampleRate, long sampledAtNanos) {
+            if (master) upstream.reportAudioOutputPosition(playedFrames, sampleRate, sampledAtNanos);
+        }
         @Override public void close() { FanoutAudioSource.this.close(this); }
+        /**
+         * 子 channel の通常 close は branch を共有一覧から外すため、その後に desync 通知は来ない。
+         * close 通知と group の sweep はこの状態も拾う。自然 EOF と decoder fault は再建しない。
+         * 意図した停止/撤去/消音は group が map から先に外すため、この判定の対象に残らない。
+         */
+        boolean needsRecreation() {
+            synchronized (FanoutAudioSource.this) {
+                return !master && fault == null && !exhausted && (closed || desynchronised)
+                        && branches.stream().anyMatch(branch -> branch.master && !branch.closed);
+            }
+        }
+        boolean isClosed() { synchronized (FanoutAudioSource.this) { return closed; } }
+        void onUnexpectedClose(Runnable sink) { closeSink = sink; }
         boolean desynchronised() { return desynchronised; }
         void onDesynchronised(Runnable sink) { desyncSink = sink; }
         private void desynchronise() {

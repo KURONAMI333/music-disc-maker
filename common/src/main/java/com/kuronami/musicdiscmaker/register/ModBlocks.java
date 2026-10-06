@@ -12,7 +12,11 @@ import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 
 import net.minecraft.core.registries.Registries;
 //? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 import net.minecraft.resources.ResourceKey;
 //?} else {
 //?}
@@ -21,6 +25,24 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 public final class ModBlocks {
+
+    // 1.21.2+: Block も生成時に登録 id を Properties へ set する必要がある。
+    //? if >=1.21.2 {
+    //? if >=1.21.11 {
+    private static Identifier id(String name) {
+        return Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, name);
+    }
+    //?} else {
+    /*private static ResourceLocation id(String name) {
+        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, name);
+    }
+    *///?}
+
+    private static BlockBehaviour.Properties props(String name) {
+        return BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX)
+                .setId(ResourceKey.create(Registries.BLOCK, id(name)));
+    }
+    //?}
 
     public static final RegistrationProvider<Block> BLOCKS =
             RegistrationProvider.get(Registries.BLOCK, MusicDiscMaker.MODID);
@@ -41,12 +63,6 @@ public final class ModBlocks {
             BLOCKS.register("golden_jukebox",
                     //? if >=1.21.2 {
                     () -> new GoldenJukeboxBlock(props("golden_jukebox")));
-
-    // 26.x: Block も生成時に登録 id を Properties へ set する必要がある。
-    private static BlockBehaviour.Properties props(String name) {
-        return BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX)
-                .setId(ResourceKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, name)));
-    }
                     //?} elif >=1.21 {
                     /*() -> new GoldenJukeboxBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.JUKEBOX)));
                     *///?} else {

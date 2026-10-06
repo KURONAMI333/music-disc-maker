@@ -8,6 +8,7 @@ import com.kuronami.musicdiscmaker.client.AlbumScreen;
 import com.kuronami.musicdiscmaker.client.SpeakerScreen;
 import com.kuronami.musicdiscmaker.client.DiscDyeingTableScreen;
 import com.kuronami.musicdiscmaker.client.GoldenJukeboxScreen;
+import com.kuronami.musicdiscmaker.client.GoldenJukeboxCartScreen;
 import com.kuronami.musicdiscmaker.client.MusicDiscMakerScreen;
 import com.kuronami.musicdiscmaker.client.DiscDyeTintSource;
 import com.kuronami.musicdiscmaker.client.VariantItemModelProperty;
@@ -23,7 +24,11 @@ import com.kuronami.musicdiscmaker.register.ModBlockEntities;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
 import net.minecraft.client.Minecraft;
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -40,14 +45,17 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+//? if >=1.21.11 {
 import net.neoforged.neoforge.client.model.standalone.SimpleUnbakedStandaloneModel;
 import net.neoforged.neoforge.client.model.standalone.StandaloneModelKey;
+//?}
 
 // This class will not load on dedicated servers. Accessing client side code from here is safe.
 @Mod(value = MusicDiscMaker.MODID, dist = Dist.CLIENT)
 // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
 @EventBusSubscriber(modid = MusicDiscMaker.MODID, value = Dist.CLIENT)
 public class MusicDiscMakerClient {
+    //? if >=1.21.11 {
     //? if >=26.1 {
     private static final java.util.Map<DevicePartModels.Part,
             StandaloneModelKey<net.minecraft.client.renderer.block.dispatch.BlockStateModel>> PART_KEYS =
@@ -81,12 +89,28 @@ public class MusicDiscMakerClient {
         return keys;
     }
     *///?}
+    //?} else {
+    /*private static ResourceLocation partLocation(DevicePartModels.Part part) {
+        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, part.path());
+    }
+    *///?}
+
+    //? if >=1.21.11 {
+    private static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
+    }
+    //?} else {
+    /*private static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
+    }
+    *///?}
 
     public MusicDiscMakerClient(ModContainer container) {
         // Allows NeoForge to create a config screen for this mod's configs.
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
 
+    //? if >=1.21.11 {
     @SubscribeEvent
     static void onRegisterStandaloneModels(ModelEvent.RegisterStandalone event) {
         for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
@@ -96,11 +120,21 @@ public class MusicDiscMakerClient {
         DevicePartModels.installProvider(part -> Minecraft.getInstance().getModelManager()
                 .getStandaloneModel(PART_KEYS.get(part)));
     }
+    //?} else {
+    /*@SubscribeEvent
+    static void onRegisterAdditionalModels(ModelEvent.RegisterAdditional event) {
+        for (final DevicePartModels.Part part : DevicePartModels.Part.values()) {
+            event.register(partLocation(part));
+        }
+        DevicePartModels.installProvider(part ->
+                Minecraft.getInstance().getModelManager().getStandaloneModel(partLocation(part)));
+    }
+    *///?}
 
     @SubscribeEvent
     static void onAddClientReloadListeners(AddClientReloadListenersEvent event) {
         event.addListener(
-                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_poses"),
+                id("device_model_poses"),
                 DeviceModelPoses.INSTANCE);
     }
 
@@ -108,6 +142,7 @@ public class MusicDiscMakerClient {
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         event.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
+        event.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxCartScreen::new);
         event.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         event.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         event.register(ModMenus.ALBUM.get(), AlbumScreen::new);
@@ -127,10 +162,10 @@ public class MusicDiscMakerClient {
      */
     @SubscribeEvent
     static void onRegisterRangeProperties(RegisterRangeSelectItemModelPropertyEvent event) {
-        event.register(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "variant"),
+        event.register(id("variant"),
                 VariantItemModelProperty.MAP_CODEC);
         // ブームボックスの ON (肩に担ぐ・取っ手が倒れる) / OFF (提げる・取っ手が立つ) の出し分け。
-        event.register(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "playing"),
+        event.register(id("playing"),
                 BoomboxPlayingItemModelProperty.MAP_CODEC);
     }
 
@@ -141,9 +176,9 @@ public class MusicDiscMakerClient {
      */
     @SubscribeEvent
     static void onRegisterItemTintSources(RegisterColorHandlersEvent.ItemTintSources event) {
-        event.register(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "disc_dye"),
+        event.register(id("disc_dye"),
                 DiscDyeTintSource.MAP_CODEC);
-        event.register(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dye"),
+        event.register(id("album_dye"),
                 com.kuronami.musicdiscmaker.client.AlbumDyeTintSource.MAP_CODEC);
     }
 

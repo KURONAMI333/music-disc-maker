@@ -5,6 +5,9 @@ plugins {
     id("fabric-loom") version "1.14.10"
 }
 
+// Loom's generated layered mappings ZIP includes machine-specific timestamps.
+apply(from = rootProject.file("gradle/canonicalize-loom-mappings.gradle"))
+
 val mcVersion = "1.20.1"
 val fabricLoaderVersion = "0.16.9"
 val fabricApiVersion = "0.92.1+1.20.1"
@@ -51,8 +54,9 @@ dependencies {
 }
 
 loom {
-    val aw = commonProject.file("src/main/resources/${rootProject.property("mod_id")}.accesswidener")
-    if (aw.exists()) accessWidenerPath.set(aw)
+    val aw = rootProject.file("fabric/versions/$mcVersion/src/main/resources/${rootProject.property("mod_id")}.accesswidener")
+    check(aw.isFile) { "Missing version-specific access widener: $aw" }
+    accessWidenerPath.set(aw)
     mixin {
         defaultRefmapName.set("${rootProject.property("mod_id")}.refmap.json")
     }

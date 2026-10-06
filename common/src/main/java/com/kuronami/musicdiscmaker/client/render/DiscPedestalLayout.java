@@ -81,9 +81,17 @@ public final class DiscPedestalLayout {
     /** 盤を置く姿勢へ {@link PoseStack} を進める。呼ぶ側が push / pop する。 */
     public static void poseDisc(PoseStack poseStack, float yaw) {
         poseStack.translate(0.5F, DISC_Y, 0.5F);
-        poseStack.mulPose(Axis.YP.rotationDegrees(yaw));
+        //? if >=26.3 {
+        poseStack.rotate(Axis.YP.rotationDegrees(yaw));
+        //?} else {
+        /*poseStack.mulPose(Axis.YP.rotationDegrees(yaw));
+        *///?}
         poseStack.translate(0.0F, 0.0F, DISC_Z);
-        poseStack.mulPose(Axis.XP.rotationDegrees(DISC_TILT_DEG));
+        //? if >=26.3 {
+        poseStack.rotate(Axis.XP.rotationDegrees(DISC_TILT_DEG));
+        //?} else {
+        /*poseStack.mulPose(Axis.XP.rotationDegrees(DISC_TILT_DEG));
+        *///?}
         poseStack.scale(DISC_SCALE, DISC_SCALE, DISC_SCALE);
         // Visible disc pixels span x=0..15; FIXED's Y rotation puts their center half a pixel to the right.
         poseStack.translate(-0.5F / 16.0F, 0.0F, 0.0F);
@@ -96,7 +104,11 @@ public final class DiscPedestalLayout {
      */
     public static void poseLabel(PoseStack poseStack, float yaw) {
         poseStack.translate(0.5F, LABEL_Y, 0.5F);
-        poseStack.mulPose(Axis.YP.rotationDegrees(yaw));
+        //? if >=26.3 {
+        poseStack.rotate(Axis.YP.rotationDegrees(yaw));
+        //?} else {
+        /*poseStack.mulPose(Axis.YP.rotationDegrees(yaw));
+        *///?}
         poseStack.translate(0.0F, 0.0F, LABEL_Z);
         poseStack.scale(LABEL_SCALE, -LABEL_SCALE, LABEL_SCALE);
     }

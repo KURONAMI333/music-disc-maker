@@ -65,6 +65,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class DiscDurationGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -76,13 +85,13 @@ public class DiscDurationGameTests {
     @Nullable
     private static GoldenJukeboxBlockEntity placeJukebox(GameTestHelper helper, BlockPos rel) {
         helper.setBlock(rel, ModBlocks.GOLDEN_JUKEBOX.get());
-        //? if <1.21.2 {
+        //? if <1.21.11 {
         /*final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel);
         *///?} else {
-        final GoldenJukeboxBlockEntity jukebox = helper.getBlockEntity(rel, GoldenJukeboxBlockEntity.class);
+        final GoldenJukeboxBlockEntity jukebox = GameTestBlockEntities.get(helper, rel, GoldenJukeboxBlockEntity.class);
         //?}
         if (jukebox == null) {
-            //? if <1.21.2 {
+            //? if <1.21.11 {
             /*helper.fail("GoldenJukeboxBlockEntity が生成されていない", rel);
             *///?} else {
             helper.fail(Component.literal("GoldenJukeboxBlockEntity が生成されていない"), rel);
@@ -109,8 +118,10 @@ public class DiscDurationGameTests {
                 .get(SilentSongs.pick(durationMs))
                 //? if >=26.1 {
                 .ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(holder)));
-                //?} else {
+                //?} elif >=1.21.11 {
                 /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder))));
+                *///?} else {
+                /*.ifPresent(holder -> disc.set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(holder), false)));
                 *///?}
         return disc;
     }
@@ -121,7 +132,7 @@ public class DiscDurationGameTests {
      * 「0 でない」「常識的な範囲に収まる」だけを見る (バージョン更新で秒数が変わっても落とさない)。
      * あわせて、尺が取れてもシーク可能にはしないことを同じテストで固定する。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH)
     *///?}
@@ -153,7 +164,7 @@ public class DiscDurationGameTests {
      * custom disc は実尺を返す。<b>このテストが参照順序の番人</b> — {@code jukebox_song} の
      * フォールバックを先に見ると {@link SilentSongs} のバケット長 (100 秒) が返って落ちる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH)
     *///?}
@@ -178,7 +189,7 @@ public class DiscDurationGameTests {
     }
 
     /** ディスクが無い時は 0 のまま (空のジュークで秒数やバーを出さない)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, batch = BATCH)
     *///?}

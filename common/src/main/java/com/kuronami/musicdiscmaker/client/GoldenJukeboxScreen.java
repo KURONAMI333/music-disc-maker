@@ -2,7 +2,7 @@ package com.kuronami.musicdiscmaker.client;
 
 import java.util.List;
 import java.util.function.IntConsumer;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} else {
 
 /*import org.lwjgl.glfw.GLFW;
@@ -18,7 +18,7 @@ import com.kuronami.musicdiscmaker.network.ConfigureJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.NavigateJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.SeekJukeboxPayload;
 import com.kuronami.musicdiscmaker.network.ShuffleJukeboxPayload;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} else {
 /*import com.kuronami.musicdiscmaker.platform.Services;
 *///?}
@@ -34,7 +34,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 //? if >=26.2 {
 import net.minecraft.client.gui.components.Tooltip;
 //?} elif >=26.1 {
-//?} elif >=1.21.2 {
+//?} elif >=1.21.11 {
 /*import net.minecraft.client.gui.components.Tooltip;
 *///?} else {
 /*import net.minecraft.client.gui.components.Tooltip;
@@ -42,7 +42,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 *///?}
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.input.InputWithModifiers;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -51,7 +51,7 @@ import net.minecraft.client.renderer.RenderPipelines;
 //?}
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} elif >=1.21 {
 /*import net.minecraft.world.item.ItemStack;
@@ -62,7 +62,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.item.ItemStack;
 import com.kuronami.musicdiscmaker.platform.Services;
 //?} else {
@@ -83,7 +83,7 @@ import com.kuronami.musicdiscmaker.platform.Services;
  */
 public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMenu> {
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static final Identifier TEXTURE =
             Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "textures/gui/golden_jukebox.png");
     private static final int TEXT = 0xFF404040;
@@ -118,14 +118,14 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     /*private static void control(GuiGraphics g, int x, int y, int u, int v, int w, int h) {
     *///?}
         if (w <= 0 || h <= 0) return;
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         g.blit(RenderPipelines.GUI_TEXTURED, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, CONTROLS),
                 x, y, (float) u, (float) v, w, h, 256, 64);
         //?} elif >=1.21 {
-        /*g.blit(ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, CONTROLS),
+        /*GuiTextureBlit.blit(g, ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, CONTROLS),
                 x, y, (float) u, (float) v, w, h, 256, 64);
         *///?} else {
-        /*g.blit(new ResourceLocation(MusicDiscMaker.MODID, CONTROLS),
+        /*GuiTextureBlit.blit(g, new ResourceLocation(MusicDiscMaker.MODID, CONTROLS),
                 x, y, (float) u, (float) v, w, h, 256, 64);
         *///?}
     }
@@ -244,7 +244,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         super(menu, playerInventory, title, 176, 242);
         this.inventoryLabelX = 8;
         this.inventoryLabelY = 148;
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
         /*this.imageHeight = 242;
         this.inventoryLabelX = 8;
         this.inventoryLabelY = 148;
@@ -414,7 +414,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
         graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
                 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
@@ -426,7 +426,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
     *///?} else {
     /*protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
-        g.blit(TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+        GuiTextureBlit.blit(g, TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
     *///?}
     }
 
@@ -550,7 +550,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             final int lw = font.width(live);
             //? if >=26.1 {
             g.text(font, live, TIME_RIGHT - lw, TIME_Y, 0xFFD03030, false);
-            //?} elif >=1.21.2 {
+            //?} elif >=1.21.11 {
             /*g.drawString(font, live, TIME_RIGHT - lw, TIME_Y, 0xFFD03030, false);
             *///?} else {
             /*g.drawString(font, live, TIME_RIGHT - lw, TIME_Y, 0xD03030, false);
@@ -625,7 +625,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void containerTick() {
         super.containerTick();
         // 別プレイヤー操作等で BE 状態が変わったらトグルを追随させ、スプライトを更新する。
@@ -667,7 +667,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                     : "gui.music_disc_maker.golden_jukebox.directional.off");
             graphics.setTooltipForNextFrame(font.split(tip, 200), mouseX, mouseY);
         }
-    *///?} elif >=1.21.2 {
+    *///?} elif >=1.21.11 {
     //?} else {
         /*super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
@@ -758,7 +758,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         }
 
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public boolean mouseReleased(MouseButtonEvent event) {
             final boolean handled = super.mouseReleased(event);
         //?} else {
@@ -802,7 +802,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         // 微小量ずらすため丸め誤差で ±1/±2 が混ざる。整数側で離散ステップして fraction を
         // 再計算することで常に 1 ずつ動かす。
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public boolean keyPressed(KeyEvent event) {
             final int dir = event.isRight() ? 1 : event.isLeft() ? -1 : 0;
         //?} else {
@@ -820,7 +820,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 }
                 return true;
             }
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             return super.keyPressed(event);
             //?} else {
             /*return super.keyPressed(keyCode, scanCode, modifiers);
@@ -835,20 +835,20 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         private int v;
         private int spriteSize;
         private String transportSprite;
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         private final Runnable action;
         //?} else {
         /*private final Runnable onPress;
         *///?}
 
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         IconButton(int x, int y, int size, int spriteSize, Component narration, Runnable action) {
         //?} else {
         /*IconButton(int x, int y, int size, int spriteSize, Component narration, Runnable onPress) {
         *///?}
             super(x, y, size, size, narration);
             this.spriteSize = spriteSize;
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             this.action = action;
             //?} else {
             /*this.onPress = onPress;
@@ -867,7 +867,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         }
 
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public void onPress(InputWithModifiers input) {
             action.run();
         //?} else {
@@ -881,7 +881,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         protected void extractContents(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
             // スプライトのみ描画。widget 背景を描かないので focus/hover の四角は出ない
             // (AbstractButton の extractWidgetRenderState は extractContents + handleCursor のみ)。
-        //?} elif >=1.21.2 {
+        //?} elif >=1.21.11 {
         /*protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
             // スプライトのみ描画。widget 背景を描かないので focus/hover の四角は出ない
             // (AbstractButton の renderWidget は renderContents + handleCursor のみ)。
@@ -893,7 +893,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             final int ix = getX() + (width - spriteSize) / 2;
             final int iy = getY() + (height - spriteSize) / 2;
             if (transportSprite != null) {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 final Identifier sprite = Identifier.fromNamespaceAndPath(
                         MusicDiscMaker.MODID, SPRITE_ROOT + transportSprite);
                 g.blit(RenderPipelines.GUI_TEXTURED, sprite, ix, iy, 0.0F, 0.0F,
@@ -901,21 +901,21 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 //?} elif >=1.21 {
                 /*final ResourceLocation sprite = ResourceLocation.fromNamespaceAndPath(
                         MusicDiscMaker.MODID, SPRITE_ROOT + transportSprite);
-                g.blit(sprite, ix, iy, 0.0F, 0.0F,
+                GuiTextureBlit.blit(g, sprite, ix, iy, 0.0F, 0.0F,
                         spriteSize, spriteSize, spriteSize, spriteSize);
                 *///?} else {
                 /*final ResourceLocation sprite = new ResourceLocation(
                         MusicDiscMaker.MODID, SPRITE_ROOT + transportSprite);
-                g.blit(sprite, ix, iy, 0.0F, 0.0F,
+                GuiTextureBlit.blit(g, sprite, ix, iy, 0.0F, 0.0F,
                         spriteSize, spriteSize, spriteSize, spriteSize);
                 *///?}
                 return;
             }
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             g.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, ix, iy, (float) u, (float) v,
                     spriteSize, spriteSize, 256, 256);
             //?} else {
-            /*g.blit(TEXTURE, ix, iy, (float) u, (float) v, spriteSize, spriteSize, 256, 256);
+            /*GuiTextureBlit.blit(g, TEXTURE, ix, iy, (float) u, (float) v, spriteSize, spriteSize, 256, 256);
             *///?}
         }
 
@@ -1007,7 +1007,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         }
 
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
             if (event.button() == 0 && this.active && this.visible
                     && isMouseOver(event.x(), event.y())
@@ -1017,7 +1017,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         *///?}
                     && menu.getBlockEntity().isSeekable()) {
                 scrubbing = true;
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 setFromMouse(event.x());
                 //?} else {
                 /*setFromMouse(mouseX);
@@ -1028,13 +1028,13 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         }
 
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
         //?} else {
         /*public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         *///?}
             if (scrubbing) {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 setFromMouse(event.x());
                 //?} else {
                 /*setFromMouse(mouseX);
@@ -1045,7 +1045,7 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         }
 
         @Override
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         public boolean mouseReleased(MouseButtonEvent event) {
             if (scrubbing && event.button() == 0) {
         //?} else {

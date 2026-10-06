@@ -71,7 +71,7 @@ public abstract class ChunkWatchMixin {
             //?} else {
             /*at = @At("TAIL"))
             *///?}
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static void musicDiscMaker$onChunkSend(ServerPlayer player, LevelChunk chunk, CallbackInfo ci) {
         final ServerLevel level = player.level();
         final ChunkPos chunkPos = chunk.getPos();
@@ -121,7 +121,7 @@ public abstract class ChunkWatchMixin {
         //?} else {
         //?}
         for (final BlockPos bePos : chunk.getBlockEntitiesPos()) {
-            //? if >=26.2 {
+            //? if >=26.1 {
             if (!ChunkPos.containing(bePos).equals(chunkPos)) continue;
             if (ActiveDiscRegistry.isTracked(level.dimension(), bePos)) continue;
             //?} elif >=1.21.2 {
@@ -156,7 +156,7 @@ public abstract class ChunkWatchMixin {
             ActiveDiscRegistry.start(level.dimension(), bePos, track, now);
             Services.NETWORK.sendToPlayer(player, PlayDiscPayload.vanilla(bePos, track, 0L));
         }
-        //? if >=26.2 {
+        //? if >=26.1 {
 
         // 強化版ジュークボックスは ActiveDiscRegistry を使わず BE が権威。chunk 内の BE を直接走査して
         // 現在の再生位置 + per-block 設定で追従再生させる。

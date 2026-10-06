@@ -1,12 +1,16 @@
 package com.kuronami.musicdiscmaker.gametest;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.kuronami.musicdiscmaker.color.DiscDye;
 import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.DiscDyeData;
+import com.kuronami.musicdiscmaker.component.MediaSequence;
+import com.kuronami.musicdiscmaker.component.MediaSequenceResolver;
 import com.kuronami.musicdiscmaker.component.PlaylistTracks;
+import com.kuronami.musicdiscmaker.item.AlbumItem;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
@@ -22,7 +26,8 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.world.item.ItemStack;
-//? if <1.21.2 {
+import net.minecraft.world.item.Items;
+//? if <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -36,7 +41,7 @@ public final class AlbumContentsGameTests {
     private AlbumContentsGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -79,7 +84,105 @@ public final class AlbumContentsGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void oldNineAndExpandedEighteenAlbumsKeepOrderAndResolveByPosition(GameTestHelper helper) {
+        final List<ItemStack> source = new ArrayList<>();
+        for (int index = 0; index < 18; index++) {
+            final ItemStack disc = disc(track("slot-" + index, "slot " + index));
+            disc.set(DataComponents.CUSTOM_NAME, Component.literal("disc " + index));
+            if (index == 9 || index == 17) {
+                disc.set(ModDataComponents.DISC_DYE.get(),
+                        new DiscDyeData(DiscDye.BLUE, DiscDye.ORANGE));
+            }
+            source.add(disc);
+        }
+
+        final AlbumContents legacyNine = new AlbumContents(source.subList(0, 9));
+        final RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, helper.getLevel().registryAccess());
+        final Tag legacyEncoded = AlbumContents.CODEC.encodeStart(ops, legacyNine).result().orElseThrow();
+        final AlbumContents legacyRestored = AlbumContents.CODEC.parse(ops, legacyEncoded).result().orElseThrow();
+        helper.assertTrue(legacyRestored.size() == 9, "既存9枚Albumの保存値を復元できない");
+        for (int index = 0; index < 9; index++) {
+            helper.assertTrue(legacyRestored.discAt(index).get(ModDataComponents.CUSTOM_TRACK.get())
+                            .url().endsWith("slot-" + index),
+                    "旧9枚Albumの順序が変わった: " + index);
+        }
+
+        final AlbumContents expanded = new AlbumContents(source);
+        final Tag encoded = AlbumContents.CODEC.encodeStart(ops, expanded).result().orElseThrow();
+        final AlbumContents persisted = AlbumContents.CODEC.parse(ops, encoded).result().orElseThrow();
+        helper.assertTrue(expanded.equals(persisted), "18枚Albumの永続保存で盤内容または順序が変わった");
+
+        final RegistryFriendlyByteBuf wire = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(), helper.getLevel().registryAccess());
+        final AlbumContents synchronizedValue;
+        try {
+            AlbumContents.STREAM_CODEC.encode(wire, persisted);
+            synchronizedValue = AlbumContents.STREAM_CODEC.decode(wire);
+        } finally {
+            wire.release();
+        }
+        helper.assertTrue(expanded.equals(synchronizedValue), "18枚Albumの通信同期で盤内容または順序が変わった");
+
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, synchronizedValue);
+        final MediaSequenceResolver.ResolvedSequence resolved = MediaSequenceResolver.resolve(album);
+        helper.assertTrue(resolved.tracks().size() == 18, "再生解決が18枚すべてを返さない");
+        helper.assertTrue(resolved.tracks().get(9).position().equals(new MediaSequence.Position(9, 0))
+                        && resolved.tracks().get(9).track().url().endsWith("slot-9"),
+                "10枚目の盤が保存順のindex 9として解決されない");
+        helper.assertTrue(resolved.tracks().get(17).position().equals(new MediaSequence.Position(17, 0))
+                        && resolved.tracks().get(17).track().url().endsWith("slot-17"),
+                "18枚目の盤が保存順のindex 17として解決されない");
+        final ItemStack tenth = synchronizedValue.discAt(9);
+        final ItemStack eighteenth = synchronizedValue.discAt(17);
+        helper.assertTrue("disc 9".equals(tenth.getHoverName().getString())
+                        && new DiscDyeData(DiscDye.BLUE, DiscDye.ORANGE)
+                                .equals(tenth.get(ModDataComponents.DISC_DYE.get())),
+                "10枚目の盤の名前または染色が失われた");
+        helper.assertTrue("disc 17".equals(eighteenth.getHoverName().getString())
+                        && new DiscDyeData(DiscDye.BLUE, DiscDye.ORANGE)
+                                .equals(eighteenth.get(ModDataComponents.DISC_DYE.get())),
+                "18枚目の盤の名前または染色が失われた");
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void persistedOverflowBeyondEighteenKeepsOrder(GameTestHelper helper) {
+        final List<ItemStack> source = new ArrayList<>();
+        for (int index = 0; index < 24; index++) {
+            final ItemStack disc = disc(track("overflow-" + index, "overflow " + index));
+            disc.set(DataComponents.CUSTOM_NAME, Component.literal("overflow disc " + index));
+            source.add(disc);
+        }
+
+        final AlbumContents original = new AlbumContents(source);
+        final RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, helper.getLevel().registryAccess());
+        final Tag encoded = AlbumContents.CODEC.encodeStart(ops, original).result().orElse(null);
+        final AlbumContents restored = encoded == null
+                ? null
+                : AlbumContents.CODEC.parse(ops, encoded).result().orElse(null);
+        helper.assertTrue(restored != null && restored.size() == 24,
+                "18枠を超える保存値を切り捨てたか復元できない");
+        if (restored != null) {
+            for (int index = 0; index < 24; index++) {
+                final ItemStack disc = restored.discAt(index);
+                helper.assertTrue(disc.get(ModDataComponents.CUSTOM_TRACK.get()).url()
+                                .endsWith("overflow-" + index)
+                                && disc.getHoverName().getString().equals("overflow disc " + index),
+                        "保存overflowの位置またはItemStack値が変わった: " + index);
+            }
+        }
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -103,7 +206,7 @@ public final class AlbumContentsGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -165,7 +268,31 @@ public final class AlbumContentsGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void storageDefenseLimitRemains256IndependentOfProductCapacity(GameTestHelper helper) {
+        helper.assertTrue(AlbumContents.STORAGE_DECODE_LIMIT == 256
+                        && AlbumContents.WIRE_DECODE_LIMIT == 256,
+                "製品容量変更で保存/通信の防御上限が変わった");
+        final RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, helper.getLevel().registryAccess());
+        final Tag stone = ItemStack.CODEC.encodeStart(ops, new ItemStack(Items.STONE)).result().orElseThrow();
+
+        final ListTag atLimit = new ListTag();
+        for (int index = 0; index < 256; index++) atLimit.add(stone.copy());
+        final AlbumContents restoredAtLimit = AlbumContents.CODEC.parse(ops, atLimit).result().orElse(null);
+        helper.assertTrue(restoredAtLimit != null && restoredAtLimit.size() == 256,
+                "256 stackの保存値を復元できない");
+
+        final ListTag overLimit = new ListTag();
+        for (int index = 0; index < 257; index++) overLimit.add(stone.copy());
+        helper.assertTrue(AlbumContents.CODEC.parse(ops, overLimit).error().isPresent(),
+                "257 stackの保存値を防御上限で拒否しない");
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

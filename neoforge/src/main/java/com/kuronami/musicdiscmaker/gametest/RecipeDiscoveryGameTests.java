@@ -1,17 +1,17 @@
 package com.kuronami.musicdiscmaker.gametest;
 
 import net.minecraft.gametest.framework.GameTestHelper;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*@net.neoforged.neoforge.gametest.GameTestHolder("music_disc_maker")
 *///?}
 public final class RecipeDiscoveryGameTests {
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@net.neoforged.neoforge.gametest.PrefixGameTestTemplate(false)
     @net.minecraft.gametest.framework.GameTest(template = "empty8x3x8")
     *///?}
     public static void newBlocksHaveLoadedRecipeUnlocks(GameTestHelper helper) {
         for (String name : java.util.List.of("boombox", "disc_dyeing_table", "disc_pedestal", "speaker", "album")) {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             final var id = net.minecraft.resources.Identifier.fromNamespaceAndPath("music_disc_maker", "recipes/misc/" + name);
             //?} else {
             /*final var id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("music_disc_maker", "recipes/misc/" + name);
@@ -24,7 +24,7 @@ public final class RecipeDiscoveryGameTests {
             //? if >=26.2 {
             final var trigger = (net.minecraft.advancements.triggers.InventoryChangeTrigger.TriggerInstance)
                     advancement.criteria().get("has_material").triggerInstance();
-            //?} elif >=1.21.2 {
+            //?} elif >=1.21.11 {
             /*final var trigger = (net.minecraft.advancements.criterion.InventoryChangeTrigger.TriggerInstance)
                     advancement.criteria().get("has_material").triggerInstance();
             *///?} else {

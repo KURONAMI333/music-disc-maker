@@ -60,7 +60,8 @@ import net.minecraft.world.level.Level;
  * </ul>
  *
  * <p>どちらの経路も {@code lastSeenMillis} を打つだけで、<b>停止は「打刻が途絶えたこと」で決まる</b>
- * ({@link #STALE_MS})。2 つの tick 源の順序に依存しないので、落とした / チェストへ入れた /
+ * ({@link #STALE_MS})。持ち歩きは失効前に再走査し、遅い server tick と実際の不在を区別する。
+ * 2 つの tick 源の順序に依存しないので、落とした / チェストへ入れた /
  * 死亡ドロップ / ログアウト / ブロック破壊がどれも同じ 1 本の経路で止まる。
  *
  * <h2>GUI の媒体投入</h2>
@@ -708,11 +709,16 @@ public final class BoomboxPlayback {
     public static void tick(MinecraftServer server) {
         com.kuronami.musicdiscmaker.audio.local.LocalAudioServer.tick(server);
         final long now = playbackTimeMs(server.overworld());
+        tick(server, server.getPlayerList().getPlayers(), now);
+    }
+
+    /** 定期走査と失効処理の本体。GameTest でも実際の処理へ player 集合と時刻を渡す。 */
+    public static void tick(MinecraftServer server, Collection<ServerPlayer> players, long now) {
         if (++tickCounter >= SCAN_INTERVAL_TICKS) {
             tickCounter = 0;
-            scan(server.getPlayerList().getPlayers(), now);
+            scan(players, now);
         }
-        sweep(server, now);
+        sweep(server, players, now);
     }
 
     /**
@@ -726,6 +732,9 @@ public final class BoomboxPlayback {
         final Set<Long> seen = new HashSet<>();
         // 走査中に stop() が SESSIONS を触るので、player ごとに対象を取り切ってから処理する。
         for (final ServerPlayer player : new ArrayList<>(players)) {
+            if (player.isRemoved()) {
+                continue; // 退出・次元移動で除去された旧 player の所持品を生存打刻に使わない。
+            }
             for (final ItemStack stack : BoomboxCarry.carried(player)) {
                 serveCarried(player, stack, seen, now);
             }
@@ -870,6 +879,25 @@ public final class BoomboxPlayback {
      */
     /** stale session を明示的に掃除する。server tick と GameTest の双方から使う。 */
     public static void sweep(MinecraftServer server, long now) {
+        sweep(server, server.getPlayerList().getPlayers(), now);
+    }
+
+    /**
+     * 失効する持ち歩き session があれば、破棄する前に所持先をもう一度確認する。
+     *
+     * <p>壁時計は server の長い tick 中も進む。定期走査の位相だけで破棄すると、所持品に残る
+     * 再生まで失い、次の scan は session を新規作成しないため再生操作まで復旧しない。
+     * 通常の scan を使うことで、媒体差し替え・pause・複製の境界も同じ判断を通す。
+     * 設置 session は BE ticker が打刻するため、この救済の対象にはしない。
+     *
+     * @param players オンラインの player。GameTest の mock 集合も明示的に渡せる
+     */
+    public static void sweep(MinecraftServer server, Collection<ServerPlayer> players, long now) {
+        if (SESSIONS.values().stream().anyMatch(session -> session.placedOwner == null
+                && now - session.lastSeenMillis > STALE_MS)) {
+            // scan は stop/restart で SESSIONS を変更するので、iterator を作る前に行う。
+            scan(players, now);
+        }
         final Iterator<Map.Entry<Long, Session>> it = SESSIONS.entrySet().iterator();
         while (it.hasNext()) {
             final Map.Entry<Long, Session> entry = it.next();

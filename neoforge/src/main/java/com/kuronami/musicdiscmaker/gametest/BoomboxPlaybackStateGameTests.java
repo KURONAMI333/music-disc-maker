@@ -9,6 +9,8 @@ import com.kuronami.musicdiscmaker.item.AlbumItem;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
+import com.kuronami.musicdiscmaker.component.PlaybackClockAccess;
+import com.kuronami.musicdiscmaker.component.PauseAwarePlaybackClock;
 import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.menu.BoomboxSource;
@@ -32,13 +34,14 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -54,7 +57,7 @@ public final class BoomboxPlaybackStateGameTests {
     private BoomboxPlaybackStateGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8")
     *///?}
     public static void replacingMediaClearsPositionWithoutResettingGeneration(GameTestHelper helper) {
@@ -73,7 +76,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8")
     *///?}
     public static void sessionlessPlayingStateDoesNotOfferImplicitResume(GameTestHelper helper) {
@@ -94,7 +97,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void carriedPlacedStaleLifecycleKeepsCursorAndNeverAutoRestarts(GameTestHelper helper) {
@@ -158,7 +161,7 @@ public final class BoomboxPlaybackStateGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void creativeRemovalSuppressesDropAndSurvivalKeepsStoredMachine(GameTestHelper helper) {
@@ -209,7 +212,7 @@ public final class BoomboxPlaybackStateGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void creativePlacementTransfersPlaybackAndLeavesIndependentPausedCopy(GameTestHelper helper) {
@@ -320,7 +323,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void survivalPlacementKeepsThePlayingMachineAndConsumesTheItem(GameTestHelper helper) {
@@ -359,7 +362,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void existingPlacedAndPausedCarriedCollisionSelfHeals(GameTestHelper helper) {
@@ -438,7 +441,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void existingPlacedDuplicatesBecomeIndependentBeforeFirstControl(GameTestHelper helper) {
@@ -523,7 +526,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void removingUnclaimedPlacedDuplicateDoesNotStopOwner(GameTestHelper helper) {
@@ -566,7 +569,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void tailGraceDelaysSequenceAdvance(GameTestHelper helper) {
@@ -605,7 +608,7 @@ public final class BoomboxPlaybackStateGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void manualNavigationWrapsBothDirectionsAndPreservesPause(GameTestHelper helper) {
@@ -653,7 +656,7 @@ public final class BoomboxPlaybackStateGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
     public static void naturalTailStillUsesRepeatSetting(GameTestHelper helper) {
@@ -688,6 +691,204 @@ public final class BoomboxPlaybackStateGameTests {
                     "natural tail with repeat on did not wrap and keep playing");
         }, () -> cleanupPlayer(helper, player, noRepeatId, repeatId));
         helper.succeed();
+    }
+
+    /** 連続 10 tick は開始位相によらず全走査位相を通る。待機せず実 tick/sweep へ時刻を渡す。 */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void stalledTickKeepsCarriedSessionInEveryScanPhase(GameTestHelper helper) {
+        final ServerPlayer player = networkedPlayer(helper);
+        withCapturedNetwork(net -> {
+            for (int phase = 0; phase < BoomboxPlayback.SCAN_INTERVAL_TICKS; phase++) {
+                final ItemStack box = sequenceBox("stalled-phase-" + phase, 120_000L, false);
+                player.setItemInHand(InteractionHand.MAIN_HAND, box);
+                final long id = box.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+                try {
+                    helper.assertTrue(BoomboxPlayback.startCarried(player, box), "stall fixture did not start");
+                    final long generation = BoomboxPlayback.stateOf(box).cursor().generation();
+                    final BoomboxPlayPayload start = (BoomboxPlayPayload) net.of(BoomboxPlayPayload.class)
+                            .get(net.of(BoomboxPlayPayload.class).size() - 1).payload();
+                    net.clear();
+                    BoomboxPlayback.tick(helper.getLevel().getServer(), List.of(player), playbackNow(helper) + 2_000L);
+                    helper.assertTrue(BoomboxPlayback.isPlaying(id)
+                                    && BoomboxPlayback.stateOf(box).cursor().generation() == generation,
+                            "2秒のtick停止後に所持中sessionまたは再生世代を失った: phase=" + phase);
+                    final List<CapturingNetwork.Sent> plays = net.of(BoomboxPlayPayload.class).stream()
+                            .filter(sent -> ((BoomboxPlayPayload) sent.payload()).boomboxId() == id).toList();
+                    helper.assertTrue(plays.size() == 1, "stall recovery did not emit exactly one heartbeat");
+                    final BoomboxPlayPayload resumed = (BoomboxPlayPayload) plays.get(0).payload();
+                    helper.assertTrue(resumed.audioGeneration() == start.audioGeneration()
+                                    && resumed.startOffsetMs() >= 2_000L,
+                            "stall recovery restarted the audio generation or rewound to zero");
+                    helper.assertTrue(net.of(BoomboxStopPayload.class).stream()
+                                    .noneMatch(sent -> ((BoomboxStopPayload) sent.payload()).boomboxId() == id),
+                            "stall recovery sent a stop for a still-carried machine");
+                } finally {
+                    BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), id);
+                    player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+                    net.clear();
+                }
+            }
+        }, player::discard);
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void staleRescanStillStopsDroppedAndDisconnectedCarriers(GameTestHelper helper) {
+        final ServerPlayer player = networkedPlayer(helper);
+        withCapturedNetwork(net -> {
+            for (int absence = 0; absence < 3; absence++) {
+                final ItemStack box = sequenceBox("absent-" + absence, 120_000L, false);
+                player.setItemInHand(InteractionHand.MAIN_HAND, box);
+                final long id = box.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+                try {
+                    helper.assertTrue(BoomboxPlayback.startCarried(player, box), "absent fixture did not start");
+                    final long generation = BoomboxPlayback.stateOf(box).cursor().generation();
+                    net.clear();
+                    // 投棄は所持集合、切断はオンライン集合から除外。removed の旧 player も打刻しない。
+                    if (absence == 0) player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+                    if (absence == 2) player.discard();
+                    final List<ServerPlayer> online = absence == 1 ? List.of() : List.of(player);
+                    final long now = playbackNow(helper) + 2_000L;
+                    BoomboxPlayback.sweep(helper.getLevel().getServer(), online, now);
+                    helper.assertFalse(BoomboxPlayback.isPlaying(id), "absent carrier survived stale sweep");
+                    helper.assertTrue(BoomboxPlayback.stateOf(box).cursor().generation() == generation,
+                            "absence changed the saved playback generation");
+                    helper.assertTrue(net.of(BoomboxStopPayload.class).stream()
+                                    .filter(sent -> ((BoomboxStopPayload) sent.payload()).boomboxId() == id).count() == 1L,
+                            "absence did not send exactly one stop");
+                    player.setItemInHand(InteractionHand.MAIN_HAND, box);
+                    BoomboxPlayback.scan(List.of(player), now + 1L);
+                    helper.assertFalse(BoomboxPlayback.isPlaying(id), "returning carrier implicitly restarted");
+                } finally {
+                    BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), id);
+                    player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+                    net.clear();
+                }
+            }
+        }, player::discard);
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void staleRescanKeepsDimensionHandoffAndSplitsDuplicate(GameTestHelper helper) {
+        final ServerPlayer before = networkedPlayer(helper);
+        final var destination = helper.getLevel().getServer().getLevel(Level.NETHER);
+        helper.assertTrue(destination != null, "dimension fixture has no Nether");
+        final ServerPlayer after = net.neoforged.neoforge.common.util.FakePlayerFactory.get(destination,
+                new GameProfile(UUID.randomUUID(), "boombox-stale-dimension"));
+        final ItemStack box = sequenceBox("dimension-stall", 120_000L, false);
+        final long id = box.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+        withCapturedNetwork(net -> {
+            before.setItemInHand(InteractionHand.MAIN_HAND, box);
+            helper.assertTrue(BoomboxPlayback.startCarried(before, box), "dimension fixture did not start");
+            final long generation = BoomboxPlayback.stateOf(box).cursor().generation();
+            final long audioGeneration = ((BoomboxPlayPayload) net.of(BoomboxPlayPayload.class).get(0).payload())
+                    .audioGeneration();
+            before.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            after.setItemInHand(InteractionHand.MAIN_HAND, box);
+            final ItemStack duplicate = box.copy();
+            after.getInventory().setItem(10, duplicate);
+            net.clear();
+            // これは次元移動後の所持集合を検査する。ポータル/接続処理自体の試験ではない。
+            BoomboxPlayback.sweep(helper.getLevel().getServer(), List.of(before, after), playbackNow(helper) + 2_000L);
+            helper.assertTrue(BoomboxPlayback.isPlaying(id)
+                            && BoomboxPlayback.stateOf(box).cursor().generation() == generation,
+                    "dimension handoff lost the original session");
+            final long duplicateId = duplicate.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+            helper.assertTrue(duplicateId != id && !BoomboxPlayback.isPlaying(duplicateId),
+                    "stale rescue created a second playing machine for the duplicate");
+            final BoomboxPlayPayload play = (BoomboxPlayPayload) net.of(BoomboxPlayPayload.class).stream()
+                    .filter(sent -> ((BoomboxPlayPayload) sent.payload()).boomboxId() == id).findFirst().orElseThrow()
+                    .payload();
+            helper.assertTrue(play.ownerEntityId() == after.getId() && play.audioGeneration() == audioGeneration,
+                    "dimension handoff kept the old emitter or restarted audio");
+            helper.assertTrue(net.of(BoomboxStopPayload.class).stream()
+                            .noneMatch(sent -> ((BoomboxStopPayload) sent.payload()).boomboxId() == id),
+                    "dimension handoff stopped the original session");
+        }, () -> {
+            BoomboxPlayback.stop(destination, after.chunkPosition(), id);
+            after.getInventory().setItem(10, ItemStack.EMPTY);
+            cleanupPlayer(helper, before);
+            after.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            after.discard();
+        });
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void staleRescanDoesNotRestartPausedOrNaturallyEndedPlayback(GameTestHelper helper) {
+        final ServerPlayer player = networkedPlayer(helper);
+        final ItemStack paused = sequenceBox("stale-pause", 120_000L, false);
+        final ItemStack ended = sequenceBox("stale-end", 100L, false);
+        final long pausedId = paused.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+        final long endedId = ended.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+        withCapturedNetwork(net -> {
+            player.setItemInHand(InteractionHand.MAIN_HAND, paused);
+            helper.assertTrue(BoomboxPlayback.startCarried(player, paused), "pause fixture did not start");
+            helper.assertTrue(BoomboxPlayback.pauseCarried(player, paused,
+                    BoomboxPlayback.stateOf(paused).cursor().generation()), "manual pause failed");
+            net.clear();
+            BoomboxPlayback.sweep(helper.getLevel().getServer(), List.of(player), playbackNow(helper) + 2_000L);
+            helper.assertTrue(!BoomboxPlayback.isPlaying(pausedId)
+                            && BoomboxPlayback.stateOf(paused).cursor().state() == PlaybackCursor.State.PAUSED
+                            && net.of(BoomboxPlayPayload.class).isEmpty(),
+                    "stale rescue restarted manually paused playback");
+
+            player.setItemInHand(InteractionHand.MAIN_HAND, ended);
+            helper.assertTrue(BoomboxPlayback.startCarried(player, ended), "end fixture did not start");
+            helper.assertTrue(BoomboxPlayback.previousCarried(player, ended,
+                    BoomboxPlayback.stateOf(ended).cursor().generation()), "could not select the final track");
+            net.clear();
+            final long now = playbackNow(helper) + 101L + BoomboxPlayback.TAIL_GRACE_MS;
+            BoomboxPlayback.sweep(helper.getLevel().getServer(), List.of(player), now);
+            helper.assertTrue(!BoomboxPlayback.isPlaying(endedId)
+                            && BoomboxPlayback.stateOf(ended).cursor().state() == PlaybackCursor.State.STOPPED,
+                    "stale rescue kept a naturally ended non-repeat session alive");
+            BoomboxPlayback.scan(List.of(player), now + 1L);
+            helper.assertTrue(!BoomboxPlayback.isPlaying(endedId) && net.of(BoomboxPlayPayload.class).isEmpty(),
+                    "scan restarted naturally ended playback");
+        }, () -> cleanupPlayer(helper, player, pausedId, endedId));
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void stalePlacedSessionCannotBeRescuedByCarriedCopy(GameTestHelper helper) {
+        final ServerPlayer player = networkedPlayer(helper);
+        final ItemStack box = sequenceBox("stale-placed-copy", 120_000L, false);
+        final long id = box.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+        helper.setBlock(POS, ModBlocks.BOOMBOX.get());
+        final BlockPos pos = helper.absolutePos(POS);
+        final BoomboxBlockEntity placed = (BoomboxBlockEntity) helper.getLevel().getBlockEntity(pos);
+        placed.setStored(box);
+        withCapturedNetwork(net -> {
+            helper.assertTrue(BoomboxPlayback.startPlaced(helper.getLevel(), pos, placed),
+                    "placed fixture did not start");
+            final ItemStack copy = box.copy();
+            player.setItemInHand(InteractionHand.MAIN_HAND, copy);
+            net.clear();
+            // BE ticker が止まった機体を手元の同一 ID コピーだけで生き返らせない。
+            BoomboxPlayback.sweep(helper.getLevel().getServer(), List.of(player), playbackNow(helper) + 2_000L);
+            helper.assertFalse(BoomboxPlayback.isPlaying(id), "carried copy rescued a stale placed session");
+            BoomboxPlayback.scan(List.of(player), playbackNow(helper) + 2_001L);
+            helper.assertTrue(!BoomboxPlayback.isPlaying(id) && net.of(BoomboxPlayPayload.class).isEmpty(),
+                    "carried copy implicitly restarted stale placed playback");
+        }, () -> cleanupPlayer(helper, player, id));
+        helper.succeed();
+    }
+
+    private static long playbackNow(GameTestHelper helper) {
+        return helper.getLevel().getServer() instanceof PlaybackClockAccess clock
+                ? clock.mdm$playbackTimeMs() : PauseAwarePlaybackClock.realTimeMs();
     }
 
     private static ItemStack sequenceBox(String prefix, long durationMs, boolean repeat) {

@@ -11,7 +11,7 @@ import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -32,7 +32,7 @@ import net.minecraft.resources.Identifier;
 public record BackpackPlayDiscPayload(UUID storageUuid, CustomTrackData track, BlockPos pos, int entityId) implements CustomPacketPayload {
 
     public static final Type<BackpackPlayDiscPayload> TYPE =
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             new Type<>(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "sc_backpack_play"));
             //?} else {
 /*            new Type<>(ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "sc_backpack_play"));

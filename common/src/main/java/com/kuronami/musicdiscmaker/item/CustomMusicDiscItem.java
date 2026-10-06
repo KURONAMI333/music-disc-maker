@@ -1,13 +1,13 @@
 package com.kuronami.musicdiscmaker.item;
 //? if >=1.21 {
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} else {
 /*import java.util.List;
 */
 //?}
 import java.util.Optional;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import java.util.function.Consumer;
 //?} else {
 //?}
@@ -25,7 +25,7 @@ import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.item.component.TooltipDisplay;
 //?} else {
 //?}
@@ -83,7 +83,7 @@ public class CustomMusicDiscItem extends Item {
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     public void appendHoverText(ItemStack stack, TooltipContext context, TooltipDisplay display,
                                 Consumer<Component> tooltip, TooltipFlag flag) {
     //?} else {
@@ -95,7 +95,7 @@ public class CustomMusicDiscItem extends Item {
             // カスタム名が付いている時だけ、アイテム名の下に曲名を水色+太字で補足する。
             // カスタム名が無ければアイテム名 (getName) が既に曲名なので重複表示しない。
             if (stack.has(DataComponents.CUSTOM_NAME) && !track.title().isBlank()) {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 tooltip.accept(Component.literal(track.title()).withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
                 //?} else {
 /*                tooltip.add(Component.literal(track.title()).withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
@@ -103,7 +103,7 @@ public class CustomMusicDiscItem extends Item {
                 //?}
             }
             if (!track.author().isBlank()) {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 tooltip.accept(Component.translatable("tooltip.music_disc_maker.artist", track.author())
                 //?} else {
 /*                tooltip.add(Component.translatable("tooltip.music_disc_maker.artist", track.author())
@@ -113,7 +113,7 @@ public class CustomMusicDiscItem extends Item {
             }
             if (track.radio()) {
                 // 無限長ストリームは尺を出さず「LIVE」を出す。
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 tooltip.accept(Component.translatable("tooltip.music_disc_maker.live")
                 //?} else {
 /*                tooltip.add(Component.translatable("tooltip.music_disc_maker.live")
@@ -121,7 +121,7 @@ public class CustomMusicDiscItem extends Item {
                 //?}
                         .withStyle(ChatFormatting.RED));
             } else {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 tooltip.accept(Component.translatable("tooltip.music_disc_maker.duration", track.formattedDuration())
                         .withStyle(ChatFormatting.DARK_GRAY));
                 //?} else {
@@ -133,7 +133,7 @@ public class CustomMusicDiscItem extends Item {
             // 配信元 (YouTube 等) は尺の有無に関係なく出す。名前を引けない URL では 1 行も足さない。
             final String source = track.sourceName();
             if (!source.isEmpty()) {
-                //? if >=1.21.2 {
+                //? if >=1.21.11 {
                 tooltip.accept(Component.translatable("tooltip.music_disc_maker.source", source)
                         .withStyle(ChatFormatting.DARK_GRAY));
                 //?} else {
@@ -143,7 +143,7 @@ public class CustomMusicDiscItem extends Item {
                 //?}
             }
         } else {
-            //? if >=1.21.2 {
+            //? if >=1.21.11 {
             tooltip.accept(Component.translatable("tooltip.music_disc_maker.empty_disc")
             //?} else {
 /*            tooltip.add(Component.translatable("tooltip.music_disc_maker.empty_disc")
@@ -151,7 +151,7 @@ public class CustomMusicDiscItem extends Item {
             //?}
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         super.appendHoverText(stack, context, display, tooltip, flag);
         //?} else {
 /*        super.appendHoverText(stack, context, tooltip, flag);

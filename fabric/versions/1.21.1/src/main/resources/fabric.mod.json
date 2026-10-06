@@ -13,6 +13,7 @@
         "sources": "https://github.com/KURONAMI333/music-disc-maker"
     },
     "license": "${license}",
+    "accessWidener": "${mod_id}.accesswidener",
     "icon": "${mod_id}.png",
     "environment": "*",
     "entrypoints": {

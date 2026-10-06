@@ -1,37 +1,25 @@
 package com.kuronami.musicdiscmaker.client.audio;
-//? if >=26.2 {
 import java.util.concurrent.CompletableFuture;
-//?} elif >=1.21.2 {
-/*import java.util.concurrent.CompletableFuture;
-*/
-//?} elif >=1.21 {
-/*import java.util.concurrent.CompletableFuture;
-*/
-//?} else {
-//?}
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.HashMap;
 import java.util.Map;
-//? if >=1.21.2 {
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
-//?} elif >=1.21 {
-/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
-*/
-//?} else {
-//?}
 
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import org.jetbrains.annotations.Nullable;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
 import com.kuronami.musicdiscmaker.network.SpeakerSetPayload;
+import com.kuronami.musicdiscmaker.network.PlaybackSourceStamp;
 
 import net.minecraft.client.Minecraft;
 //? if >=26.2 {
@@ -72,6 +60,12 @@ public final class ClientPlaybackManager {
     /** 再接続を試みる前に置く間隔 (ms)。icecast の瞬断復帰を待つ。 */
     private static final long RECONNECT_DELAY_MS = 3_000L;
 
+    /** A transient regular finite-track network open gets two short local retries. */
+    private static final int FINITE_OPEN_RETRIES = 2;
+    private static final long FINITE_OPEN_RETRY_DELAY_MS = 1_500L;
+    /** 有限曲が再生途中で途切れた時、現在位置から開き直すまでの間隔 (ms)。位置は開く時に補正される。 */
+    private static final long FINITE_RESUME_DELAY_MS = 1_500L;
+
     /**
      * 音源座標の決定を compat へ開く口。
      *
@@ -93,12 +87,26 @@ public final class ClientPlaybackManager {
     }
 
     private final PlaybackSessions<BlockPos> sessions =
-            new PlaybackSessions<>(System::currentTimeMillis, MONOTONIC_MS);
+            new PlaybackSessions<>(System::currentTimeMillis, MONOTONIC_MS, TrackAudioResolver::playbackClockMs);
 
     /** world 音源ごとの最新 server 要求。SoundEngine 差し替え時に同じ曲を開き直すためだけに保持する。 */
     private record ReloadRequest(CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, boolean directional, long receivedPlaybackMs) {}
+            int volumePercent, boolean directional, long receivedPlaybackMs, PlaybackSourceStamp identity,
+            PlaybackSessionId extensionId, PlaybackSourceContext sourceContext, PlaybackSelection selection,
+            boolean regularOnly) {}
+    private record CloseRoute(BlockPos pos, long worldEpoch) {}
+    private record CloseBarrier(PlaybackSessionId closingId, CompletableFuture<Void> acknowledged, long worldEpoch) {}
     private final Map<BlockPos, ReloadRequest> reloadRequests = new HashMap<>();
+    private final Map<BlockPos, PlaybackSessionId> extensionIds = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Resolver work registered before dispatch, so close can wait for an open not yet in the registry. */
+    private final Map<PlaybackSessionId, CompletableFuture<Void>> resolverSettled = new java.util.concurrent.ConcurrentHashMap<>();
+    /** A source UUID keeps its first close ACK barrier while the same source moves between positions. */
+    private final CloseBarrierIndex<CloseRoute, CloseBarrier> closeBarriers = new CloseBarrierIndex<>();
+    private final Map<BlockPos, PendingCoreActions.Action> pendingCoreActions = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<java.util.UUID, PendingCoreActions.Action> pendingSourceCoreActions = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicLong pendingActionOrder = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong worldEpoch = new java.util.concurrent.atomic.AtomicLong();
+    private final PlaybackFaultGate<BlockPos> faultGate = new PlaybackFaultGate<>();
 
     /** Golden音源位置ごとの固定speaker集合。値は進行中の音声インスタンスにも共有される。 */
     private final Map<BlockPos, MultiSpeakerAnchor> speakerAnchors = new HashMap<>();
@@ -136,53 +144,97 @@ public final class ClientPlaybackManager {
     }
     //?}
 
-    //? if >=26.2 {
     public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs,
             int rangeBlocks, int volumePercent, boolean directional) {
-    //?} elif >=26.1 {
-/*    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, boolean directional) {
-    */
-    //?} elif >=1.21.2 {
-/*    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs,
-            int rangeBlocks, int volumePercent, boolean directional) {
-    */
-    //?} elif >=1.21 {
-/*    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs, int rangeBlocks,
-            int volumePercent, boolean directional) {
-    */
-    //?} else {
-/*    public void startPlayback(BlockPos pos, CustomTrackData track, long startOffsetMs,
-            int rangeBlocks, int volumePercent, boolean directional) {
-    */
-    //?}
-        if (track == null || track.isEmpty()) {
+        startPlaybackWithIdentity(pos, track, startOffsetMs, rangeBlocks, volumePercent, directional,
+                PlaybackSourceStamp.NONE);
+    }
+
+    public void startPlaybackWithIdentity(BlockPos pos, CustomTrackData track, long startOffsetMs,
+            int rangeBlocks, int volumePercent, boolean directional, PlaybackSourceStamp sourceStamp) {
+        startPlaybackInternal(pos, track, startOffsetMs, rangeBlocks, volumePercent, directional, sourceStamp, false);
+    }
+
+    private void startPlaybackInternal(BlockPos pos, CustomTrackData track, long startOffsetMs,
+            int rangeBlocks, int volumePercent, boolean directional, PlaybackSourceStamp sourceStamp,
+            boolean regularOnly) {
+        if (track == null || track.isEmpty()) return;
+        final BlockPos key = pos.immutable();
+        final PlaybackSourceStamp identity = sourceStamp == null ? PlaybackSourceStamp.NONE : sourceStamp;
+        if (queueBehindClose(key, identity, () -> startPlaybackInternal(key, track, startOffsetMs,
+                rangeBlocks, volumePercent, directional, identity, regularOnly))) return;
+        final ReloadRequest previousRequest = reloadRequests.get(key);
+        final PlaybackSourceContext sourceContext = PlaybackSourceContext.of(key, identity);
+        final PlaybackSelection selection = regularOnly
+                ? PlaybackSelection.none(sourceContext, track.sourceKey())
+                : PlaybackSessionRegistry.select(sourceContext, track);
+        final PlaybackSessionId activeExtension = extensionIds.get(key);
+        final boolean sameSource = previousRequest != null
+                && previousRequest.identity().sourceId() != null
+                && previousRequest.identity().sourceId().equals(identity.sourceId());
+        final boolean selectionChanged = sameSource
+                && previousRequest.selection().selected() != selection.selected();
+        if (activeExtension != null && (previousRequest == null
+                || !previousRequest.identity().equals(identity)
+                || previousRequest.identity().generation() != identity.generation()
+                || !previousRequest.track().sourceKey().equals(track.sourceKey())
+                || selectionChanged || previousRequest.regularOnly() != regularOnly
+                || sessions.wouldReload(key, track, startOffsetMs))) {
+            beginCloseBarrier(key, activeExtension);
+            runAfterClose(key, identity, () -> startPlaybackInternal(key, track, startOffsetMs,
+                    rangeBlocks, volumePercent, directional, identity, regularOnly));
             return;
         }
-        final BlockPos key = pos.immutable();
-        reloadRequests.put(key, new ReloadRequest(track, startOffsetMs, rangeBlocks, volumePercent,
-                directional, playbackClockMs()));
+        if (selectionChanged && activeExtension == null) {
+            // The server resent the same source/track after provider eligibility changed. Invalidate
+            // only this key so the regular path can be replaced by one fresh provider selection.
+            sessions.stop(key);
+            reloadRequests.remove(key);
+        }
+        if (previousRequest != null && !previousRequest.identity().equals(identity)) {
+            sessions.stop(key);
+        }
         final PlaybackSessions.StartDecision decision =
                 sessions.start(key, track, startOffsetMs, rangeBlocks, volumePercent, directional);
         if (!decision.load()) {
-            return; // 同じ曲の再送 (chunk 再入等)。聴取モデルだけ取り込み済み。
+            if (previousRequest != null) {
+                reloadRequests.put(key, new ReloadRequest(track, startOffsetMs, rangeBlocks, volumePercent,
+                        directional, playbackClockMs(), previousRequest.identity(), previousRequest.extensionId(),
+                        previousRequest.sourceContext(), selection, regularOnly));
+            }
+            return;
         }
+        final PlaybackSessionId id = selection.selected() && !regularOnly
+                ? new PlaybackSessionId(identity.sourceId() == null
+                        ? "pos:" + key.asLong() : identity.sourceId().toString(), identity.generation(), decision.token())
+                : null;
+        if (id != null) {
+            final PlaybackSessionId oldId = extensionIds.put(key, id);
+            if (oldId != null && !oldId.equals(id)) throw new IllegalStateException("unclosed playback session replaced");
+            faultGate.activate(key, decision.token(), id);
+        }
+        final ReloadRequest request = new ReloadRequest(track, startOffsetMs, rangeBlocks, volumePercent,
+                directional, playbackClockMs(), identity, id, sourceContext, selection, regularOnly);
+        reloadRequests.put(key, request);
+        announceRequestedTrack(track);
         //? if >=1.21.2 {
-        final PlaybackTiming timing =
-                new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), false);
-        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing);
+        final PlaybackTiming timing = new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), false);
+        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing,
+                id, sourceContext, selection, regularOnly);
         //?} elif >=1.21 {
-/*        final IAudioSource warm = prefetch.claim(key, track.sourceKey(), startOffsetMs);
+/*        final IAudioSource warm = selection.selected() || regularOnly ? null
+                : prefetch.claim(key, track.sourceKey(), startOffsetMs);
         final PlaybackTiming timing =
                 new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), warm != null);
         if (warm != null) {
             timing.resolved();
             attachFaultSink(warm, key, decision.token(), track);
-            Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, rangeBlocks,
+            Minecraft.getInstance().execute(() -> onLoaded(key, track, startOffsetMs, startOffsetMs, rangeBlocks,
                     volumePercent, warm, null, decision.token(), timing));
             return;
         }
-        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing);
+        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing,
+                id, sourceContext, selection, regularOnly);
     }
 
     public void prefetchNext(BlockPos pos, CustomTrackData track, long remainingMs) {
@@ -190,7 +242,19 @@ public final class ClientPlaybackManager {
             return; // ラジオ・尺ゼロは先読みしない (終わらない / 掴む先が無い)
         }
         if (track.isLocal()) return;
-        final PlaybackPrefetch.Ticket<BlockPos> ticket = prefetch.begin(pos.immutable(), track.sourceKey(), remainingMs);
+        final BlockPos sourcePos = pos.immutable();
+        final ReloadRequest activeRequest = reloadRequests.get(sourcePos);
+        final PlaybackSourceStamp stamp = activeRequest != null ? activeRequest.identity()
+                : Minecraft.getInstance().level != null
+                        && Minecraft.getInstance().level.getBlockEntity(sourcePos) instanceof GoldenJukeboxBlockEntity be
+                                ? new PlaybackSourceStamp(be.peekSourceIdentity(), 0L) : PlaybackSourceStamp.NONE;
+        final PlaybackSourceContext context = PlaybackSourceContext.of(sourcePos, stamp);
+        final PlaybackSelection selection = PlaybackSessionRegistry.select(context, track);
+        if (!selection.allowsRegularPrefetch()) {
+            prefetch.drop(sourcePos, "optional-av-selected");
+            return;
+        }
+        final PlaybackPrefetch.Ticket<BlockPos> ticket = prefetch.begin(sourcePos, track.sourceKey(), remainingMs);
         if (ticket == null) {
             return; // 曲が終了済み / 同じ曲を既に抱えている / 先読み枠の上限
         }
@@ -240,10 +304,133 @@ public final class ClientPlaybackManager {
                 () -> lateFailure(key, token, track,
                         PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
         */
-        //?} else {
-/*        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token());
+//?} else {
+/*        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(),
+                id, sourceContext, selection, regularOnly);
         */
         //?}
+    }
+
+    private boolean queueBehindClose(BlockPos key, PlaybackSourceStamp identity, Runnable action) {
+        final long currentEpoch = worldEpoch.get();
+        if (closeBarriers.byRoute(new CloseRoute(key, currentEpoch)) != null) {
+            pendingCoreActions.compute(key, (ignored, previous) -> {
+                if (previous != null && previous.worldEpoch() == worldEpoch.get()
+                        && previous.identity() != null && identity != null
+                        && java.util.Objects.equals(previous.identity().sourceId(), identity.sourceId())
+                        && previous.identity().generation() > identity.generation()) return previous;
+                return pendingAction(key, identity, action);
+            });
+            return true;
+        }
+        final java.util.UUID sourceId = identity == null ? null : identity.sourceId();
+        if (sourceId == null || closeBarriers.bySource(sourceId) == null) return false;
+        pendingSourceCoreActions.compute(sourceId, (ignored, previous) -> {
+            if (previous != null && previous.worldEpoch() == worldEpoch.get()
+                    && previous.identity() != null && identity != null
+                    && previous.identity().generation() > identity.generation()) return previous;
+            return pendingAction(key, identity, action);
+        });
+        return true;
+    }
+
+    /** Runs now when an immediate no-provider/ACK path already removed the barrier. */
+    private void runAfterClose(BlockPos key, PlaybackSourceStamp identity, Runnable action) {
+        if (!queueBehindClose(key, identity, action)) action.run();
+    }
+
+    private PendingCoreActions.Action pendingAction(BlockPos key, PlaybackSourceStamp identity, Runnable action) {
+        return new PendingCoreActions.Action(key, identity, worldEpoch.get(), pendingActionOrder.incrementAndGet(), action);
+    }
+
+    /** Starts one source-key close and keeps its first acknowledgement until cleanup succeeds. */
+    private CloseBarrier beginCloseBarrier(BlockPos key, PlaybackSessionId closingId) {
+        return beginCloseBarrier(key, closingId, worldEpoch.get());
+    }
+
+    private CloseBarrier beginCloseBarrier(BlockPos key, PlaybackSessionId closingId, long barrierEpoch) {
+        final java.util.UUID sourceId = uuidSourceId(closingId);
+        final CloseRoute route = new CloseRoute(key, barrierEpoch);
+        CloseBarrier existing = closeBarriers.byRoute(route);
+        if (existing != null) return existing;
+        if (sourceId != null && (existing = closeBarriers.bySource(sourceId)) != null) return existing;
+        CompletableFuture<Void> acknowledged = new CompletableFuture<>();
+        CloseBarrier created = new CloseBarrier(closingId, acknowledged, barrierEpoch);
+        existing = closeBarriers.register(route, sourceId, created);
+        if (existing != null) return existing;
+        CompletableFuture<Void> opening = resolverSettled.get(closingId);
+        try {
+            // If resolution is already settled, capture the registry's first close future before
+            // stopping the core voice: its source.close() can otherwise remove a failed entry
+            // before we ask for that future, making a second close look like a successful no-op.
+            CompletableFuture<Void> close;
+            if (opening == null) {
+                close = PlaybackSessionRegistry.close(closingId);
+                sessions.stop(key);
+            } else {
+                // A resolver may still publish a provider session. Invalidate its token first,
+                // then capture close only after the registered resolver/open work has settled.
+                sessions.stop(key);
+                close = opening.thenCompose(ignored -> PlaybackSessionRegistry.close(closingId));
+            }
+            reloadRequests.remove(key);
+            close.whenComplete((ignored, failure) -> {
+                if (failure == null) acknowledged.complete(null);
+                else acknowledged.completeExceptionally(failure);
+            });
+        } catch (RuntimeException | LinkageError failure) {
+            sessions.stop(key);
+            reloadRequests.remove(key);
+            acknowledged.completeExceptionally(failure);
+        }
+        if (acknowledged.isDone()) {
+            Throwable failure = null;
+            try {
+                acknowledged.join();
+            } catch (java.util.concurrent.CompletionException | java.util.concurrent.CancellationException completedFailure) {
+                failure = completedFailure.getCause() == null ? completedFailure : completedFailure.getCause();
+            }
+            finishCloseBarrier(key, created, failure);
+        } else {
+            acknowledged.whenComplete((ignored, failure) -> Minecraft.getInstance().execute(
+                    () -> finishCloseBarrier(key, created, failure)));
+        }
+        return created;
+    }
+
+    private void finishCloseBarrier(BlockPos key, CloseBarrier barrier, Throwable failure) {
+        final java.util.UUID sourceId = uuidSourceId(barrier.closingId());
+        final CloseRoute route = new CloseRoute(key, barrier.worldEpoch());
+        if (closeBarriers.byRoute(route) != barrier && (sourceId == null || closeBarriers.bySource(sourceId) != barrier)) return;
+        if (failure != null) {
+            MusicDiscMaker.LOGGER.error("Optional AV close was not acknowledged; source playback remains suppressed", failure);
+            return;
+        }
+        closeBarriers.remove(route, sourceId, barrier);
+        ExtensionSessionRetirement.removeIfSame(extensionIds, key, barrier.closingId());
+        faultGate.remove(key, barrier.closingId());
+        ReloadRequest current = reloadRequests.get(key);
+        if (current != null && barrier.closingId().equals(current.extensionId())) reloadRequests.remove(key);
+        final long currentWorldEpoch = worldEpoch.get();
+        PendingCoreActions.Action routePending = PendingCoreActions.mayDrainAfterClose(
+                barrier.worldEpoch(), currentWorldEpoch) ? pendingCoreActions.remove(key) : null;
+        PendingCoreActions.Action sourceCandidate = sourceId == null ? null : pendingSourceCoreActions.get(sourceId);
+        PendingCoreActions.Action sourcePending = PendingCoreActions.mayDrainSourceAfterClose(
+                sourceId, sourceCandidate, currentWorldEpoch)
+                ? (pendingSourceCoreActions.remove(sourceId, sourceCandidate) ? sourceCandidate : null)
+                : null;
+        for (PendingCoreActions.Action pending : PendingCoreActions.select(routePending, sourcePending)) {
+            if (pending.worldEpoch() != worldEpoch.get()) continue;
+            PlaybackSourceStamp identity = pending.identity();
+            if (identity != null && identity.sourceId() != null
+                    && !ClientPlaybackHandler.ownsSourceRoute(identity, (BlockPos) pending.route())) continue;
+            pending.action().run();
+        }
+    }
+
+    private static java.util.UUID uuidSourceId(PlaybackSessionId id) {
+        try { return java.util.UUID.fromString(id.sourceId()); }
+        catch (IllegalArgumentException notUuid) { return null; }
     }
 
     /** speaker集合を再デコードなしで置き換える。Playより先に届いてもcacheしておく。 */
@@ -273,16 +460,33 @@ public final class ClientPlaybackManager {
      */
     private void submitLoad(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
             //? if >=1.21.2 {
-            int volumePercent, long delayMs, int token, PlaybackTiming timing) {
+            int volumePercent, long delayMs, int token, PlaybackTiming timing,
             //?} elif >=1.21 {
-/*            int volumePercent, long delayMs, int token, PlaybackTiming timing) {
+/*            int volumePercent, long delayMs, int token, PlaybackTiming timing,
             */
             //?} else {
-/*            int volumePercent, long delayMs, int token) {
+/*            int volumePercent, long delayMs, int token,
             */
             //?}
+            PlaybackSessionId extensionId, PlaybackSourceContext sourceContext,
+            PlaybackSelection selection, boolean regularOnly) {
         final long requestedAtMs = TrackAudioResolver.playbackClockMs();
+        final BlockPos immutableKey = key.immutable();
+        final CustomTrackData immutableTrack = track;
+        final int immutableToken = token;
+        final PlaybackSessionId immutableExtensionId = extensionId;
+        final PlaybackSourceContext immutableSourceContext = sourceContext;
+        final PlaybackSelection immutableSelection = selection;
+        final boolean immutableRegularOnly = regularOnly;
+        final CompletableFuture<Void> resolverCompletion = new CompletableFuture<>();
+        if (immutableExtensionId != null) {
+            resolverSettled.put(immutableExtensionId, resolverCompletion);
+            resolverCompletion.whenComplete((ignored, failure) ->
+                    resolverSettled.remove(immutableExtensionId, resolverCompletion));
+        }
         pool.submit(() -> {
+            boolean completionFollowsCleanupAck = false;
+            try {
             if (delayMs > 0L) {
                 try {
                     Thread.sleep(delayMs);
@@ -291,7 +495,7 @@ public final class ClientPlaybackManager {
                     return;
                 }
             }
-            if (!sessions.isLive(key, token)) {
+            if (!sessions.isLive(immutableKey, immutableToken)) {
                 return; // 遅延中に停止/撤去/差し替えされた
             }
             IAudioSource source = null;
@@ -303,22 +507,65 @@ public final class ClientPlaybackManager {
             */
             //?} else {
             //?}
-            try {
-                // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
-                if (!track.isLocal()) UrlGuard.enforce(track.url());
-                // 理由つきで開く。null 判定 1 つに潰すと、DNS 失敗も年齢制限も bot 判定も同じ文面になる。
-                final OpenStreamResult result =
-                        com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(track, startOffsetMs, requestedAtMs);
-                source = result.source();
-                failure = result.isOk() ? null
-                        : PlaybackFailure.ofReason(result.reason(), result.detail());
-            } catch (final UrlBlockedException blocked) {
-                failure = PlaybackFailure.blocked(blocked.reason());
-            } catch (final Throwable t) {
-                failure = PlaybackFailure.thrown(t);
+            long openOffsetMs = startOffsetMs;
+            if (delayMs > 0L && !immutableTrack.radio() && !immutableTrack.isLocal() && immutableTrack.durationMs() > 0L) {
+                // 待っている間も server の曲は進む。ネット音源の open は要求時刻で位置を補正しないので、
+                // 待った分をここで足す (足さないと、開き直した client だけ待機時間ぶん遅れて鳴る)。
+                final long waited = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
+                openOffsetMs = Math.max(0L, startOffsetMs) + Math.min(waited, Long.MAX_VALUE - Math.max(0L, startOffsetMs));
+            }
+            for (int retry = 0; ; retry++) {
+                if (!sessions.isLive(immutableKey, immutableToken)) return;
+                try {
+                    // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
+                    if (!immutableTrack.isLocal()) UrlGuard.enforce(immutableTrack.url());
+                    final Consumer<Throwable> providerFaultSink = fault -> Minecraft.getInstance().execute(
+                            () -> fallbackAfterExtensionFailure(immutableKey, immutableToken, immutableTrack,
+                                    immutableExtensionId, PlaybackFailure.thrown(fault)));
+                    final OpenStreamResult result = immutableRegularOnly
+                            ? com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(
+                                    immutableTrack, openOffsetMs, requestedAtMs)
+                            : com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSyncedForPlayback(
+                                    immutableTrack, openOffsetMs, requestedAtMs, immutableExtensionId,
+                                    immutableSourceContext, immutableSelection, providerFaultSink,
+                                    () -> sessions.isLive(immutableKey, immutableToken)
+                                            && immutableExtensionId.equals(extensionIds.get(immutableKey)));
+                    source = result.source();
+                    failure = result.isOk() ? null
+                            : PlaybackFailure.ofReason(result.reason(), result.detail());
+                } catch (final UrlBlockedException blocked) {
+                    failure = PlaybackFailure.blocked(blocked.reason());
+                } catch (final PlaybackSessionRegistry.CleanupIncompleteException cleanup) {
+                    // Never turn an unacknowledged AV cleanup into a regular retry or a second voice.
+                    failure = PlaybackFailure.thrown(cleanup);
+                    completionFollowsCleanupAck = true;
+                    cleanup.cleanupAcknowledged().whenComplete((ignored, cleanupFailure) -> {
+                        if (cleanupFailure == null) resolverCompletion.complete(null);
+                        else resolverCompletion.completeExceptionally(cleanupFailure);
+                    });
+                } catch (final Throwable t) {
+                    failure = PlaybackFailure.thrown(t);
+                }
+                if (source != null || retry >= FINITE_OPEN_RETRIES || failure == null
+                        || !FiniteOpenRetryPolicy.mayRetry(immutableTrack.radio(), immutableTrack.isLocal(),
+                                immutableSelection.selected(), immutableRegularOnly,
+                                (failure.kind() == PlaybackFailure.Kind.NETWORK
+                                        || failure.kind() == PlaybackFailure.Kind.STREAM_UNAVAILABLE))) break;
+                try {
+                    Thread.sleep(FINITE_OPEN_RETRY_DELAY_MS * (retry + 1));
+                } catch (final InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                if (!sessions.isLive(immutableKey, immutableToken)) return;
+                final long elapsed = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
+                final long baseOffset = Math.max(0L, startOffsetMs);
+                openOffsetMs = baseOffset + Math.min(elapsed, Long.MAX_VALUE - baseOffset);
+                if (immutableTrack.durationMs() > 0L && openOffsetMs >= immutableTrack.durationMs()) break;
             }
             final IAudioSource resolved = source;
-            final long actualStartMs = TrackAudioResolver.actualOffset(resolved, startOffsetMs);
+            final long actualStartMs = TrackAudioResolver.actualOffset(resolved, openOffsetMs);
+            final long dedupOffsetMs = immutableTrack.isLocal() ? actualStartMs : startOffsetMs;
             final PlaybackFailure reported = failure;
             //? if >=1.21.2 {
             timing.resolved();
@@ -331,33 +578,33 @@ public final class ClientPlaybackManager {
             // ここから数百 ms で落ちうるので、play が始まってから差していると取り落とす窓ができる
             // (差した時点で既に壊れていれば relay がその場で流すので、順番はどちらでもよい)。
             if (resolved != null) {
-                //? if >=1.21.2 {
-                resolved.onPlaybackFault(broken -> Minecraft.getInstance().execute(
-                        () -> lateFailure(key, token, track,
+                final PlaybackSessionId resolvedId = PlaybackSessionRegistry.sessionIdFor(resolved).orElse(null);
+                resolved.onPlaybackFault(broken -> Minecraft.getInstance().execute(() ->
+                        handlePlaybackFault(immutableKey, immutableToken, immutableTrack, resolvedId,
                                 PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
-                //?} elif >=1.21 {
-/*                attachFaultSink(resolved, key, token, track);
-                */
-                //?} else {
-/*                resolved.onPlaybackFault(broken -> Minecraft.getInstance().execute(
-                        () -> lateFailure(key, token, track,
-                                PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
-                */
-                //?}
             }
             //? if >=1.21.2 {
-            Minecraft.getInstance().execute(() -> onLoaded(key, track, actualStartMs, rangeBlocks,
-                    volumePercent, resolved, reported, token, timing));
+            Minecraft.getInstance().execute(() -> onLoaded(immutableKey, immutableTrack, actualStartMs, dedupOffsetMs, rangeBlocks,
+                    volumePercent, resolved, reported, immutableToken, timing));
             //?} elif >=1.21 {
-/*            Minecraft.getInstance().execute(() -> onLoaded(key, track, actualStartMs, rangeBlocks,
-                    volumePercent, resolved, reported, token, timing));
+/*            Minecraft.getInstance().execute(() -> onLoaded(immutableKey, immutableTrack, actualStartMs, dedupOffsetMs, rangeBlocks,
+                    volumePercent, resolved, reported, immutableToken, timing));
             */
             //?} else {
 /*            Minecraft.getInstance().execute(() -> onLoaded(
-                    key, track, actualStartMs, rangeBlocks, volumePercent, resolved, reported, token));
+                    immutableKey, immutableTrack, actualStartMs, dedupOffsetMs, rangeBlocks, volumePercent, resolved, reported, immutableToken));
             */
             //?}
+            } finally {
+                if (!completionFollowsCleanupAck) resolverCompletion.complete(null);
+            }
         });
+    }
+
+    private static boolean retryFiniteOpen(CustomTrackData track, PlaybackFailure failure) {
+        if (track.radio() || track.isLocal() || failure == null) return false;
+        return failure.kind() == PlaybackFailure.Kind.NETWORK
+                || failure.kind() == PlaybackFailure.Kind.STREAM_UNAVAILABLE;
     }
 
     /**
@@ -365,6 +612,14 @@ public final class ClientPlaybackManager {
      * pull (ストリーム終端) の両方がここへ集まる。出すかどうかの判断は {@link PlaybackSessions} 側。
      */
     private void lateFailure(BlockPos key, int token, CustomTrackData track, PlaybackFailure late) {
+        lateFailure(key, token, track, late, null);
+    }
+
+    private void lateFailure(BlockPos key, int token, CustomTrackData track, PlaybackFailure late,
+            @Nullable PlaybackVoice origin) {
+        if (resumeFiniteStream(key, token, track, late, origin)) {
+            return;
+        }
         final PlaybackFailure show = sessions.lateFailure(key, token, track, late);
         if (show != null) {
             failures.record(key, show);
@@ -372,8 +627,101 @@ public final class ClientPlaybackManager {
         }
     }
 
+    /**
+     * 再生要求を受けた時点で Now Playing を曲名にする。
+     *
+     * <p>custom disc は無音の {@code jukebox_song} で vanilla の再生状態に乗っており、vanilla は再生開始の
+     * level event でその説明文 (= アイテム名「Custom Music Disc」) を Now Playing に出す。曲名での上書きが
+     * 実音の開始時だけだと、読込に失敗した client には「Custom Music Disc」だけが残り、ディスクの中身が
+     * 消えたように見える (CF 報告「一人だけ鳴らず、曲名が Custom Music Disc になる」)。server は level event
+     * を再生 payload より先に送るので、ここで上書きすれば vanilla の説明文は残らない。
+     */
+    private static void announceRequestedTrack(CustomTrackData track) {
+        final String desc = (track.author() != null && !track.author().isBlank())
+                ? track.author() + " - " + track.title()
+                : track.title();
+        if (desc == null || desc.isBlank()) return;
+        //? if >=26.2 {
+        Minecraft.getInstance().gui.hud.setNowPlaying(Component.literal(desc));
+        //?} else {
+        /*Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+        *///?}
+    }
+
+    /**
+     * 有限曲が再生途中で一時的に途切れたら、server と同じ位置から開き直す
+     * ({@link PlaybackSessions#finiteStreamFailed})。開き直したら {@code true} で、その時は失敗を出さない。
+     */
+    private boolean resumeFiniteStream(BlockPos key, int token, CustomTrackData track, PlaybackFailure late,
+            @Nullable PlaybackVoice origin) {
+        if (track == null || track.radio()) return false;
+        final PlaybackSessions.FiniteResume resume = sessions.finiteStreamFailed(key, token, late, origin);
+        if (resume.superseded()) return true; // 処理済みの重複 / 置き換え済みの旧 voice からの通知
+        if (resume.kind() != PlaybackSessions.ReconnectKind.RETRY || resume.request() == null) return false;
+        final PlaybackSessions.Request req = resume.request();
+        final ReloadRequest reload = reloadRequests.get(key);
+        if (reload == null || !req.track().sourceKey().equals(track.sourceKey())) {
+            return false; // 開き直せない。途切れた voice は畳まれており、従来どおり理由を出す
+        }
+        MusicDiscMaker.LOGGER.warn("Finite stream dropped mid-track at {} ms ({}); resuming {}/{} [{}]",
+                resume.offsetMs(), late.kind(), resume.attempt(), PlaybackSessions.MAX_FINITE_RESUME,
+                key.toShortString());
+        notifyActionBar(Component.translatable("music_disc_maker.playback.resuming",
+                resume.attempt(), PlaybackSessions.MAX_FINITE_RESUME));
+        submitLoad(key, req.track(), resume.offsetMs(), req.rangeBlocks(), req.volumePercent(),
+        //? if >=1.21.2 {
+                FINITE_RESUME_DELAY_MS, token,
+                new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false),
+                reload.extensionId(), reload.sourceContext(), reload.selection(), reload.regularOnly());
+        //?} elif >=1.21 {
+/*                FINITE_RESUME_DELAY_MS, token,
+                new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false),
+                reload.extensionId(), reload.sourceContext(), reload.selection(), reload.regularOnly());
+        */
+        //?} else {
+/*                FINITE_RESUME_DELAY_MS, token, reload.extensionId(), reload.sourceContext(),
+                reload.selection(), reload.regularOnly());
+        */
+        //?}
+        return true;
+    }
+
+
+    private void handlePlaybackFault(BlockPos key, int token, CustomTrackData track,
+            PlaybackSessionId id, PlaybackFailure failure) {
+        handlePlaybackFault(key, token, track, id, failure, null);
+    }
+
+    /** {@code origin} は失敗を出した登録済み voice。登録前の通知なら {@code null}。 */
+    private void handlePlaybackFault(BlockPos key, int token, CustomTrackData track,
+            PlaybackSessionId id, PlaybackFailure failure, @Nullable PlaybackVoice origin) {
+        if (id != null) fallbackAfterExtensionFailure(key, token, track, id, failure);
+        else lateFailure(key, token, track, failure, origin);
+    }
+
+    /** Close the AV generation before reopening the regular, URL-guarded MDM source at its output PTS. */
+    private void fallbackAfterExtensionFailure(BlockPos key, int token, CustomTrackData track,
+            PlaybackSessionId id, PlaybackFailure failure) {
+        if (id == null || !sessions.isLive(key, token) || !id.equals(extensionIds.get(key))
+                || !faultGate.claimFallback(key, token, id)) return;
+        final ReloadRequest request = reloadRequests.get(key);
+        if (request == null || !id.equals(request.extensionId())) return;
+        long outputPtsUs = PlaybackSessionRegistry.presentationTimeUs(id,
+                fault -> Minecraft.getInstance().execute(() -> fallbackAfterExtensionFailure(
+                        key, token, track, id, PlaybackFailure.thrown(fault))));
+        // The last audible cursor is the only safe fallback anchor. Wall time advances through pause and
+        // decoder underflow, so estimating from elapsed time can skip content after a fault.
+        long offsetMs = outputPtsUs >= 0L ? outputPtsUs / 1_000L : request.startOffsetMs();
+        beginCloseBarrier(key, id);
+        runAfterClose(key, request.identity(), () -> {
+            startPlaybackInternal(key, track, Math.max(0L, offsetMs), request.rangeBlocks(),
+                    request.volumePercent(), request.directional(), request.identity(), true);
+            MusicDiscMaker.LOGGER.warn("Optional AV close acknowledged; reopening regular MDM audio at {} ms", offsetMs);
+        });
+    }
+
     /** ロード完了 (main thread)。成功なら再生を開始し、失敗ならラジオは再接続扱い・通常は通知して終わる。 */
-    private void onLoaded(BlockPos key, CustomTrackData track, long startOffsetMs, int rangeBlocks,
+    private void onLoaded(BlockPos key, CustomTrackData track, long startOffsetMs, long dedupOffsetMs, int rangeBlocks,
             //? if >=1.21.2 {
             int volumePercent, IAudioSource resolved, PlaybackFailure failure, int token,
             PlaybackTiming timing) {
@@ -436,14 +784,26 @@ public final class ClientPlaybackManager {
         final int initialRange = anchor instanceof LiveAudioConfig audioConfig ? audioConfig.rangeBlocks() : rangeBlocks;
         final int initialVolume = anchor instanceof LiveAudioConfig audioConfig ? audioConfig.volumePercent() : volumePercent;
         final FanoutAudioSource fanout = new FanoutAudioSource(resolved);
+        final IAudioSource master = fanout.openMasterBranch();
         final DiscSoundInstance instance = new DiscSoundInstance(anchor,
-                fanout.openMasterBranch(), initialRange, initialVolume, endCb);
+                master, initialRange, initialVolume, endCb);
+        // 失敗通知の宛先が「今も登録中の voice か」を判定するため、登録できた voice をここへ入れる。
+        final java.util.concurrent.atomic.AtomicReference<PlaybackVoice> installedVoice =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        PlaybackSessionRegistry.sessionIdFor(resolved).ifPresent(instance::setPlaybackSessionId);
         // ストリーム終端の pull 経路も同じ届け先へ繋ぐ。push を持つソースでは重複しうるが、
         // lateFailure の重複抑止が畳むので害はない。逆に差さない方が危険 — 差さないと
         // LavaPlayerAudioStream が「届け先を持たない経路」の既定へ落ち、曲名も重複抑止も
         // ラジオの沈黙も通らない裸の報告を出す。届くのは streaming スレッドなので main thread へ移す。
-        instance.setFailureSink(
-                late -> Minecraft.getInstance().execute(() -> lateFailure(key, token, track, late)));
+        final PlaybackSessionId activeExtensionId = PlaybackSessionRegistry.sessionIdFor(resolved).orElse(null);
+        instance.setFailureSink(late -> Minecraft.getInstance().execute(
+                () -> handlePlaybackFault(key, token, track, activeExtensionId, late, installedVoice.get())));
+        // push 経路。FanoutAudioSource は生成時に上流の届け先を自分へ差し替えるので、submitLoad で
+        // 上流へ差した届け先には以後届かない。主ブランチから同じ宛先へ繋ぎ直す (EOF 確認より後に
+        // 遅れて届いた失敗を取り落とさない)。pull と重複しても上の voice 判定と既存の重複抑止が畳む。
+        master.onPlaybackFault(broken -> Minecraft.getInstance().execute(
+                () -> handlePlaybackFault(key, token, track, activeExtensionId,
+                        PlaybackFailure.ofReason(broken.reason(), broken.detail()), installedVoice.get())));
         //? if >=1.21.2 {
         instance.setTiming(timing);
         // 実音が鳴り始めた (最初の実 PCM) 瞬間に、進捗表示のアンカーを実音の開始へ打ち直す。
@@ -484,10 +844,11 @@ public final class ClientPlaybackManager {
         // install は聴取モデルの適用も行う (鳴り始めの 1 tick を positional で鳴らさない)。
         // 世代が古ければ受け付けず、同じ座標に残っていた音源は必ず止めてから置き換える。
         final PlaybackVoice playback = new SpeakerVoiceGroup(instance, goldenAnchor, fanout, speakerSet);
-        if (!sessions.install(key, token, track.sourceKey(), startOffsetMs, playback)) {
+        if (!sessions.install(key, token, track.sourceKey(), dedupOffsetMs, playback)) {
             playback.stopAndRelease();
             return;
         }
+        installedVoice.set(playback);
         // decode中に届いたSetを、SoundManagerへ渡す直前にも採用する。sessions.install がPlay時点の
         // directionalを入れるため、ここで最新集合の値を上書きしないと最初の一瞬だけ旧設定になる。
         //? if >=1.21 {
@@ -724,16 +1085,21 @@ public final class ClientPlaybackManager {
                 notifyActionBar(Component.translatable("music_disc_maker.radio.reconnecting",
                         next.attempt(), PlaybackSessions.MAX_RECONNECT));
                 final PlaybackSessions.Request req = next.request();
+                final ReloadRequest reload = reloadRequests.get(key);
+                if (reload == null) return;
                 submitLoad(key, req.track(), 0L, req.rangeBlocks(), req.volumePercent(),
                 //? if >=1.21.2 {
                 RECONNECT_DELAY_MS, token,
-                new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false));
+                new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false),
+                reload.extensionId(), reload.sourceContext(), reload.selection(), reload.regularOnly());
                 //?} elif >=1.21 {
 /*                        RECONNECT_DELAY_MS, token,
-                        new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false));
+                        new PlaybackTiming(key.toShortString(), req.track().sourceKey(), token, false),
+                reload.extensionId(), reload.sourceContext(), reload.selection(), reload.regularOnly());
                         */
                         //?} else {
-/*                        RECONNECT_DELAY_MS, token);
+/*                        RECONNECT_DELAY_MS, token, reload.extensionId(), reload.sourceContext(),
+                        reload.selection(), reload.regularOnly());
                         */
                         //?}
             }
@@ -808,16 +1174,43 @@ public final class ClientPlaybackManager {
         */
         //?} else {
         //?}
-        sessions.stop(key);
+        PlaybackSessionId id = extensionIds.get(key);
+        if (id != null) beginCloseBarrier(key, id);
+        else sessions.stop(key);
+        pendingCoreActions.remove(key);
         reloadRequests.remove(key);
         speakerAnchors.remove(key);
         failures.clear(key);
     }
 
+    /** Stops the prior MDM session and preserves the native Play payload until the exact close ACK. */
+    public void stopPlaybackBeforeNative(PlaybackSourceStamp identity, BlockPos pos, Runnable nativeAction) {
+        final BlockPos key = pos.immutable();
+        Runnable startNative = () -> {
+            stopPlayback(key);
+            nativeAction.run();
+        };
+        if (queueBehindClose(key, identity, startNative)) return;
+        final PlaybackSessionId oldId = extensionIds.get(key);
+        if (oldId == null) {
+            startNative.run();
+            return;
+        }
+        beginCloseBarrier(key, oldId);
+        runAfterClose(key, identity, startNative);
+    }
+
     /** 全ての再生を止める (ワールド離脱)。失敗の記憶も持ち越さない。 */
     public void stopAll() {
+        final long departingEpoch = WorldEpochs.captureAndAdvance(worldEpoch);
+        pendingCoreActions.clear();
+        pendingSourceCoreActions.clear();
+        final Map<BlockPos, PlaybackSessionId> active = ExtensionSessionRetirement.captureAndClear(extensionIds);
+        for (Map.Entry<BlockPos, PlaybackSessionId> entry : active.entrySet())
+            beginCloseBarrier(entry.getKey(), entry.getValue(), departingEpoch);
+        faultGate.clear();
         LocalAudioClient.disconnect();
-        ClientPlaybackHandler.SOURCE_OWNERS.clear();
+        ClientPlaybackHandler.clearSourceOwnership();
         //? if >=1.21.2 {
         //?} elif >=1.21 {
 /*        prefetch.dropAll("stopAll: world-exit");
@@ -830,6 +1223,7 @@ public final class ClientPlaybackManager {
         speakerAnchors.clear();
         // ブームボックスは別の鍵空間で鳴っているので、ここで一緒に畳まないとワールドを出た後も残る。
         BoomboxClientPlayback.stopAll();
+        GoldenCartClientPlayback.stopAll();
         VanillaSpeakerPlayback.stopAll();
         failures.clearAll();
     }
@@ -841,6 +1235,9 @@ public final class ClientPlaybackManager {
     Runnable prepareSoundReloadResume() {
         final Map<BlockPos, ReloadRequest> snapshot = Map.copyOf(reloadRequests);
         reloadRequests.clear();
+        for (Map.Entry<BlockPos, PlaybackSessionId> active : Map.copyOf(extensionIds).entrySet())
+            beginCloseBarrier(active.getKey(), active.getValue());
+        faultGate.clear();
         sessions.stopAll();
         return () -> {
             final long now = playbackClockMs();
@@ -848,8 +1245,10 @@ public final class ClientPlaybackManager {
                 final long offset = SoundReloadResume.offset(request.startOffsetMs(), request.receivedPlaybackMs(),
                         now, request.track().durationMs(), request.track().radio());
                 if (offset >= 0L) {
-                    startPlayback(pos, request.track(), offset, request.rangeBlocks(), request.volumePercent(),
-                            request.directional());
+                    Runnable resume = () -> startPlaybackInternal(pos, request.track(), offset,
+                            request.rangeBlocks(), request.volumePercent(), request.directional(),
+                            request.identity(), request.regularOnly());
+                    if (!queueBehindClose(pos, request.identity(), resume)) resume.run();
                 }
             });
         };
@@ -866,13 +1265,22 @@ public final class ClientPlaybackManager {
     // 判定ロジックは custom 曲と共用できる。
 
     /**
-     * MDM 再生非依存の client tick 源から毎 tick 呼ぶ口 (B5)。先読み機構を持つ帯以外では何もしない。
+     * MDM 再生非依存の client tick 源。未開始Speakerの補充と、対象帯の混在Album先読みを行う。
      *
      * <p>追跡対象は「直前に先読み判定が回った座標」1 つだけなので、毎 tick の cost は
      * chunk ロード済みのときの {@code getBlockEntity} 1 回分。BE が金ジュークでなくなったら
      * (撤去・ワールド退出・chunk アンロード) 追跡を手放す。
      */
     public static void mixedAlbumTick() {
+        // 未開始Speakerはserver Setの変更が無くても、共有枠が空いた次tickで補充する。
+        // SoundEngineのtickingSounds走査中やPlaybackConcurrency.sweep中には子を追加しない。
+        final ClientPlaybackManager manager = get();
+        for (BlockPos pos : java.util.List.copyOf(manager.reloadRequests.keySet())) {
+            if (manager.sessions.activeVoice(pos) instanceof SpeakerVoiceGroup group) {
+                group.retryDeferredSpeakers();
+            }
+        }
+        VanillaSpeakerPlayback.retryDeferredSpeakers();
         //? if >=1.21 <1.21.2 {
         /*final BlockPos pos = recentAlbumPos;
         if (pos == null) {

@@ -7,7 +7,7 @@ import com.kuronami.musicdiscmaker.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} elif >=1.21 {
 /*import net.minecraft.world.Containers;
 *///?} else {
@@ -114,7 +114,7 @@ public class MusicDiscMakerBlock extends Block implements EntityBlock {
         *///?}
     }
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     //?} elif >=1.21 {
     /*@Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {

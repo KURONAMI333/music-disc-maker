@@ -7,7 +7,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
@@ -17,7 +17,7 @@ import net.minecraft.world.phys.Vec3;
 *///?}
 //? if >=26.1 {
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-//?} elif >=1.21.2 {
+//?} elif >=1.21.11 {
 /*import net.minecraft.client.renderer.state.CameraRenderState;
 *///?}
 
@@ -36,7 +36,7 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
  * </ul>
  * 取っ手の形と姿勢の計算は {@link BoomboxHandle} が 1 つ持ち、この 2 系統はその呼び方だけが違う。
  */
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 public class BoomboxBlockRenderer
         implements BlockEntityRenderer<BoomboxBlockEntity, BoomboxBlockRenderer.State> {
 

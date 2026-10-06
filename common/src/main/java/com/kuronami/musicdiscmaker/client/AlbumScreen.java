@@ -1,6 +1,7 @@
 package com.kuronami.musicdiscmaker.client;
 
 import com.kuronami.musicdiscmaker.menu.AlbumMenu;
+import com.kuronami.musicdiscmaker.menu.AlbumMenuLayout;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -13,7 +14,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 //?} else {
@@ -21,11 +22,11 @@ import net.minecraft.resources.Identifier;
 *///?}
 
 /**
- * Albumの収納操作面。既存9枠に合うバニラの一段コンテナ描画を使う。
+ * Albumの収納操作面。二段18枠の上側とバニラプレイヤーインベントリの下側を描画する。
  * Album自体の外形や最終容量を決めるものではなく、背景はリソースパックから差し替えられる。
  */
 public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static final Identifier BACKGROUND = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
     //?} elif >=1.21 {
     /*private static final ResourceLocation BACKGROUND = ResourceLocation.withDefaultNamespace("textures/gui/container/generic_54.png");
@@ -38,13 +39,13 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
 
     public AlbumScreen(AlbumMenu menu, Inventory inventory, Component title) {
         //? if >=26.1 {
-        super(menu, inventory, title, 176, 132);
+        super(menu, inventory, title, AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.IMAGE_HEIGHT);
         //?} else {
         /*super(menu, inventory, title);
-        this.imageWidth = 176;
-        this.imageHeight = 132;
+        this.imageWidth = AlbumMenuLayout.IMAGE_WIDTH;
+        this.imageHeight = AlbumMenuLayout.IMAGE_HEIGHT;
         *///?}
-        this.inventoryLabelY = 38;
+        this.inventoryLabelY = AlbumMenuLayout.INVENTORY_LABEL_Y;
     }
 
     @Override
@@ -76,8 +77,12 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos, 0.0F, 0.0F, 176, 35, 256, 256);
-        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos + 35, 0.0F, 126.0F, 176, 96, 256, 256);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos, 0.0F, 0.0F,
+                AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 256, 256);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos,
+                topPos + AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 0.0F,
+                AlbumMenuLayout.PLAYER_INVENTORY_TEXTURE_Y, AlbumMenuLayout.IMAGE_WIDTH,
+                AlbumMenuLayout.PLAYER_INVENTORY_HEIGHT, 256, 256);
     }
 
     @Override
@@ -85,17 +90,24 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
         graphics.text(font, visibleTitle(), titleLabelX, titleLabelY, 0xFF404040, false);
         graphics.text(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0xFF404040, false);
     }
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
     /*@Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos, 0.0F, 0.0F, 176, 35, 256, 256);
-        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos + 35, 0.0F, 126.0F, 176, 96, 256, 256);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos, 0.0F, 0.0F,
+                AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 256, 256);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos,
+                topPos + AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 0.0F,
+                AlbumMenuLayout.PLAYER_INVENTORY_TEXTURE_Y, AlbumMenuLayout.IMAGE_WIDTH,
+                AlbumMenuLayout.PLAYER_INVENTORY_HEIGHT, 256, 256);
     }
     *///?} else {
     /*@Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        graphics.blit(BACKGROUND, leftPos, topPos, 0.0F, 0.0F, 176, 35, 256, 256);
-        graphics.blit(BACKGROUND, leftPos, topPos + 35, 0.0F, 126.0F, 176, 96, 256, 256);
+        GuiTextureBlit.blit(graphics, BACKGROUND, leftPos, topPos, 0.0F, 0.0F,
+                AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 256, 256);
+        GuiTextureBlit.blit(graphics, BACKGROUND, leftPos, topPos + AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 0.0F,
+                AlbumMenuLayout.PLAYER_INVENTORY_TEXTURE_Y, AlbumMenuLayout.IMAGE_WIDTH,
+                AlbumMenuLayout.PLAYER_INVENTORY_HEIGHT, 256, 256);
     }
     *///?}
 

@@ -3,7 +3,7 @@ package com.kuronami.musicdiscmaker.gametest;
 import java.util.ArrayList;
 import java.util.List;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.inventory.RemoteSlot;
 //?} else {
 /*import net.minecraft.core.NonNullList;
@@ -22,7 +22,7 @@ final class InitialMenuSyncCapture implements ContainerSynchronizer {
     final List<SlotChange> slotChanges = new ArrayList<>();
     final List<ItemStack> carriedChanges = new ArrayList<>();
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     @Override public void sendInitialData(AbstractContainerMenu menu, List<ItemStack> stacks,
     //?} else {
     /*@Override public void sendInitialData(AbstractContainerMenu menu, NonNullList<ItemStack> stacks,
@@ -42,7 +42,7 @@ final class InitialMenuSyncCapture implements ContainerSynchronizer {
     }
     @Override public void sendDataChange(AbstractContainerMenu menu, int slot, int value) { }
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     @Override public RemoteSlot createSlot() {
         return new RemoteSlot() {
             private ItemStack remote = ItemStack.EMPTY;

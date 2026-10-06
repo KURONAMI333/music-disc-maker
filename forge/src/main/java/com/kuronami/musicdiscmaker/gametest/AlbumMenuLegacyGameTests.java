@@ -9,9 +9,11 @@ import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.item.AlbumItem;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.menu.AlbumMenu;
+import com.kuronami.musicdiscmaker.menu.AlbumMenuLayout;
 import com.kuronami.musicdiscmaker.menu.BoomboxSource;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
@@ -29,28 +31,152 @@ public final class AlbumMenuLegacyGameTests {
     private AlbumMenuLegacyGameTests() { }
 
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
-    public static void menuPreservesOverflowAndReorderedNbt(GameTestHelper helper) {
+    public static void menuShowsLegacyThirteenAcrossBothRowsAndPreservesOrder(GameTestHelper helper) {
         final FakePlayer player = FakePlayerFactory.get(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "menu-fixture"));
         final ItemStack album = new ItemStack(ModItems.ALBUM.get());
         final List<ItemStack> original = new ArrayList<>();
-        for (int i = 0; i < 10; i++) original.add(disc(i));
+        for (int i = 0; i < 13; i++) original.add(disc(i));
         AlbumItem.setContents(album, new AlbumContents(original));
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
         final AlbumMenu menu = new AlbumMenu(1, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
-        helper.assertTrue(AlbumItem.contents(album).size() == 10, "opening Album discarded overflow in legacy NBT");
-        menu.quickMoveStack(player, 0);
-        helper.assertTrue("track-9".equals(CustomMusicDiscItem.getTrack(AlbumItem.contents(album).discAt(8)).title()),
-                "taking a disc discarded legacy overflow");
+        helper.assertTrue(AlbumItem.contents(album).size() == 13
+                        && menu.slots.get(9).hasItem() && menu.slots.get(12).hasItem()
+                        && "track-9".equals(CustomMusicDiscItem.getTrack(
+                                AlbumItem.contents(album).discAt(9)).title()),
+                "opening Album discarded legacy NBT, the 10th track, or the second row");
+        final ItemStack removed = menu.quickMoveStack(player, 0);
+        helper.assertTrue(ItemStack.matches(removed, original.get(0))
+                        && menu.slots.get(0).getItem().isEmpty()
+                        && ItemStack.matches(menu.slots.get(1).getItem(), original.get(1))
+                        && ItemStack.matches(menu.slots.get(2).getItem(), original.get(2))
+                        && menu.getCarried().isEmpty()
+                        && AlbumItem.contents(album).size() == 12 && totalTracks(player, menu) == 13,
+                "taking a legacy disc changed the visible slots, cursor, or total count");
+        helper.assertTrue("track-12".equals(CustomMusicDiscItem.getTrack(AlbumItem.contents(album).discAt(11)).title()),
+                "taking a disc discarded the 13th legacy disc");
 
-        menu.clicked(0, 0, ClickType.PICKUP, player);
+        // 13枚は18枠に収まりoverflowがない。保存値は空を除くが、同じ画面の枠0は空のままなので、
+        // track-1とtrack-2が実際に残っている枠1/2を交換する。
         menu.clicked(1, 0, ClickType.PICKUP, player);
-        menu.clicked(0, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.slots.get(1).getItem().isEmpty()
+                        && ItemStack.matches(menu.slots.get(2).getItem(), original.get(2))
+                        && ItemStack.matches(menu.getCarried(), original.get(1))
+                        && totalTracks(player, menu) == 13,
+                "picking the first remaining legacy disc changed the other slot, cursor, or total");
+        menu.clicked(2, 0, ClickType.PICKUP, player);
+        helper.assertTrue(ItemStack.matches(menu.slots.get(2).getItem(), original.get(1))
+                        && menu.slots.get(1).getItem().isEmpty()
+                        && ItemStack.matches(menu.getCarried(), original.get(2))
+                        && totalTracks(player, menu) == 13,
+                "swapping legacy discs changed the visible slot, cursor, or total");
+        menu.clicked(1, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.slots.get(0).getItem().isEmpty()
+                        && ItemStack.matches(menu.slots.get(1).getItem(), original.get(2))
+                        && ItemStack.matches(menu.slots.get(2).getItem(), original.get(1))
+                        && menu.getCarried().isEmpty()
+                        && AlbumItem.contents(album).size() == 12 && totalTracks(player, menu) == 13,
+                "finishing the legacy reorder changed the visible slots, cursor, or total");
         helper.assertTrue("track-2".equals(CustomMusicDiscItem.getTrack(AlbumItem.contents(album).discAt(0)).title()),
                 "reordered legacy menu slots were not persisted");
         helper.assertTrue("track-1".equals(CustomMusicDiscItem.getTrack(AlbumItem.contents(album).discAt(1)).title()),
                 "legacy menu reorder did not move both discs");
-        helper.assertTrue("track-9".equals(CustomMusicDiscItem.getTrack(AlbumItem.contents(album).discAt(8)).title()),
-                "legacy overflow refill did not preserve the remaining order");
+        helper.assertTrue("track-12".equals(CustomMusicDiscItem.getTrack(AlbumItem.contents(album).discAt(11)).title()),
+                "legacy menu did not preserve the final disc order");
+        for (int i = 2; i < 12; i++) helper.assertTrue(
+                ItemStack.matches(AlbumItem.contents(album).discAt(i), original.get(i + 1)),
+                "legacy reorder changed an untouched saved disc: " + i);
+        final AlbumMenu reopened = new AlbumMenu(2, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+        helper.assertTrue(reopened.getCarried().isEmpty() && AlbumItem.contents(album).size() == 12
+                        && totalTracks(player, reopened) == 13
+                        && ItemStack.matches(reopened.slots.get(0).getItem(), original.get(2))
+                        && ItemStack.matches(reopened.slots.get(1).getItem(), original.get(1))
+                        && ItemStack.matches(reopened.slots.get(11).getItem(), original.get(12)),
+                "reopening legacy Album lost the reordered NBT, last disc, cursor, or total");
+        for (int i = 0; i < 12; i++) helper.assertTrue(
+                ItemStack.matches(reopened.slots.get(i).getItem(), AlbumItem.contents(album).discAt(i)),
+                "reopened legacy menu differs from saved disc order: " + i);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void eighteenthDiscUsesSecondRowAndRemainsTakeable(GameTestHelper helper) {
+        final FakePlayer player = FakePlayerFactory.get(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "menu-fixture"));
+        final List<ItemStack> stored = new ArrayList<>();
+        for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) stored.add(disc(i));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(stored));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        final AlbumMenu menu = new AlbumMenu(2, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+
+        helper.assertTrue(menu.slots.size() == AlbumItem.GUI_CAPACITY + 36
+                        && menu.slots.get(9).hasItem()
+                        && menu.slots.get(17).hasItem()
+                        && "track-17".equals(CustomMusicDiscItem.getTrack(
+                                AlbumItem.contents(album).discAt(17)).title())
+                        && menu.quickMoveStack(player, -1).isEmpty()
+                        && menu.quickMoveStack(player, menu.slots.size()).isEmpty(),
+                "legacy 18-slot menu did not construct its second row and inventory");
+        final ItemStack removed = menu.quickMoveStack(player, 17);
+        helper.assertTrue("track-17".equals(CustomMusicDiscItem.getTrack(removed).title())
+                        && AlbumItem.contents(album).size() == 17,
+                "legacy could not take the 18th disc from the second row");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void normalClickStoresAndTakesEighteenthDisc(GameTestHelper helper) {
+        helper.assertTrue(AlbumMenuLayout.CAPACITY == 18, "Album product capacity is no longer 18");
+        final FakePlayer player = FakePlayerFactory.get(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "menu-fixture"));
+        final List<ItemStack> stored = new ArrayList<>();
+        for (int i = 0; i < 17; i++) stored.add(disc(i));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(stored));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        final AlbumMenu menu = new AlbumMenu(5, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+
+        menu.setCarried(disc(17));
+        menu.clicked(17, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.getCarried().isEmpty()
+                        && menu.slots.get(17).hasItem()
+                        && AlbumItem.contents(album).size() == 18
+                        && "track-17".equals(CustomMusicDiscItem.getTrack(
+                                AlbumItem.contents(album).discAt(17)).title()),
+                "legacy normal click could not store the 18th disc in the last second-row slot");
+
+        menu.clicked(17, 0, ClickType.PICKUP, player);
+        helper.assertTrue("track-17".equals(CustomMusicDiscItem.getTrack(menu.getCarried()).title())
+                        && AlbumItem.contents(album).size() == 17
+                        && "track-16".equals(CustomMusicDiscItem.getTrack(
+                                AlbumItem.contents(album).discAt(16)).title()),
+                "legacy normal click taking the last second-row slot changed order or content");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void shiftClickFillsAndTakesEighteenthDisc(GameTestHelper helper) {
+        helper.assertTrue(AlbumMenuLayout.CAPACITY == 18, "Album product capacity is no longer 18");
+        final FakePlayer player = FakePlayerFactory.get(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "menu-fixture"));
+        final List<ItemStack> stored = new ArrayList<>();
+        for (int i = 0; i < 17; i++) stored.add(disc(i));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(stored));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        player.getInventory().setItem(1, disc(17));
+        final AlbumMenu menu = new AlbumMenu(6, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+
+        helper.assertTrue(!menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty()
+                        && player.getInventory().getItem(1).isEmpty()
+                        && menu.slots.get(17).hasItem()
+                        && AlbumItem.contents(album).size() == 18
+                        && "track-17".equals(CustomMusicDiscItem.getTrack(
+                                AlbumItem.contents(album).discAt(17)).title()),
+                "legacy shift-click could not store the 18th disc in the last second-row slot");
+        final ItemStack removed = menu.quickMoveStack(player, 17);
+        helper.assertTrue("track-17".equals(CustomMusicDiscItem.getTrack(removed).title())
+                        && AlbumItem.contents(album).size() == 17
+                        && "track-16".equals(CustomMusicDiscItem.getTrack(
+                                AlbumItem.contents(album).discAt(16)).title()),
+                "legacy shift-click taking the last second-row slot changed order or content");
         helper.succeed();
     }
 
@@ -63,13 +189,13 @@ public final class AlbumMenuLegacyGameTests {
         player.getInventory().setItem(2, new ItemStack(ModItems.BOOMBOX.get()));
         player.setItemInHand(InteractionHand.OFF_HAND, disc(1));
         final AlbumMenu menu = new AlbumMenu(2, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
-        menu.clicked(37, 0, ClickType.PICKUP, player);
+        menu.clicked(inventoryMenuSlot(1), 0, ClickType.PICKUP, player);
         menu.clicked(0, 0, ClickType.PICKUP, player);
         helper.assertTrue(AlbumItem.contents(album).size() == 1, "legacy normal click did not insert a disc");
         helper.assertTrue(!menu.quickMoveStack(player, 0).isEmpty(), "legacy normal-click disc could not be taken back");
         player.getInventory().setItem(1, disc(0));
-        helper.assertTrue(!menu.quickMoveStack(player, 37).isEmpty(), "legacy shift-click did not insert a disc");
-        helper.assertTrue(menu.quickMoveStack(player, 38).isEmpty(), "legacy Album accepted Boombox input");
+        helper.assertTrue(!menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty(), "legacy shift-click did not insert a disc");
+        helper.assertTrue(menu.quickMoveStack(player, inventoryMenuSlot(2)).isEmpty(), "legacy Album accepted Boombox input");
         final int sourceSlot = sourceMenuSlot(menu, album);
         menu.clicked(sourceSlot, 0, ClickType.PICKUP, player);
         menu.clicked(sourceSlot, 1, ClickType.SWAP, player);
@@ -107,7 +233,7 @@ public final class AlbumMenuLegacyGameTests {
         player.getInventory().setItem(1, inventoryDisc);
         final AlbumMenu menu = new AlbumMenu(4, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
         final int tracksBefore = totalTracks(player, menu);
-        menu.clicked(37, 0, ClickType.SWAP, player);
+        menu.clicked(inventoryMenuSlot(1), 0, ClickType.SWAP, player);
         helper.assertTrue(player.getItemInHand(InteractionHand.MAIN_HAND) == album,
                 "legacy reverse hotbar swap moved source Album");
         helper.assertTrue(ItemStack.matches(player.getInventory().getItem(1), inventoryDisc)
@@ -128,7 +254,7 @@ public final class AlbumMenuLegacyGameTests {
         player.getInventory().setItem(1, inventoryDisc);
         final AlbumMenu menu = new AlbumMenu(5, player.getInventory(), BoomboxSource.held(InteractionHand.OFF_HAND));
         final int tracksBefore = totalTracks(player, menu);
-        menu.clicked(37, 40, ClickType.SWAP, player);
+        menu.clicked(inventoryMenuSlot(1), 40, ClickType.SWAP, player);
         helper.assertTrue(player.getItemInHand(InteractionHand.OFF_HAND) == album,
                 "legacy reverse offhand swap moved source Album");
         helper.assertTrue(ItemStack.matches(player.getInventory().getItem(1), inventoryDisc)
@@ -138,7 +264,7 @@ public final class AlbumMenuLegacyGameTests {
         final ItemStack replacement = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(replacement, new AlbumContents(List.of(disc(9))));
         player.setItemInHand(InteractionHand.OFF_HAND, replacement);
-        menu.clicked(37, 0, ClickType.PICKUP, player);
+        menu.clicked(inventoryMenuSlot(1), 0, ClickType.PICKUP, player);
         menu.clicked(0, 0, ClickType.PICKUP, player);
         helper.assertTrue(player.getItemInHand(InteractionHand.OFF_HAND) == replacement
                         && ItemStack.matches(player.getInventory().getItem(1), inventoryDisc)
@@ -170,7 +296,7 @@ public final class AlbumMenuLegacyGameTests {
         player.getInventory().setItem(1, oversized.copy());
         final ItemStack retainedCarried = longDisc(20_000, 1);
         menu.setCarried(retainedCarried.copy());
-        helper.assertTrue(menu.quickMoveStack(player, 37).isEmpty()
+        helper.assertTrue(menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty()
                         && ItemStack.matches(player.getInventory().getItem(1), oversized)
                         && ItemStack.matches(menu.getCarried(), retainedCarried)
                         && AlbumItem.contents(album).size() == 8,
@@ -195,7 +321,7 @@ public final class AlbumMenuLegacyGameTests {
                 "legacy normal-click rejected a small disc");
         helper.assertTrue(!smallMenu.quickMoveStack(player, 0).isEmpty(), "legacy could not take a small disc");
         player.getInventory().setItem(1, small.copy());
-        helper.assertTrue(!smallMenu.quickMoveStack(player, 37).isEmpty(), "legacy shift-click rejected a small disc");
+        helper.assertTrue(!smallMenu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty(), "legacy shift-click rejected a small disc");
         helper.assertTrue(!smallMenu.quickMoveStack(player, 0).isEmpty(), "legacy could not take a shift-clicked disc");
         player.getInventory().setItem(2, small.copy());
         smallMenu.clicked(0, 2, ClickType.SWAP, player);
@@ -209,25 +335,29 @@ public final class AlbumMenuLegacyGameTests {
     public static void menuRecoversOverflowInSameSession(GameTestHelper helper) {
         final FakePlayer player = FakePlayerFactory.get(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "menu-fixture"));
         final List<ItemStack> stored = new ArrayList<>();
-        for (int i = 0; i < 12; i++) stored.add(disc(i));
+        for (int i = 0; i < 21; i++) stored.add(disc(i));
         final ItemStack album = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(album, new AlbumContents(stored));
         player.setItemInHand(InteractionHand.MAIN_HAND, album);
         final AlbumMenu menu = new AlbumMenu(9, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
 
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 21; i++) {
             final ItemStack removed = menu.quickMoveStack(player, firstStoredSlot(menu));
             helper.assertTrue(!removed.isEmpty()
                             && ("track-" + i).equals(CustomMusicDiscItem.getTrack(removed).title())
-                            && AlbumItem.contents(album).size() == 11 - i,
+                            && AlbumItem.contents(album).size() == 20 - i,
                     "legacy同一menuでoverflow盤を保存順に回収できない: " + i);
-            if (i < 11) {
+            if (i < 20) {
                 helper.assertTrue(("track-" + (i + 1)).equals(CustomMusicDiscItem.getTrack(
                                 AlbumItem.contents(album).discAt(0)).title()),
                         "legacy補充後の先頭盤が保存順でない: " + i);
             }
         }
         helper.succeed();
+    }
+
+    private static int inventoryMenuSlot(int inventorySlot) {
+        return AlbumItem.GUI_CAPACITY + 27 + inventorySlot;
     }
 
     private static int firstStoredSlot(AlbumMenu menu) {
@@ -248,7 +378,7 @@ public final class AlbumMenuLegacyGameTests {
         player.getInventory().setItem(1, disc(1_000));
         final AlbumMenu menu = new AlbumMenu(9, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
 
-        helper.assertTrue(menu.quickMoveStack(player, 37).isEmpty()
+        helper.assertTrue(menu.quickMoveStack(player, inventoryMenuSlot(1)).isEmpty()
                         && !player.getInventory().getItem(1).isEmpty()
                         && AlbumItem.contents(album).size() == AlbumContents.STORAGE_DECODE_LIMIT,
                 "legacy 256枚Albumへの投入拒否で既存データまたは投入盤を失った");
@@ -262,7 +392,7 @@ public final class AlbumMenuLegacyGameTests {
     public static void initialMenuSyncRejectsUnsafeExistingAlbum(GameTestHelper helper) {
         final FakePlayer player = FakePlayerFactory.get(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "menu-fixture"));
         final List<ItemStack> safeDiscs = new ArrayList<>();
-        for (int i = 0; i < 9; i++) safeDiscs.add(longDisc(i, 1));
+        for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) safeDiscs.add(longDisc(i, 1));
         final ItemStack safeAlbum = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(safeAlbum, new AlbumContents(safeDiscs));
         player.setItemInHand(InteractionHand.MAIN_HAND, safeAlbum);
@@ -319,13 +449,43 @@ public final class AlbumMenuLegacyGameTests {
                 "legacy強制再同期後の次のslot/cursor差分を送信しなかった");
 
         final List<ItemStack> unsafeDiscs = new ArrayList<>();
-        for (int i = 0; i < 9; i++) unsafeDiscs.add(longDisc(10_000 + i * 10, 6));
+        for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) unsafeDiscs.add(longDisc(10_000 + i * 10, 6));
         final ItemStack unsafeAlbum = new ItemStack(ModItems.ALBUM.get());
         AlbumItem.setContents(unsafeAlbum, new AlbumContents(unsafeDiscs));
         player.setItemInHand(InteractionHand.MAIN_HAND, unsafeAlbum);
         helper.assertTrue(!AlbumMenu.fitsInitialMenuSync(player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND))
-                        && AlbumItem.contents(unsafeAlbum).size() == 9,
+                        && AlbumItem.contents(unsafeAlbum).size() == AlbumItem.GUI_CAPACITY,
                 "legacy危険な既存Albumの初回menu同期を許可したか保存値を変えた");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void nonHeldSourcesDisableMenuInsteadOfThrowing(GameTestHelper helper) {
+        final FakePlayer player = FakePlayerFactory.get(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "menu-fixture"));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(List.of(disc(0))));
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        player.getInventory().setItem(1, disc(1));
+
+        // AlbumMenuを開けるsourceはheldだけ。設置・装備・wire由来の任意intが来ても
+        // heldHand()の例外でclientを切断せず、stillValid=falseで全操作を拒否することが回帰条件。
+        int id = 100;
+        for (final BoomboxSource source : List.of(
+                BoomboxSource.placed(BlockPos.ZERO),
+                BoomboxSource.equipped("back", 0, 1L),
+                new BoomboxSource(BlockPos.ZERO, 7, "", -1, 0L))) {
+            final AlbumMenu menu = new AlbumMenu(id++, player.getInventory(), source);
+            helper.assertTrue(!menu.stillValid(player), "非held sourceのmenuが有効扱いになった");
+            helper.assertTrue(menu.quickMoveStack(player, 0).isEmpty(),
+                    "非held sourceのmenuでshift-clickが盤を動かした");
+            menu.clicked(inventoryMenuSlot(1), 40, ClickType.SWAP, player);
+            helper.assertTrue(!AlbumMenu.fitsInitialMenuSync(player.getInventory(), source),
+                    "非held sourceが初回menu同期の検証を通過した");
+        }
+        helper.assertTrue(player.getItemInHand(InteractionHand.MAIN_HAND) == album
+                        && AlbumItem.contents(album).size() == 1
+                        && player.getInventory().getItem(1).is(ModItems.CUSTOM_MUSIC_DISC.get()),
+                "非held sourceのmenuがAlbumまたは所持品を変更した");
         helper.succeed();
     }
 

@@ -86,7 +86,31 @@ public record CustomTrackData(
         if (s == null) {
             return "";
         }
-        return s.length() <= max ? s : s.substring(0, max);
+        // UTF-16単位の上限は保つが、補助文字のペアは分断しない。
+        // 分断するとUTF-8同期で置換され、小さい盤でも往復一致検査が失敗する。
+        int end = Math.min(s.length(), max);
+        if (end < s.length() && Character.isHighSurrogate(s.charAt(end - 1))
+                && Character.isLowSurrogate(s.charAt(end))) end--;
+        // 旧clampで分断して保存された値と、元から孤立した値もconstructorで正規化する。
+        // 実UTF-8同期が孤立サロゲートを '?' へ置換するため、同期前の値も同じ形へ揃える。
+        StringBuilder normalized = null;
+        for (int i = 0; i < end; i++) {
+            final char current = s.charAt(i);
+            if (Character.isHighSurrogate(current) && i + 1 < end
+                    && Character.isLowSurrogate(s.charAt(i + 1))) {
+                if (normalized != null) normalized.append(current).append(s.charAt(i + 1));
+                i++;
+                continue;
+            }
+            if (Character.isSurrogate(current)) {
+                if (normalized == null) normalized = new StringBuilder(end).append(s, 0, i);
+                normalized.append('?');
+            } else if (normalized != null) {
+                normalized.append(current);
+            }
+        }
+        return normalized != null ? normalized.toString()
+                : end == s.length() ? s : s.substring(0, end);
     }
 
     public static final CustomTrackData EMPTY = new CustomTrackData("", "", "", 0L, "", false);
@@ -120,7 +144,7 @@ public record CustomTrackData(
      * 表に出す名前を持たないホストはホスト名をそのまま返し、URL が空なら空文字を返す。
      */
     public String sourceName() {
-        if (isLocal()) return "MP3";
+        if (isLocal()) return "File";
         final String host = host();
         if (host.isEmpty()) {
             return "";

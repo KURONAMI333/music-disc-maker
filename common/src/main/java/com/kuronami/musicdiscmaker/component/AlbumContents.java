@@ -34,7 +34,7 @@ import net.minecraft.world.item.ItemStack;
  * component/NBT も取り出した時に残る。受け取った stack と返す stack は Minecraft の
  * {@link ItemStack#copy()} でコピーし、呼び元の stack 操作が保存済みの内容へ届かないようにする。
  *
- * <p>アルバムの製品容量は9枚（2026-09-09確定）。この型にある上限は、壊れた保存値や細工された packet による
+ * <p>アルバムの製品容量は18枚（9枠×2段、2026-10-03確定）。この型にある上限は、壊れた保存値や細工された packet による
  * 無制限の確保と再帰を防ぐ decode 境界だけであり、GUI の容量を表さない。
  */
 public record AlbumContents(List<ItemStack> discs) {

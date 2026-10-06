@@ -60,6 +60,23 @@ public final class SableServerAudio {
         return sub == null || sub.isRemoved() ? center : sub.logicalPose().transformPosition(center);
     }
 
+    /^*
+     * source BE が走査から消える直前にも、Sable route の stop を送る。通常の chunk stop は
+     * WorldRoute なので、SableRoute の lease には届かない。
+     *
+     * 同じ次元の全 player に一度だけ送る。直前の追跡者が tracking を外れた場合も
+     * 残った client lease を閉じるためで、別の音源は source stamp と route で保護される。
+     ^/
+    public static void stop(ServerLevel level, net.minecraft.core.BlockPos plotPos,
+            com.kuronami.musicdiscmaker.network.PlaybackSourceStamp identity) {
+        final var sub = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, plotPos);
+        if (!(sub instanceof ServerSubLevel serverSub) || sub.isRemoved()) return;
+        final var payload = new SubLevelStopDiscPayload(plotPos, identity);
+        for (final ServerPlayer player : serverSub.getLevel().players()) {
+            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, payload);
+        }
+    }
+
     public static void onServerTick(ServerTickEvent.Post event) {
         final MinecraftServer server = event.getServer();
         if ((server.getTickCount() % SWEEP_INTERVAL) != 0) {

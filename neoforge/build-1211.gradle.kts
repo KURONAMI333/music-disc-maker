@@ -143,16 +143,27 @@ neoForge {
         }
         create("client") {
             client()
+            programArgument("--username=MDMHost")
+            jvmArgument("-Xmx2G")
+            systemProperty("musicdiscmaker.dev", lavaDevPath)
+        }
+        create("clientPeer2") {
+            client()
+            gameDirectory.set(layout.projectDirectory.dir("run-peer2"))
+            programArgument("--username=MDMGuest")
+            jvmArgument("-Xmx2G")
             systemProperty("musicdiscmaker.dev", lavaDevPath)
         }
         create("server") {
             server()
+            jvmArgument("-Xmx1G")
             systemProperty("musicdiscmaker.dev", lavaDevPath)
         }
         create("gameTestServer") {
             // Keep automated test logs, options and worlds separate from an open development client.
             gameDirectory.set(layout.projectDirectory.dir("run-gametest"))
             type.set("gameTestServer")
+            jvmArgument("-Xmx2G")
             systemProperty("musicdiscmaker.dev", lavaDevPath)
         }
         create("createGameTestServer") {
@@ -176,7 +187,7 @@ neoForge {
 }
 
 tasks.matching {
-    it.name in listOf("runClient", "runServer", "runGameTestServer", "runCreateGameTestServer", "runAdditionalAdditionsGameTestServer", "runClientProd")
+    it.name in listOf("runClient", "runClientPeer2", "runServer", "runGameTestServer", "runCreateGameTestServer", "runAdditionalAdditionsGameTestServer", "runClientProd")
 }.configureEach {
     dependsOn(project(":lavaplayer").tasks.named("assemble"))
 }

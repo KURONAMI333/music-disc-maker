@@ -10,14 +10,19 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
+//? if <26.3 {
 import org.lwjgl.glfw.GLFW;
+//?}
 
 /** Curios 装備中のブームボックスを既存 GUI で開く client key。 */
 public final class CuriosBoomboxKey {
     public static final String TRANSLATION_KEY = "key.music_disc_maker.open_equipped_boombox";
 
     // B は vanilla の既定 KeyMapping と重ならず、ブームボックスの頭文字でもある。
-    //? if >=1.21.11 {
+    //? if >=26.3 {
+    private static final KeyMapping MAPPING = new KeyMapping(TRANSLATION_KEY,
+            InputConstants.KEY_B, KeyMapping.Category.INVENTORY);
+    //?} elif >=1.21.11 {
     private static final KeyMapping MAPPING = new KeyMapping(TRANSLATION_KEY,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KeyMapping.Category.INVENTORY);
     //?} else {

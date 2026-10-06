@@ -20,7 +20,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.world.level.block.entity.BlockEntity;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -37,7 +37,7 @@ public final class V224CompatibilityFixtureGameTests {
     private V224CompatibilityFixtureGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", batch = "v224CompatibilityFixture")
     *///?}
@@ -194,7 +194,7 @@ public final class V224CompatibilityFixtureGameTests {
     }
 
     private static CompoundTag parse(String snbt) throws Exception {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return TagParser.parseCompoundFully(snbt);
         //?} else {
         /*return TagParser.parseTag(snbt);

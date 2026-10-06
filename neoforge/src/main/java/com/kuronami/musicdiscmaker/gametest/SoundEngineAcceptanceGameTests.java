@@ -36,12 +36,21 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class SoundEngineAcceptanceGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
     /** engine が受理した時は何も報告せず、音源も畳まないこと。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -62,7 +71,7 @@ public class SoundEngineAcceptanceGameTests {
      * <b>これが今回の回帰テスト。</b> engine が捨てたら、呼び出し側は先へ進めず、音源は畳まれ、
      * 理由が報告されること。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -87,7 +96,7 @@ public class SoundEngineAcceptanceGameTests {
      * 音量 0 で捨てられた時は、そう名指しすること。engine の拒否のうち
      * <b>利用者が自分で直せる唯一のもの</b>で、「原因不明」と出しても何の助けにもならない。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}

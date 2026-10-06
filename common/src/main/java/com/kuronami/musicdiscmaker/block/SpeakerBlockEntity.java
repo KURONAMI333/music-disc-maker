@@ -19,7 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 //?} else {
@@ -73,7 +73,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         final java.util.UUID identity = sourceLevel.hasChunkAt(sourcePos)
                 && sourceLevel.getBlockEntity(sourcePos) instanceof GoldenJukeboxBlockEntity golden
                 ? golden.sourceIdentity() : null;
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         replaceLinkedSource(new SpeakerLink(sourceLevel.dimension().identifier().toString(), sourcePos.asLong(), identity));
         //?} else {
         /*replaceLinkedSource(new SpeakerLink(sourceLevel.dimension().location().toString(), sourcePos.asLong(), identity));
@@ -140,7 +140,7 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
         restoreLoadedState(SpeakerLink.restore(input.getStringOr(SOURCE_DIMENSION, ""), input.getLongOr(SOURCE_POS, 0L), input.getStringOr(SOURCE_ID, "")).orElse(null),
@@ -161,7 +161,7 @@ public class SpeakerBlockEntity extends BlockEntity {
     *///?}
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         if (source != null) {

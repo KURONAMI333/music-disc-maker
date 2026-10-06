@@ -29,7 +29,7 @@ public record CapturedGoldenPlayback(UUID sourceId, PlaybackCursor cursor, Custo
 
     public static Optional<CapturedGoldenPlayback> read(ServerLevel level, BlockPos localPos, CompoundTag tag) {
         final GoldenJukeboxBlockEntity detached = load(level, localPos, tag);
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final long start = tag.getLong("playbackStartGameTime").orElse(-1L);
         //?} else {
         /*final long start = tag.contains("playbackStartGameTime") ? tag.getLong("playbackStartGameTime") : -1L;
@@ -50,7 +50,7 @@ public record CapturedGoldenPlayback(UUID sourceId, PlaybackCursor cursor, Custo
     private static GoldenJukeboxBlockEntity load(ServerLevel level, BlockPos localPos, CompoundTag tag) {
         final GoldenJukeboxBlockEntity detached = new GoldenJukeboxBlockEntity(localPos,
                 ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState());
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         detached.loadWithComponents(net.minecraft.world.level.storage.TagValueInput.create(
                 net.minecraft.util.ProblemReporter.DISCARDING, level.registryAccess(), tag));
         //?} elif >=1.21 {
@@ -73,7 +73,7 @@ public record CapturedGoldenPlayback(UUID sourceId, PlaybackCursor cursor, Custo
         *///?}
         //? if >=1.21 {
         return song.map(holder -> {
-            //? if >=1.21.11 {
+            //? if >=1.21.2 {
             final String id = holder.value().soundEvent().value().location().toString();
             //?} else {
             /*final String id = holder.value().soundEvent().value().getLocation().toString();

@@ -50,6 +50,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "De sound-engine van het spel accepteerde dit geluid niet",
   "music_disc_maker.playback_failed.reason.muted": "Het volume staat op 0 (controleer Hoofdvolume en Platenspeler/nootblokken bij Muziek- en geluidinstellingen)",
   "music_disc_maker.radio.reconnecting": "Opnieuw verbinden met radio… (%s/%s)",
+  "music_disc_maker.playback.resuming": "Verbinding verbroken. Afspelen wordt hervat… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio gestopt (opnieuw verbinden mislukt)",
   "block.music_disc_maker.golden_jukebox": "Gouden jukebox",
   "gui.music_disc_maker.golden_jukebox.title": "Gouden jukebox",
@@ -74,5 +75,6 @@
   "gui.music_disc_maker.speaker.muted": "Gedempt door redstone",
   "gui.music_disc_maker.speaker.active": "Geen redstonesignaal",
   "tooltip.music_disc_maker.album.empty": "Geen discs",
-  "tooltip.music_disc_maker.album.contents": "%s discs"
+  "tooltip.music_disc_maker.album.contents": "%s discs",
+  "message.music_disc_maker.storage_sync_failed": "De plaatgegevens konden niet worden gesynchroniseerd. Deze actie is geannuleerd."
 }

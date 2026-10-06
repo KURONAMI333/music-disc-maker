@@ -18,19 +18,19 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 //? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?}
+//? if >=1.21.2 {
 import net.minecraft.resources.ResourceKey;
-//?} elif >=1.21.2 {
-/*import net.minecraft.resources.Identifier;
-*///?} else {
+//?}
+//? if <1.21.11 {
 /*import net.minecraft.resources.ResourceLocation;
 *///?}
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingInput;
-//? if <1.21.2 {
-/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
-import net.minecraft.gametest.framework.GameTest;
+//? if <1.21.11 {
+/*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -44,7 +44,7 @@ public final class AlbumDyeingGameTests {
     private AlbumDyeingGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -67,7 +67,7 @@ public final class AlbumDyeingGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
     *///?}
@@ -105,9 +105,11 @@ public final class AlbumDyeingGameTests {
     }
 
     private static ItemStack dye(DyeColor color) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         final var item = BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(color.getName() + "_dye"));
-        //?} else {
+        //?} elif >=1.21.2 {
+        /*final var item = BuiltInRegistries.ITEM.getValue(ResourceLocation.withDefaultNamespace(color.getName() + "_dye"));
+        *///?} else {
         /*final var item = BuiltInRegistries.ITEM.get(ResourceLocation.withDefaultNamespace(color.getName() + "_dye"));
         *///?}
         if (item == null) {
@@ -122,9 +124,13 @@ public final class AlbumDyeingGameTests {
         final var id = ResourceKey.<net.minecraft.world.item.crafting.Recipe<?>>create(
                 Registries.RECIPE, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dyeing"));
         final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
-        //?} else {
+        //?} elif >=1.21.2 {
+        /*final var id = ResourceKey.<net.minecraft.world.item.crafting.Recipe<?>>create(
+                Registries.RECIPE, ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dyeing"));
+        final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
+        *///?} else {
         /*final var id = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dyeing");
-        final var holder = helper.getLevel().getRecipeManager().byKey(id).orElse(null);
+        final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
         *///?}
         helper.assertTrue(holder != null, "RecipeManager に album_dyeing が読み込まれていない");
         helper.assertTrue(holder != null && holder.value() instanceof AlbumDyeRecipe,

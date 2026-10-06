@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class LocalAudioServer {
     public static final long FILE_LIMIT = 32L * 1024 * 1024;
+    private static final long DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
     private static final Map<MinecraftServer, State> STATES = new IdentityHashMap<>();
     private LocalAudioServer() {}
     private static synchronized State state(MinecraftServer server) {
@@ -42,6 +43,8 @@ public final class LocalAudioServer {
     public static void observe(ServerPlayer player, ModPayload payload) {
         if (payload instanceof PlayDiscPayload p) allow(player, p.track());
         if (payload instanceof BoomboxPlayPayload p) allow(player, p.track());
+        if (payload instanceof com.kuronami.musicdiscmaker.network.GoldenCartPlayPayload p
+                && !p.isStop()) allow(player, p.track());
     }
     public static void receive(LocalAudioPayload p, ServerPlayer player) {
         MinecraftServer server = player.level().getServer();
@@ -58,6 +61,7 @@ public final class LocalAudioServer {
         else if (p.operation() == LocalAudioPayload.CHUNK) append(s, p, player);
         else if (p.operation() == LocalAudioPayload.CANCEL) cancel(s, player, p);
         else if (p.operation() == LocalAudioPayload.FETCH) fetch(s, p, player);
+        else if (p.operation() == LocalAudioPayload.CHECK) checkCachedCopy(s, p, player);
         else if (p.operation() == LocalAudioPayload.NEXT) next(s, p, player);
     }
     private static MusicDiscMakerMenu maker(ServerPlayer player, int container) {
@@ -100,7 +104,9 @@ public final class LocalAudioServer {
     }
     private static void append(State s, LocalAudioPayload p, ServerPlayer player) {
         Upload u = s.uploads.get(player.getUUID());
-        if (u == null || !p.id().equals(u.id) || !valid(u) || u.cancelled
+        // A reconnect receives a new ServerPlayer instance even when it has the same UUID.
+        // Do not let packets from that new connection continue the old connection's transfer.
+        if (u == null || u.player != player || !p.id().equals(u.id) || !valid(u) || u.cancelled
                 || !u.busy.compareAndSet(false, true)) return;
         u.touched = now();
         s.io.schedule(() -> {
@@ -110,7 +116,7 @@ public final class LocalAudioServer {
                 u.received += p.bytes().length;
                 if (u.received == u.request.size()) {
                     Path file = s.store.finish(player.getUUID(), u.storeId, now(), path -> {
-                        if (LoaderHolder.get().resolveTrustedFile(path) == null) throw new IOException("Invalid MP3");
+                        if (LoaderHolder.get().resolveTrustedFile(path) == null) throw new IOException("Invalid audio file");
                     });
                     u.storeId = null;
                     complete(s, u, file);
@@ -120,17 +126,17 @@ public final class LocalAudioServer {
     }
     private static void complete(State s, Upload u, Path file) throws IOException {
         var info = LoaderHolder.get().resolveTrustedFile(file);
-        if (info == null || info.durationMs() <= 0) throw new IOException("Invalid MP3");
+        if (info == null || info.durationMs() <= 0) throw new IOException("Invalid audio file");
         String title = info.title();
         // decoderの既定ファイル名（保存ハッシュ）は曲名として表示しない。
         if (title == null || title.isBlank() || title.equals(file.getFileName().toString())
-                || title.equals(u.request.hash()) || title.equals(u.request.hash() + ".mp3")) title = u.request.name();
+                || title.equals(u.request.hash())) title = u.request.name();
         final CustomTrackData track = CustomTrackData.local(u.request.hash(), title, info.author(), info.durationMs());
         // 完成原本は取消後も残るため、同じ操作で所有容量も必ず計上する。
         s.quota.record(u.player.getUUID(), u.request.hash(), u.request.size());
         if (u.cancelled) { discard(s, u); return; }
         s.server.execute(() -> {
-            if (valid(u) && !u.cancelled) {
+            if (connected(s, u.player) && valid(u) && !u.cancelled) {
                 MusicDiscMakerBlockEntity be = u.menu.getBlockEntity();
                 be.setResolvedTrack(track, "");
                 boolean made = be.createDisc();
@@ -144,7 +150,11 @@ public final class LocalAudioServer {
     }
     private static void reply(State s, Upload u, int op, long offset) {
         s.server.execute(() -> {
-            if (!valid(u) || u.cancelled) { u.cancelled = true; s.io.execute(() -> discard(s, u)); return; }
+            if (!connected(s, u.player) || !valid(u) || u.cancelled) {
+                u.cancelled = true;
+                s.io.execute(() -> discard(s, u));
+                return;
+            }
             u.busy.set(false);
             send(u.player, LocalAudioPayload.control(op, u.id, u.request.containerId(), u.request.generation(),
                     u.request.hash(), offset, u.request.size(), ""));
@@ -161,7 +171,8 @@ public final class LocalAudioServer {
     }
     private static void cancel(State s, ServerPlayer player, LocalAudioPayload p) {
         Upload u = s.uploads.get(player.getUUID());
-        if (u == null || u.request.containerId() != p.containerId() || u.request.generation() != p.generation()) return;
+        if (u == null || u.player != player || u.request.containerId() != p.containerId()
+                || u.request.generation() != p.generation()) return;
         u.cancelled = true;
         u.menu.getBlockEntity().cancelLocalImport(u.makerGeneration);
         s.io.execute(() -> discard(s, u));
@@ -206,7 +217,7 @@ public final class LocalAudioServer {
         if (s.downloads.size() >= 4 || s.downloads.values().stream().anyMatch(d -> d.player == player && d.hash.equals(p.hash()))) {
             error(player, p, "busy"); return;
         }
-        Download d = new Download(player, p.hash(), UUID.randomUUID(), p.id());
+        Download d = new Download(player, p.hash(), UUID.randomUUID(), p.id(), p.generation());
         s.downloads.put(d.id, d);
         s.io.execute(() -> {
             try {
@@ -218,6 +229,35 @@ public final class LocalAudioServer {
             } catch (Exception e) { closeDownload(s, d); s.server.execute(() -> error(player, p, "missing")); }
         });
     }
+    /** A cache hit is usable only while this world's verified original still exists. */
+    private static void checkCachedCopy(State s, LocalAudioPayload p, ServerPlayer player) {
+        Long expires;
+        synchronized (s) { expires = s.grants.getOrDefault(player.getUUID(), Map.of()).get(p.hash()); }
+        if ((expires == null || expires < now()) && !canView(player, p.hash())) { error(player, p, "missing"); return; }
+        if (s.downloads.size() >= 4 || s.downloads.values().stream().anyMatch(d -> d.player == player && d.hash.equals(p.hash()))) {
+            error(player, p, "busy"); return;
+        }
+        Download d = new Download(player, p.hash(), UUID.randomUUID(), p.id(), p.generation());
+        s.downloads.put(d.id, d);
+        s.io.execute(() -> {
+            try {
+                s.open();
+                Path path = s.store.verified(d.hash);
+                if (path == null) throw new IOException("Missing audio");
+                long size = Files.size(path);
+                s.server.execute(() -> {
+                    if (d.closed) return;
+                    d.busy.set(false);
+                    send(player, LocalAudioPayload.control(LocalAudioPayload.AVAILABLE, d.request, 0,
+                            p.generation(), d.hash, 0, size, ""));
+                    closeDownload(s, d);
+                });
+            } catch (Exception e) {
+                closeDownload(s, d);
+                s.server.execute(() -> error(player, p, "missing"));
+            }
+        });
+    }
     private static void next(State s, LocalAudioPayload p, ServerPlayer player) {
         Download d = s.downloads.get(p.id());
         if (d == null || d.player != player || p.offset() != d.offset || !d.busy.compareAndSet(false, true)) return;
@@ -225,7 +265,7 @@ public final class LocalAudioServer {
         s.io.schedule(() -> {
             try { if (d.offset == d.size) closeDownload(s, d); else sendData(s, d); }
             catch (Exception e) { closeDownload(s, d); s.server.execute(() -> send(player, LocalAudioPayload.control(LocalAudioPayload.ERROR,
-                    d.request, 0, 0, d.hash, 0, 0, "download_failed"))); }
+                    d.request, 0, d.generation, d.hash, 0, 0, "download_failed"))); }
         }, s.delay(false, LocalAudioStore.CHUNK_BYTES), TimeUnit.MILLISECONDS);
     }
     private static void sendData(State s, Download d) throws IOException {
@@ -251,8 +291,9 @@ public final class LocalAudioServer {
         State s = STATES.get(server);
         if (s == null) return;
         for (Upload u : List.copyOf(s.uploads.values())) {
-            if (!u.cancelled && (!valid(u) || now() - u.touched > 60_000)) {
+            if (!u.cancelled && (!connected(s, u.player) || !valid(u) || now() - u.touched > 60_000)) {
                 u.cancelled = true;
+                u.menu.getBlockEntity().cancelLocalImport(u.makerGeneration);
                 // 通知は最善 effort。送信失敗が tick ループへ伝播して残りの掃除や
                 // サーバー tick を止めないよう飲み込み、slot 解放は必ず進める。
                 try { error(u.player, u.request, "expired"); }
@@ -261,8 +302,18 @@ public final class LocalAudioServer {
             }
         }
         for (Download d : List.copyOf(s.downloads.values())) {
-            if (!d.closed && (server.getPlayerList().getPlayer(d.player.getUUID()) != d.player || now() - d.touched > 60_000)) {
+            if (d.closed) continue;
+            if (!connected(s, d.player)) {
                 d.closed = true; s.io.execute(() -> closeDownload(s, d));
+            } else if (now() - d.touched > DOWNLOAD_IDLE_TIMEOUT_MS) {
+                d.closed = true;
+                // FETCH/CHECKの応答が届かなかったclientは最大300秒待っていた。
+                // request id とその世代で通知し、同hashの後続受信へ古いtimeoutを当てない。
+                try {
+                    send(d.player, LocalAudioPayload.control(LocalAudioPayload.ERROR, d.request, 0,
+                            d.generation, d.hash, 0, 0, "download_timeout"));
+                } catch (RuntimeException ignored) { /* 通知失敗でも入力streamとdownload slotは解放する */ }
+                s.io.execute(() -> closeDownload(s, d));
             }
         }
         synchronized (s) {
@@ -302,6 +353,9 @@ public final class LocalAudioServer {
     }
     private static void send(ServerPlayer player, LocalAudioPayload p) { Services.NETWORK.sendToPlayer(player, p); }
     private static long now() { return System.nanoTime() / 1_000_000; }
+    private static boolean connected(State s, ServerPlayer player) {
+        return s.server.getPlayerList().getPlayer(player.getUUID()) == player;
+    }
     private static final class State {
         final MinecraftServer server;
         final ScheduledExecutorService io = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -338,9 +392,11 @@ public final class LocalAudioServer {
         }
     }
     private static final class Download {
-        final ServerPlayer player; final String hash; final UUID id, request;
+        final ServerPlayer player; final String hash; final UUID id, request; final long generation;
         final AtomicBoolean busy = new AtomicBoolean(true);
         volatile long touched = now(), offset; long size; InputStream input; volatile boolean closed;
-        Download(ServerPlayer p, String hash, UUID id, UUID request) { player = p; this.hash = hash; this.id = id; this.request = request; }
+        Download(ServerPlayer p, String hash, UUID id, UUID request, long generation) {
+            player = p; this.hash = hash; this.id = id; this.request = request; this.generation = generation;
+        }
     }
 }

@@ -11,12 +11,14 @@ import com.kuronami.musicdiscmaker.client.render.BoomboxBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.DeviceModelPoses;
 import com.kuronami.musicdiscmaker.client.render.DevicePartModels;
 import com.kuronami.musicdiscmaker.client.render.DiscPedestalRenderer;
+import com.kuronami.musicdiscmaker.client.render.GoldenJukeboxMinecartRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOutlineRenderer;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.TrackKey;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
+import com.kuronami.musicdiscmaker.register.ModEntities;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModMenus;
@@ -102,6 +104,7 @@ public class MusicDiscMakerNeoForgeClient {
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         event.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
+        event.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxCartScreen::new);
         event.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         event.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         event.register(ModMenus.ALBUM.get(), AlbumScreen::new);
@@ -122,6 +125,7 @@ public class MusicDiscMakerNeoForgeClient {
         event.registerBlockEntityRenderer(ModBlockEntities.BOOMBOX.get(), BoomboxBlockRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.DISC_PEDESTAL.get(), DiscPedestalRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.SPEAKER.get(), SpeakerBlockRenderer::new);
+        event.registerEntityRenderer(ModEntities.GOLDEN_JUKEBOX_MINECART.get(), GoldenJukeboxMinecartRenderer::new);
     }
 
     @SubscribeEvent

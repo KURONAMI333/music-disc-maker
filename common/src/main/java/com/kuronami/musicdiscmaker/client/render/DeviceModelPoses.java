@@ -8,7 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
 /*import net.minecraft.resources.ResourceLocation;
@@ -27,7 +27,7 @@ public final class DeviceModelPoses implements ResourceManagerReloadListener {
 
     public static final DeviceModelPoses INSTANCE = new DeviceModelPoses();
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     private static final Identifier RESOURCE =
             Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "device_model_pose.json");
     //?} elif >=1.21 {

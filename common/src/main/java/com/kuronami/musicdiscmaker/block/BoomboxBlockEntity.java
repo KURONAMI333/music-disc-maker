@@ -7,13 +7,13 @@ import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 //?}
 
 import net.minecraft.core.BlockPos;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} elif >=1.21 {
 /*import net.minecraft.core.HolderLookup;
 *///?} else {
 //?}
 import net.minecraft.core.NonNullList;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} else {
 /*import net.minecraft.nbt.CompoundTag;
 *///?}
@@ -25,7 +25,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 //?}
@@ -119,7 +119,7 @@ public class BoomboxBlockEntity extends BlockEntity {
         return level == null || suppressDropGameTime != level.getGameTime();
     }
 
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     /** BlockEntity が level から外れる前に、設置元を照合して停止し、本体を 1 個返す。 */
     @Override
     public void preRemoveSideEffects(BlockPos pos, BlockState state) {
@@ -136,7 +136,7 @@ public class BoomboxBlockEntity extends BlockEntity {
     // ── persistence ──
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
         stored.clear();
@@ -161,7 +161,7 @@ public class BoomboxBlockEntity extends BlockEntity {
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         ContainerHelper.saveAllItems(output, stored);

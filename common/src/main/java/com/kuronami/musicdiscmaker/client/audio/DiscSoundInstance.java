@@ -98,6 +98,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
 //?}
 
     private final IAudioSource source;
+    @Nullable private volatile PlaybackSessionId playbackSessionId;
     /** source を高々一度だけ close するためのガード (requestStop と stream 経由の close の二重解放を防ぐ)。 */
     private final AtomicBoolean sourceClosed = new AtomicBoolean(false);
     /** 音源の位置と存在を供給するアンカー (固定 jukebox / entity 追従 / 移動構造物)。 */
@@ -229,6 +230,9 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         //?}
         setDirectional(speakerAnchor.directional());
     }
+
+    public void setPlaybackSessionId(@Nullable PlaybackSessionId id) { this.playbackSessionId = id; }
+    @Nullable public PlaybackSessionId playbackSessionId() { return playbackSessionId; }
 
     private void initCommon() {
         this.volume = computeVolume();
@@ -402,7 +406,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     //? if >=26.2 {
-    //?} elif >=1.21.2 {
+    //?} elif >=1.21.11 {
 /*    @Nullable
     public static Vec3 listenerPos() {
         final Minecraft mc = Minecraft.getInstance();
@@ -600,8 +604,13 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     @Override
-    public WeighedSoundEvents resolve(SoundManager handler) {
+    //? if >=26.3 {
+public WeighedSoundEvents getOrResolve(SoundManager handler) {
+        WeighedSoundEvents result = super.getOrResolve(handler);
+//?} else {
+/*public WeighedSoundEvents resolve(SoundManager handler) {
         WeighedSoundEvents result = super.resolve(handler);
+*///?}
         if (this.sound != null && this.sound != SoundManager.EMPTY_SOUND) {
             int range = effectiveRange();
             this.sound = new Sound(

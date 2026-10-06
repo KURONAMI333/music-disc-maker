@@ -1,6 +1,6 @@
 package com.kuronami.musicdiscmaker.block;
 
-//? if >=1.21 && <1.21.2 {
+//? if >=1.21 && <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
@@ -22,7 +22,7 @@ public final class SafeItemSaver {
     private SafeItemSaver() {
     }
 
-    //? if >=1.21 && <1.21.2 {
+    //? if >=1.21 && <1.21.11 {
     /*public static void saveAllItems(CompoundTag tag, NonNullList<ItemStack> items,
             HolderLookup.Provider registries) {
         final ListTag list = new ListTag();

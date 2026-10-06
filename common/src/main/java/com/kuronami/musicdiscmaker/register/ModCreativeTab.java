@@ -41,6 +41,7 @@ public final class ModCreativeTab {
                         output.accept(ModItems.SPEAKER.get());
                         output.accept(ModItems.ALBUM.get());
                         output.accept(ModItems.BOOMBOX.get());
+                        output.accept(ModItems.GOLDEN_JUKEBOX_MINECART.get());
                     })
                     *///?}
                     .build());
@@ -49,7 +50,8 @@ public final class ModCreativeTab {
     /** タブに載せるアイテム (各ローダーのタブ内容イベントが表示順で流し込む)。 */
     public static final java.util.List<RegistryHolder<? extends net.minecraft.world.item.Item>> TAB_ITEMS =
             java.util.List.of(ModItems.MUSIC_DISC_MAKER, ModItems.BLANK_DISC, ModItems.GOLDEN_JUKEBOX,
-                    ModItems.DISC_DYEING_TABLE, ModItems.DISC_PEDESTAL, ModItems.SPEAKER, ModItems.ALBUM, ModItems.BOOMBOX);
+                    ModItems.DISC_DYEING_TABLE, ModItems.DISC_PEDESTAL, ModItems.SPEAKER, ModItems.ALBUM,
+                    ModItems.BOOMBOX, ModItems.GOLDEN_JUKEBOX_MINECART);
     //?}
 
     private ModCreativeTab() {

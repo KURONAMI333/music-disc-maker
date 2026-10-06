@@ -12,6 +12,12 @@ public interface IPlatformHelper {
         return new net.minecraft.world.phys.Vec3(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D);
     }
 
+    /** 動く音源の停止を、その loader の専用経路へ伝える。通常世界と未導入 compat は何もしない。 */
+    default void sendMovingAudioStop(net.minecraft.server.level.ServerLevel level,
+            net.minecraft.core.BlockPos pos,
+            com.kuronami.musicdiscmaker.network.PlaybackSourceStamp identity) {
+    }
+
     /** BlockEntityType generation delegated to loader (vanilla BlockEntitySupplier is package-private). */
     <T extends net.minecraft.world.level.block.entity.BlockEntity> net.minecraft.world.level.block.entity.BlockEntityType<T> createBlockEntityType(ModBlockEntitySupplier<T> supplier, net.minecraft.world.level.block.Block block);
 

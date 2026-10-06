@@ -10,7 +10,11 @@ import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 
 import net.minecraft.core.registries.Registries;
 //? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 import net.minecraft.resources.ResourceKey;
 //?} else {
 //?}
@@ -18,6 +22,25 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 
 public final class ModItems {
+
+    // 1.21.2+: Item は生成時に登録 id を Properties へ set する必要がある (NeoForge の
+    // DeferredRegister.Items が内部でやっていることを loader 非依存に共通化する)。
+    //? if >=1.21.2 {
+    //? if >=1.21.11 {
+    private static Identifier id(String name) {
+        return Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, name);
+    }
+    //?} else {
+    /*private static ResourceLocation id(String name) {
+        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, name);
+    }
+    *///?}
+
+    private static Item.Properties props(String name) {
+        return new Item.Properties()
+                .setId(ResourceKey.create(Registries.ITEM, id(name)));
+    }
+    //?}
 
     public static final RegistrationProvider<Item> ITEMS =
             RegistrationProvider.get(Registries.ITEM, MusicDiscMaker.MODID);
@@ -63,13 +86,6 @@ public final class ModItems {
                     //? if >=1.21.2 {
                     () -> new BlockItem(ModBlocks.GOLDEN_JUKEBOX.get(),
                             props("golden_jukebox").useBlockDescriptionPrefix()));
-
-    // 26.x: Item は生成時に登録 id を Properties へ set する必要がある (NeoForge の
-    // DeferredRegister.Items が内部でやっていることを loader 非依存に共通化する)。
-    private static Item.Properties props(String name) {
-        return new Item.Properties()
-                .setId(ResourceKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, name)));
-    }
                     //?} else {
                     /*() -> new BlockItem(ModBlocks.GOLDEN_JUKEBOX.get(), new Item.Properties()));
                     *///?}
@@ -83,6 +99,19 @@ public final class ModItems {
                     //?} else {
                     /*() -> new BlockItem(ModBlocks.DISC_DYEING_TABLE.get(), new Item.Properties()));
                     *///?}
+
+    /** 金のジュークボックス付きトロッコ。レールへ置く設置 item。 */
+    //? if >=1.21.2 {
+    public static final RegistryHolder<com.kuronami.musicdiscmaker.item.GoldenJukeboxMinecartItem> GOLDEN_JUKEBOX_MINECART =
+            ITEMS.register("golden_jukebox_minecart",
+                    () -> new com.kuronami.musicdiscmaker.item.GoldenJukeboxMinecartItem(
+                            props("golden_jukebox_minecart").stacksTo(1)));
+    //?} else {
+    /*public static final RegistryHolder<com.kuronami.musicdiscmaker.item.GoldenJukeboxMinecartItem> GOLDEN_JUKEBOX_MINECART =
+            ITEMS.register("golden_jukebox_minecart",
+                    () -> new com.kuronami.musicdiscmaker.item.GoldenJukeboxMinecartItem(
+                            new Item.Properties().stacksTo(1)));
+    *///?}
 
     /** 携帯ブームボックス。BlockItem ではない (置くのは BoomboxItem#useOn が自前で行う)。 */
     //? if >=1.21.2 {

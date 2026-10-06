@@ -14,13 +14,13 @@ import net.minecraft.core.component.DataComponents;
 //?} else {
 //?}
 import net.minecraft.core.Direction;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} elif >=1.21 {
 /*import net.minecraft.core.HolderLookup;
 *///?} else {
 //?}
 import net.minecraft.core.NonNullList;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 //?} else {
 /*import net.minecraft.nbt.CompoundTag;
 *///?}
@@ -33,7 +33,7 @@ import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 //?} else {
@@ -145,7 +145,7 @@ public class DiscDyeingTableBlockEntity extends BlockEntity implements WorldlyCo
     // ── persistence ──
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
         items.clear();
@@ -165,7 +165,7 @@ public class DiscDyeingTableBlockEntity extends BlockEntity implements WorldlyCo
     }
 
     @Override
-    //? if >=1.21.2 {
+    //? if >=1.21.11 {
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         ContainerHelper.saveAllItems(output, items);

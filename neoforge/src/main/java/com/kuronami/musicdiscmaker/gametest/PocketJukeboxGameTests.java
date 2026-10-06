@@ -63,6 +63,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  ^/
 @GameTestHolder(MusicDiscMaker.MODID)
 *///?}
+//? if >=1.21.2 && <1.21.11 {
+/*import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import net.minecraft.gametest.framework.GameTest;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(MusicDiscMaker.MODID)
+*///?}
+
 public class PocketJukeboxGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
@@ -74,7 +83,7 @@ public class PocketJukeboxGameTests {
      * 素のディスク 1 枚を飲み込んだ携帯ジュークボックスは「1 トラックのアルバム」として読める。
      * トラック 1 以降は空 (AA 側はここで {@code stop()} する)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}
@@ -95,7 +104,7 @@ public class PocketJukeboxGameTests {
      * <b>回帰の要:</b> バニラ / 他 MOD のディスクは MDM のトラックとして読めない。ここが真になると
      * 保留がかかって AA の曲送りが止まる = 携帯ジュークボックスがバニラディスクごと壊れる。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}
@@ -115,7 +124,7 @@ public class PocketJukeboxGameTests {
     }
 
     /** アルバムを飲み込んだ場合は {@link AdditionalAdditionsAlbumSupport} 経由で中身がトラック列になる。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}
@@ -146,7 +155,7 @@ public class PocketJukeboxGameTests {
     }
 
     /** ラジオ (無限長) はストリーム対象にしない (蓄音機の判断 S2 に揃える)。 */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}
@@ -168,7 +177,7 @@ public class PocketJukeboxGameTests {
      * <b>これが今回の判定式そのもの。</b> 実音声が鳴っている間は曲送りを保留し、ストリームが終わったら
      * 保留を解除する。従来 (この compat が無い状態) は無音ディスクの 1 秒で送られていた。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}
@@ -205,7 +214,7 @@ public class PocketJukeboxGameTests {
      * バニラディスク / ラジオの担当は保留しない (AA の従来の尺で普段どおり送られる)。
      * URL 解決に失敗した時も同じ扱いに落として、1 曲目で固まらないようにする。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}
@@ -235,7 +244,7 @@ public class PocketJukeboxGameTests {
      * 音源が終端も自己停止も報せずに失われた場合でも、壁時計の締切で保留を諦める
      * (諦めないと、ディスクを抜くまで曲送りが二度と起きない)。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}
@@ -265,7 +274,7 @@ public class PocketJukeboxGameTests {
      * 停止 → 同じトラック番号での再生し直しを「担当済み」と誤読しない (url も鍵にしてある)。
      * {@code release} は止めるべき音源を返す。
      */
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "pocketJukebox")
     *///?}

@@ -53,6 +53,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "the game's sound engine did not accept this sound",
   "music_disc_maker.playback_failed.reason.muted": "the volume is set to 0 (check Master Volume and Jukebox/Note Blocks under Music & Sound Options)",
   "music_disc_maker.radio.reconnecting": "Reconnecting to radio… (%s/%s)",
+  "music_disc_maker.playback.resuming": "Connection dropped. Resuming playback… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio stopped (reconnection failed)",
   "block.music_disc_maker.golden_jukebox": "Golden Jukebox",
   "gui.music_disc_maker.golden_jukebox.title": "Golden Jukebox",
@@ -79,5 +80,6 @@
   "gui.music_disc_maker.speaker.muted": "Muted by redstone",
   "gui.music_disc_maker.speaker.active": "No redstone signal",
   "tooltip.music_disc_maker.album.empty": "No discs",
-  "tooltip.music_disc_maker.album.contents": "%s discs"
+  "tooltip.music_disc_maker.album.contents": "%s discs",
+  "message.music_disc_maker.storage_sync_failed": "Disc data could not be synchronized. This action was canceled."
 }

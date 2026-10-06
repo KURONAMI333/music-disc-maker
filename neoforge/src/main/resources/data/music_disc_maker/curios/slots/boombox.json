@@ -1,6 +1,6 @@
 {
   "order": 30,
   "size": 1,
-  "icon": "curios:slot/empty_curio_slot",
+  "icon": "music_disc_maker:slot/boombox",
   "validators": ["curios:tag"]
 }

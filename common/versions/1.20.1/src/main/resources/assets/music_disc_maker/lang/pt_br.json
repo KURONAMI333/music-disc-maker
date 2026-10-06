@@ -50,6 +50,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "O motor de som do jogo não aceitou este som",
   "music_disc_maker.playback_failed.reason.muted": "O volume está em 0 (verifique Volume principal e Blocos musicais em Ajustes de música e sons)",
   "music_disc_maker.radio.reconnecting": "Reconectando ao rádio… (%s/%s)",
+  "music_disc_maker.playback.resuming": "A conexão caiu. Retomando a reprodução… (%s/%s)",
   "music_disc_maker.radio.stopped": "Rádio parado (falha na reconexão)",
   "block.music_disc_maker.golden_jukebox": "Jukebox dourada",
   "gui.music_disc_maker.golden_jukebox.title": "Jukebox dourada",
@@ -74,5 +75,6 @@
   "gui.music_disc_maker.speaker.muted": "Silenciado por redstone",
   "gui.music_disc_maker.speaker.active": "Sem sinal de redstone",
   "tooltip.music_disc_maker.album.empty": "Sem discos",
-  "tooltip.music_disc_maker.album.contents": "%s discos"
+  "tooltip.music_disc_maker.album.contents": "%s discos",
+  "message.music_disc_maker.storage_sync_failed": "Não foi possível sincronizar os dados do disco. Esta ação foi cancelada."
 }

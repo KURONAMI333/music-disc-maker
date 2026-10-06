@@ -11,10 +11,12 @@ import com.kuronami.musicdiscmaker.client.render.BoomboxBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.DeviceModelPoses;
 import com.kuronami.musicdiscmaker.client.render.DevicePartModels;
 import com.kuronami.musicdiscmaker.client.render.DiscPedestalRenderer;
+import com.kuronami.musicdiscmaker.client.render.GoldenJukeboxMinecartRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerBlockRenderer;
 import com.kuronami.musicdiscmaker.client.render.SpeakerLinkOutlineRenderer;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 import com.kuronami.musicdiscmaker.register.ModBlockEntities;
+import com.kuronami.musicdiscmaker.register.ModEntities;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
@@ -54,6 +56,7 @@ public final class MusicDiscMakerForgeClient {
         event.enqueueWork(() -> {
             MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
             MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
+            MenuScreens.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxCartScreen::new);
             MenuScreens.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
             MenuScreens.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
             MenuScreens.register(ModMenus.ALBUM.get(), AlbumScreen::new);
@@ -105,6 +108,7 @@ public final class MusicDiscMakerForgeClient {
 
     private static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
+            ClientPlaybackManager.mixedAlbumTick();
             CuriosBoomboxKey.tick();
         }
     }
@@ -152,6 +156,7 @@ public final class MusicDiscMakerForgeClient {
         event.registerBlockEntityRenderer(ModBlockEntities.BOOMBOX.get(), BoomboxBlockRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.DISC_PEDESTAL.get(), DiscPedestalRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.SPEAKER.get(), SpeakerBlockRenderer::new);
+        event.registerEntityRenderer(ModEntities.GOLDEN_JUKEBOX_MINECART.get(), GoldenJukeboxMinecartRenderer::new);
     }
 
     /** ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する factory を登録。 */
@@ -161,6 +166,7 @@ public final class MusicDiscMakerForgeClient {
     }
 
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompatClient.stopAll();
         ClientPlaybackManager.get().stopAll();
         if (com.kuronami.musicdiscmaker.platform.Services.PLATFORM.isModLoaded("create")) {
             com.kuronami.musicdiscmaker.compat.create.CreateAudioClient.stopAll();

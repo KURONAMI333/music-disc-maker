@@ -9,7 +9,11 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 
 /**
  * 1.20.5+ 用のアダプタ。common の中立 payload ({@link ModPayload}) を {@code CustomPacketPayload} に
@@ -24,9 +28,15 @@ public final class ModPayloadTypes {
     private ModPayloadTypes() {
     }
 
+    //? if >=1.21.11 {
     private static Identifier id(String path) {
         return Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
     }
+    //?} else {
+    /*private static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
+    }
+    *///?}
 
     /** 中立 payload を送信可能な形に包む。未知の型は配線漏れなので例外にする。 */
     public static CustomPacketPayload wrap(ModPayload payload) {
@@ -75,6 +85,18 @@ public final class ModPayloadTypes {
         }
         if (payload instanceof BoomboxStatePayload p) {
             return new BoomboxState(p);
+        }
+        if (payload instanceof GoldenCartPlayPayload p) {
+            return new GoldenCartPlay(p);
+        }
+        if (payload instanceof GoldenCartStopPayload p) {
+            return new GoldenCartStop(p);
+        }
+        if (payload instanceof GoldenCartStatePayload p) {
+            return new GoldenCartState(p);
+        }
+        if (payload instanceof ControlGoldenCartPayload p) {
+            return new ControlGoldenCart(p);
         }
         throw new IllegalArgumentException("Unregistered payload: " + payload.getClass().getName());
     }
@@ -243,6 +265,51 @@ public final class ModPayloadTypes {
         }
     }
 
+    // 柱5: 金ジューク付きトロッコ。追従先は entityId、同一性は PlaybackSourceStamp。
+    public record GoldenCartPlay(GoldenCartPlayPayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartPlay> TYPE = new Type<>(id(GoldenCartPlayPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartPlay> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartPlay(GoldenCartPlayPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record GoldenCartStop(GoldenCartStopPayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartStop> TYPE = new Type<>(id(GoldenCartStopPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartStop> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartStop(GoldenCartStopPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record GoldenCartState(GoldenCartStatePayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartState> TYPE = new Type<>(id(GoldenCartStatePayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartState> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartState(GoldenCartStatePayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record ControlGoldenCart(ControlGoldenCartPayload inner) implements CustomPacketPayload {
+        public static final Type<ControlGoldenCart> TYPE = new Type<>(id(ControlGoldenCartPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, ControlGoldenCart> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new ControlGoldenCart(ControlGoldenCartPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     /** C2S: Curios 装備中の機体を開く要求。Curios 型は持たない中立形。 */
     public record OpenEquippedBoombox(OpenEquippedBoomboxPayload inner) implements CustomPacketPayload {
         public static final Type<OpenEquippedBoombox> TYPE = new Type<>(id(OpenEquippedBoomboxPayload.PATH));
@@ -327,6 +394,18 @@ public final class ModPayloadTypes {
         }
         if (payload instanceof BoomboxStatePayload p) {
             return new BoomboxState(p);
+        }
+        if (payload instanceof GoldenCartPlayPayload p) {
+            return new GoldenCartPlay(p);
+        }
+        if (payload instanceof GoldenCartStopPayload p) {
+            return new GoldenCartStop(p);
+        }
+        if (payload instanceof GoldenCartStatePayload p) {
+            return new GoldenCartState(p);
+        }
+        if (payload instanceof ControlGoldenCartPayload p) {
+            return new ControlGoldenCart(p);
         }
         throw new IllegalArgumentException("Unregistered payload: " + payload.getClass().getName());
     }
@@ -487,6 +566,51 @@ public final class ModPayloadTypes {
         public static final Type<BoomboxState> TYPE = new Type<>(id(BoomboxStatePayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, BoomboxState> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new BoomboxState(BoomboxStatePayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    // 柱5: 金ジューク付きトロッコ。追従先は entityId、同一性は PlaybackSourceStamp。
+    public record GoldenCartPlay(GoldenCartPlayPayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartPlay> TYPE = new Type<>(id(GoldenCartPlayPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartPlay> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartPlay(GoldenCartPlayPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record GoldenCartStop(GoldenCartStopPayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartStop> TYPE = new Type<>(id(GoldenCartStopPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartStop> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartStop(GoldenCartStopPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record GoldenCartState(GoldenCartStatePayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartState> TYPE = new Type<>(id(GoldenCartStatePayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartState> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartState(GoldenCartStatePayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record ControlGoldenCart(ControlGoldenCartPayload inner) implements CustomPacketPayload {
+        public static final Type<ControlGoldenCart> TYPE = new Type<>(id(ControlGoldenCartPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, ControlGoldenCart> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new ControlGoldenCart(ControlGoldenCartPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

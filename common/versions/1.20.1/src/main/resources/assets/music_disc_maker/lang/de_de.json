@@ -50,6 +50,7 @@
   "music_disc_maker.playback_failed.reason.sound_engine": "Die Sound-Engine des Spiels hat diesen Klang nicht angenommen",
   "music_disc_maker.playback_failed.reason.muted": "Die Lautstärke ist auf 0 eingestellt (prüfe Gesamtlautstärke und Musikblöcke in den Musik‐ & Geräuschoptionen)",
   "music_disc_maker.radio.reconnecting": "Verbinde erneut mit Radio… (%s/%s)",
+  "music_disc_maker.playback.resuming": "Verbindung unterbrochen. Wiedergabe wird fortgesetzt… (%s/%s)",
   "music_disc_maker.radio.stopped": "Radio gestoppt (erneute Verbindung fehlgeschlagen)",
   "block.music_disc_maker.golden_jukebox": "Goldene Jukebox",
   "gui.music_disc_maker.golden_jukebox.title": "Goldene Jukebox",
@@ -74,5 +75,6 @@
   "gui.music_disc_maker.speaker.muted": "Durch Redstone stummgeschaltet",
   "gui.music_disc_maker.speaker.active": "Kein Redstone-Signal",
   "tooltip.music_disc_maker.album.empty": "Keine Discs",
-  "tooltip.music_disc_maker.album.contents": "%s Discs"
+  "tooltip.music_disc_maker.album.contents": "%s Discs",
+  "message.music_disc_maker.storage_sync_failed": "Die Plattendaten konnten nicht synchronisiert werden. Die Aktion wurde abgebrochen."
 }

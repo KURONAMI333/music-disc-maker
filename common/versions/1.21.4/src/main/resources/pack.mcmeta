@@ -1,0 +1,10 @@
+{
+  "pack": {
+    "description": "${mod_name}",
+    "pack_format": 61,
+    "supported_formats": [
+      46,
+      61
+    ]
+  }
+}

@@ -19,7 +19,7 @@ import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.platform.services.IMenuHelper;
 
-//? if >=26.2 {
+//? if >=26.1 {
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuType;
 //?} else {
@@ -50,7 +50,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public MenuType<MusicDiscMakerMenu> createMusicDiscMakerMenuType() {
-        //? if >=26.2 {
+        //? if >=26.1 {
         return new ExtendedMenuType<MusicDiscMakerMenu, BlockPos>(
                 (id, inv, pos) -> {
                     final BlockEntity be = inv.player.level().getBlockEntity(pos);
@@ -79,7 +79,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public void openMusicDiscMakerMenu(ServerPlayer player, BlockPos pos) {
-        //? if >=26.2 {
+        //? if >=26.1 {
         player.openMenu(new ExtendedMenuProvider<BlockPos>() {
         //?} elif >=1.21 {
         /*player.openMenu(new ExtendedScreenHandlerFactory<BlockPos>() {
@@ -118,7 +118,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public MenuType<GoldenJukeboxMenu> createGoldenJukeboxMenuType() {
-        //? if >=26.2 {
+        //? if >=26.1 {
         return new ExtendedMenuType<GoldenJukeboxMenu, BlockPos>(
                 (id, inv, pos) -> {
                     final BlockEntity be = inv.player.level().getBlockEntity(pos);
@@ -147,7 +147,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public void openGoldenJukeboxMenu(ServerPlayer player, BlockPos pos) {
-        //? if >=26.2 {
+        //? if >=26.1 {
         player.openMenu(new ExtendedMenuProvider<BlockPos>() {
         //?} elif >=1.21 {
         /*player.openMenu(new ExtendedScreenHandlerFactory<BlockPos>() {
@@ -190,7 +190,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public MenuType<SpeakerMenu> createSpeakerMenuType() {
-        //? if >=26.2 {
+        //? if >=26.1 {
         return new ExtendedMenuType<>(SpeakerMenu::new, BlockPos.STREAM_CODEC);
         //?} elif >=1.21 {
         /*return new ExtendedScreenHandlerType<>(SpeakerMenu::new, BlockPos.STREAM_CODEC);
@@ -202,7 +202,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public void openSpeakerMenu(ServerPlayer player, BlockPos pos) {
-        //? if >=26.2 {
+        //? if >=26.1 {
         player.openMenu(new ExtendedMenuProvider<BlockPos>() {
         //?} elif >=1.21 {
         /*player.openMenu(new ExtendedScreenHandlerFactory<BlockPos>() {
@@ -240,7 +240,7 @@ public class FabricMenuHelper implements IMenuHelper {
     }
     @Override
     public MenuType<DiscDyeingTableMenu> createDiscDyeingTableMenuType() {
-        //? if >=26.2 {
+        //? if >=26.1 {
         return new ExtendedMenuType<DiscDyeingTableMenu, BlockPos>(
                 (id, inv, pos) -> {
                     final BlockEntity be = inv.player.level().getBlockEntity(pos);
@@ -269,7 +269,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public void openDiscDyeingTableMenu(ServerPlayer player, BlockPos pos) {
-        //? if >=26.2 {
+        //? if >=26.1 {
         player.openMenu(new ExtendedMenuProvider<BlockPos>() {
         //?} elif >=1.21 {
         /*player.openMenu(new ExtendedScreenHandlerFactory<BlockPos>() {
@@ -309,7 +309,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public MenuType<BoomboxMenu> createBoomboxMenuType() {
-        //? if >=26.2 {
+        //? if >=26.1 {
         return new ExtendedMenuType<BoomboxMenu, BoomboxSource>(
                 (id, inv, source) -> new BoomboxMenu(id, inv, source), BoomboxSource.STREAM_CODEC);
         //?} else {
@@ -325,7 +325,7 @@ public class FabricMenuHelper implements IMenuHelper {
                 && !(player.level().getBlockEntity(source.pos()) instanceof BoomboxBlockEntity)) {
             return;
         }
-        //? if >=26.2 {
+        //? if >=26.1 {
         player.openMenu(new ExtendedMenuProvider<BoomboxSource>() {
         //?} else {
         /*player.openMenu(new ExtendedScreenHandlerFactory<BoomboxSource>() {
@@ -350,7 +350,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public MenuType<AlbumMenu> createAlbumMenuType() {
-        //? if >=26.2 {
+        //? if >=26.1 {
         return new ExtendedMenuType<>((id, inv, source) -> new AlbumMenu(id, inv, source), BoomboxSource.STREAM_CODEC);
         //?} else {
         /*return new ExtendedScreenHandlerType<>((id, inv, source) -> new AlbumMenu(id, inv, source), BoomboxSource.STREAM_CODEC);
@@ -359,7 +359,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
     @Override
     public void openAlbumMenu(ServerPlayer player, BoomboxSource source) {
-        //? if >=26.2 {
+        //? if >=26.1 {
         player.openMenu(new ExtendedMenuProvider<BoomboxSource>() {
         //?} else {
         /*player.openMenu(new ExtendedScreenHandlerFactory<BoomboxSource>() {
@@ -367,6 +367,51 @@ public class FabricMenuHelper implements IMenuHelper {
             @Override public BoomboxSource getScreenOpeningData(ServerPlayer p) { return source; }
             @Override public Component getDisplayName() { return Component.translatable("item.music_disc_maker.album"); }
             @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) { return new AlbumMenu(id, inv, source); }
+        });
+    }
+
+    @Override
+    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu> createGoldenJukeboxCartMenuType() {
+        // 運ぶ data は対象 entity の id だけ (VarInt)。menu ctor が level().getEntity で解決する。
+        //? if >=26.1 {
+        return new ExtendedMenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu, Integer>(
+                (id, inv, entityId) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(
+                        id, inv, (int) entityId),
+                net.minecraft.network.codec.ByteBufCodecs.VAR_INT);
+        //?} else {
+        /*return new ExtendedScreenHandlerType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu, Integer>(
+                (id, inv, entityId) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(
+                        id, inv, (int) entityId),
+                net.minecraft.network.codec.ByteBufCodecs.VAR_INT);
+        *///?}
+    }
+
+    @Override
+    public void openGoldenJukeboxCartMenu(ServerPlayer player,
+            com.kuronami.musicdiscmaker.entity.GoldenJukeboxMinecartEntity cart) {
+        if (cart.isRemoved()) {
+            return;
+        }
+        final int entityId = cart.getId();
+        //? if >=26.1 {
+        player.openMenu(new ExtendedMenuProvider<Integer>() {
+        //?} else {
+        /*player.openMenu(new ExtendedScreenHandlerFactory<Integer>() {
+        *///?}
+            @Override
+            public Integer getScreenOpeningData(ServerPlayer p) {
+                return entityId;
+            }
+
+            @Override
+            public Component getDisplayName() {
+                return Component.translatable("entity.music_disc_maker.golden_jukebox_minecart");
+            }
+
+            @Override
+            public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
+                return new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(id, inv, cart);
+            }
         });
     }
     //?} else {
@@ -414,6 +459,38 @@ public class FabricMenuHelper implements IMenuHelper {
             @Override public void writeScreenOpeningData(ServerPlayer p, FriendlyByteBuf buf) { source.write(buf); }
             @Override public Component getDisplayName() { return Component.translatable("item.music_disc_maker.album"); }
             @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) { return new AlbumMenu(id, inv, source); }
+        });
+    }
+
+    @Override
+    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu> createGoldenJukeboxCartMenuType() {
+        // client ctor が buf を直接受け、entityId を読んで level().getEntity で引く。
+        return new ExtendedScreenHandlerType<>(
+                (id, inv, buf) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(id, inv, buf));
+    }
+
+    @Override
+    public void openGoldenJukeboxCartMenu(ServerPlayer player,
+            com.kuronami.musicdiscmaker.entity.GoldenJukeboxMinecartEntity cart) {
+        if (cart.isRemoved()) {
+            return;
+        }
+        final int entityId = cart.getId();
+        player.openMenu(new ExtendedScreenHandlerFactory() {
+            @Override
+            public void writeScreenOpeningData(ServerPlayer p, FriendlyByteBuf buf) {
+                buf.writeVarInt(entityId);
+            }
+
+            @Override
+            public Component getDisplayName() {
+                return Component.translatable("entity.music_disc_maker.golden_jukebox_minecart");
+            }
+
+            @Override
+            public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
+                return new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(id, inv, cart);
+            }
         });
     }
     *///?}

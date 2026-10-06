@@ -26,12 +26,12 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueInput;
 //?} else {
 //?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -48,7 +48,7 @@ public final class MusicDiscMakerSingleDiscGameTests {
     private MusicDiscMakerSingleDiscGameTests() {
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     */
@@ -82,7 +82,7 @@ public final class MusicDiscMakerSingleDiscGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     */
@@ -127,7 +127,7 @@ public final class MusicDiscMakerSingleDiscGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     */
@@ -167,7 +167,7 @@ public final class MusicDiscMakerSingleDiscGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     */
@@ -182,7 +182,7 @@ public final class MusicDiscMakerSingleDiscGameTests {
         final ServerLevel level = helper.getLevel();
         final CompoundTag saved = maker.saveCustomOnly(level.registryAccess());
         final MusicDiscMakerBlockEntity restored = new MusicDiscMakerBlockEntity(maker.getBlockPos(), maker.getBlockState());
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         restored.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), saved));
         //?} else {
         /*restored.loadWithComponents(saved, level.registryAccess());
@@ -202,7 +202,7 @@ public final class MusicDiscMakerSingleDiscGameTests {
         trialCache.put("tracks", CustomTrackData.CODEC.listOf()
                 .encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, java.util.List.of(expected, track(11)))
                 .result().orElseThrow());
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         restored.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), trialCache));
         //?} else {
         /*restored.loadWithComponents(trialCache, level.registryAccess());
@@ -215,6 +215,45 @@ public final class MusicDiscMakerSingleDiscGameTests {
                         && restored.getItem(MusicDiscMakerBlockEntity.SLOT_INPUT).getCount() == 1
                         && restored.getItem(MusicDiscMakerBlockEntity.SLOT_OUTPUT).isEmpty(),
                 "旧多曲cacheが単曲解決を迂回して空ディスクを消費した");
+        helper.succeed();
+    }
+
+    /**
+     * 専用サーバーで「全自作ディスクがサイズ超過で入らない」報告 (brym_) の切り分け。
+     * 既存の挿入テストは曲情報だけの簡易盤なので、Makerが実際に焼く盤
+     * (jukebox_playable の無音曲参照・出所URLの custom_data 付き) と、world保存→読込を経た同じ盤で
+     * Boombox/Album の挿入判定を通す。GameTest server は専用サーバーと同じく client class を持たない。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8")
+    */
+    //?}
+    public static void fabricatedDiscFitsBoomboxAndAlbumAfterSaveReload(GameTestHelper helper) {
+        final MusicDiscMakerBlockEntity maker = maker(helper);
+        maker.setResolvedTrack(track(20), "https://www.youtube.com/watch?v=mdm-size-probe");
+        maker.setItem(MusicDiscMakerBlockEntity.SLOT_INPUT, new ItemStack(ModItems.BLANK_DISC.get()));
+        helper.assertTrue(maker.createDisc(), "Makerが本番形の単曲盤を作成できない");
+        final ItemStack fabricated = maker.getItem(MusicDiscMakerBlockEntity.SLOT_OUTPUT).copy();
+        final ServerLevel level = helper.getLevel();
+        final var ops = level.registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+        final ItemStack reloaded = ItemStack.CODEC.parse(ops,
+                ItemStack.CODEC.encodeStart(ops, fabricated).getOrThrow()).getOrThrow();
+        for (final ItemStack disc : java.util.List.of(fabricated, reloaded)) {
+            final String label = disc == fabricated ? "作成直後" : "保存読込後";
+            final ItemStack boombox = new ItemStack(ModItems.BOOMBOX.get());
+            boombox.set(ModDataComponents.BOOMBOX_CONTENTS.get(),
+                    com.kuronami.musicdiscmaker.component.BoomboxContents.EMPTY.withDisc(disc.copy()));
+            final var boomboxResult = com.kuronami.musicdiscmaker.component.AlbumStorageBudget
+                    .inspect(boombox, level.registryAccess());
+            helper.assertTrue(boomboxResult.fits(), label + "の盤をBoomboxへ入れる判定が拒否した: " + boomboxResult);
+            final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+            com.kuronami.musicdiscmaker.item.AlbumItem.setContents(album,
+                    new com.kuronami.musicdiscmaker.component.AlbumContents(java.util.List.of(disc.copy())));
+            final var albumResult = com.kuronami.musicdiscmaker.component.AlbumStorageBudget
+                    .inspect(album, level.registryAccess());
+            helper.assertTrue(albumResult.fits(), label + "の盤をAlbumへ入れる判定が拒否した: " + albumResult);
+        }
         helper.succeed();
     }
 

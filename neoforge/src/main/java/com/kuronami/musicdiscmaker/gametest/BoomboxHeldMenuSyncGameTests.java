@@ -13,7 +13,7 @@ import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -25,13 +25,13 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** 手持ち Boombox の実 menu open と control 受付の server 側境界を固定する。 */
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*@GameTestHolder("music_disc_maker")
 *///?}
 public final class BoomboxHeldMenuSyncGameTests {
     private BoomboxHeldMenuSyncGameTests() { }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}
@@ -69,7 +69,7 @@ public final class BoomboxHeldMenuSyncGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}

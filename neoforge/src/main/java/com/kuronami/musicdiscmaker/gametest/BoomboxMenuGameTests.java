@@ -1,10 +1,12 @@
 package com.kuronami.musicdiscmaker.gametest;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
 import com.kuronami.musicdiscmaker.component.AlbumContents;
+import com.kuronami.musicdiscmaker.component.AlbumStorageBudget;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
@@ -27,7 +29,7 @@ import net.minecraft.world.inventory.ContainerInput;
 //?} else {
 /*import net.minecraft.world.inventory.ClickType;
 *///?}
-//? if <1.21.2 {
+//? if <1.21.11 {
 /*import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -40,7 +42,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class BoomboxMenuGameTests {
     private BoomboxMenuGameTests() { }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -69,7 +71,7 @@ public final class BoomboxMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -150,7 +152,7 @@ public final class BoomboxMenuGameTests {
         }
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -200,10 +202,11 @@ public final class BoomboxMenuGameTests {
         helper.assertTrue(!recovery.quickMoveStack(player, 0).isEmpty() && contents(existingLarge).disc().isEmpty(),
                 "既存の大きい媒体を取り出す時にmenu内とinventoryへ複製したか回収を拒否した");
         BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), contents(original).id());
+        assertUnrelatedInventoryAllowsSmallInsertion(helper);
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -228,7 +231,7 @@ public final class BoomboxMenuGameTests {
         helper.succeed();
     }
 
-    //? if <1.21.2 {
+    //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = "empty8x3x8")
     *///?}
@@ -297,6 +300,86 @@ public final class BoomboxMenuGameTests {
         helper.succeed();
     }
 
+    /** 所持品の分割syncと挿入クリックの合計予算を実menu上で区別する。 */
+    private static void assertUnrelatedInventoryAllowsSmallInsertion(GameTestHelper helper) {
+        final FakePlayer player = player(helper);
+        final List<ItemStack> unrelated = List.of(paddedDisc(400 * 1024), paddedDisc(400 * 1024), paddedDisc(400 * 1024));
+        for (int i = 0; i < unrelated.size(); i++) {
+            helper.assertTrue(AlbumStorageBudget.fits(unrelated.get(i), player.level().registryAccess()),
+                    "回帰用の所持品が単独packet予算を超えた");
+            player.getInventory().setItem(9 + i, unrelated.get(i).copy());
+        }
+        helper.assertTrue(!AlbumStorageBudget.fitsMenuSync(unrelated, ItemStack.EMPTY,
+                        player.level().registryAccess()), "回帰用の所持品合計が1MiB以下だった");
+        final ItemStack machine = new ItemStack(ModItems.BOOMBOX.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, machine);
+        try {
+            final BoomboxMenu menu = new BoomboxMenu(270, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+            final ItemStack small = disc(300);
+            menu.setCarried(small.copy());
+            List<ItemStack> before = menu.slots.stream().map(slot -> slot.getItem().copy()).toList();
+            helper.assertTrue(menu.slots.get(0).mayPlace(menu.getCarried()),
+                    "無関係な大所持品の合計で小さい盤のmayPlaceを拒否した");
+            pickup(menu, 0, player);
+            assertChangedSlotBudget(helper, menu, before, player);
+            helper.assertTrue(menu.getCarried().isEmpty() && ItemStack.matches(contents(machine).disc(), small),
+                    "大所持品があると小さい盤を通常投入できない");
+            final BoomboxMenu reopened = new BoomboxMenu(271, player.getInventory(), BoomboxSource.held(InteractionHand.MAIN_HAND));
+            helper.assertTrue(ItemStack.matches(reopened.slots.get(0).getItem(), small), "再openで保存した小さい盤を失った");
+            pickup(reopened, 0, player);
+            helper.assertTrue(ItemStack.matches(reopened.getCarried(), small) && contents(machine).disc().isEmpty(),
+                    "大所持品があると小さい盤をcursorへ回収できない");
+            reopened.setCarried(ItemStack.EMPTY);
+            player.getInventory().setItem(1, small.copy());
+            before = reopened.slots.stream().map(slot -> slot.getItem().copy()).toList();
+            helper.assertTrue(!reopened.quickMoveStack(player, 28 + 1).isEmpty()
+                            && player.getInventory().getItem(1).isEmpty(), "大所持品があるとshift投入を拒否する");
+            assertChangedSlotBudget(helper, reopened, before, player);
+            player.getInventory().setItem(2, disc(301));
+            before = reopened.slots.stream().map(slot -> slot.getItem().copy()).toList();
+            swap(reopened, 0, 2, player);
+            assertChangedSlotBudget(helper, reopened, before, player);
+            helper.assertTrue("track-301".equals(contents(machine).disc().get(ModDataComponents.CUSTOM_TRACK.get()).title())
+                            && ItemStack.matches(player.getInventory().getItem(2), small),
+                    "大所持品があると数字キー媒体交換の保存値が壊れる");
+            for (int i = 0; i < unrelated.size(); i++) helper.assertTrue(
+                    ItemStack.matches(player.getInventory().getItem(9 + i), unrelated.get(i)),
+                    "媒体操作が無関係な大所持品を変えた");
+
+            // 単独に合法な600KiBでも、更新後機体・媒体枠・cursorの合算が過大なら拒否する。
+            final ItemStack packetLarge = paddedDisc(600 * 1024);
+            helper.assertTrue(AlbumStorageBudget.fits(packetLarge, player.level().registryAccess()),
+                    "クリック合算用媒体が単独codec予算を超えた");
+            final ItemStack saved = contents(machine).disc().copy();
+            reopened.setCarried(packetLarge.copy());
+            helper.assertTrue(!reopened.slots.get(0).mayPlace(reopened.getCarried()),
+                    "クリックのslotとcursorの合算上限を外した");
+            pickup(reopened, 0, player);
+            helper.assertTrue(ItemStack.matches(reopened.getCarried(), packetLarge)
+                            && ItemStack.matches(contents(machine).disc(), saved),
+                    "クリック合算拒否でcursorまたは既存媒体を失った");
+            reopened.setCarried(ItemStack.EMPTY);
+            player.getInventory().setItem(2, packetLarge.copy());
+            swap(reopened, 0, 2, player);
+            helper.assertTrue(ItemStack.matches(player.getInventory().getItem(2), packetLarge)
+                            && ItemStack.matches(contents(machine).disc(), saved),
+                    "数字キーのクリック合算拒否が交換元または保存媒体を変えた");
+        } finally {
+            BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), contents(machine).id());
+        }
+    }
+
+    private static void assertChangedSlotBudget(GameTestHelper helper, BoomboxMenu menu,
+            List<ItemStack> before, FakePlayer player) {
+        final List<ItemStack> changed = new ArrayList<>();
+        for (int i = 0; i < menu.slots.size(); i++) {
+            final ItemStack after = menu.slots.get(i).getItem();
+            if (!ItemStack.matches(before.get(i), after)) changed.add(after.copy());
+        }
+        helper.assertTrue(AlbumStorageBudget.fitsMenuSync(changed, menu.getCarried(), player.level().registryAccess()),
+                "受理したクリックのchangedSlotsとcursorが同期予算を超えた");
+    }
+
     private static FakePlayer player(GameTestHelper helper) {
         return FakePlayerFactory.get(helper.getLevel(), new GameProfile(UUID.randomUUID(), "boombox-menu-test"));
     }
@@ -309,11 +392,15 @@ public final class BoomboxMenuGameTests {
     }
 
     private static ItemStack oversizedDisc() {
+        return paddedDisc(1100 * 1024);
+    }
+
+    private static ItemStack paddedDisc(int bytes) {
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         disc.set(ModDataComponents.CUSTOM_TRACK.get(), new CustomTrackData("https://example.invalid/oversized", "title", "test", 1_000L, "", false));
         // Extra item metadata exercises the synchronization limit without a multi-track disc.
         final net.minecraft.nbt.CompoundTag padding = new net.minecraft.nbt.CompoundTag();
-        padding.putByteArray("fixture_padding", new byte[1100 * 1024]);
+        padding.putByteArray("fixture_padding", new byte[bytes]);
         disc.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
                 net.minecraft.world.item.component.CustomData.of(padding));
         return disc;

@@ -18,7 +18,7 @@ public interface IMusicLoader {
     TrackInfo resolve(String url);
 
     /**
-     * 信頼済みのローカル MP3 から曲のメタ情報を解決する (ブロッキング)。
+     * 信頼済みのローカル音声ファイルから曲のメタ情報を解決する (ブロッキング)。
      *
      * <p>これは URL 入力の抜け道ではない。呼び出し側が内容ハッシュから自分で組み立て、
      * 保存領域の内側にあることを検証済みの {@link Path} だけを渡す。利用者から受け取った
@@ -28,13 +28,61 @@ public interface IMusicLoader {
      * <p>既定実装が {@code null} を返すのは、橋渡し interface だけ新しく impl の
      * {@code jar.packed} が古い組み合わせでも URL 再生を壊さないため。
      *
-     * <p>v3.1.0 の持込形式は MP3 だけであり、実装は拡張子でなく内容を probe して判定する。
-     * WAV / OGG 等を後から対応する場合は、受入形式と上限を決めてから明示的に広げる。
+     * <p>受理する保存形式は音声だけで完結しシークできるコンテナ (MP3 / WAV / FLAC / MKA)
+     * に限り、実装は拡張子でなく内容を probe して判定する。プレイリスト形式や、入力としては
+     * 読めるが保存形式でないコンテナ (MP4 等) はここでは受理されない。
+     *
+     * <p>検査はコンテナ probe レベルであり、音声全 frame の decode を保証しない。
+     * MP3 は frame 索引を読むため実質全走査になるが、WAV/FLAC/MKA はヘッダ上の尺が
+     * 正とみなされるため、ヘッダだけ有効で音声が実質無いファイルも受理されうる
+     * (その場合尺>0で受理され、再生時に無音/失敗となる)。matroska として検出された
+     * ファイルは別途 track 一覧を検査し、映像 track を含む MKV は保存できない。
      *
      * @param file 呼び出し側で保存領域内と検証済みの通常ファイル
      * @return 解決できた場合はメタ情報、未対応の古い実装では {@code null}
      */
     default TrackInfo resolveTrustedFile(Path file) {
+        return null;
+    }
+
+    /**
+     * ローカルの音声・動画ファイルを decode し、mono 48kHz の Opus 音声だけを持つ
+     * MKA (matroska audio) へ正規化する (ブロッキング)。
+     *
+     * <p>用途は「利用者が持ち込んだ任意のメディアから、保存・転送してよい音声だけを
+     * 取り出す」こと。入力は拡張子でなく内容 (コンテナ probe) で判定され、動画ファイルの
+     * 映像トラックは読み捨てる — 生成物の MKA には音声 packet しか含まれず、入力の
+     * 映像バイトは {@code output} へ一切写らない。
+     *
+     * <p>入力として decode できるコンテナは保存形式より広い (MP4 / MOV / MKV / WebM /
+     * Ogg / ADTS / WAV / FLAC / MP3)。生成物は<b>エンコード中に打ち切る</b>:
+     * 出力見積が 32MiB に達するか、encode した実尺が 60 分に達した時点でそれより先の
+     * 音声を捨てる。宣言尺が取れない入力・宣言尺を偽装した入力でも、出力は
+     * 60 分を超えない (硬い上限)。宣言された尺が 60 分を超える入力は早期に拒否する。
+     *
+     * <p>書き出しは {@code output} と同じディレクトリの一時ファイルへ行い、生成物を
+     * 実装自身で検証 (尺&gt;0・reader が decode できる・seek が効く) してから、
+     * 既存名を置換しない原子的な発行 (hard link) で {@code output} へ置く。
+     * <b>失敗時は {@code output} を作らず一時ファイルも残さない</b>。既存の
+     * {@code output} は上書きしない — 発行の直前に第三者が同名を作った競合でも
+     * 置換せず失敗に倒す。
+     *
+     * <p>失敗は {@link ResolveException} で返す: 破損・decode 不能な入力、音声が 1 frame
+     * も取れなかった入力 (尺ゼロ)、呼び出しスレッドの中断 (interrupt はこの操作の
+     * キャンセル手段)、Opus encoder の native が利用不能な環境、置換しない原子的な
+     * 発行を保証できないファイルシステム (hard link 非対応等)。
+     *
+     * <p>既定実装が {@code null} を返すのは、橋渡し interface だけ新しく impl の
+     * {@code jar.packed} が古い組み合わせで「normalize 未対応」を表すため。
+     * {@link #resolveTrustedFile(Path)} と同じ後方互換の形。
+     *
+     * @param input  decode する入力ファイル (信頼済み保存領域である必要はないが、
+     *               呼び出し側が利用者の選択を受理した通常ファイル)
+     * @param output 生成する MKA の最終パス。既存ファイルは上書きしない
+     * @return 生成した MKA のメタ情報 (尺&gt;0)。未対応の古い実装では {@code null}
+     * @throws ResolveException 入力・変換・検証・置き換えのいずれかが失敗した
+     */
+    default TrackInfo normalizeLocalFile(Path input, Path output) {
         return null;
     }
 

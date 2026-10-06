@@ -149,7 +149,7 @@ public final class SpeakerLinkOutlineRenderer {
     }
 
     private static boolean sameDimension(SpeakerLink link, Level level) {
-        //? if >=1.21.2 {
+        //? if >=1.21.11 {
         return link.dimensionId().equals(level.dimension().identifier().toString());
         //?} else {
         /*return link.dimensionId().equals(level.dimension().location().toString());

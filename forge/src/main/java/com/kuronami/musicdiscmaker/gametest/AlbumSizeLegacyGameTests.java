@@ -17,6 +17,7 @@ import io.netty.buffer.Unpooled;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -98,6 +99,94 @@ public final class AlbumSizeLegacyGameTests {
                 nbtBytes(boombox), outerBytes, true, outerEqual, outerFailure);
         helper.assertTrue(isLegacyNbtDecodeLimit(outerFailure),
                 "Boombox outer stack did not hit the measured 2 MiB NBT decoder guard");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty8x3x8", timeoutTicks = 400)
+    public static void albumOverflowNbtRoundTripKeepsOrderAndDecodeBoundary(GameTestHelper helper) {
+        final List<ItemStack> source = new ArrayList<>();
+        for (int index = 0; index < 24; index++) {
+            final ItemStack disc = singleDisc(index, false);
+            disc.setHoverName(Component.literal("overflow disc " + index));
+            source.add(disc);
+        }
+        final AlbumContents original = new AlbumContents(source);
+        source.get(0).setCount(0);
+        original.discs().get(1).setCount(0);
+        helper.assertTrue(original.size() == 24
+                        && original.discAt(0).getCount() == 1
+                        && original.discAt(1).getCount() == 1,
+                "AlbumContentsが入力またはaccessorのmutable ItemStackを共有した");
+
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, original);
+        final ItemStack persistedStack = ItemStack.of(album.save(new CompoundTag()).copy());
+        final AlbumContents restored = AlbumItem.contents(persistedStack);
+        helper.assertTrue(restored.size() == 24, "18枠を超えるAlbum保存値を切り捨てた");
+        for (int index : List.of(18, 23)) {
+            final ItemStack disc = restored.discAt(index);
+            helper.assertTrue(CustomMusicDiscItem.getTrack(disc).url().endsWith("/" + index)
+                            && disc.getHoverName().getString().equals("overflow disc " + index),
+                    "保存overflowの位置またはItemStack値が変わった: " + index);
+        }
+
+        final List<ItemStack> atLimitStacks = new ArrayList<>();
+        for (int index = 0; index < AlbumContents.STORAGE_DECODE_LIMIT; index++) {
+            atLimitStacks.add(singleDisc(index, false));
+        }
+        final ListTag atLimit = new AlbumContents(atLimitStacks).toNbt();
+        helper.assertTrue(AlbumContents.fromNbt(atLimit.copy()).size() == AlbumContents.STORAGE_DECODE_LIMIT,
+                "保存防御上限256 stackを復元できない");
+        final ListTag overLimit = atLimit.copy();
+        overLimit.add(new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get()).save(new CompoundTag()));
+        boolean rejected = false;
+        try {
+            AlbumContents.fromNbt(overLimit);
+        } catch (IllegalArgumentException expected) {
+            rejected = true;
+        }
+        helper.assertTrue(rejected, "保存防御上限を超える257 stackを拒否しない");
+        helper.succeed();
+    }
+
+    /** 共通の曲payloadとForgeのNBT ItemStackは別の文字符号化経路なので両方検査する。 */
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void supplementaryMetadataKeepsBothLegacyWireRoutes(GameTestHelper helper) {
+        final String emoji = "\ud83c\udfb5";
+        final String text = "x".repeat(255) + emoji;
+        final String url = "x".repeat(2047) + emoji;
+        final List<CustomTrackData> cases = List.of(
+                new CustomTrackData("https://example.invalid/track", text, "artist", 1000L, "", false),
+                new CustomTrackData("https://example.invalid/track", "title", text, 1000L, "", false),
+                new CustomTrackData(url, "title", "artist", 1000L, "", false),
+                new CustomTrackData("https://example.invalid/track", "title", "artist", 1000L, url, false),
+                CustomTrackData.local("a".repeat(64), text, text, 1000L));
+        for (int index = 0; index < cases.size(); index++) {
+            final CustomTrackData track = cases.get(index);
+            final FriendlyByteBuf payload = new FriendlyByteBuf(Unpooled.buffer());
+            try {
+                track.write(payload);
+                helper.assertTrue(track.equals(CustomTrackData.read(payload)) && payload.readableBytes() == 0,
+                        "supplementary metadata changed in UTF8 playback payload " + index);
+            } finally {
+                payload.release();
+            }
+            final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
+            CustomMusicDiscItem.setTrack(disc, track);
+            helper.assertTrue(track.title().equals(disc.getHoverName().getString()),
+                    "legacy disc title changed " + index);
+            final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+            AlbumItem.setContents(album, new AlbumContents(List.of(disc)));
+            final ItemStack boombox = new ItemStack(ModItems.BOOMBOX.get());
+            BoomboxContents.store(boombox, new BoomboxContents(album, 4242L));
+            helper.assertTrue(com.kuronami.musicdiscmaker.component.AlbumStorageBudget.fits(disc)
+                            && com.kuronami.musicdiscmaker.component.AlbumStorageBudget.fits(album)
+                            && com.kuronami.musicdiscmaker.component.AlbumStorageBudget.fits(boombox),
+                    "small supplementary metadata exceeded legacy budget " + index);
+            measureStack(helper, "supplementary_" + index, "custom_disc", disc, 1, 1, false);
+            measureStack(helper, "supplementary_" + index, "album", album, 1, 1, false);
+            measureStack(helper, "supplementary_" + index, "boombox", boombox, 1, 1, false);
+        }
         helper.succeed();
     }
 
