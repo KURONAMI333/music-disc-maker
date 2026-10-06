@@ -40,7 +40,15 @@ import net.minecraft.network.chat.Component;
  */
 public final class GoldenCartClientPlayback {
 
-    record Playing(String key, CartAnchor anchor, PlaybackVoice instance, boolean vanilla) {
+    /**
+     * @param startOffsetMs 開いた位置 (曲頭からの ms)。不明なら負
+     * @param startedAtMs   開いた時点の再生時計 ({@link TrackAudioResolver#playbackClockMs()})。不明なら負
+     */
+    record Playing(String key, CartAnchor anchor, PlaybackVoice instance, boolean vanilla,
+            long startOffsetMs, long startedAtMs) {
+        Playing(String key, CartAnchor anchor, PlaybackVoice instance, boolean vanilla) {
+            this(key, anchor, instance, vanilla, -1L, -1L);
+        }
     }
 
     private static final Map<UUID, Playing> ACTIVE = new ConcurrentHashMap<>();
@@ -147,21 +155,27 @@ public final class GoldenCartClientPlayback {
         playCustom(source, track, payload);
     }
 
-    /** server の位置が曲の終わりからこの範囲なら、止まった同じ曲を鳴らし直さない。 */
-    private static final long NATURAL_END_WINDOW_MS = 10_000L;
+    /** client 側で「開いた位置＋鳴らした時間」が曲末からこの範囲に届いていれば、鳴り切ったとみなす。 */
+    private static final long NATURAL_END_WINDOW_MS = 2_000L;
 
     /**
      * client の音が曲末まで鳴り切ったが、server の tick 基準の位置 (MDM_DECISIONS D4) がまだ終端の
      * 手前にいる状態か。TPS が 20 を割ると server は実時間より遅れるので、そのまま共通の判定
      * ({@link PlaybackRequestGate}: 止まった再生は鳴らし直す) に任せると末尾を2回鳴らす。
-     * server が次の曲へ進めるか止めるまで待つ。終端から離れた位置での停止 (channel の喪失) は従来どおり鳴らし直す。
+     * server が次の曲へ進めるか止めるまで待つ。鳴り切ったかは client 自身の時計で判定するので、
+     * server の遅れの大きさに依らない。曲の途中での停止 (channel の喪失) は従来どおり鳴らし直す。
      */
     private static boolean finishedAheadOfServer(Playing current, Long previousGeneration,
             long generation, String sourceKey, CustomTrackData track, long serverOffsetMs) {
-        return current != null && !current.vanilla() && current.instance().isVoiceStopped()
-                && previousGeneration != null && previousGeneration.longValue() == generation
-                && sourceKey.equals(current.key()) && !track.isEmpty() && !track.radio()
-                && track.durationMs() > 0L && serverOffsetMs >= track.durationMs() - NATURAL_END_WINDOW_MS;
+        if (current == null || current.vanilla() || !current.instance().isVoiceStopped()
+                || previousGeneration == null || previousGeneration.longValue() != generation
+                || !sourceKey.equals(current.key()) || track.isEmpty() || track.radio()
+                || track.durationMs() <= 0L || current.startOffsetMs() < 0L || current.startedAtMs() < 0L) {
+            return false;
+        }
+        final long played = Math.max(0L, TrackAudioResolver.playbackClockMs() - current.startedAtMs());
+        return current.startOffsetMs() + played >= track.durationMs() - NATURAL_END_WINDOW_MS
+                && serverOffsetMs < track.durationMs();
     }
 
     /** vanilla / 他 MOD のレコード。同期で鳴らせるのでロード経路は持たない。 */
@@ -307,7 +321,8 @@ public final class GoldenCartClientPlayback {
             instance.requestStop();
             return;
         }
-        final Playing previous = ACTIVE.put(source, new Playing(track.sourceKey(), live, instance, false));
+        final Playing previous = ACTIVE.put(source, new Playing(track.sourceKey(), live, instance, false,
+                startOffsetMs, TrackAudioResolver.playbackClockMs()));
         if (previous != null && previous.instance() != instance) {
             previous.instance().stopAndRelease();
         }
