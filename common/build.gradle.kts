@@ -64,6 +64,8 @@ dependencies {
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
+    // 一部のテスト (FiniteStreamResumeTest 等) は MC の型をクラスとして読む。compile 時の classpath を足す。
+    classpath += sourceSets.main.get().compileClasspath
     testLogging {
         events("passed", "failed", "skipped")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
