@@ -118,7 +118,13 @@ public final class LocalAudioServer {
                 u.received += p.bytes().length;
                 if (u.received == u.request.size()) {
                     Path file = s.store.finish(player.getUUID(), u.storeId, now(), path -> {
-                        if (LoaderHolder.get().resolveTrustedFile(path) == null) throw new IOException("Invalid audio file");
+                        // 拒否はここ (world store へ移す前) で行う。移した後に投げると、原本は消されず
+                        // 誰の容量にも数えられないまま残る。
+                        var info = LoaderHolder.get().resolveTrustedFile(path);
+                        // client の変換が守る60分上限を server でも確かめる。改造 client は変換を飛ばせ、
+                        // WAV/FLAC はヘッダの申告尺をそのまま返すので、巨大な尺で後段の時計計算が桁あふれする。
+                        if (info == null || info.durationMs() <= 0 || info.durationMs() > MAX_DURATION_MS)
+                            throw new IOException("Invalid audio file");
                     });
                     u.storeId = null;
                     complete(s, u, file);
@@ -128,10 +134,7 @@ public final class LocalAudioServer {
     }
     private static void complete(State s, Upload u, Path file) throws IOException {
         var info = LoaderHolder.get().resolveTrustedFile(file);
-        // client の変換が守る60分上限を server でも確かめる。改造 client は変換を飛ばせ、
-        // WAV/FLAC はヘッダの申告尺をそのまま返すので、巨大な尺で後段の時計計算が桁あふれする。
-        if (info == null || info.durationMs() <= 0 || info.durationMs() > MAX_DURATION_MS)
-            throw new IOException("Invalid audio file");
+        if (info == null || info.durationMs() <= 0) throw new IOException("Invalid audio file");
         String title = info.title();
         // decoderの既定ファイル名（保存ハッシュ）は曲名として表示しない。
         if (title == null || title.isBlank() || title.equals(file.getFileName().toString())

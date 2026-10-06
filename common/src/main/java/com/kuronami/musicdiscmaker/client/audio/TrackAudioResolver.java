@@ -16,35 +16,37 @@ public final class TrackAudioResolver {
     }
     /** Pocket/TB等、取得後に本人が新しく聞き始める経路。先頭を取得時間ぶん飛ばさない。 */
     public static OpenStreamResult open(CustomTrackData track, long startMs) throws Exception {
-        return openInternal(track, startMs, -1L);
+        return openInternal(track, startMs, -1L, null);
     }
     /** 再生通知時の時計を渡し、pool待機・受信時間を現在の再生位置へ反映する。 */
     public static OpenStreamResult openSynced(CustomTrackData track, long startMs, long requestedAtMs) throws Exception {
-        return openInternal(track, startMs, requestedAtMs);
+        return openInternal(track, startMs, requestedAtMs, null);
     }
     /** Optional source-aware dispatch; the captured selection is also the prefetch decision. */
     public static OpenStreamResult openSyncedForPlayback(CustomTrackData track, long startMs, long requestedAtMs,
             PlaybackSessionId sessionId, PlaybackSourceContext sourceContext, PlaybackSelection selection,
             java.util.function.Consumer<Throwable> failureSink, java.util.function.BooleanSupplier stillCurrent) throws Exception {
         if (track == null || track.isLocal() || sessionId == null || sourceContext == null
-                || selection == null || !selection.selected()) return openInternal(track, startMs, requestedAtMs);
+                || selection == null || !selection.selected()) return openInternal(track, startMs, requestedAtMs, stillCurrent);
         UrlGuard.enforce(track.url());
         PlaybackSessionRequest request = new PlaybackSessionRequest(sessionId, sourceContext, track,
                 Math.max(0L, startMs), requestedAtMs);
         var extension = PlaybackSessionRegistry.tryOpen(request, selection, failureSink, stillCurrent);
         return extension.isPresent() ? OpenStreamResult.ok(extension.get())
-                : openInternal(track, startMs, requestedAtMs);
+                : openInternal(track, startMs, requestedAtMs, stillCurrent);
     }
     public static long actualOffset(IAudioSource source, long fallback) {
         return source instanceof LocalSource local ? local.offset : fallback;
     }
-    private static OpenStreamResult openInternal(CustomTrackData track, long startMs, long requestedAtMs) throws Exception {
+    /** @param stillCurrent 共有音源の取得待ちを、この再生が無効になった時点で打ち切る判定 (null = 判定なし) */
+    private static OpenStreamResult openInternal(CustomTrackData track, long startMs, long requestedAtMs,
+            java.util.function.BooleanSupplier stillCurrent) throws Exception {
         if (!track.isLocal()) {
             UrlGuard.enforce(track.url());
             return LoaderHolder.get().openStreamDetailed(track.url(), startMs);
         }
         try {
-            var path = LocalAudioClient.obtain(track.localHash());
+            var path = LocalAudioClient.obtain(track.localHash(), stillCurrent);
             long elapsed = requestedAtMs < 0 ? 0 : Math.max(0, playbackClockMs() - requestedAtMs);
             long offset = Math.max(0, startMs) + elapsed;
             var result = LoaderHolder.get().openTrustedFileDetailed(path, offset);

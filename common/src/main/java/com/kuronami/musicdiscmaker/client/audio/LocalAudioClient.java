@@ -360,7 +360,6 @@ public final class LocalAudioClient {
             SESSION.upload = null; status = p.operation() == LocalAudioPayload.DONE ? "done" : p.name(); cleanup(u);
         }
     }
-    /** 待機は再生ワーカーだけ。main/render threadから呼ばない。 */
     /** 転送枠が空くのを待つ上限。超えたら従来どおり再生失敗として扱う。 */
     private static final long BUSY_RETRY_DEADLINE_MS = 120_000L;
 
@@ -370,8 +369,11 @@ public final class LocalAudioClient {
      * <p>サーバーの同時転送枠 (全体4本) と自分の受信枠 (2本) は意図した上限で、埋まっている時は
      * {@code busy} が返る。同じ曲を5人以上が同時に聞き始めると後ろの人がこれを受けるので、
      * 失敗にせず間を空けて取り直す。再生位置は呼び出し側が待ち時間ぶん進めて開く。
+     * 待機は再生ワーカーだけ。main/render thread から呼ばない。
+     *
+     * @param stillCurrent この再生がまだ有効か (null = 判定なし)。無効になったら取り直しをやめる
      */
-    public static Path obtain(String hash) throws Exception {
+    public static Path obtain(String hash, java.util.function.BooleanSupplier stillCurrent) throws Exception {
         final long connection = SESSION.connectionGeneration;
         final long deadline = System.currentTimeMillis() + BUSY_RETRY_DEADLINE_MS;
         long delay = 500L;
@@ -380,7 +382,8 @@ public final class LocalAudioClient {
                 return obtainOnce(hash);
             } catch (ExecutionException e) {
                 if (!isBusy(e.getCause()) || connection != SESSION.connectionGeneration
-                        || System.currentTimeMillis() + delay > deadline) throw e;
+                        || System.currentTimeMillis() + delay > deadline
+                        || stillCurrent != null && !stillCurrent.getAsBoolean()) throw e;
             }
             Thread.sleep(delay + ThreadLocalRandom.current().nextLong(delay / 2 + 1));
             delay = Math.min(delay * 2, 4_000L);
