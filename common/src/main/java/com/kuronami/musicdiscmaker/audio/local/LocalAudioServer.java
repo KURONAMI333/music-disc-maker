@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class LocalAudioServer {
     public static final long FILE_LIMIT = 32L * 1024 * 1024;
     private static final long DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
+    /** 持込音源の尺の上限 (client の LocalFileNormalizer と同じ60分)。 */
+    private static final long MAX_DURATION_MS = 60L * 60_000L;
     private static final Map<MinecraftServer, State> STATES = new IdentityHashMap<>();
     private LocalAudioServer() {}
     private static synchronized State state(MinecraftServer server) {
@@ -126,7 +128,10 @@ public final class LocalAudioServer {
     }
     private static void complete(State s, Upload u, Path file) throws IOException {
         var info = LoaderHolder.get().resolveTrustedFile(file);
-        if (info == null || info.durationMs() <= 0) throw new IOException("Invalid audio file");
+        // client の変換が守る60分上限を server でも確かめる。改造 client は変換を飛ばせ、
+        // WAV/FLAC はヘッダの申告尺をそのまま返すので、巨大な尺で後段の時計計算が桁あふれする。
+        if (info == null || info.durationMs() <= 0 || info.durationMs() > MAX_DURATION_MS)
+            throw new IOException("Invalid audio file");
         String title = info.title();
         // decoderの既定ファイル名（保存ハッシュ）は曲名として表示しない。
         if (title == null || title.isBlank() || title.equals(file.getFileName().toString())

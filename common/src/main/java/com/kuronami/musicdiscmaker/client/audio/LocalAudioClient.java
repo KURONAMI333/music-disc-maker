@@ -361,7 +361,38 @@ public final class LocalAudioClient {
         }
     }
     /** 待機は再生ワーカーだけ。main/render threadから呼ばない。 */
+    /** 転送枠が空くのを待つ上限。超えたら従来どおり再生失敗として扱う。 */
+    private static final long BUSY_RETRY_DEADLINE_MS = 120_000L;
+
+    /**
+     * 共有音源をキャッシュから、無ければサーバーから取得する (再生スレッドから呼ぶ)。
+     *
+     * <p>サーバーの同時転送枠 (全体4本) と自分の受信枠 (2本) は意図した上限で、埋まっている時は
+     * {@code busy} が返る。同じ曲を5人以上が同時に聞き始めると後ろの人がこれを受けるので、
+     * 失敗にせず間を空けて取り直す。再生位置は呼び出し側が待ち時間ぶん進めて開く。
+     */
     public static Path obtain(String hash) throws Exception {
+        final long connection = SESSION.connectionGeneration;
+        final long deadline = System.currentTimeMillis() + BUSY_RETRY_DEADLINE_MS;
+        long delay = 500L;
+        while (true) {
+            try {
+                return obtainOnce(hash);
+            } catch (ExecutionException e) {
+                if (!isBusy(e.getCause()) || connection != SESSION.connectionGeneration
+                        || System.currentTimeMillis() + delay > deadline) throw e;
+            }
+            Thread.sleep(delay + ThreadLocalRandom.current().nextLong(delay / 2 + 1));
+            delay = Math.min(delay * 2, 4_000L);
+        }
+    }
+
+    private static boolean isBusy(Throwable cause) {
+        return cause instanceof IOException io
+                && ("busy".equals(io.getMessage()) || "Audio downloads busy".equals(io.getMessage()));
+    }
+
+    private static Path obtainOnce(String hash) throws Exception {
         CompletableFuture<Path> result = new CompletableFuture<>();
         long connection = SESSION.connectionGeneration;
         AtomicReference<Session.ReceiveSlot> owned = new AtomicReference<>();

@@ -53,6 +53,8 @@ public final class LocalAudioStore implements AutoCloseable {
     private final FileChannel lockChannel;
     private final FileLock lock;
     private final Map<UUID, Upload> uploads = new HashMap<>();
+    /** hash → 最後に検算が通った時のファイルの印 ({@link #stampOf})。 */
+    private final Map<String, Object> verifiedStamps = new HashMap<>();
     private long storedBytes;
     private long reservedBytes;
     private boolean closed;
@@ -206,9 +208,18 @@ public final class LocalAudioStore implements AutoCloseable {
         ensureOpen();
         checkHash(hash);
         Path path = existingStoredPath(hash);
-        if (path == null) return null;
+        if (path == null) { verifiedStamps.remove(hash); return null; }
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.size(path) > limits.fileBytes()) {
+            verifiedStamps.remove(hash);
             return discardCorruptCacheEntry(path, "Invalid stored audio");
+        }
+        // 検算済みで、その後サイズ・更新時刻・ファイル実体が変わっていなければ再計算しない。
+        // 原本は書き終えた後に変わらないので、聴き手ごとの FETCH/CHECK で最大 32MiB を毎回読み直すと
+        // 共用の IO スレッドが検算で埋まり、他の人の転送が止まる。
+        final Object stamp = stampOf(path);
+        if (stamp != null && stamp.equals(verifiedStamps.get(hash))) {
+            touchForLru(path, hash);
+            return path;
         }
         MessageDigest digest = sha256();
         try (var in = Files.newInputStream(path)) {
@@ -216,14 +227,34 @@ public final class LocalAudioStore implements AutoCloseable {
             for (int n; (n = in.read(bytes)) >= 0;) digest.update(bytes, 0, n);
         }
         if (!HexFormat.of().formatHex(digest.digest()).equals(hash)) {
+            verifiedStamps.remove(hash);
             return discardCorruptCacheEntry(path, "Corrupt stored audio");
         }
+        touchForLru(path, hash);
+        return path;
+    }
+
+    /** 検算した時点のファイルの印 (サイズ・更新時刻・実体)。読めなければ null = 毎回検算する。 */
+    private static Object stampOf(Path path) {
+        try {
+            final var attrs = Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            return java.util.List.of(attrs.size(), attrs.lastModifiedTime(),
+                    String.valueOf(attrs.fileKey()));
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /** 検算済みの印を記録する。client cache では LRU のために更新時刻を進めてから記録する。 */
+    private void touchForLru(Path path, String hash) {
         if (recoverableCache) {
             // Use filesystem age as a small LRU signal. Failure to update it must not invalidate a hit.
             try { Files.setLastModifiedTime(path, java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis())); }
             catch (IOException ignored) { }
         }
-        return path;
+        final Object stamp = stampOf(path);
+        if (stamp == null) verifiedStamps.remove(hash); else verifiedStamps.put(hash, stamp);
     }
 
     public synchronized void cancel(UUID owner, UUID id) throws IOException {
