@@ -112,8 +112,9 @@ public class GoldenJukeboxMinecartItem extends Item {
             }
             final CompoundTag itemTag = stack.getTag();
             if (itemTag != null && itemTag.contains("EntityTag", Tag.TAG_COMPOUND)) {
-                EntityType.updateCustomEntityTag(level, context.getPlayer(), cart,
-                        itemTag.getCompound("EntityTag"));
+                // 1.20.1 の updateCustomEntityTag は item の root tag を受け、中の EntityTag を自分で読む。
+                // EntityTag の中身を渡すと何も読まれず、収納していた盤と設定が消える。
+                EntityType.updateCustomEntityTag(level, context.getPlayer(), cart, itemTag);
             }
             ^///?}
             if (!serverLevel.addFreshEntity(cart)) {
@@ -202,7 +203,7 @@ public class GoldenJukeboxMinecartItem extends Item {
             }
             final CompoundTag itemTag = stack.getTag();
             if (itemTag != null && itemTag.contains("EntityTag", Tag.TAG_COMPOUND)) {
-                EntityType.updateCustomEntityTag(level, null, cart, itemTag.getCompound("EntityTag"));
+                EntityType.updateCustomEntityTag(level, null, cart, itemTag);
             }
             ^///?}
             if (!level.addFreshEntity(cart)) {

@@ -191,6 +191,10 @@ public class MusicDiscMakerClient {
         event.registerBlockEntityRenderer(ModBlockEntities.BOOMBOX.get(), BoomboxBlockRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.DISC_PEDESTAL.get(), DiscPedestalRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.SPEAKER.get(), SpeakerBlockRenderer::new);
+        // 金ジューク付きトロッコ。entity の renderer が無いと視界に入った瞬間に client が落ちる
+        // (EntityRenderDispatcher は未登録型で null を返し、そのまま使う)。
+        event.registerEntityRenderer(com.kuronami.musicdiscmaker.register.ModEntities.GOLDEN_JUKEBOX_MINECART.get(),
+                com.kuronami.musicdiscmaker.client.render.GoldenJukeboxMinecartRenderer::new);
     }
 
     /**

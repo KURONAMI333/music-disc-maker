@@ -132,6 +132,10 @@ public final class GoldenCartClientPlayback {
         if (decision == PlaybackRequestGate.Decision.IGNORE) {
             return; // 同じ曲をロード中。ここで起こし直すと 1 秒ごとに永久リトライになる。
         }
+        if (finishedAheadOfServer(current, previousGeneration, identity.generation(), sourceKey, track,
+                payload.startOffsetMs())) {
+            return;
+        }
         if (BACKOFF.isExhausted(source, sourceKey)) {
             return; // 同じ曲で 2 回落ちている。keep-alive のたびに繋ぎ直すのをここで止める
         }
@@ -141,6 +145,23 @@ public final class GoldenCartClientPlayback {
             return;
         }
         playCustom(source, track, payload);
+    }
+
+    /** server の位置が曲の終わりからこの範囲なら、止まった同じ曲を鳴らし直さない。 */
+    private static final long NATURAL_END_WINDOW_MS = 10_000L;
+
+    /**
+     * client の音が曲末まで鳴り切ったが、server の tick 基準の位置 (MDM_DECISIONS D4) がまだ終端の
+     * 手前にいる状態か。TPS が 20 を割ると server は実時間より遅れるので、そのまま共通の判定
+     * ({@link PlaybackRequestGate}: 止まった再生は鳴らし直す) に任せると末尾を2回鳴らす。
+     * server が次の曲へ進めるか止めるまで待つ。終端から離れた位置での停止 (channel の喪失) は従来どおり鳴らし直す。
+     */
+    private static boolean finishedAheadOfServer(Playing current, Long previousGeneration,
+            long generation, String sourceKey, CustomTrackData track, long serverOffsetMs) {
+        return current != null && !current.vanilla() && current.instance().isVoiceStopped()
+                && previousGeneration != null && previousGeneration.longValue() == generation
+                && sourceKey.equals(current.key()) && !track.isEmpty() && !track.radio()
+                && track.durationMs() > 0L && serverOffsetMs >= track.durationMs() - NATURAL_END_WINDOW_MS;
     }
 
     /** vanilla / 他 MOD のレコード。同期で鳴らせるのでロード経路は持たない。 */

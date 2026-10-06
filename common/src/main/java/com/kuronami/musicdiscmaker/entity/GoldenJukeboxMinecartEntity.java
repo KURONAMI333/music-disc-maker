@@ -208,7 +208,10 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
             if (!this.isClientSideLevel()) {
                 final ItemStack insert = held.copy();
                 insert.setCount(1);
-                held.shrink(1);
+                // バニラのジュークボックスと同じく creative では手持ちを減らさない。
+                if (!player.getAbilities().instabuild) {
+                    held.shrink(1);
+                }
                 this.setItem(SLOT_MEDIA, insert);
             }
             return this.isClientSideLevel() ? InteractionResult.SUCCESS : InteractionResult.CONSUME;
@@ -299,7 +302,11 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
         stack.set(DataComponents.ENTITY_DATA,
                 TypedEntityData.of(ModEntities.GOLDEN_JUKEBOX_MINECART.get(), entityTag));
         //?} else {
-        /*stack.set(DataComponents.ENTITY_DATA, CustomData.of(entityTag));
+        /*// 1.21.1〜1.21.10 の ENTITY_DATA は id 付きの tag しか保存できない (CODEC_WITH_ID)。
+        // 無いと item の保存で例外になり、地面・チェスト・player data の書込みごと失敗する。
+        entityTag.putString("id", net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                .getKey(ModEntities.GOLDEN_JUKEBOX_MINECART.get()).toString());
+        stack.set(DataComponents.ENTITY_DATA, CustomData.of(entityTag));
         *///?}
         //?} else {
         /*if (this.hasCustomName()) {

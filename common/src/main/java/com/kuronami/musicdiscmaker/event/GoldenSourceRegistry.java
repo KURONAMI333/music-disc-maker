@@ -55,7 +55,7 @@ public final class GoldenSourceRegistry {
         if (id == null || actor == null) return;
         final Key key = key(level, id);
         final var owners = MOVING.computeIfAbsent(level.getServer(), ignored -> new java.util.ArrayList<>());
-        owners.removeIf(owner -> owner.actor().get() == null
+        owners.removeIf(owner -> isGone(owner)
                 || (owner.actor().get() == actor && !owner.key().equals(key)));
         if (owners.stream().noneMatch(owner -> owner.actor().get() == actor)) {
             owners.add(new MovingOwner(key, new java.lang.ref.WeakReference<>(actor)));
@@ -65,7 +65,7 @@ public final class GoldenSourceRegistry {
     public static void unregisterMoving(ServerLevel level, Object actor) {
         final var owners = MOVING.get(level.getServer());
         if (owners == null) return;
-        owners.removeIf(owner -> owner.actor().get() == null || owner.actor().get() == actor);
+        owners.removeIf(owner -> isGone(owner) || owner.actor().get() == actor);
         if (owners.isEmpty()) MOVING.remove(level.getServer());
     }
 
@@ -79,11 +79,23 @@ public final class GoldenSourceRegistry {
     private static int movingOwners(ServerLevel level, UUID id) {
         final var owners = MOVING.get(level.getServer());
         if (owners == null || id == null) return 0;
-        owners.removeIf(owner -> owner.actor().get() == null);
+        owners.removeIf(GoldenSourceRegistry::isGone);
         final Key key = key(level, id);
         final int count = (int) owners.stream().filter(owner -> owner.key().equals(key)).count();
         if (owners.isEmpty()) MOVING.remove(level.getServer());
         return count;
+    }
+
+    /**
+     * 回収済み、又は既に world から外れた entity の所有記録か。
+     *
+     * <p>chunk のアンロードと次元移動は {@code Entity#remove} を通らず {@code setRemoved} を直接呼ぶので、
+     * 弱参照が GC されるまで旧 entity の記録が残る。再読込した同じ ID の entity と「所有者2人」に
+     * 数えると CONFLICT になり、音源 ID の振り直しと再生の頭出しが起きる。
+     */
+    private static boolean isGone(MovingOwner owner) {
+        final Object actor = owner.actor().get();
+        return actor == null || actor instanceof net.minecraft.world.entity.Entity entity && entity.isRemoved();
     }
 
     private static Resolution withoutWorldSource(ServerLevel level, UUID id, int moving) {
