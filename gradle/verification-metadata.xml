@@ -11064,6 +11064,9 @@
          </artifact>
       </component>
       <component group="net.neoforged" name="neoforge" version="21.4.158">
+         <artifact name="neoforge-21.4.158-moddev-config.json">
+            <sha256 value="263b3b76d9a41b56a83f78591592974300c33be66b1fe31b27e2b9f20dcdf639" origin="Verified against NeoForged Maven repository checksum"/>
+         </artifact>
          <artifact name="neoforge-21.4.158-sources.jar">
             <sha256 value="ef2f4db82d4f881d6aeff494003c7762e4f9039209f38d68d2f18ff47ff0d167" origin="Verified against NeoForged Maven repository checksum"/>
          </artifact>

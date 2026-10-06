@@ -154,8 +154,6 @@ neoForge {
             gameDirectory.set(layout.projectDirectory.dir("run-gametest"))
             type.set("gameTestServer")
             systemProperty("musicdiscmaker.dev", lavaDevPath)
-            programArgument("--tests")
-            programArgument("music_disc_maker:*")
         }
         // production の依存ロード経路を踏む唯一の run。musicdiscmaker.dev を立てない。
         create("clientProd") {
