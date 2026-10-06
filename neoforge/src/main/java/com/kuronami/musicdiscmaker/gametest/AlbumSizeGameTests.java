@@ -223,7 +223,7 @@ public final class AlbumSizeGameTests {
     }
 
     /**
-     * 実Maker盤の1.21.1保存ではEitherHolder(key)が参照Holderへ正規化される。
+     * 実Maker盤の1.21.1〜1.21.4保存ではEitherHolder(key)が参照Holderへ正規化される。
      * 同じsong key/tooltipだけを同一化し、metadataと他の全componentは厳密matchesを維持する。
      * 同期codecは左右を保持するため、wireの厳密matchesはこの処理を使わない。
      */
@@ -236,7 +236,7 @@ public final class AlbumSizeGameTests {
                             && original.getHoverName().equals(persisted.getHoverName()),
                     fixture + " disc track/title changed during persistence");
         }
-        //? if <1.21.2 {
+        //? if <1.21.5 {
         /*final var oldPlayable = original.get(DataComponents.JUKEBOX_PLAYABLE);
         final var newPlayable = persisted.get(DataComponents.JUKEBOX_PLAYABLE);
         if (!java.util.Objects.equals(oldPlayable, newPlayable)) {
