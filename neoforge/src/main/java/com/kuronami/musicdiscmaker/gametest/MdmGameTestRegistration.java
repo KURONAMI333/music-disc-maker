@@ -67,6 +67,10 @@ public final class MdmGameTestRegistration {
                 RecipeAssemblyGameTests::albumRecipeAssemblesAndRejectsWrongGrid, empty, 100);
         register(event, "speaker_recipe_assembles_and_rejects_wrong_grid",
                 RecipeAssemblyGameTests::speakerRecipeAssemblesAndRejectsWrongGrid, empty, 100);
+        register(event, "recipe_every_crafting_recipe_loads",
+                RecipeAssemblyGameTests::everyCraftingRecipeLoads, empty, 100);
+        register(event, "recipe_golden_jukebox_minecart_assembles",
+                RecipeAssemblyGameTests::goldenJukeboxMinecartRecipeAssembles, empty, 100);
         register(event, "captured_album_keeps_selection_and_state",
                 GoldenPlaybackStateGameTests::capturedPlaybackKeepsSelectionAndDoesNotRegisterOrResumeStoppedMedia,
                 empty, 100);

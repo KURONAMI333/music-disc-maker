@@ -2,8 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "misc",
   "ingredients": [
-    { "item": "music_disc_maker:golden_jukebox" },
-    { "item": "minecraft:minecart" }
+    "music_disc_maker:golden_jukebox",
+    "minecraft:minecart"
   ],
   "result": {
     "id": "music_disc_maker:golden_jukebox_minecart",

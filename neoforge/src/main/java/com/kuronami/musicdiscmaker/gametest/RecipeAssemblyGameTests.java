@@ -80,6 +80,38 @@ public final class RecipeAssemblyGameTests {
         helper.succeed();
     }
 
+    /** 製品の全クラフトレシピが読み込まれていること。版で書式が違うので、1つでも旧/新書式が混ざると黙って欠ける。 */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void everyCraftingRecipeLoads(GameTestHelper helper) {
+        for (final String path : List.of("album", "album_dyeing", "blank_disc", "blank_disc_from_disc", "boombox",
+                "disc_dyeing_table", "disc_pedestal", "golden_jukebox", "golden_jukebox_minecart",
+                "music_disc_maker", "speaker")) {
+            recipe(helper, path);
+        }
+        helper.succeed();
+    }
+
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void goldenJukeboxMinecartRecipeAssembles(GameTestHelper helper) {
+        final CraftingRecipe recipe = recipe(helper, "golden_jukebox_minecart");
+        final CraftingInput correct = CraftingInput.of(2, 1, List.of(
+                new ItemStack(ModItems.GOLDEN_JUKEBOX.get()), stack(Items.MINECART)));
+        helper.assertTrue(recipe.matches(correct, helper.getLevel()), "金ジューク＋トロッコを受け入れなかった");
+        final ItemStack output = assemble(recipe, correct, helper);
+        helper.assertTrue(output.is(ModItems.GOLDEN_JUKEBOX_MINECART.get()) && output.getCount() == 1,
+                "金ジューク付きトロッコのレシピの出力が1台ではない: " + output);
+        helper.assertTrue(!recipe.matches(CraftingInput.of(2, 1, List.of(
+                        stack(Items.JUKEBOX), stack(Items.MINECART))), helper.getLevel()),
+                "通常のジュークボックスで金ジューク付きトロッコが作れた");
+        helper.succeed();
+    }
+
     private static CraftingRecipe recipe(GameTestHelper helper, String path) {
         //? if >=1.21.11 {
         final var id = ResourceKey.<net.minecraft.world.item.crafting.Recipe<?>>create(
