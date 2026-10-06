@@ -106,8 +106,8 @@ public class NetworkProtocolGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
-    /** ローカル音源のcache検証 CHECK/AVAILABLE を追加した開発版。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "16-local-audio-check-dev";
+    /** 3.1.0 公開版 (wire は 16-local-audio-check-dev と同じ)。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "16";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型

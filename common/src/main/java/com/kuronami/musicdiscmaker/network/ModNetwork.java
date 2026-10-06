@@ -52,7 +52,8 @@ public final class ModNetwork {
     // 15-cart-dev: 金ジューク付きトロッコの menu 操作 (control_golden_cart) と
     // 再生/停止/状態 (golden_cart_play/stop/state) を追加した開発版。
     // 16-local-audio-check-dev: cache hit後、world原本の存在を検証する CHECK/AVAILABLE を追加。
-    public static final String PROTOCOL_VERSION = "16-local-audio-check-dev";
+    // 16: 上記をまとめた 3.1.0 の公開版。不一致時の案内に出るので開発用の接尾辞を付けない。
+    public static final String PROTOCOL_VERSION = "16";
 
     private static final double MAX_REACH_SQR = 64.0;
 
