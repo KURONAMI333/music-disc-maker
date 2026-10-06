@@ -5,7 +5,7 @@ plugins {
 }
 
 val mcVersion = "26.2"
-val mcVersionRange = "[26.2,)"
+val mcVersionRange = "[26.2, 26.3)"
 val neoforgeVersion = "26.2.0.28-beta"
 val neoforgeLoaderRange = "[1,)"
 val javaVersion = 25
