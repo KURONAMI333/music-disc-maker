@@ -58,7 +58,11 @@ public record CustomTrackData(
         sourceKind = "local".equals(sourceKind) ? "local" : "url";
         localHash = localHash == null ? "" : localHash;
         if ("local".equals(sourceKind) && !localHash.matches("[a-f0-9]{64}")) {
-            throw new IllegalArgumentException("Invalid local audio reference");
+            // 保存値・creative の stack・通信のどこから来ても例外にしない (1.20.1 は NBT を
+            // そのまま読むので、投げると server tick ごと落ちる)。参照の無い空ディスクとして扱う。
+            sourceKind = "url";
+            localHash = "";
+            url = "";
         }
         if ("local".equals(sourceKind)) { url = ""; radio = false; thumbnailUrl = ""; }
         else localHash = "";
