@@ -20,9 +20,9 @@ public final class CuriosBoomboxKey {
 
     // B は vanilla の既定 KeyMapping と重ならず、ブームボックスの頭文字でもある。
     //? if >=26.3 {
-    private static final KeyMapping MAPPING = new KeyMapping(TRANSLATION_KEY,
+    /*private static final KeyMapping MAPPING = new KeyMapping(TRANSLATION_KEY,
             InputConstants.KEY_B, KeyMapping.Category.INVENTORY);
-    //?} elif >=1.21.11 {
+    *///?} elif >=1.21.11 {
     private static final KeyMapping MAPPING = new KeyMapping(TRANSLATION_KEY,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KeyMapping.Category.INVENTORY);
     //?} else {

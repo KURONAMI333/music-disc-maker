@@ -12,15 +12,15 @@ import com.kuronami.musicdiscmaker.platform.Services;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 //? if >=26.3 {
-import java.nio.ByteBuffer;
+/*import java.nio.ByteBuffer;
 import org.lwjgl.sdl.SDLDialog;
 import org.lwjgl.sdl.SDL_DialogFileCallback;
 import org.lwjgl.sdl.SDL_DialogFileFilter;
 import org.lwjgl.system.MemoryUtil;
-//?} else {
-/*import org.lwjgl.system.MemoryStack;
+*///?} else {
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
-*///?}
+//?}
 import java.io.*;
 import java.nio.file.*;
 import java.security.MessageDigest;
@@ -59,7 +59,7 @@ public final class LocalAudioClient {
     public static boolean hasStatus() { return SESSION.upload != null || !"select".equals(status); }
     /** OS選択は画面スレッド、ファイル検査・変換は専用ワーカー。選択後の共有曲名を確認してから開始する。 */
     //? if >=26.3 {
-    private static final ConcurrentMap<Long, SdlPicker> PICKERS = new ConcurrentHashMap<>();
+    /*private static final ConcurrentMap<Long, SdlPicker> PICKERS = new ConcurrentHashMap<>();
     private static final java.util.concurrent.atomic.AtomicLong NEXT_PICKER_ID = new java.util.concurrent.atomic.AtomicLong();
     // One native trampoline for the client lifetime: never free a callback while SDL invokes it.
     private static final SDL_DialogFileCallback PICKER_CALLBACK =
@@ -86,7 +86,7 @@ public final class LocalAudioClient {
         }
     }
 
-    /** SDL3の非同期picker。filterはcallback到達まで保持し、結果はmain threadで検証する。 */
+    /^* SDL3の非同期picker。filterはcallback到達まで保持し、結果はmain threadで検証する。 ^/
     private static final class SdlPicker {
         private final MusicDiscMakerMenu menu;
         private final long id;
@@ -160,8 +160,8 @@ public final class LocalAudioClient {
             }
         }
     }
-    //?} else {
-    /*public static void select(MusicDiscMakerMenu menu) {
+    *///?} else {
+    public static void select(MusicDiscMakerMenu menu) {
         if (SESSION.upload != null) return;
         String selected;
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -174,7 +174,7 @@ public final class LocalAudioClient {
         }
         if (selected != null) startSelected(menu, selected);
     }
-    *///?}
+    //?}
 
     private static void startSelected(MusicDiscMakerMenu menu, String selected) {
         long generation = ++operation;
@@ -297,12 +297,12 @@ public final class LocalAudioClient {
     /** この画面が持つ転送だけを止める。操作なし・別 menu の転送・連打は何もしない。 */
     public static void cancel(MusicDiscMakerMenu menu) {
         //? if >=26.3 {
-        if (activePicker != null && activePicker.menu == menu) {
+        /*if (activePicker != null && activePicker.menu == menu) {
             activePicker.cancelled = true;
             pickerEpoch++;
             status = "select";
         }
-        //?}
+        *///?}
         Upload u = SESSION.upload;
         if (u == null) { status = "select"; return; }
         if (u.menu != menu) return;
@@ -455,9 +455,9 @@ public final class LocalAudioClient {
     }
     public static void disconnect() {
         //? if >=26.3 {
-        if (activePicker != null) activePicker.cancelled = true;
+        /*if (activePicker != null) activePicker.cancelled = true;
         pickerEpoch++;
-        //?}
+        *///?}
         List<Receive> stale = SESSION.disconnectReceives();
         Upload u = SESSION.upload; SESSION.upload = null; if (u != null) cleanup(u);
         for (Receive r : stale) { r.future.completeExceptionally(new IOException("Disconnected")); IO.execute(() -> abort(r)); }

@@ -196,10 +196,10 @@ public class DiscPedestalBlock extends Block implements EntityBlock {
                 }
                 if (!player.addItem(previous)) {
                     //? if >=26.3 {
-player.drop(previous, false, net.minecraft.util.Prediction.SERVER_ONLY);
-//?} else {
-/*player.drop(previous, false);
-*///?}
+/*player.drop(previous, false, net.minecraft.util.Prediction.SERVER_ONLY);
+*///?} else {
+player.drop(previous, false);
+//?}
                 }
                 playPedestalSound(state, level, pos, 0.7F);
             }

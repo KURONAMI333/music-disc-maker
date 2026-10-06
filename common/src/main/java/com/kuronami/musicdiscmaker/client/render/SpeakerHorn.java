@@ -32,16 +32,16 @@ final class SpeakerHorn {
         };
         poseStack.translate(0.5F, 0.5F, 0.5F);
         //? if >=26.3 {
-        poseStack.rotate(Axis.YP.rotationDegrees(180.0F - facing.toYRot()));
-        //?} else {
-        /*poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - facing.toYRot()));
-        *///?}
+        /*poseStack.rotate(Axis.YP.rotationDegrees(180.0F - facing.toYRot()));
+        *///?} else {
+        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - facing.toYRot()));
+        //?}
         if (face == AttachFace.CEILING) {
             //? if >=26.3 {
-            poseStack.rotate(Axis.ZP.rotationDegrees(180.0F));
-            //?} else {
-            /*poseStack.mulPose(Axis.ZP.rotationDegrees(180.0F));
-            *///?}
+            /*poseStack.rotate(Axis.ZP.rotationDegrees(180.0F));
+            *///?} else {
+            poseStack.mulPose(Axis.ZP.rotationDegrees(180.0F));
+            //?}
             turnYaw = -turnYaw;
         }
         poseStack.translate(-0.5F, -0.5F, -0.5F);
@@ -59,10 +59,10 @@ final class SpeakerHorn {
                 ? pose.speakerWallPivotZ() : pose.speakerFloorPivotZ();
         poseStack.translate(pivotX / 16.0F, 0.0F, pivotZ / 16.0F);
         //? if >=26.3 {
-        poseStack.rotate(Axis.YP.rotationDegrees(turnYaw));
-        //?} else {
-        /*poseStack.mulPose(Axis.YP.rotationDegrees(turnYaw));
-        *///?}
+        /*poseStack.rotate(Axis.YP.rotationDegrees(turnYaw));
+        *///?} else {
+        poseStack.mulPose(Axis.YP.rotationDegrees(turnYaw));
+        //?}
         poseStack.translate(-pivotX / 16.0F, 0.0F, -pivotZ / 16.0F);
     }
 }

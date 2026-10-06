@@ -605,12 +605,12 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
 
     @Override
     //? if >=26.3 {
-public WeighedSoundEvents getOrResolve(SoundManager handler) {
+/*public WeighedSoundEvents getOrResolve(SoundManager handler) {
         WeighedSoundEvents result = super.getOrResolve(handler);
-//?} else {
-/*public WeighedSoundEvents resolve(SoundManager handler) {
+*///?} else {
+public WeighedSoundEvents resolve(SoundManager handler) {
         WeighedSoundEvents result = super.resolve(handler);
-*///?}
+//?}
         if (this.sound != null && this.sound != SoundManager.EMPTY_SOUND) {
             int range = effectiveRange();
             this.sound = new Sound(

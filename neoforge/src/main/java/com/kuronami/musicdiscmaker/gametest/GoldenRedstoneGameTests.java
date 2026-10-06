@@ -26,10 +26,10 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.HopperBlock;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 //? if >=26.3 {
-import net.minecraft.world.level.block.RedstoneWireBlock;
-//?} else {
-/*import net.minecraft.world.level.block.RedStoneWireBlock;
-*///?}
+/*import net.minecraft.world.level.block.RedstoneWireBlock;
+*///?} else {
+import net.minecraft.world.level.block.RedStoneWireBlock;
+//?}
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 //? if >=26.1 {
@@ -468,10 +468,10 @@ public final class GoldenRedstoneGameTests {
         helper.assertTrue(golden.getComparatorOutput() == expected,
                 label + "のcomparator値が" + expected + "でない");
         //? if >=26.3 {
-        helper.assertTrue(helper.getBlockState(wirePos).getValue(RedstoneWireBlock.POWER) == expected,
-        //?} else {
-        /*helper.assertTrue(helper.getBlockState(wirePos).getValue(RedStoneWireBlock.POWER) == expected,
-        *///?}
+        /*helper.assertTrue(helper.getBlockState(wirePos).getValue(RedstoneWireBlock.POWER) == expected,
+        *///?} else {
+        helper.assertTrue(helper.getBlockState(wirePos).getValue(RedStoneWireBlock.POWER) == expected,
+        //?}
                 "物理comparatorが" + label + "の値" + expected + "を出さない");
     }
 

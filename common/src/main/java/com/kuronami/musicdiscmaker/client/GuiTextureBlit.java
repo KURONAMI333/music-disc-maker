@@ -1,13 +1,13 @@
 package com.kuronami.musicdiscmaker.client;
 
 //? if <1.21.11 {
-import net.minecraft.client.gui.GuiGraphics;
+/*import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 //? if >=1.21.4 {
 import net.minecraft.client.renderer.RenderType;
 //?}
 
-/** GUI texture blit の 1.21.4 引数追加を吸収する。 */
+/^* GUI texture blit の 1.21.4 引数追加を吸収する。 ^/
 final class GuiTextureBlit {
     private GuiTextureBlit() { }
 
@@ -17,9 +17,9 @@ final class GuiTextureBlit {
         graphics.blit(RenderType::guiTextured, texture, x, y, u, v,
                 width, height, textureWidth, textureHeight);
         //?} else {
-        /*graphics.blit(texture, x, y, u, v,
+        /^graphics.blit(texture, x, y, u, v,
                 width, height, textureWidth, textureHeight);
-        *///?}
+        ^///?}
     }
 }
-//?}
+*///?}

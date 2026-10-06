@@ -12,9 +12,9 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.core.BlockPos;
 //? if <1.21.11 {
-import net.minecraft.nbt.CompoundTag;
+/*import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
-//?}
+*///?}
 import net.minecraft.server.level.ServerLevel;
 //? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
@@ -176,7 +176,7 @@ public final class ActiveDiscSaveData extends SavedData {
      * 受け取るのでこの橋は不要 (存在しない)。
      */
     //? if <1.21.11 {
-    private static final class CodecBridge {
+    /*private static final class CodecBridge {
         private CodecBridge() {
         }
 
@@ -189,5 +189,5 @@ public final class ActiveDiscSaveData extends SavedData {
                     .result().map(t -> (CompoundTag) t).orElse(new CompoundTag());
         }
     }
-    //?}
+    *///?}
 }

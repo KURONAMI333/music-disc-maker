@@ -2,11 +2,11 @@ package com.kuronami.musicdiscmaker.gametest;
 
 //? if >=1.21.2 {
 //? if <1.21.11 {
-import com.kuronami.musicdiscmaker.component.SilentSongs;
+/*import com.kuronami.musicdiscmaker.component.SilentSongs;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.EitherHolder;
 import net.minecraft.world.item.JukeboxPlayable;
-//?}
+*///?}
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.event.ActiveDiscRegistry;
 import com.kuronami.musicdiscmaker.event.ActiveDiscSaveData;

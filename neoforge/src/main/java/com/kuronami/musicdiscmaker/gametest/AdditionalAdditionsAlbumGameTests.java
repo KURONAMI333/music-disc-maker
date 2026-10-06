@@ -130,10 +130,10 @@ public class AdditionalAdditionsAlbumGameTests {
                 return null;
             }
             //? if >=26.3 {
-            return stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).itemCopies().toList();
-            //?} else {
-            /*return stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).itemCopyStream().toList();
-            *///?}
+            /*return stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).itemCopies().toList();
+            *///?} else {
+            return stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).itemCopyStream().toList();
+            //?}
         }
     }
 

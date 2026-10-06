@@ -238,10 +238,10 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         }
         inventory.setChanged();
         //? if >=26.3 {
-        if (!legacy.isEmpty() && player.drop(legacy.copy(), false, net.minecraft.util.Prediction.SERVER_ONLY) == null) {
-        //?} else {
-        /*if (!legacy.isEmpty() && player.drop(legacy.copy(), false) == null) {
-        *///?}
+        /*if (!legacy.isEmpty() && player.drop(legacy.copy(), false, net.minecraft.util.Prediction.SERVER_ONLY) == null) {
+        *///?} else {
+        if (!legacy.isEmpty() && player.drop(legacy.copy(), false) == null) {
+        //?}
             // 他MODがdropを拒否した場合は、次の回収まで元の保存領域へ戻す。
             items.set(LEGACY_UPGRADE, legacy);
         }
