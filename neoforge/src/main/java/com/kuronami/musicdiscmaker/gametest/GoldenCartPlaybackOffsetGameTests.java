@@ -113,6 +113,42 @@ public final class GoldenCartPlaybackOffsetGameTests {
         });
     }
 
+    /**
+     * 盤を積んだまま壊したトロッコの item が、保存形式へ書けて同じ内容で読み戻せること。
+     * 1.21.1〜1.21.10 の ENTITY_DATA は id の無い tag を保存時に拒否するので、ここが例外になると
+     * 地面・チェスト・player data の保存ごと失敗する (通信だけでは検査されない)。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    *///?}
+    public static void dropStackSavesAndReloadsWithItsMedia(GameTestHelper helper) {
+        final var level = helper.getLevel();
+        final BlockPos cartPos = helper.absolutePos(new BlockPos(2, 1, 2));
+        final GoldenJukeboxMinecartEntity cart = new GoldenJukeboxMinecartEntity(
+                level, cartPos.getX() + 0.5, cartPos.getY(), cartPos.getZ() + 0.5);
+        helper.assertTrue(level.addFreshEntity(cart), "golden jukebox minecart was not added");
+        cart.getItemStacks().set(GoldenJukeboxMinecartEntity.SLOT_MEDIA, disc(helper));
+        final ItemStack drop;
+        try {
+            final var method = GoldenJukeboxMinecartEntity.class.getDeclaredMethod("createDropStack");
+            method.setAccessible(true);
+            drop = (ItemStack) method.invoke(cart);
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("createDropStack is not reachable", error);
+        } finally {
+            cart.discard();
+        }
+        helper.assertTrue(drop.has(DataComponents.ENTITY_DATA), "cart drop lost its entity data");
+        final var ops = level.registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+        final var saved = ItemStack.CODEC.encodeStart(ops, drop);
+        helper.assertTrue(saved.result().isPresent(), "cart drop could not be saved: " + saved);
+        final var restored = ItemStack.CODEC.parse(ops, saved.result().orElseThrow());
+        helper.assertTrue(restored.result().isPresent() && ItemStack.matches(drop, restored.result().orElseThrow()),
+                "cart drop did not reload with the same contents: " + restored);
+        helper.succeed();
+    }
+
     private static ItemStack disc(GameTestHelper helper) {
         final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
         disc.set(ModDataComponents.CUSTOM_TRACK.get(), new CustomTrackData(

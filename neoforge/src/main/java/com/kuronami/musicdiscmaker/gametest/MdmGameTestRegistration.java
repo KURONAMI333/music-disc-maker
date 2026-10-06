@@ -533,6 +533,8 @@ public final class MdmGameTestRegistration {
                 GoldenRedstoneGameTests::vanillaJukeboxSongNaturallyEndsAndExtracts, empty, 520);
         register(event, "golden_cart_playback_offset_pause_resume_seek_natural_end",
                 GoldenCartPlaybackOffsetGameTests::playingSeekAndPauseResumeUseThePausedOffsetAsBase, empty, 100);
+        register(event, "golden_cart_drop_stack_saves_and_reloads_with_its_media",
+                GoldenCartPlaybackOffsetGameTests::dropStackSavesAndReloadsWithItsMedia, empty, 40);
         register(event, "speaker_reload_reindexes_and_defaults_volume",
                 SpeakerCoreGameTests::reloadReindexesLinkAndDefaultsMissingVolume, empty, 100);
         // local MP3 の転送境界は Services.NETWORK を差し替えて観測するので、他テストと送信経路を
