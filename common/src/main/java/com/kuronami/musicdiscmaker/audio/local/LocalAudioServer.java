@@ -134,7 +134,10 @@ public final class LocalAudioServer {
     }
     private static void complete(State s, Upload u, Path file) throws IOException {
         var info = LoaderHolder.get().resolveTrustedFile(file);
-        if (info == null || info.durationMs() <= 0) throw new IOException("Invalid audio file");
+        // 新規の upload は finish の検査で弾かれる。ここは既に world store にあった原本 (3.0.x 以前の
+        // 保存を含む) を盤にする経路のための同じ上限。
+        if (info == null || info.durationMs() <= 0 || info.durationMs() > MAX_DURATION_MS)
+            throw new IOException("Invalid audio file");
         String title = info.title();
         // decoderの既定ファイル名（保存ハッシュ）は曲名として表示しない。
         if (title == null || title.isBlank() || title.equals(file.getFileName().toString())

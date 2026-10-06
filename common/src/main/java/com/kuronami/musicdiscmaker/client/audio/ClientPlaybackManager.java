@@ -528,8 +528,11 @@ public final class ClientPlaybackManager {
                             : com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSyncedForPlayback(
                                     immutableTrack, openOffsetMs, requestedAtMs, immutableExtensionId,
                                     immutableSourceContext, immutableSelection, providerFaultSink,
+                                    // ローカル音源・拡張なしでは session id が null (select が none)。
+                                    // その時は再生の生存だけを見る (共有音源の取得待ちの打ち切り判定にも使われる)。
                                     () -> sessions.isLive(immutableKey, immutableToken)
-                                            && immutableExtensionId.equals(extensionIds.get(immutableKey)));
+                                            && (immutableExtensionId == null
+                                                    || immutableExtensionId.equals(extensionIds.get(immutableKey))));
                     source = result.source();
                     failure = result.isOk() ? null
                             : PlaybackFailure.ofReason(result.reason(), result.detail());
