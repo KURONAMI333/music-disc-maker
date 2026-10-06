@@ -112,7 +112,7 @@ tasks.named<ProcessResources>("processResources") {
         "version" to modVersion,
         "group" to project.group,
         "minecraft_version" to mcVersion,
-        "minecraft_version_range" to "[1.20.1, 1.22)",
+        "minecraft_version_range" to "[1.20.1, 1.20.2)",
         "fabric_version" to fabricApiVersion,
         "fabric_loader_version" to fabricLoaderVersion,
         "mod_name" to rootProject.property("mod_name"),

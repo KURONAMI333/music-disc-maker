@@ -6,7 +6,7 @@ plugins {
 }
 
 val mcVersion = "1.20.1"
-val mcVersionRange = "[1.20.1, 1.22)"
+val mcVersionRange = "[1.20.1, 1.20.2)"
 val forgeVersion = "47.2.30"
 val forgeLoaderRange = "[47,)"
 val javaVersion = 17
