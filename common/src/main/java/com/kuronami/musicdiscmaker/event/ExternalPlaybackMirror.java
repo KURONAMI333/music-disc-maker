@@ -75,13 +75,13 @@ public final class ExternalPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
-                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
-                    ActiveDiscRegistry.markExternal(dim, key);
+                    // 鳴っている印を毎 tick 更新する (chunk 再送の掃除はこれが新しい間だけ消さない)。
+                    ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
-                ActiveDiscRegistry.markExternal(dim, key);
+                ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                 // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
                 Services.NETWORK.sendToPlayersTrackingChunk(level, ChunkPos.containing(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
@@ -173,13 +173,13 @@ public final class ExternalPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
-                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
-                    ActiveDiscRegistry.markExternal(dim, key);
+                    // 鳴っている印を毎 tick 更新する (chunk 再送の掃除はこれが新しい間だけ消さない)。
+                    ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
-                ActiveDiscRegistry.markExternal(dim, key);
+                ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                 // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
                 Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
@@ -271,13 +271,13 @@ public final class ExternalPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
-                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
-                    ActiveDiscRegistry.markExternal(dim, key);
+                    // 鳴っている印を毎 tick 更新する (chunk 再送の掃除はこれが新しい間だけ消さない)。
+                    ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
-                ActiveDiscRegistry.markExternal(dim, key);
+                ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                 // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
                 Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
@@ -340,13 +340,13 @@ public final class ExternalPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
-                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
-                    ActiveDiscRegistry.markExternal(dim, key);
+                    // 鳴っている印を毎 tick 更新する (chunk 再送の掃除はこれが新しい間だけ消さない)。
+                    ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
-                ActiveDiscRegistry.markExternal(dim, key);
+                ActiveDiscRegistry.markExternal(dim, key, level.getGameTime());
                 Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
                 return;

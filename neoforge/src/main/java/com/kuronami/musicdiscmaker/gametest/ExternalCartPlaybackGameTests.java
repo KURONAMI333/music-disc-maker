@@ -168,8 +168,6 @@ public final class ExternalCartPlaybackGameTests {
         return net.of(GoldenCartStopPayload.class).stream()
                 .map(s -> (GoldenCartStopPayload) s.payload())
                 .filter(p -> p.entityId() == cart.getId())
-                .map(GoldenCartStopPayload::identity)
-                .distinct()
                 .count();
     }
 }

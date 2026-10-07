@@ -345,6 +345,9 @@ public final class MdmGameTestRegistration {
         register(event, "removed_external_source_is_forgotten_on_chunk_resend",
                 ChunkResendRestartGameTests::removedExternalSourceIsForgottenOnChunkResend,
                 chunkResendPayloadEnv, 200);
+        register(event, "silent_external_source_is_forgotten_on_chunk_resend",
+                ChunkResendRestartGameTests::silentExternalSourceIsForgottenOnChunkResend,
+                chunkResendPayloadEnv, 200);
         register(event, "resolve_failed_survives_save_and_load",
                 FailurePersistenceGameTests::resolveFailedSurvivesSaveAndLoad, empty, 200);
         register(event, "legacy_save_without_failure_tags_defaults_to_no_failure",

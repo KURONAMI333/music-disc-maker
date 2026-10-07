@@ -419,6 +419,8 @@ public class ChunkResendRestartGameTests {
         final long elapsedMs = 30_000L;
         final long origin = System.currentTimeMillis() - elapsedMs;
         ActiveDiscRegistry.start(dim, pos, track, origin);
+        // 音源はこの tick も鳴っている (start で外れた印を mirror と同じく付け直す)。
+        ActiveDiscRegistry.markExternal(dim, pos, level.getGameTime());
 
         withCapturedNetwork(net -> {
             final ServerPlayer player = helper.makeMockServerPlayerInLevel();
@@ -474,6 +476,39 @@ public class ChunkResendRestartGameTests {
                 helper.assertTrue(playsFor(net, pos).isEmpty(), "撤去済みの外部音源が chunk に入った player へ送られている");
                 helper.assertTrue(ActiveDiscRegistry.current(dim, pos) == null,
                         "撤去済みの外部音源の再生を chunk 再送の掃除が忘れていない");
+            } finally {
+                player.discard();
+            }
+        });
+        helper.succeed();
+    }
+
+    /**
+     * 外部音源が mirror を止めた (別のブロックに置き換わった・アルバムがコマンドで抜かれた) 位置は、
+     * ブロック実体が残っていても chunk 再送の掃除が忘れること。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = NET_BATCH)
+    *///?}
+    public static void silentExternalSourceIsForgottenOnChunkResend(GameTestHelper helper) {
+        final BlockPos rel = new BlockPos(4, 1, 4);
+        helper.setBlock(rel, Blocks.CHEST);
+        final BlockPos pos = helper.absolutePos(rel);
+        final ServerLevel level = helper.getLevel();
+        final ResourceKey<Level> dim = level.dimension();
+
+        ExternalPlaybackMirror.mirror(level, pos, customDisc(DURATION_MS));
+        // 最後に mirror されたのが印の有効期間より前 = 音源はもう鳴っていない。
+        ActiveDiscRegistry.markExternal(dim, pos, level.getGameTime() - ActiveDiscRegistry.EXTERNAL_LIVE_TICKS - 1L);
+
+        withCapturedNetwork(net -> {
+            final ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            try {
+                JukeboxHandler.onChunkWatch(new ChunkWatchEvent.Watch(player, level.getChunkAt(pos), level));
+                helper.assertTrue(playsFor(net, pos).isEmpty(), "鳴らなくなった外部音源が chunk に入った player へ送られている");
+                helper.assertTrue(ActiveDiscRegistry.current(dim, pos) == null,
+                        "鳴らなくなった外部音源の再生を chunk 再送の掃除が忘れていない");
             } finally {
                 player.discard();
             }

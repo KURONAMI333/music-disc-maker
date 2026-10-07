@@ -2,10 +2,8 @@ package com.kuronami.musicdiscmaker.event;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 
@@ -48,12 +46,16 @@ public final class ActiveDiscRegistry {
     private static final Map<ResourceKey<Level>, Map<BlockPos, Playing>> BY_DIM = new HashMap<>();
 
     /**
-     * {@link ExternalPlaybackMirror} が張った再生 (蓄音機・アルバム) の座標。外部音源はバニラ jukebox の
-     * custom disc では生死を判定できないので、chunk 再送の掃除はこの印を見て、ブロックが残っている間は
-     * 消さない (停止は外部音源自身の tick が mirror で送る)。消すと次の tick の mirror が同じトラックを
-     * 新規扱いし、chunk 内の全員へ offset 0 で送り直す。
+     * {@link ExternalPlaybackMirror} が張った再生 (蓄音機・アルバム) の座標と、音源が最後に mirror した
+     * game time。外部音源はバニラ jukebox の custom disc では生死を判定できないので、chunk 再送の掃除は
+     * この印が新しい間 ({@link #EXTERNAL_LIVE_TICKS} 以内) だけ消さない。消すと次の tick の mirror が同じ
+     * トラックを新規扱いし、chunk 内の全員へ offset 0 で送り直す。鳴っている外部音源は毎 tick mirror する
+     * ので、印が古いのは音源が止まった・別のブロックに置き換わったということ。
      */
-    private static final Map<ResourceKey<Level>, Set<BlockPos>> EXTERNAL = new HashMap<>();
+    private static final Map<ResourceKey<Level>, Map<BlockPos, Long>> EXTERNAL = new HashMap<>();
+
+    /** 外部音源の印を「まだ鳴っている」とみなす長さ (tick)。 */
+    public static final long EXTERNAL_LIVE_TICKS = 40L;
 
     private ActiveDiscRegistry() {
     }
@@ -64,6 +66,7 @@ public final class ActiveDiscRegistry {
         }
         final BlockPos key = pos.immutable();
         BY_DIM.computeIfAbsent(dim, d -> new HashMap<>()).put(key, new Playing(key, track, nowMillis));
+        clearExternal(dim, key); // 外部音源の再生なら呼び出し側が直後に印を付け直す
         ActiveDiscPersistence.onStart(dim, key, track, nowMillis);
     }
 
@@ -97,13 +100,7 @@ public final class ActiveDiscRegistry {
                 BY_DIM.remove(dim);
             }
         }
-        final Set<BlockPos> external = EXTERNAL.get(dim);
-        if (external != null) {
-            external.remove(pos);
-            if (external.isEmpty()) {
-                EXTERNAL.remove(dim);
-            }
-        }
+        clearExternal(dim, pos);
         ActiveDiscPersistence.onStop(dim, pos.immutable());
     }
 
@@ -189,15 +186,29 @@ public final class ActiveDiscRegistry {
     }
 
     *///?}
-    /** その座標の再生を外部音源 ({@link ExternalPlaybackMirror}) のものとして印を付ける。 */
-    public static void markExternal(ResourceKey<Level> dim, BlockPos pos) {
-        EXTERNAL.computeIfAbsent(dim, d -> new HashSet<>()).add(pos.immutable());
+    /**
+     * その座標の再生を外部音源 ({@link ExternalPlaybackMirror}) のものとして、{@code gameTime} に
+     * 鳴っていた印を付ける。音源は鳴っている間これを毎 tick 呼ぶ。
+     */
+    public static void markExternal(ResourceKey<Level> dim, BlockPos pos, long gameTime) {
+        EXTERNAL.computeIfAbsent(dim, d -> new HashMap<>()).put(pos.immutable(), gameTime);
     }
 
-    /** その座標の再生が外部音源 ({@link ExternalPlaybackMirror}) のものか。 */
-    public static boolean isExternal(ResourceKey<Level> dim, BlockPos pos) {
-        final Set<BlockPos> external = EXTERNAL.get(dim);
-        return external != null && external.contains(pos);
+    /** その座標の再生が外部音源のもので、{@code gameTime} の時点でまだ鳴っているか。 */
+    public static boolean isLiveExternal(ResourceKey<Level> dim, BlockPos pos, long gameTime) {
+        final Map<BlockPos, Long> external = EXTERNAL.get(dim);
+        final Long last = external == null ? null : external.get(pos);
+        return last != null && gameTime - last <= EXTERNAL_LIVE_TICKS;
+    }
+
+    private static void clearExternal(ResourceKey<Level> dim, BlockPos pos) {
+        final Map<BlockPos, Long> external = EXTERNAL.get(dim);
+        if (external != null) {
+            external.remove(pos);
+            if (external.isEmpty()) {
+                EXTERNAL.remove(dim);
+            }
+        }
     }
 
     public static void clear() {

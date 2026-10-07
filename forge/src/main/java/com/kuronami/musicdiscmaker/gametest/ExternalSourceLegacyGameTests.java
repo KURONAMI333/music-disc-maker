@@ -69,14 +69,14 @@ public final class ExternalSourceLegacyGameTests {
             ExternalPlaybackMirror.mirror(level, pos, disc);
             ExternalPlaybackMirror.mirror(level, pos, disc);
             helper.assertTrue(ActiveDiscRegistry.current(dim, pos) != null, "外部音源の再生が registry に入っていない");
-            helper.assertTrue(ActiveDiscRegistry.isExternal(dim, pos), "外部音源の再生に印が付いていない");
+            helper.assertTrue(ActiveDiscRegistry.isLiveExternal(dim, pos, level.getGameTime()), "外部音源の再生に印が付いていない");
             helper.assertTrue(net.playsFor(pos).size() == 1,
                     "同じトラックの継続で再生 payload を送り直している (" + net.playsFor(pos).size() + " 通)");
 
             // バニラの盤に替わった (MDM ストリーム対象なし) → 止める。
             ExternalPlaybackMirror.mirror(level, pos, new ItemStack(Items.MUSIC_DISC_13));
             helper.assertTrue(ActiveDiscRegistry.current(dim, pos) == null, "MDM 以外の盤に替わっても registry が残っている");
-            helper.assertTrue(!ActiveDiscRegistry.isExternal(dim, pos), "止めた後も外部音源の印が残っている");
+            helper.assertTrue(!ActiveDiscRegistry.isLiveExternal(dim, pos, level.getGameTime()), "止めた後も外部音源の印が残っている");
             helper.assertTrue(net.stopsFor(pos) == 1, "停止 payload が 1 通送られていない (" + net.stopsFor(pos) + " 通)");
 
             // 鳴らしていない座標への null は何も送らない (蓄音機は停止中も毎 tick stopPlaying を通る)。
@@ -103,6 +103,8 @@ public final class ExternalSourceLegacyGameTests {
         final long elapsedMs = 30_000L;
         final long origin = System.currentTimeMillis() - elapsedMs;
         ActiveDiscRegistry.start(dim, pos, CustomMusicDiscItem.getTrack(disc), origin);
+        // 音源はこの tick も鳴っている (start で外れた印を mirror と同じく付け直す)。
+        ActiveDiscRegistry.markExternal(dim, pos, level.getGameTime());
 
         final ServerPlayer player = new ServerPlayer(level.getServer(), level,
                 new GameProfile(UUID.randomUUID(), "external-late-joiner"));
@@ -152,6 +154,34 @@ public final class ExternalSourceLegacyGameTests {
             helper.assertTrue(net.playsFor(pos).isEmpty(), "撤去済みの外部音源が chunk に入った player へ送られている");
             helper.assertTrue(ActiveDiscRegistry.current(dim, pos) == null,
                     "撤去済みの外部音源の再生を chunk 再送の掃除が忘れていない");
+        } finally {
+            Services.swapNetwork(previous);
+            player.discard();
+        }
+        helper.succeed();
+    }
+
+    /** mirror が止まった (別のブロックに置き換わった) 外部音源は、ブロック実体が残っていても忘れること。 */
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void silentExternalSourceIsForgottenOnChunkResend(GameTestHelper helper) {
+        final ServerLevel level = helper.getLevel();
+        final BlockPos rel = new BlockPos(6, 1, 1);
+        helper.setBlock(rel, Blocks.CHEST);
+        final BlockPos pos = helper.absolutePos(rel);
+        final ResourceKey<Level> dim = level.dimension();
+
+        ExternalPlaybackMirror.mirror(level, pos, customDisc("https://example.invalid/external-silent"));
+        ActiveDiscRegistry.markExternal(dim, pos, level.getGameTime() - ActiveDiscRegistry.EXTERNAL_LIVE_TICKS - 1L);
+
+        final ServerPlayer player = new ServerPlayer(level.getServer(), level,
+                new GameProfile(UUID.randomUUID(), "external-silent-joiner"));
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            ForgeJukeboxHandler.onChunkWatch(new ChunkWatchEvent.Watch(player, level.getChunkAt(pos), level));
+            helper.assertTrue(net.playsFor(pos).isEmpty(), "鳴らなくなった外部音源が chunk に入った player へ送られている");
+            helper.assertTrue(ActiveDiscRegistry.current(dim, pos) == null,
+                    "鳴らなくなった外部音源の再生を chunk 再送の掃除が忘れていない");
         } finally {
             Services.swapNetwork(previous);
             player.discard();
