@@ -13,6 +13,14 @@
 - Custom music discs play in the [Let's Do] Furniture Gramophone on Minecraft 1.20.1 (Forge and Fabric), as they already do on 1.21.1.
 - Custom music discs play in the Create: Steam 'n' Rails Minecart with Jukebox on Minecraft 1.20.1 (Forge and Fabric) and NeoForge 1.21.1.
 
+### Fixes
+
+- Fixed Albums and Boomboxes rejecting every disc as too large on dedicated servers when a large item, such as a filled Shulker Box, was elsewhere in the inventory.
+- Fixed a carried Boombox stopping after about 10 seconds while the server was running slowly.
+- A stopped Boombox held in the hand now shows its handle in first person instead of disappearing from view.
+- Fixed Forge 1.20.1 failing to start with older Sophisticated Core versions, such as the one in DeceasedCraft.
+- Fixed [Let's Do] Furniture Gramophone and Additional Additions Album playback restarting from the beginning for everyone when another player came near.
+
 Use the same Music Disc Maker version on the server and all clients.
 
 ## 3.0.5
