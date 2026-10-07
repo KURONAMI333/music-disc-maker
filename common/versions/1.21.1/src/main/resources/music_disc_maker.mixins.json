@@ -4,7 +4,9 @@
   "package": "com.kuronami.musicdiscmaker.mixin",
   "compatibilityLevel": "JAVA_${java_version}",
   "mixins": [
-    "JukeboxBlockEntityMixin"
+    "JukeboxBlockEntityMixin",
+    "AbstractMinecartJukeboxCartMixin",
+    "RailwaysJukeboxCartMixin"
   ],
   "client": [
     "MixinItemStack",

@@ -545,6 +545,10 @@ public final class MdmGameTestRegistration {
                 GoldenCartPlaybackOffsetGameTests::playingSeekAndPauseResumeUseThePausedOffsetAsBase, empty, 100);
         register(event, "golden_cart_drop_stack_saves_and_reloads_with_its_media",
                 GoldenCartPlaybackOffsetGameTests::dropStackSavesAndReloadsWithItsMedia, empty, 40);
+        register(event, "external_cart_starts_stops_and_switches_with_the_disc",
+                ExternalCartPlaybackGameTests::startsStopsAndSwitchesWithTheDisc, empty, 100);
+        register(event, "external_cart_resumes_from_the_saved_offset_and_stays_quiet_after_the_end",
+                ExternalCartPlaybackGameTests::resumesFromTheSavedOffsetAndStaysQuietAfterTheEnd, empty, 100);
         register(event, "speaker_reload_reindexes_and_defaults_volume",
                 SpeakerCoreGameTests::reloadReindexesLinkAndDefaultsMissingVolume, empty, 100);
         // local MP3 の転送境界は Services.NETWORK を差し替えて観測するので、他テストと送信経路を

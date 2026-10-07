@@ -6,7 +6,9 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "JukeboxBlockEntityMixin",
-    "LegacyFurnitureGramophoneMixin"
+    "LegacyFurnitureGramophoneMixin",
+    "AbstractMinecartJukeboxCartMixin",
+    "RailwaysJukeboxCartMixin"
   ],
   "client": [
     "MixinItemStack",

@@ -11,6 +11,7 @@
 - Add the Minecart with Golden Jukebox for music playback and controls on rails.
 - Custom music discs can be placed on BiblioCraft Legacy disc racks.
 - Custom music discs play in the [Let's Do] Furniture Gramophone on Minecraft 1.20.1 (Forge and Fabric), as they already do on 1.21.1.
+- Custom music discs play in the Create: Steam 'n' Rails Minecart with Jukebox on Minecraft 1.20.1 (Forge and Fabric) and NeoForge 1.21.1.
 
 Use the same Music Disc Maker version on the server and all clients.
 
