@@ -9,6 +9,7 @@ import com.kuronami.musicdiscmaker.component.CustomTrackData;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 
@@ -199,6 +200,19 @@ public final class ActiveDiscRegistry {
         final Map<BlockPos, Long> external = EXTERNAL.get(dim);
         final Long last = external == null ? null : external.get(pos);
         return last != null && gameTime - last <= EXTERNAL_LIVE_TICKS;
+    }
+
+    /**
+     * chunk 再送の掃除で、この位置の外部音源の再生を残すか。印があり、ブロック実体が残っていて、
+     * 印が新しい (音源が鳴らし続けている) ときに残す。印が古くても、その chunk がいま block を tick
+     * していなければ音源は印を更新できないので残す (simulation distance の外・読み込み直後の chunk)。
+     */
+    public static boolean keepsExternalSource(ServerLevel level, BlockPos pos) {
+        final Map<BlockPos, Long> external = EXTERNAL.get(level.dimension());
+        if (external == null || !external.containsKey(pos) || level.getBlockEntity(pos) == null) {
+            return false;
+        }
+        return isLiveExternal(level.dimension(), pos, level.getGameTime()) || !level.shouldTickBlocksAt(pos);
     }
 
     private static void clearExternal(ResourceKey<Level> dim, BlockPos pos) {

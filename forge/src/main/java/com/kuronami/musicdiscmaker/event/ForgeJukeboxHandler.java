@@ -126,8 +126,8 @@ public final class ForgeJukeboxHandler {
             // 鳴り終わったエントリもここで捨てる (これが registry の掃除経路)。
             // 外部音源 (蓄音機・アルバム) はバニラ jukebox の custom disc では生死を判定できない。
             // 鳴っている間は毎 tick 印が更新されるので、印が新しくブロックが残っている間は消さない。
-            final boolean gone = ActiveDiscRegistry.isLiveExternal(level.dimension(), p.pos(), level.getGameTime())
-                    ? level.getBlockEntity(p.pos()) == null
+            final boolean gone = ActiveDiscRegistry.keepsExternalSource(level, p.pos())
+                    ? false
                     : !(level.getBlockEntity(p.pos()) instanceof JukeboxBlockEntity jb)
                             || !jb.getFirstItem().is(ModItems.CUSTOM_MUSIC_DISC.get());
             if (gone) {
