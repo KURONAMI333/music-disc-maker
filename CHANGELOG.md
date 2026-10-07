@@ -9,6 +9,7 @@
 - Equip a Boombox through an optional Curios slot on NeoForge 1.21.1, 1.21.11, 26.1.2, and 26.2, and Forge 1.20.1.
 - Replace the Speaker horn and Boombox handle models with resource-pack JSON and adjust their animation pivots. See the [resource-pack model guide](./_docs/RESOURCE_PACK_SHAPES_3.1.0.md).
 - Add the Minecart with Golden Jukebox for music playback and controls on rails.
+- Custom music discs can be placed on BiblioCraft Legacy disc racks.
 
 Use the same Music Disc Maker version on the server and all clients.
 
