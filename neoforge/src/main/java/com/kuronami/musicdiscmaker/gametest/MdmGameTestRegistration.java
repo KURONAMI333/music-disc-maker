@@ -339,6 +339,12 @@ public final class MdmGameTestRegistration {
         register(event, "chunk_resend_sends_elapsed_offset_for_playing_disc",
                 ChunkResendRestartGameTests::chunkResendSendsElapsedOffsetForPlayingDisc,
                 chunkResendPayloadEnv, 200);
+        register(event, "external_source_keeps_its_origin_across_chunk_resend",
+                ChunkResendRestartGameTests::externalSourceKeepsItsOriginAcrossChunkResend,
+                chunkResendPayloadEnv, 200);
+        register(event, "removed_external_source_is_forgotten_on_chunk_resend",
+                ChunkResendRestartGameTests::removedExternalSourceIsForgottenOnChunkResend,
+                chunkResendPayloadEnv, 200);
         register(event, "resolve_failed_survives_save_and_load",
                 FailurePersistenceGameTests::resolveFailedSurvivesSaveAndLoad, empty, 200);
         register(event, "legacy_save_without_failure_tags_defaults_to_no_failure",

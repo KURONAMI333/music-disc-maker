@@ -389,4 +389,95 @@ public class ChunkResendRestartGameTests {
         });
         helper.succeed();
     }
+
+    /**
+     * 蓄音機 (Furniture) やアルバムのような外部音源の再生が、別 player の chunk 入りで頭へ戻らないこと。
+     *
+     * <p>chunk 再送の掃除は「その座標がバニラ jukebox で custom disc を持っているか」で生死を判定する。
+     * 外部音源はバニラ jukebox ではない (蓄音機) か、custom disc 以外 (アルバム) を持っているので、
+     * 鳴っている最中でも「撤去済み」と読まれて registry から消える。次の tick の
+     * {@link ExternalPlaybackMirror#mirror} が同じトラックを新規扱いし、chunk 内の全員へ offset 0 で
+     * 送り直す = 聴いている全員のトラックが頭に戻る。ここでは蓄音機の代わりに jukebox 以外の
+     * block entity (チェスト) を置く。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = NET_BATCH)
+    *///?}
+    public static void externalSourceKeepsItsOriginAcrossChunkResend(GameTestHelper helper) {
+        final BlockPos rel = new BlockPos(2, 1, 2);
+        helper.setBlock(rel, Blocks.CHEST);
+        final BlockPos pos = helper.absolutePos(rel);
+        final ServerLevel level = helper.getLevel();
+        final ResourceKey<Level> dim = level.dimension();
+        final ItemStack disc = customDisc(DURATION_MS);
+        final CustomTrackData track = disc.get(ModDataComponents.CUSTOM_TRACK.get());
+
+        ExternalPlaybackMirror.mirror(level, pos, disc);
+        helper.assertTrue(ActiveDiscRegistry.current(dim, pos) != null, "前提: 外部音源の再生が registry にミラーされていない");
+        // 30 秒前から鳴っている状態 (GameTest は tick を実時間で待たないので起点を過去へ置く)。
+        final long elapsedMs = 30_000L;
+        final long origin = System.currentTimeMillis() - elapsedMs;
+        ActiveDiscRegistry.start(dim, pos, track, origin);
+
+        withCapturedNetwork(net -> {
+            final ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            try {
+                JukeboxHandler.onChunkWatch(new ChunkWatchEvent.Watch(player, level.getChunkAt(pos), level));
+                final List<PlayDiscPayload> lateJoin = playsFor(net, pos);
+                helper.assertTrue(lateJoin.size() == 1,
+                        "鳴っている外部音源が chunk に入った player へ送られていない (" + lateJoin.size() + " 通)");
+                final long offset = lateJoin.get(0).startOffsetMs();
+                helper.assertTrue(offset >= elapsedMs && offset < elapsedMs + 10_000L,
+                        "chunk に入った player への offset が経過分になっていない (期待 " + elapsedMs
+                                + "ms 前後 / 実際 " + offset + "ms)");
+
+                // 外部音源は同じトラックを鳴らし続けている (次の tick の mirror)。
+                ExternalPlaybackMirror.mirror(level, pos, disc);
+                final ActiveDiscRegistry.Playing after = ActiveDiscRegistry.current(dim, pos);
+                helper.assertTrue(after != null && after.startMillis() == origin,
+                        "chunk 再送の掃除で外部音源の再生が消え、起点が打ち直されている");
+                helper.assertTrue(playsFor(net, pos).size() == 1,
+                        "chunk 再送の後の mirror が chunk 内の全員へ offset 0 で送り直している (= 全員が頭出し)");
+            } finally {
+                player.discard();
+                ExternalPlaybackMirror.mirror(level, pos, null);
+            }
+        });
+        helper.succeed();
+    }
+
+    /**
+     * 外部音源のブロックが消えたら、chunk 再送の掃除はその再生を忘れること
+     * (上の保護が撤去済みの音源まで生かし続けないことの確認)。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = NET_BATCH)
+    *///?}
+    public static void removedExternalSourceIsForgottenOnChunkResend(GameTestHelper helper) {
+        final BlockPos rel = new BlockPos(3, 1, 3);
+        helper.setBlock(rel, Blocks.CHEST);
+        final BlockPos pos = helper.absolutePos(rel);
+        final ServerLevel level = helper.getLevel();
+        final ResourceKey<Level> dim = level.dimension();
+
+        ExternalPlaybackMirror.mirror(level, pos, customDisc(DURATION_MS));
+        helper.assertTrue(ActiveDiscRegistry.current(dim, pos) != null, "前提: 外部音源の再生が registry にミラーされていない");
+        // 停止を送らずにブロックだけ消える (フックの無い除去経路)。
+        helper.setBlock(rel, Blocks.AIR);
+
+        withCapturedNetwork(net -> {
+            final ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            try {
+                JukeboxHandler.onChunkWatch(new ChunkWatchEvent.Watch(player, level.getChunkAt(pos), level));
+                helper.assertTrue(playsFor(net, pos).isEmpty(), "撤去済みの外部音源が chunk に入った player へ送られている");
+                helper.assertTrue(ActiveDiscRegistry.current(dim, pos) == null,
+                        "撤去済みの外部音源の再生を chunk 再送の掃除が忘れていない");
+            } finally {
+                player.discard();
+            }
+        });
+        helper.succeed();
+    }
 }

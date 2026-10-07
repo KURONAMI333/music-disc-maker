@@ -2,8 +2,10 @@ package com.kuronami.musicdiscmaker.event;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 
@@ -45,6 +47,14 @@ public final class ActiveDiscRegistry {
 
     private static final Map<ResourceKey<Level>, Map<BlockPos, Playing>> BY_DIM = new HashMap<>();
 
+    /**
+     * {@link ExternalPlaybackMirror} が張った再生 (蓄音機・アルバム) の座標。外部音源はバニラ jukebox の
+     * custom disc では生死を判定できないので、chunk 再送の掃除はこの印を見て、ブロックが残っている間は
+     * 消さない (停止は外部音源自身の tick が mirror で送る)。消すと次の tick の mirror が同じトラックを
+     * 新規扱いし、chunk 内の全員へ offset 0 で送り直す。
+     */
+    private static final Map<ResourceKey<Level>, Set<BlockPos>> EXTERNAL = new HashMap<>();
+
     private ActiveDiscRegistry() {
     }
 
@@ -85,6 +95,13 @@ public final class ActiveDiscRegistry {
             map.remove(pos);
             if (map.isEmpty()) {
                 BY_DIM.remove(dim);
+            }
+        }
+        final Set<BlockPos> external = EXTERNAL.get(dim);
+        if (external != null) {
+            external.remove(pos);
+            if (external.isEmpty()) {
+                EXTERNAL.remove(dim);
             }
         }
         ActiveDiscPersistence.onStop(dim, pos.immutable());
@@ -165,9 +182,27 @@ public final class ActiveDiscRegistry {
         return map != null && map.containsKey(pos.immutable());
     }
 
+    /^* 指定 pos の再生中エントリを返す (無ければ null)。外部音源の差分検出に使う。 ^/
+    public static Playing current(ResourceKey<Level> dim, BlockPos pos) {
+        final Map<BlockPos, Playing> map = BY_DIM.get(dim);
+        return map == null ? null : map.get(pos.immutable());
+    }
+
     *///?}
+    /** その座標の再生を外部音源 ({@link ExternalPlaybackMirror}) のものとして印を付ける。 */
+    public static void markExternal(ResourceKey<Level> dim, BlockPos pos) {
+        EXTERNAL.computeIfAbsent(dim, d -> new HashSet<>()).add(pos.immutable());
+    }
+
+    /** その座標の再生が外部音源 ({@link ExternalPlaybackMirror}) のものか。 */
+    public static boolean isExternal(ResourceKey<Level> dim, BlockPos pos) {
+        final Set<BlockPos> external = EXTERNAL.get(dim);
+        return external != null && external.contains(pos);
+    }
+
     public static void clear() {
         BY_DIM.clear();
+        EXTERNAL.clear();
     }
 
     /**
@@ -179,6 +214,7 @@ public final class ActiveDiscRegistry {
      */
     public static void clear(ResourceKey<Level> dim) {
         BY_DIM.remove(dim);
+        EXTERNAL.remove(dim);
     }
 }
 

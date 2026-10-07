@@ -75,10 +75,13 @@ public final class ExternalPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
+                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
+                    ActiveDiscRegistry.markExternal(dim, key);
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
+                ActiveDiscRegistry.markExternal(dim, key);
                 // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
                 Services.NETWORK.sendToPlayersTrackingChunk(level, ChunkPos.containing(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
@@ -170,10 +173,13 @@ public final class ExternalPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
+                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
+                    ActiveDiscRegistry.markExternal(dim, key);
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
+                ActiveDiscRegistry.markExternal(dim, key);
                 // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
                 Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
@@ -265,10 +271,13 @@ public final class ExternalPlaybackMirror {
             if (track != null && !track.isEmpty()) {
                 // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
                 if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
+                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
+                    ActiveDiscRegistry.markExternal(dim, key);
                     return;
                 }
                 // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
                 ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
+                ActiveDiscRegistry.markExternal(dim, key);
                 // アルバム再生は強化版ジュークボックスではないので vanilla 経路 (既定 range / volume 100)。
                 Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
                         PlayDiscPayload.vanilla(key, track, 0L));
@@ -286,4 +295,70 @@ public final class ExternalPlaybackMirror {
 }
 
 *///?} else {
-//?}
+/*import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
+import com.kuronami.musicdiscmaker.network.PlayDiscPayload;
+import com.kuronami.musicdiscmaker.network.StopDiscPayload;
+import com.kuronami.musicdiscmaker.platform.Services;
+import com.kuronami.musicdiscmaker.register.ModItems;
+
+import org.jetbrains.annotations.Nullable;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+
+/^*
+ * 蓄音機 (Furniture) のように MDM が中身を直接読める外部音源の「この座標で今この disc が鳴っている」を、
+ * MDM のストリーミング再生へ反映する入口 (1.20.1。アルバム互換は無いので {@link #mirror} だけ)。
+ *
+ * <p>state は {@link ActiveDiscRegistry} を唯一の真実として再利用する。これにより既存の
+ * late-joiner 同期 (chunk 再送) が外部音源にもそのまま効く。毎 tick 呼ばれる前提で
+ * idempotent (差分が無ければ何も送らない)。全操作は server thread からのみ。
+ ^/
+public final class ExternalPlaybackMirror {
+
+    private ExternalPlaybackMirror() {
+    }
+
+    /^*
+     * その座標の現在状態を反映する (server 側・毎 tick)。
+     *
+     * @param mdmDisc いま鳴っている MDM custom disc stack。null なら「MDM ストリーム対象なし」
+     *                = 直前まで鳴らしていたなら停止する。
+     ^/
+    public static void mirror(ServerLevel level, BlockPos pos, @Nullable ItemStack mdmDisc) {
+        final ResourceKey<Level> dim = level.dimension();
+        final BlockPos key = pos.immutable();
+        final ActiveDiscRegistry.Playing existing = ActiveDiscRegistry.current(dim, key);
+
+        if (mdmDisc != null && mdmDisc.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            final CustomTrackData track = CustomMusicDiscItem.getTrack(mdmDisc);
+            if (track != null && !track.isEmpty()) {
+                // 同じ url を既にストリーム中なら何もしない (毎 tick の再送を防ぐ)。
+                if (existing != null && track.sourceKey().equals(existing.track().sourceKey())) {
+                    // 再起動後に永続層から戻ったエントリにも印を付け直す (chunk 再送の掃除から守る)。
+                    ActiveDiscRegistry.markExternal(dim, key);
+                    return;
+                }
+                // 新規トラック (差し替え含む)。client 側 startPlayback が旧ストリームを停止して張り替える。
+                ActiveDiscRegistry.start(dim, key, track, System.currentTimeMillis());
+                ActiveDiscRegistry.markExternal(dim, key);
+                Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
+                        PlayDiscPayload.vanilla(key, track, 0L));
+                return;
+            }
+        }
+
+        // MDM ストリーム対象なし → 直前まで鳴らしていたなら停止する。
+        if (existing != null) {
+            ActiveDiscRegistry.stop(dim, key);
+            Services.NETWORK.sendToPlayersTrackingChunk(level, new ChunkPos(key),
+                    new StopDiscPayload(key));
+        }
+    }
+}
+*///?}

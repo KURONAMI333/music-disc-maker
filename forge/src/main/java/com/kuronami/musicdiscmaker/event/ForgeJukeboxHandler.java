@@ -124,8 +124,13 @@ public final class ForgeJukeboxHandler {
         for (final ActiveDiscRegistry.Playing p : known) {
             // 撤去済み jukebox の stale エントリを late-joiner に送らない (爆発/ピストン/コマンド除去の掃除)。
             // 鳴り終わったエントリもここで捨てる (これが registry の掃除経路)。
-            if (!(level.getBlockEntity(p.pos()) instanceof JukeboxBlockEntity jb)
-                    || !jb.getFirstItem().is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            // 外部音源 (蓄音機・アルバム) はバニラ jukebox の custom disc では生死を判定できない。
+            // 停止は外部音源自身の tick が送るので、ブロックが残っている間は消さない。
+            final boolean gone = ActiveDiscRegistry.isExternal(level.dimension(), p.pos())
+                    ? level.getBlockEntity(p.pos()) == null
+                    : !(level.getBlockEntity(p.pos()) instanceof JukeboxBlockEntity jb)
+                            || !jb.getFirstItem().is(ModItems.CUSTOM_MUSIC_DISC.get());
+            if (gone) {
                 ActiveDiscRegistry.stop(level.dimension(), p.pos());
                 continue;
             }
