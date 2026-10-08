@@ -327,13 +327,14 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             this.y = 0.0;
             this.z = 0.0;
             // フラットへ切り替わった瞬間に範囲ゲートと音量を決める。再生前の設定 (install) もここを通るので、
-            // 範囲外の player に最初の tick まで全開の音が漏れない。
+            // 範囲外の player に最初の tick まで全開の音が漏れない。範囲はこの後に読み込み時の設定で
+            // 変わりうる (カメラが無ければ判定もできない) ので、最初の tick でもう一度目標へ合わせ直す。
             final Vec3 ear = listenerPos();
             if (ear != null) {
                 this.flatAudible = ear.distanceTo(anchor.worldPos(1.0F)) <= effectiveRange();
             }
             this.flatGate = this.flatAudible ? 1.0F : 0.0F;
-            this.flatGateSettled = true;
+            this.flatGateSettled = false;
             this.volume = computeVolume();
             pushPcmGain();
         }
