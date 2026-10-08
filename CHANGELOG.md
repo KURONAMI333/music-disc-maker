@@ -20,6 +20,9 @@
 - A stopped Boombox held in the hand now shows its handle in first person instead of disappearing from view.
 - Fixed Forge 1.20.1 failing to start with older Sophisticated Core versions, such as the one in DeceasedCraft.
 - Fixed [Let's Do] Furniture Gramophone and Additional Additions Album playback restarting from the beginning for everyone when another player came near.
+- Fixed players outside a Golden Jukebox's range hearing about a second of each track start, and of each repeat, when directional audio was off.
+- Fixed the last seconds of a track being cut off on Golden Jukeboxes and Speakers when the track took a while to load.
+- "Now Playing" now appears only for players who can hear the music, and only once while the same track repeats.
 
 Use the same Music Disc Maker version on the server and all clients.
 
