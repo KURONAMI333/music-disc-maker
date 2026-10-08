@@ -633,15 +633,6 @@ public final class ClientPlaybackManager {
         }
     }
 
-    /**
-     * 再生要求を受けた時点で Now Playing を曲名にする。
-     *
-     * <p>custom disc は無音の {@code jukebox_song} で vanilla の再生状態に乗っており、vanilla は再生開始の
-     * level event でその説明文 (= アイテム名「Custom Music Disc」) を Now Playing に出す。曲名での上書きが
-     * 実音の開始時だけだと、読込に失敗した client には「Custom Music Disc」だけが残り、ディスクの中身が
-     * 消えたように見える (CF 報告「一人だけ鳴らず、曲名が Custom Music Disc になる」)。server は level event
-     * を再生 payload より先に送るので、ここで上書きすれば vanilla の説明文は残らない。
-     */
     /** server の時計で曲末からこの範囲に届いた停止を、曲の終わりによる停止とみなす。 */
     private static final long NATURAL_END_WINDOW_MS = 2_000L;
     /** 曲の終わりの停止を待つ上限。これより遅れている client は、待った後に残りを切る。 */
@@ -652,9 +643,9 @@ public final class ClientPlaybackManager {
      *
      * <p>server は曲の再生を要求した時刻から数えて曲尺で止めるが、URL 音源の client は解決と読み込み
      * (実測で初回約2秒・2回目以降0.2〜0.3秒) の後に、要求された位置から鳴り始める。そのまま止めると
-     * 曲の最後の数秒が毎回切れる。曲の途中の停止 (取り出し・一時停止) は server の時計がまだ曲末に
-     * 届いていないので、この判定に掛からずすぐ止まる。待っている間に同じ位置で次の再生が始まったら、
-     * 遅らせた停止は撃たない (次の再生が前の音を畳む)。
+     * 曲の最後の数秒が毎回切れる。呼ぶのは server が「曲の終わりによる停止」と印を付けた停止だけで
+     * ({@code StopDiscPayload#naturalEnd})、取り出し・一時停止はすぐ止まる。待っている間に同じ位置で
+     * 次の再生が始まったら、遅らせた停止は撃たない (次の再生が前の音を畳む)。
      *
      * @return 遅らせたら {@code true} (呼び出し側は今は止めない)
      */
@@ -712,13 +703,12 @@ public final class ClientPlaybackManager {
     }
 
     private static boolean withinAudibleRange(BlockPos key, int rangeBlocks) {
-        final Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) {
+        final net.minecraft.world.phys.Vec3 ear = DiscSoundInstance.listenerPos(); // 音の判定と同じくカメラの位置
+        if (ear == null) {
             return false;
         }
         final int range = rangeBlocks > 0 ? Math.min(rangeBlocks, com.kuronami.musicdiscmaker.Config.maxPlaybackRange()) : com.kuronami.musicdiscmaker.Config.playbackRange();
         final double limitSq = (range + 1.0D) * (range + 1.0D);
-        final net.minecraft.world.phys.Vec3 ear = mc.player.position();
         final DiscAnchor ship = shipAnchor(key);
         final net.minecraft.world.phys.Vec3 source = ship != null ? ship.worldPos(1.0F) : net.minecraft.world.phys.Vec3.atCenterOf(key);
         if (ear.distanceToSqr(source) <= limitSq) {
@@ -735,6 +725,15 @@ public final class ClientPlaybackManager {
         return false;
     }
 
+    /**
+     * 再生要求を受けた時点で Now Playing を曲名にする。
+     *
+     * <p>custom disc は無音の {@code jukebox_song} で vanilla の再生状態に乗っており、vanilla は再生開始の
+     * level event でその説明文 (= アイテム名「Custom Music Disc」) を Now Playing に出す。曲名での上書きが
+     * 実音の開始時だけだと、読込に失敗した client には「Custom Music Disc」だけが残り、ディスクの中身が
+     * 消えたように見える (CF 報告「一人だけ鳴らず、曲名が Custom Music Disc になる」)。server は level event
+     * を再生 payload より先に送るので、ここで上書きすれば vanilla の説明文は残らない。
+     */
     private static void announceRequestedTrack(CustomTrackData track) {
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()

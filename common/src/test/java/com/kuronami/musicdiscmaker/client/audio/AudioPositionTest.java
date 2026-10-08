@@ -57,4 +57,17 @@ class AudioPositionTest {
         clock.addAndGet(1_500L);
         assertEquals(61_500L, sessions.audioPositionMs(KEY));
     }
+
+    @Test
+    void positionDoesNotAdvanceWhileThePlaybackClockIsPaused() {
+        final AtomicLong wall = new AtomicLong(1_000L);
+        final AtomicLong playback = new AtomicLong(1_000L);
+        final PlaybackSessions<Long> sessions = new PlaybackSessions<>(wall::get, wall::get, playback::get);
+        final var start = sessions.start(KEY, SONG, 0L, 64, 100, true);
+        assertTrue(sessions.install(KEY, start.token(), SONG.sourceKey(), 0L, new Voice()));
+        assertTrue(sessions.noteFirstAudio(KEY, start.token()));
+        wall.addAndGet(10_000L);
+        playback.addAndGet(4_000L); // シングルプレイで6秒一時停止していた
+        assertEquals(4_000L, sessions.audioPositionMs(KEY), "一時停止の間も実音の位置が進んでいる");
+    }
 }

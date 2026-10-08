@@ -54,7 +54,8 @@ public final class ClientPlaybackHandler {
 
     public static void stop(StopDiscPayload payload) {
         // 曲の終わりによる停止は、この client の音が鳴り終わるまで待つ (読み込みの遅れで最後が切れないように)。
-        if (ClientPlaybackManager.get().deferNaturalEndStop(payload.jukeboxPos(), () -> stopNow(payload))) {
+        if (payload.naturalEnd()
+                && ClientPlaybackManager.get().deferNaturalEndStop(payload.jukeboxPos(), () -> stopNow(payload))) {
             return;
         }
         stopNow(payload);

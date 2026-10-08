@@ -548,6 +548,8 @@ public final class MdmGameTestRegistration {
                 GoldenCartPlaybackOffsetGameTests::playingSeekAndPauseResumeUseThePausedOffsetAsBase, empty, 100);
         register(event, "golden_cart_drop_stack_saves_and_reloads_with_its_media",
                 GoldenCartPlaybackOffsetGameTests::dropStackSavesAndReloadsWithItsMedia, empty, 40);
+        register(event, "stop_disc_natural_end_flag_survives_the_wire",
+                StopDiscPayloadGameTests::naturalEndFlagSurvivesTheWire, empty, 20);
         register(event, "external_cart_starts_stops_and_switches_with_the_disc",
                 ExternalCartPlaybackGameTests::startsStopsAndSwitchesWithTheDisc, empty, 100);
         register(event, "external_cart_resumes_from_the_saved_offset_and_stays_quiet_after_the_end",

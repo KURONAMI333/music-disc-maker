@@ -224,6 +224,8 @@ public final class PlaybackSessions<K> {
      * 起点にしか使わないので、単調時計の値が負でも構わない — <b>0 を「無い」の代わりに使わないこと</b>。
      */
     private final Map<K, Long> firstAudioMonotonicMs = new ConcurrentHashMap<>();
+    /** 最初の実 PCM の時点の再生時計。{@link #audioPositionMs} だけが読む。 */
+    private final Map<K, Long> firstAudioPositionMs = new ConcurrentHashMap<>();
     private final Map<K, Long> loadOffsetMs = new ConcurrentHashMap<>();
     /**
      * {@link #requestedAtMs} と {@link #registeredMillis} を<b>再生時計</b> ({@link #positionClockMs}) で
@@ -450,6 +452,7 @@ public final class PlaybackSessions<K> {
         registeredMonotonicMs.put(key, monotonicMs.getAsLong());
         // 前の世代 (ラジオの再接続は同じ世代を持ち回る) の「鳴り始めた時刻」を持ち越さない。
         firstAudioMonotonicMs.remove(key);
+        firstAudioPositionMs.remove(key);
         loadOffsetMs.put(key, startOffsetMs);
         lastInstalled.put(key, new java.lang.ref.WeakReference<>(voice));
         lastInstalledOffsetMs.put(key, startOffsetMs);
@@ -551,25 +554,31 @@ public final class PlaybackSessions<K> {
      * @param token この再生の世代
      * @return この世代で初めての実 PCM なら {@code true} (呼び出し側は "Now Playing" を出してよい)
      */
-    /**
-     * 実音の再生位置 (ms)。開いた位置に、最初の実 PCM からの経過を足す。まだ鳴っていなければ {@code -1}。
-     * server の時計 ({@link #isSeekRequest} の推定) と違い、読み込みにかかった時間を含まない。
-     */
-    public long audioPositionMs(K key) {
-        final Long first = firstAudioMonotonicMs.get(key);
-        final Long loaded = loadOffsetMs.get(key);
-        if (first == null || loaded == null) {
-            return -1L;
-        }
-        return loaded + Math.max(0L, monotonicMs.getAsLong() - first);
-    }
-
     public boolean noteFirstAudio(K key, int token) {
         if (!isLive(key, token)) {
             return false;
         }
-        return firstAudioMonotonicMs.putIfAbsent(key, monotonicMs.getAsLong()) == null;
+        final boolean first = firstAudioMonotonicMs.putIfAbsent(key, monotonicMs.getAsLong()) == null;
+        if (first) {
+            firstAudioPositionMs.put(key, positionClockMs.getAsLong());
+        }
+        return first;
     }
+
+    /**
+     * 実音の再生位置 (ms)。開いた位置に、最初の実 PCM からの経過を足す。まだ鳴っていなければ {@code -1}。
+     * server の時計 ({@link #isSeekRequest} の推定) と違い、読み込みにかかった時間を含まない。
+     * 経過は再生時計 ({@code positionClockMs}) で数えるので、シングルプレイの一時停止中は進まない。
+     */
+    public long audioPositionMs(K key) {
+        final Long first = firstAudioPositionMs.get(key);
+        final Long loaded = loadOffsetMs.get(key);
+        if (first == null || loaded == null) {
+            return -1L;
+        }
+        return loaded + Math.max(0L, positionClockMs.getAsLong() - first);
+    }
+
 
     /**
      * 登録から {@link #FIRST_AUDIO_DEADLINE_MS} 経っても実 PCM が一度も渡っていないか。
@@ -626,6 +635,7 @@ public final class PlaybackSessions<K> {
         registeredPositionMs.remove(key);
         registeredMonotonicMs.remove(key);
         firstAudioMonotonicMs.remove(key);
+        firstAudioPositionMs.remove(key);
         loadOffsetMs.remove(key);
 
         final int attempt = reconnectAttempts.getOrDefault(key, 0) + 1;
@@ -726,6 +736,7 @@ public final class PlaybackSessions<K> {
         registeredPositionMs.remove(key);
         registeredMonotonicMs.remove(key);
         firstAudioMonotonicMs.remove(key);
+        firstAudioPositionMs.remove(key);
         loadOffsetMs.remove(key);
         // install は推定位置の起点を要求時刻から取る。返す位置と同じ瞬間を指させる。
         requestedAtMs.put(key, clockMs.getAsLong());
@@ -752,6 +763,7 @@ public final class PlaybackSessions<K> {
         registeredMillis.remove(key);
         registeredMonotonicMs.remove(key);
         firstAudioMonotonicMs.remove(key);
+        firstAudioPositionMs.remove(key);
         loadOffsetMs.remove(key);
         pendingFailure.remove(key);
         notices.forget(key);
@@ -778,6 +790,7 @@ public final class PlaybackSessions<K> {
         registeredMillis.clear();
         registeredMonotonicMs.clear();
         firstAudioMonotonicMs.clear();
+        firstAudioPositionMs.clear();
         loadOffsetMs.clear();
         pendingFailure.clear();
         notices.forgetAll();

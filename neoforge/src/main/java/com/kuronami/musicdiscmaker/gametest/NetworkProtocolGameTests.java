@@ -106,8 +106,9 @@ public class NetworkProtocolGameTests {
 
     private static final String TEMPLATE = "empty8x3x8";
 
-    /** 3.1.0 公開版 (wire は 16-local-audio-check-dev と同じ)。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "16";
+    /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
+        を足して 17 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "17";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -116,10 +117,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "c6850e400be63b43b1097c87fd7a8b2609df9c2b2a4a3ba71be4ad33b19bf703";
+            "157002ad7e1fc6c3e33e46e83edc53112723c20074432c919845bd0c2481d029";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "c479658dd8f18a0a5e3d4f36dd4f9d977e9aa4dad5bcfe4ee8a8e940be5c7915";
+            "02c9b14483f734dbffdeecd28e72e27771c4533e07bec43322f0834fd3bd5bb0";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。

@@ -1094,7 +1094,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (!isServer()) {
             return;
         }
-        stopAudio();
+        stopAudio(naturalEnd);
         cursor = cursor.stop();
         automationFinished = naturalEnd && hasDisc();
         pausedOffsetMs = 0L;
@@ -1103,6 +1103,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     private void stopAudio() {
+        stopAudio(false);
+    }
+
+    /** @param naturalEnd 曲を鳴らし切ったことによる停止か (client は自分の音が鳴り終わるまで待つ) */
+    private void stopAudio(boolean naturalEnd) {
         if (!isServer()) {
             return;
         }
@@ -1122,7 +1127,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         // 聴取中に音源chunkの追跡を外れても、clientは有限距離の外でvoiceを保持しうる。
         // Stopだけは同じ次元の全clientへ送る。半径判定では遠方の保持voiceを取り逃す。
         SpeakerPlayback.stopWithoutSend(this);
-        final StopDiscPayload stop = new StopDiscPayload(getBlockPos(), playbackIdentity());
+        final StopDiscPayload stop = new StopDiscPayload(getBlockPos(), playbackIdentity(), naturalEnd);
         if (level instanceof ServerLevel serverLevel) {
             Services.PLATFORM.sendMovingAudioStop(serverLevel, getBlockPos(), stop.identity());
         }
