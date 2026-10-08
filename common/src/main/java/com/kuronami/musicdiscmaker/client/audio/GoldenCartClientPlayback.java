@@ -52,6 +52,11 @@ public final class GoldenCartClientPlayback {
     }
 
     private static final Map<UUID, Playing> ACTIVE = new ConcurrentHashMap<>();
+    /**
+     * 機体ごとに最後に「Now Playing」を出した曲。同じ曲を鳴らし直す (単曲 repeat) ときは最初の1回だけ出す
+     * (2026-10-09 本人裁定)。明示の停止とワールド退出で忘れる。
+     */
+    private static final Map<UUID, String> ANNOUNCED = new ConcurrentHashMap<>();
 
     /** ロード中の要求 (機体 → URL)。世代トークンとは別の関心なので両方要る。 */
     private static final Map<UUID, String> PENDING = new ConcurrentHashMap<>();
@@ -332,7 +337,7 @@ public final class GoldenCartClientPlayback {
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
                 : track.title();
-        if (desc != null && !desc.isBlank()) {
+        if (desc != null && !desc.isBlank() && !track.sourceKey().equals(ANNOUNCED.put(source, track.sourceKey()))) {
             //? if >=26.2 {
             mc.gui.hud.setNowPlaying(Component.literal(desc));
             //?} else {
@@ -395,6 +400,7 @@ public final class GoldenCartClientPlayback {
         LATEST_REQUESTS.remove(source);
         BACKOFF.reset(source);
         LIMIT_NOTICES.forget(source);
+        ANNOUNCED.remove(source);
     }
 
     /** lease 失効時に ownership から呼ばれる畳み込み (別経路への置き換え含む)。 */
@@ -426,5 +432,6 @@ public final class GoldenCartClientPlayback {
         LIMIT_NOTICES.forgetAll();
         ACTIVE.values().forEach(playing -> playing.instance().stopAndRelease());
         ACTIVE.clear();
+        ANNOUNCED.clear();
     }
 }

@@ -56,6 +56,11 @@ public final class BoomboxClientPlayback {
     }
 
     private static final Map<Long, Playing> ACTIVE = new ConcurrentHashMap<>();
+    /**
+     * 機体ごとに最後に「Now Playing」を出した曲。同じ曲を鳴らし直す (単曲 repeat) ときは最初の1回だけ出す
+     * (2026-10-09 本人裁定)。明示の停止とワールド退出で忘れる。
+     */
+    private static final Map<Long, String> ANNOUNCED = new ConcurrentHashMap<>();
 
     /**
      * ロード中の要求 (機体 → URL)。世代トークンとは別の関心なので両方要る
@@ -244,7 +249,7 @@ public final class BoomboxClientPlayback {
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
                 : track.title();
-        if (desc != null && !desc.isBlank()) {
+        if (desc != null && !desc.isBlank() && !track.sourceKey().equals(ANNOUNCED.put(id, track.sourceKey()))) {
             //? if >=26.2 {
             mc.gui.hud.setNowPlaying(Component.literal(desc));
             //?} else {
@@ -330,6 +335,7 @@ public final class BoomboxClientPlayback {
         com.kuronami.musicdiscmaker.network.BoomboxTrace.stop("client-stop-received", boomboxId);
         LATEST_REQUESTS.remove(boomboxId);
         LATEST_RECEIVED_MS.remove(boomboxId);
+        ANNOUNCED.remove(boomboxId);
         BACKOFF.reset(boomboxId);
         LIMIT_NOTICES.forget(boomboxId);
         teardown(boomboxId);
@@ -393,6 +399,7 @@ public final class BoomboxClientPlayback {
 
     /** 切断・ワールド退出での一括停止 ({@link ClientPlaybackManager#stopAll()} から呼ばれる)。 */
     public static void stopAll() {
+        ANNOUNCED.clear();
         SESSIONS.stopAll();
         PENDING.clear();
         LATEST_REQUESTS.clear();

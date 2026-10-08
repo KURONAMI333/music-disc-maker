@@ -110,6 +110,9 @@ public final class ClientPlaybackManager {
 
     /** Golden音源位置ごとの固定speaker集合。値は進行中の音声インスタンスにも共有される。 */
     private final Map<BlockPos, MultiSpeakerAnchor> speakerAnchors = new HashMap<>();
+    /** 位置ごとに最後に「Now Playing」を出した曲と再生の世代。単曲 repeat の判定に使う ({@link #mayAnnounce})。 */
+    private final Map<BlockPos, AnnouncedTrack> announced = new HashMap<>();
+    private record AnnouncedTrack(String sourceKey, int token) {}
 
     //? if >=1.21.2 {
     //?} elif >=1.21 {
@@ -216,7 +219,7 @@ public final class ClientPlaybackManager {
         final ReloadRequest request = new ReloadRequest(track, startOffsetMs, rangeBlocks, volumePercent,
                 directional, playbackClockMs(), identity, id, sourceContext, selection, regularOnly);
         reloadRequests.put(key, request);
-        announceRequestedTrack(track);
+        if (mayAnnounce(key, decision.token())) announceRequestedTrack(track);
         //? if >=1.21.2 {
         final PlaybackTiming timing = new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), false);
         submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing,
@@ -639,6 +642,55 @@ public final class ClientPlaybackManager {
      * 消えたように見える (CF 報告「一人だけ鳴らず、曲名が Custom Music Disc になる」)。server は level event
      * を再生 payload より先に送るので、ここで上書きすれば vanilla の説明文は残らない。
      */
+    /**
+     * この再生で「Now Playing」を出してよいか (2026-10-09 本人裁定)。
+     *
+     * <ul>
+     *   <li>音が届く範囲の外では出さない。音源 (VS2 の船上なら船の現在位置) か、つながった Speaker の
+     *       どれかから可聴範囲内にいる時だけ出す。</li>
+     *   <li>同じ位置で同じ曲を鳴らし直す (金ジュークの単曲 repeat。server は停止を挟まずに次の再生を送る)
+     *       ときは最初の1回だけ出す。明示の停止 ({@link #stopPlayback}) で忘れる。</li>
+     * </ul>
+     * 1回の再生で要求時と実音の開始時の2回呼ばれるので、同じ世代 ({@code token}) の2回目は通す。
+     */
+    private boolean mayAnnounce(BlockPos key, int token) {
+        final ReloadRequest request = reloadRequests.get(key);
+        if (request == null || request.track() == null || !withinAudibleRange(key, request.rangeBlocks())) {
+            return false;
+        }
+        final String sourceKey = request.track().sourceKey();
+        final AnnouncedTrack previous = announced.get(key);
+        if (previous != null && previous.sourceKey().equals(sourceKey) && previous.token() != token) {
+            return false;
+        }
+        announced.put(key, new AnnouncedTrack(sourceKey, token));
+        return true;
+    }
+
+    private static boolean withinAudibleRange(BlockPos key, int rangeBlocks) {
+        final Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            return false;
+        }
+        final int range = rangeBlocks > 0 ? Math.min(rangeBlocks, com.kuronami.musicdiscmaker.Config.maxPlaybackRange()) : com.kuronami.musicdiscmaker.Config.playbackRange();
+        final double limitSq = (range + 1.0D) * (range + 1.0D);
+        final net.minecraft.world.phys.Vec3 ear = mc.player.position();
+        final DiscAnchor ship = shipAnchor(key);
+        final net.minecraft.world.phys.Vec3 source = ship != null ? ship.worldPos(1.0F) : net.minecraft.world.phys.Vec3.atCenterOf(key);
+        if (ear.distanceToSqr(source) <= limitSq) {
+            return true;
+        }
+        final MultiSpeakerAnchor speakers = get().speakerAnchors.get(key);
+        if (speakers != null) {
+            for (final com.kuronami.musicdiscmaker.network.SpeakerEntry speaker : speakers.payload().speakers()) {
+                if (!speaker.muted() && ear.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(speaker.pos())) <= limitSq) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static void announceRequestedTrack(CustomTrackData track) {
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
@@ -956,7 +1008,7 @@ public final class ClientPlaybackManager {
     */
     //?} else {
     //?}
-        if (desc != null && !desc.isBlank()) {
+        if (desc != null && !desc.isBlank() && mayAnnounce(key, token)) {
             //? if >=26.2 {
             Minecraft.getInstance().gui.hud.setNowPlaying(Component.literal(desc));
             //?} else {
@@ -1183,6 +1235,7 @@ public final class ClientPlaybackManager {
         pendingCoreActions.remove(key);
         reloadRequests.remove(key);
         speakerAnchors.remove(key);
+        announced.remove(key); // 明示の停止 (取り出し・差し替え・一時停止) の後は、同じ曲でも次は出す
         failures.clear(key);
     }
 
@@ -1224,6 +1277,7 @@ public final class ClientPlaybackManager {
         sessions.stopAll();
         reloadRequests.clear();
         speakerAnchors.clear();
+        announced.clear();
         // ブームボックスは別の鍵空間で鳴っているので、ここで一緒に畳まないとワールドを出た後も残る。
         BoomboxClientPlayback.stopAll();
         GoldenCartClientPlayback.stopAll();
