@@ -145,6 +145,12 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
      * フルスケールの段差 = ポップノイズになるので、tick ごとに目標へ寄せる。
      */
     private float flatGate = 1.0F;
+    /**
+     * 範囲ゲートを一度でも判定したか。最初の判定ではフェードせずに目標へ合わせる。新しい voice は
+     * 位置つきで鳴り始め、最初の tick で金ジュークの「指向性オフ」を読んでフラットへ切り替わる。
+     * そこで全開から 15 tick かけて絞ると、範囲外の player にも曲頭 (repeat なら毎ループ) が約1秒聞こえる。
+     */
+    private boolean flatGateSettled;
 
     /** フラットモードの範囲ゲートの履歴幅 (ブロック)。 */
     private static final double GATE_HYSTERESIS = 1.0;
@@ -309,6 +315,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         this.directional = value;
         this.relative = !value;
         this.flatAudible = true;
+        // 位置つき↔フラットの切替直後は、ゲートを次の判定で目標へ合わせ直す (位置つきは範囲外で既に無音)。
+        this.flatGateSettled = false;
         if (value) {
             final Vec3 p = anchor.worldPos(1.0F);
             this.x = p.x;
@@ -371,6 +379,11 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     /** 範囲ゲートのゲインを目標へ 1 tick 分寄せる。目標は「フラットモードで範囲外」なら 0、他は 1。 */
     private void advanceFlatGate() {
         final float target = !directional && !flatAudible ? 0.0F : 1.0F;
+        if (!flatGateSettled) {
+            flatGate = target;
+            flatGateSettled = true;
+            return;
+        }
         final float step = 1.0F / GATE_FADE_TICKS;
         if (flatGate < target) {
             flatGate = Math.min(target, flatGate + step);
