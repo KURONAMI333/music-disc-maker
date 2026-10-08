@@ -57,6 +57,19 @@ public final class BoomboxClientPlayback {
 
     private static final Map<Long, Playing> ACTIVE = new ConcurrentHashMap<>();
     /**
+     * 「Now Playing」は音の届く範囲 (ブームボックスの可聴範囲) にいる時だけ出す (2026-10-09 本人裁定)。
+     * 再生の通知は chunk を見ている全員へ届くので、範囲の外の player にも来る。
+     */
+    private static boolean withinBoomboxRange(BoomboxAnchor anchor) {
+        final net.minecraft.world.phys.Vec3 ear = DiscSoundInstance.listenerPos();
+        if (ear == null) {
+            return false;
+        }
+        final double limit = Config.boomboxRange() + 1.0D;
+        return ear.distanceToSqr(anchor.worldPos(1.0F)) <= limit * limit;
+    }
+
+    /**
      * 機体ごとに最後に「Now Playing」を出した曲。同じ曲を鳴らし直す (単曲 repeat) ときは最初の1回だけ出す
      * (2026-10-09 本人裁定)。明示の停止とワールド退出で忘れる。
      */
@@ -249,7 +262,8 @@ public final class BoomboxClientPlayback {
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
                 : track.title();
-        if (desc != null && !desc.isBlank() && !track.sourceKey().equals(ANNOUNCED.put(id, track.sourceKey()))) {
+        if (desc != null && !desc.isBlank() && withinBoomboxRange(live)
+                && !track.sourceKey().equals(ANNOUNCED.put(id, track.sourceKey()))) {
             //? if >=26.2 {
             mc.gui.hud.setNowPlaying(Component.literal(desc));
             //?} else {
