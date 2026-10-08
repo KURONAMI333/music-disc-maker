@@ -642,6 +642,50 @@ public final class ClientPlaybackManager {
      * 消えたように見える (CF 報告「一人だけ鳴らず、曲名が Custom Music Disc になる」)。server は level event
      * を再生 payload より先に送るので、ここで上書きすれば vanilla の説明文は残らない。
      */
+    /** server の時計で曲末からこの範囲に届いた停止を、曲の終わりによる停止とみなす。 */
+    private static final long NATURAL_END_WINDOW_MS = 2_000L;
+    /** 曲の終わりの停止を待つ上限。これより遅れている client は、待った後に残りを切る。 */
+    private static final long NATURAL_END_MAX_WAIT_MS = 10_000L;
+
+    /**
+     * server が曲尺で送ってきた停止を、この client の音が鳴り終わるまで遅らせる。
+     *
+     * <p>server は曲の再生を要求した時刻から数えて曲尺で止めるが、URL 音源の client は解決と読み込み
+     * (実測で初回約2秒・2回目以降0.2〜0.3秒) の後に、要求された位置から鳴り始める。そのまま止めると
+     * 曲の最後の数秒が毎回切れる。曲の途中の停止 (取り出し・一時停止) は server の時計がまだ曲末に
+     * 届いていないので、この判定に掛からずすぐ止まる。待っている間に同じ位置で次の再生が始まったら、
+     * 遅らせた停止は撃たない (次の再生が前の音を畳む)。
+     *
+     * @return 遅らせたら {@code true} (呼び出し側は今は止めない)
+     */
+    public boolean deferNaturalEndStop(BlockPos pos, Runnable stop) {
+        final BlockPos key = pos.immutable();
+        final ReloadRequest request = reloadRequests.get(key);
+        if (request == null || request.track() == null || request.track().radio()
+                || request.track().durationMs() <= 0L) {
+            return false;
+        }
+        final long duration = request.track().durationMs();
+        final long serverPosition = request.startOffsetMs() + (playbackClockMs() - request.receivedPlaybackMs());
+        if (serverPosition < duration - NATURAL_END_WINDOW_MS) {
+            return false;
+        }
+        final long audioPosition = sessions.audioPositionMs(key);
+        if (audioPosition < 0L) {
+            return false;
+        }
+        final long tail = Math.min(duration - audioPosition, NATURAL_END_MAX_WAIT_MS);
+        if (tail <= 0L) {
+            return false;
+        }
+        CompletableFuture.delayedExecutor(tail, TimeUnit.MILLISECONDS).execute(() -> Minecraft.getInstance().execute(() -> {
+            if (reloadRequests.get(key) == request) {
+                stop.run();
+            }
+        }));
+        return true;
+    }
+
     /**
      * この再生で「Now Playing」を出してよいか (2026-10-09 本人裁定)。
      *

@@ -551,6 +551,19 @@ public final class PlaybackSessions<K> {
      * @param token この再生の世代
      * @return この世代で初めての実 PCM なら {@code true} (呼び出し側は "Now Playing" を出してよい)
      */
+    /**
+     * 実音の再生位置 (ms)。開いた位置に、最初の実 PCM からの経過を足す。まだ鳴っていなければ {@code -1}。
+     * server の時計 ({@link #isSeekRequest} の推定) と違い、読み込みにかかった時間を含まない。
+     */
+    public long audioPositionMs(K key) {
+        final Long first = firstAudioMonotonicMs.get(key);
+        final Long loaded = loadOffsetMs.get(key);
+        if (first == null || loaded == null) {
+            return -1L;
+        }
+        return loaded + Math.max(0L, monotonicMs.getAsLong() - first);
+    }
+
     public boolean noteFirstAudio(K key, int token) {
         if (!isLive(key, token)) {
             return false;
