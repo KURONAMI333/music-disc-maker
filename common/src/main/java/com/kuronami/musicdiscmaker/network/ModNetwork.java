@@ -205,10 +205,6 @@ public final class ModNetwork {
     }
 
     /**
-     * 開いている GUI がトロッコに載った金のジュークボックスなら、その BE。
-     * 載せた BE は世界の座標に無いので、payload の座標ではなく開いている menu で対象を決める。
-     */
-    /**
      * 開いている GUI がトロッコに載った金のジュークボックスか。距離が離れて使えなくなっていても true で、
      * その時の操作を座標で引いた設置物 (座標は世界の原点) へ落とさない。
      */
@@ -216,6 +212,10 @@ public final class ModNetwork {
         return player.containerMenu instanceof GoldenJukeboxMenu menu && menu.getBlockEntity().isMounted();
     }
 
+    /**
+     * 開いている GUI がトロッコに載った金のジュークボックスなら、その BE。
+     * 載せた BE は世界の座標に無いので、payload の座標ではなく開いている menu で対象を決める。
+     */
     @org.jetbrains.annotations.Nullable
     private static GoldenJukeboxBlockEntity mountedJukebox(ServerPlayer player) {
         return player.containerMenu instanceof GoldenJukeboxMenu menu && menu.getBlockEntity().isMounted()

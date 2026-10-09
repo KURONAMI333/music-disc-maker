@@ -209,9 +209,12 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
             return InteractionResult.PASS;
         }
         if (player instanceof ServerPlayer serverPlayer) {
+            // 画面は開いた時に音量・範囲を BE から読むので、設定は開く前に届ける。
+            Services.NETWORK.sendToPlayer(serverPlayer,
+                    new GoldenCartSyncPayload(this.getId(), this.jukebox.mountedSyncTag()));
             Services.MENU.openGoldenJukeboxCartMenu(serverPlayer, this);
-            // 状態は盤を運ばないので、menu を開いた時のスロット同期 (盤) の後に届くよう、この tick の
-            // 終わりに送る。先に届くと client は盤の無い状態として読み、再生位置を失う。
+            // 状態は盤を運ばないので、盤に結び付いた再生位置は menu を開いた時のスロット同期 (盤) の
+            // 後にもう一度届ける。先の 1 通だけだと client は盤の無い状態として読み、再生位置を失う。
             this.syncPending = true;
             return InteractionResult.CONSUME;
         }
