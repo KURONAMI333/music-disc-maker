@@ -52,7 +52,12 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class BoomboxClientPlayback {
 
-    private record Playing(String url, BoomboxAnchor anchor, DiscSoundInstance instance) {
+    /** {@code vanillaAnchor} はバニラ・他 MOD の盤の音だけが持つ (音量の更新先)。 */
+    private record Playing(String url, BoomboxAnchor anchor, PlaybackVoice instance,
+            @org.jetbrains.annotations.Nullable BoomboxVanillaAnchor vanillaAnchor) {
+        boolean vanilla() {
+            return vanillaAnchor != null;
+        }
     }
 
     private static final Map<Long, Playing> ACTIVE = new ConcurrentHashMap<>();
@@ -103,6 +108,8 @@ public final class BoomboxClientPlayback {
     static {
         // 同時再生の枠は金ジュークと共有する (設計上の決定 2026-09-07)。
         PlaybackConcurrency.client().register(SESSIONS);
+        // バニラ・他 MOD の盤の音は PlaybackSessions に入らないので、ここで数えて掃除する。
+        PlaybackConcurrency.client().registerCounter(BoomboxClientPlayback::sweepVanilla);
     }
 
     private BoomboxClientPlayback() {
@@ -116,6 +123,10 @@ public final class BoomboxClientPlayback {
      */
     public static void play(BoomboxPlayPayload payload) {
         com.kuronami.musicdiscmaker.network.BoomboxTrace.audio("client-play-received", payload);
+        if (payload.isVanilla()) {
+            playVanilla(payload);
+            return;
+        }
         final CustomTrackData track = payload.track();
         if (track == null || track.isEmpty()) {
             return;
@@ -137,9 +148,7 @@ public final class BoomboxClientPlayback {
                 current != null && current.instance().isVoiceStopped(),
                 PENDING.get(id), track.sourceKey(), previousGeneration, payload.audioGeneration());
         if (decision == PlaybackRequestGate.Decision.REFRESH) {
-            current.anchor().refresh();
-            current.instance().setVolumePercent(payload.volumePercent());
-            retargetIfMoved(current.anchor(), payload);
+            refresh(current, payload);
             return;
         }
         if (decision == PlaybackRequestGate.Decision.IGNORE) {
@@ -251,7 +260,7 @@ public final class BoomboxClientPlayback {
             instance.requestStop();
             return;
         }
-        final Playing previous = ACTIVE.put(id, new Playing(track.sourceKey(), live, instance));
+        final Playing previous = ACTIVE.put(id, new Playing(track.sourceKey(), live, instance, null));
         if (previous != null && previous.instance() != instance) {
             previous.instance().stopAndRelease();
         }
@@ -272,6 +281,76 @@ public final class BoomboxClientPlayback {
         }
     }
 
+    /** 同じ曲の送り直し: 生存を延ばし、音量と付き先 (置いた / 持った) を合わせる。音には触らない。 */
+    private static void refresh(Playing current, BoomboxPlayPayload payload) {
+        current.anchor().refresh();
+        if (current.vanillaAnchor() != null) {
+            current.vanillaAnchor().setVolumePercent(payload.volumePercent());
+        }
+        current.instance().setVolumePercent(payload.volumePercent());
+        retargetIfMoved(current.anchor(), payload);
+    }
+
+    /**
+     * バニラ・他 MOD の盤 (2026-10-09 本人裁定「どの盤でも」)。音は手元の資源にあるので読み込みは無く、
+     * 金のジュークボックス付きトロッコと同じ {@link VanillaSpeakerSoundInstance} で持ち主 (置いたなら
+     * その位置) に付いて鳴らす。
+     */
+    private static void playVanilla(BoomboxPlayPayload payload) {
+        final long id = payload.boomboxId();
+        if (id == BoomboxContents.UNASSIGNED) {
+            return;
+        }
+        final com.kuronami.musicdiscmaker.component.VanillaTrackData vanilla = payload.vanilla();
+        final String key = "vanilla:" + vanilla.soundEventId();
+        final BoomboxPlayPayload previousRequest = LATEST_REQUESTS.put(id, payload);
+        LATEST_RECEIVED_MS.put(id, playbackClockMs());
+        final Playing current = ACTIVE.get(id);
+        if (current != null && key.equals(current.url()) && !current.instance().isVoiceStopped()
+                && previousRequest != null && previousRequest.audioGeneration() == payload.audioGeneration()) {
+            refresh(current, payload);
+            return;
+        }
+        teardown(id);
+        final BoomboxAnchor live = anchorFor(payload);
+        if (live == null) {
+            return; // 持ち主が client にまだ居ない。次の送り直しで鳴らす
+        }
+        if (refusedByConcurrencyLimit(id, null)) {
+            return;
+        }
+        if (vanilla.durationMs() > 0L) {
+            live.armTailSilence(vanilla.durationMs() - payload.startOffsetMs(), BoomboxPlayback.VANILLA_TAIL_GRACE_MS);
+        }
+        final BoomboxVanillaAnchor vanillaAnchor = new BoomboxVanillaAnchor(live, payload.volumePercent());
+        final VanillaSpeakerSoundInstance instance = new VanillaSpeakerSoundInstance(
+                vanilla.soundEventId(), payload.startOffsetMs(), vanillaAnchor);
+        if (!GoldenCartClientPlayback.startVanillaCartVoice(instance, instance::stopAndRelease,
+                failure -> PlaybackFailureReport.report((CustomTrackData) null, failure),
+                () -> ACTIVE.put(id, new Playing(key, live, instance, vanillaAnchor)))) {
+            return;
+        }
+        LIMIT_NOTICES.forget(id);
+        final Minecraft mc = Minecraft.getInstance();
+        final Component desc = mc.level == null ? null
+                : com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOfSound(vanilla.soundEventId(), mc.level);
+        if (desc != null && withinBoomboxRange(live) && !key.equals(ANNOUNCED.put(id, key))) {
+            //? if >=26.2 {
+            mc.gui.hud.setNowPlaying(desc);
+            //?} else {
+            /*mc.gui.setNowPlaying(desc);
+            *///?}
+        }
+    }
+
+    /** バニラ・他 MOD の盤の音の数。止まったものはここで畳む。 */
+    private static int sweepVanilla() {
+        ACTIVE.entrySet().removeIf(entry -> entry.getValue().vanilla()
+                && entry.getValue().instance().isVoiceStopped());
+        return ACTIVE.values().stream().filter(Playing::vanilla)
+                .mapToInt(playing -> playing.instance().voiceCount()).sum();
+    }
+
     /**
      * 同時再生の枠が埋まっているか。埋まっていれば利用者に返す (機体ごとに 1 回だけ)。
      *
@@ -280,7 +359,7 @@ public final class BoomboxClientPlayback {
      *
      * @return 枠が無い = 鳴らしてはいけない
      */
-    private static boolean refusedByConcurrencyLimit(long id, CustomTrackData track) {
+    private static boolean refusedByConcurrencyLimit(long id, @org.jetbrains.annotations.Nullable CustomTrackData track) {
         final int playing = PlaybackConcurrency.client().sweepAll();
         final int limit = Config.maxConcurrent();
         if (playing < limit) {
@@ -442,11 +521,12 @@ public final class BoomboxClientPlayback {
             final long now = playbackClockMs();
             requests.forEach((id, payload) -> {
                 final CustomTrackData track = payload.track();
+                final long duration = payload.isVanilla() ? payload.vanilla().durationMs() : track.durationMs();
                 final long offset = SoundReloadResume.offset(payload.startOffsetMs(), received.get(id), now,
-                        track.durationMs(), track.radio());
+                        duration, !payload.isVanilla() && track.radio());
                 if (offset >= 0L) {
                     play(new BoomboxPlayPayload(payload.boomboxId(), payload.ownerEntityId(), payload.pos(), track,
-                            offset, payload.audioGeneration(), payload.volumePercent()));
+                            offset, payload.audioGeneration(), payload.volumePercent(), payload.vanilla()));
                 }
             });
         };

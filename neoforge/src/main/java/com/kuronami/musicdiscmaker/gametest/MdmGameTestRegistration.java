@@ -157,6 +157,10 @@ public final class MdmGameTestRegistration {
         register(event, "boombox_stale_placed_copy", BoomboxPlaybackStateGameTests::stalePlacedSessionCannotBeRescuedByCarriedCopy,
                 env(event, "boombox_stale_placed_copy"), 100);
         register(event, "boombox_tail_grace", BoomboxPlaybackStateGameTests::tailGraceDelaysSequenceAdvance, empty, 200);
+        register(event, "playable_discs_albums_count_vanilla_discs_as_tracks",
+                PlayableDiscsGameTests::albumsCountVanillaDiscsAsTracks, empty, 100);
+        register(event, "playable_discs_boombox_plays_vanilla_and_advances",
+                PlayableDiscsGameTests::boomboxPlaysVanillaDiscsAndAdvancesAfterTheirLength, empty, 100);
         register(event, "boombox_manual_wrap", BoomboxPlaybackStateGameTests::manualNavigationWrapsBothDirectionsAndPreservesPause, empty, 200);
         register(event, "boombox_natural_tail_repeat", BoomboxPlaybackStateGameTests::naturalTailStillUsesRepeatSetting, empty, 200);
         register(event, "boombox_control_wire", BoomboxControlGameTests::wireRetainsLongGenerationAndAtomicState, empty, 100);

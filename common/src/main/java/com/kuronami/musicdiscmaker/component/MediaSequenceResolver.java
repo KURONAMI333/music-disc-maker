@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.component;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -17,6 +19,9 @@ import net.minecraft.world.item.ItemStack;
 /**
  * raw 単曲と MDM Album の実 {@link ItemStack} を再生可能位置へ展開する。
  *
+ * <p>盤は MDM の盤だけでなく、バニラ・他 MOD の盤も 1 曲として数える ({@link PlayableDiscs})。
+ * その曲は {@link ResolvedTrack#track()} が {@code null} で、音と尺は再生機器が世界の registry から引く。
+ *
  * <p>AA Album は既存の互換経路が所有しているため、ここでは扱わない。MDM Album の各盤は
  * {@link AlbumContents} に保存された順序と盤 index を保つ。再生できない盤は飛ばすが、
  * その前後の盤 index を詰めないため、同じ URL の盤もそれぞれの位置で残る。
@@ -29,11 +34,19 @@ public final class MediaSequenceResolver {
         INVALID
     }
 
-    /** resolver が返す 1 曲。媒体の同一性は URL ではなく position にある。 */
-    public record ResolvedTrack(MediaSequence.Position position, CustomTrackData track) {
+    /**
+     * resolver が返す 1 曲。媒体の同一性は URL ではなく position にある。
+     * {@code track} は MDM の盤の曲で、バニラ・他 MOD の盤では {@code null} ({@link #disc()} が盤)。
+     */
+    public record ResolvedTrack(MediaSequence.Position position, @Nullable CustomTrackData track, ItemStack disc) {
         public ResolvedTrack {
             Objects.requireNonNull(position, "position");
-            Objects.requireNonNull(track, "track");
+            Objects.requireNonNull(disc, "disc");
+        }
+
+        /** バニラ・他 MOD の盤の曲か。 */
+        public boolean isVanilla() {
+            return track == null;
         }
     }
 
@@ -60,7 +73,8 @@ public final class MediaSequenceResolver {
         public Optional<ResolvedTrack> next(MediaSequence.Position current, boolean repeat, boolean manual) {
             if (!manual) {
                 final Optional<ResolvedTrack> playing = at(current);
-                if (playing.isEmpty() || !MediaSequence.allowsAutomaticAdvance(
+                // バニラの盤は尺が決まっているので、いつでも次へ送れる。
+                if (playing.isEmpty() || !playing.get().isVanilla() && !MediaSequence.allowsAutomaticAdvance(
                         playing.get().track().durationMs(), playing.get().track().radio())) {
                     return Optional.empty();
                 }
@@ -108,12 +122,17 @@ public final class MediaSequenceResolver {
     }
 
     private static void appendDisc(List<ResolvedTrack> output, ItemStack disc, int discIndex) {
+        if (!PlayableDiscs.isDisc(disc)) {
+            return;
+        }
+        final MediaSequence.Position position = new MediaSequence.Position(discIndex, 0);
         if (!disc.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            output.add(new ResolvedTrack(position, null, disc));
             return;
         }
         final CustomTrackData track = singleTrackOf(disc);
         if (track != null && !track.isEmpty()) {
-            output.add(new ResolvedTrack(new MediaSequence.Position(discIndex, 0), track));
+            output.add(new ResolvedTrack(position, track, disc));
         }
     }
 

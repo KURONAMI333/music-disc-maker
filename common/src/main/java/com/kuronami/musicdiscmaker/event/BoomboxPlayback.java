@@ -21,6 +21,8 @@ import com.kuronami.musicdiscmaker.component.MediaSequenceResolver;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
 import com.kuronami.musicdiscmaker.component.PlaybackClockAccess;
 import com.kuronami.musicdiscmaker.component.PauseAwarePlaybackClock;
+import com.kuronami.musicdiscmaker.component.PlayableDiscs;
+import com.kuronami.musicdiscmaker.component.VanillaTrackData;
 //? if >=1.21 {
 //?} else {
 /*import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
@@ -152,7 +154,41 @@ public final class BoomboxPlayback {
 
     @FunctionalInterface
     private interface PayloadFactory {
-        ModPayload create(CustomTrackData track, long offset, long audioGeneration, int volumePercent);
+        ModPayload create(Sound sound, long offset, long audioGeneration, int volumePercent);
+    }
+
+    /**
+     * バニラ・他 MOD の盤の曲の終わりを待つ猶予 (ms)。読み込みの遅れが無いので、MDM の曲の
+     * {@link #TAIL_GRACE_MS} ではなくジュークボックスと同じ 20 tick にする (曲の間が 8 秒空かない)。
+     */
+    public static final long VANILLA_TAIL_GRACE_MS = 1_000L;
+
+    /** 鳴らす 1 曲。MDM の盤の曲 ({@code track}) かバニラ・他 MOD の盤の曲 ({@code vanilla}) のどちらか。 */
+    private record Sound(@Nullable CustomTrackData track, @Nullable VanillaTrackData vanilla) {
+        boolean live() {
+            return track != null && (track.radio() || track.durationMs() <= 0L);
+        }
+
+        long automaticDurationMs() {
+            if (track != null) {
+                return track.radio() ? 0L : track.durationMs();
+            }
+            return vanilla.durationMs();
+        }
+
+        long tailGraceMs() {
+            return track != null ? TAIL_GRACE_MS : VANILLA_TAIL_GRACE_MS;
+        }
+    }
+
+    /** 曲の並びの 1 曲を、鳴らせる形にする。バニラの盤の音と尺は世界の registry から引く。 */
+    @Nullable
+    private static Sound soundOf(MediaSequenceResolver.ResolvedTrack resolved, ServerLevel level) {
+        if (resolved.track() != null) {
+            return new Sound(resolved.track(), null);
+        }
+        final VanillaTrackData vanilla = PlayableDiscs.vanillaTrackOf(resolved.disc(), level);
+        return vanilla == null ? null : new Sound(null, vanilla);
     }
 
     private BoomboxPlayback() {
@@ -312,7 +348,7 @@ public final class BoomboxPlayback {
         return track != null && !track.isEmpty() ? track : null;
     }
 
-    private record Started(long id, BoomboxContents contents, Session session, CustomTrackData track, long offset) {
+    private record Started(long id, BoomboxContents contents, Session session, Sound sound, long offset) {
     }
 
     @Nullable
@@ -331,8 +367,8 @@ public final class BoomboxPlayback {
         if (selected == null) {
             return null;
         }
-        final CustomTrackData track = resolved.at(selected).map(MediaSequenceResolver.ResolvedTrack::track).orElse(null);
-        if (track == null) {
+        final Sound sound = resolved.at(selected).map(track -> soundOf(track, level)).orElse(null);
+        if (sound == null) {
             return null;
         }
         final long id = identify(stack);
@@ -347,7 +383,7 @@ public final class BoomboxPlayback {
                 level.dimension(), chunk, now, () -> playbackTimeMs(level),
                 placedPos == null ? null : new PlacedOwner(level.dimension(), placedPos.immutable()));
         SESSIONS.put(id, session);
-        return new Started(id, contents, session, track, offset);
+        return new Started(id, contents, session, sound, offset);
     }
 
     // ── GUI のための口 ──────────────────────────────────────────────────
@@ -369,7 +405,8 @@ public final class BoomboxPlayback {
             return false;
         }
         send(level, player.chunkPosition(),
-                BoomboxPlayPayload.carried(started.id(), player.getId(), started.track(), started.offset(),
+                BoomboxPlayPayload.carried(started.id(), player.getId(), started.sound().track(),
+                        started.sound().vanilla(), started.offset(),
                         started.session().audioGeneration, started.contents().volumePercent()));
         return true;
     }
@@ -390,7 +427,8 @@ public final class BoomboxPlayback {
             return false;
         }
         be.setChanged();
-        send(level, chunk, BoomboxPlayPayload.placed(started.id(), pos, started.track(), started.offset(),
+        send(level, chunk, BoomboxPlayPayload.placed(started.id(), pos, started.sound().track(),
+                started.sound().vanilla(), started.offset(),
                 started.session().audioGeneration, started.contents().volumePercent()));
         return true;
     }
@@ -404,15 +442,16 @@ public final class BoomboxPlayback {
         prepareCarriedSource(stack);
         final long id = contentsOf(stack).id();
         return new ControlContext(level, player.chunkPosition(), stack,
-                (track, offset, epoch, volume) -> BoomboxPlayPayload.carried(id, player.getId(), track,
-                        offset, epoch, volume), () -> { }, null);
+                (sound, offset, epoch, volume) -> BoomboxPlayPayload.carried(id, player.getId(), sound.track(),
+                        sound.vanilla(), offset, epoch, volume), () -> { }, null);
     }
 
     private static ControlContext placedContext(ServerLevel level, BlockPos pos, BoomboxBlockEntity be) {
         preparePlacedSource(level, pos, be);
         final long id = contentsOf(be.getStored()).id();
         return new ControlContext(level, chunkOf(pos), be.getStored(),
-                (track, offset, epoch, volume) -> BoomboxPlayPayload.placed(id, pos, track, offset, epoch, volume),
+                (sound, offset, epoch, volume) -> BoomboxPlayPayload.placed(id, pos, sound.track(), sound.vanilla(),
+                        offset, epoch, volume),
                 be::setChanged, pos);
     }
 
@@ -643,8 +682,9 @@ public final class BoomboxPlayback {
         if (session != null && updated.cursor().state() == PlaybackCursor.State.PLAYING) {
             final MediaSequence.Position position = new MediaSequence.Position(updated.cursor().discIndex(),
                     updated.cursor().trackIndex());
-            session.resolved.at(position).ifPresent(track -> send(context.level(), context.chunk(),
-                    context.payload().create(track.track(), offsetFor(track.track(), session, playbackTimeMs(context.level())),
+            session.resolved.at(position).map(track -> soundOf(track, context.level())).ifPresent(sound ->
+                    send(context.level(), context.chunk(), context.payload().create(sound,
+                            offsetFor(sound, session, playbackTimeMs(context.level())),
                             session.audioGeneration, updated.volumePercent())));
         }
         return true;
@@ -654,8 +694,8 @@ public final class BoomboxPlayback {
             long offset) {
         final MediaSequenceResolver.ResolvedSequence resolved = MediaSequenceResolver.resolve(contents.disc());
         final MediaSequence sequence = playbackSequence(contents, resolved);
-        final CustomTrackData track = resolved.at(position).map(MediaSequenceResolver.ResolvedTrack::track).orElse(null);
-        if (track == null) {
+        final Sound sound = resolved.at(position).map(track -> soundOf(track, context.level())).orElse(null);
+        if (sound == null) {
             return false;
         }
         final PlaybackCursor cursor = contents.cursor().startAt(position.discIndex(), position.trackIndex());
@@ -668,7 +708,7 @@ public final class BoomboxPlayback {
                 context.chunk(), now, () -> playbackTimeMs(context.level()), context.placedPos() == null
                         ? null : new PlacedOwner(context.level().dimension(), context.placedPos().immutable()));
         SESSIONS.put(updated.id(), session);
-        send(context.level(), context.chunk(), context.payload().create(track, offset, session.audioGeneration,
+        send(context.level(), context.chunk(), context.payload().create(sound, offset, session.audioGeneration,
                 updated.volumePercent()));
         return true;
     }
@@ -770,8 +810,8 @@ public final class BoomboxPlayback {
             return;
         }
         serve(level, chunk, id, session, stack, now,
-                (track, offset, epoch, volume) -> BoomboxPlayPayload.carried(id, player.getId(), track,
-                        offset, epoch, volume));
+                (sound, offset, epoch, volume) -> BoomboxPlayPayload.carried(id, player.getId(), sound.track(),
+                        sound.vanilla(), offset, epoch, volume));
     }
 
     /**
@@ -795,8 +835,8 @@ public final class BoomboxPlayback {
         }
         final long generation = contentsOf(be.getStored()).cursor().generation();
         serve(level, chunk, id, session, be.getStored(), playbackTimeMs(level),
-                (track, offset, epoch, volume) -> BoomboxPlayPayload.placed(id, pos, track,
-                        offset, epoch, volume));
+                (sound, offset, epoch, volume) -> BoomboxPlayPayload.placed(id, pos, sound.track(),
+                        sound.vanilla(), offset, epoch, volume));
         if (contentsOf(be.getStored()).cursor().generation() != generation) {
             be.setChanged();
         }
@@ -820,16 +860,14 @@ public final class BoomboxPlayback {
         }
         final MediaSequence.Position position = new MediaSequence.Position(contents.cursor().discIndex(),
                 contents.cursor().trackIndex());
-        final CustomTrackData track = session.resolved.at(position)
-                .map(MediaSequenceResolver.ResolvedTrack::track).orElse(null);
-        if (track == null) {
+        final Sound sound = session.resolved.at(position).map(track -> soundOf(track, level)).orElse(null);
+        if (sound == null) {
             stop(level, chunk, id);
             return;
         }
         final long elapsed = Math.max(0L, now - session.startMillis);
-        final long automaticDuration = track.radio() ? 0L : track.durationMs();
-        final BoomboxHeartbeat.Action action = BoomboxHeartbeat.decide(true, false, elapsed, automaticDuration,
-                now - session.lastSentMillis, HEARTBEAT_MS, TAIL_GRACE_MS);
+        final BoomboxHeartbeat.Action action = BoomboxHeartbeat.decide(true, false, elapsed,
+                sound.automaticDurationMs(), now - session.lastSentMillis, HEARTBEAT_MS, sound.tailGraceMs());
         switch (action) {
             case END -> {
                 final MediaSequence.Position next = session.playbackSequence.next(position, contents.repeat())
@@ -845,7 +883,7 @@ public final class BoomboxPlayback {
             }
             case KEEP_ALIVE -> {
                 session.lastSentMillis = now;
-                send(level, chunk, payload.create(track, offsetFor(track, session, now), session.audioGeneration,
+                send(level, chunk, payload.create(sound, offsetFor(sound, session, now), session.audioGeneration,
                         contents.volumePercent()));
             }
             case IDLE, START -> {
@@ -856,9 +894,8 @@ public final class BoomboxPlayback {
 
     private static void restartAt(ServerLevel level, ChunkPos chunk, long id, ItemStack stack,
             BoomboxContents contents, Session previous, MediaSequence.Position position, PayloadFactory payload) {
-        final CustomTrackData track = previous.resolved.at(position).map(MediaSequenceResolver.ResolvedTrack::track)
-                .orElse(null);
-        if (track == null) {
+        final Sound sound = previous.resolved.at(position).map(track -> soundOf(track, level)).orElse(null);
+        if (sound == null) {
             stop(level, chunk, id);
             return;
         }
@@ -870,7 +907,7 @@ public final class BoomboxPlayback {
                 now, mintAudioGeneration(), level.dimension(), chunk, now, () -> playbackTimeMs(level),
                 previous.placedOwner);
         SESSIONS.put(id, restarted);
-        send(level, chunk, payload.create(track, 0L, restarted.audioGeneration, updated.volumePercent()));
+        send(level, chunk, payload.create(sound, 0L, restarted.audioGeneration, updated.volumePercent()));
     }
 
     /**
@@ -915,9 +952,8 @@ public final class BoomboxPlayback {
         }
     }
 
-    private static long offsetFor(CustomTrackData track, Session session, long now) {
-        final boolean live = track.radio() || track.durationMs() <= 0L;
-        return BoomboxHeartbeat.offsetFor(live, now - session.startMillis);
+    private static long offsetFor(Sound sound, Session session, long now) {
+        return BoomboxHeartbeat.offsetFor(sound.live(), now - session.startMillis);
     }
 
     /**

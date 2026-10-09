@@ -1,6 +1,9 @@
 package com.kuronami.musicdiscmaker.network;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.component.VanillaTrackData;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -35,14 +38,26 @@ import net.minecraft.network.FriendlyByteBuf;
  * @param boomboxId     機体の識別子
  * @param ownerEntityId 追従先の entity id。負なら設置
  * @param pos           設置されている位置 (追従時は未使用)
- * @param track         鳴らす曲
+ * @param track         鳴らす曲 (バニラ・他 MOD の盤では空)
  * @param startOffsetMs 再生開始位置 (ms)。無限長ストリームは常に 0
+ * @param vanilla       バニラ・他 MOD の盤の曲。MDM の盤では {@code null}
  */
 public record BoomboxPlayPayload(long boomboxId, int ownerEntityId, BlockPos pos, CustomTrackData track,
-        long startOffsetMs, long audioGeneration, int volumePercent) implements ModPayload {
+        long startOffsetMs, long audioGeneration, int volumePercent, @Nullable VanillaTrackData vanilla)
+        implements ModPayload {
 
     public BoomboxPlayPayload(long boomboxId, int ownerEntityId, BlockPos pos, CustomTrackData track, long startOffsetMs) {
-        this(boomboxId, ownerEntityId, pos, track, startOffsetMs, 0L, 100);
+        this(boomboxId, ownerEntityId, pos, track, startOffsetMs, 0L, 100, null);
+    }
+
+    public BoomboxPlayPayload(long boomboxId, int ownerEntityId, BlockPos pos, CustomTrackData track,
+            long startOffsetMs, long audioGeneration, int volumePercent) {
+        this(boomboxId, ownerEntityId, pos, track, startOffsetMs, audioGeneration, volumePercent, null);
+    }
+
+    /** バニラ・他 MOD の盤の曲か。 */
+    public boolean isVanilla() {
+        return vanilla != null;
     }
 
     public BoomboxPlayPayload {
@@ -51,12 +66,28 @@ public record BoomboxPlayPayload(long boomboxId, int ownerEntityId, BlockPos pos
 
     public static BoomboxPlayPayload carried(long id, int entityId, CustomTrackData track,
             long offset, long audioGeneration, int volumePercent) {
-        return new BoomboxPlayPayload(id, entityId, BlockPos.ZERO, track, offset, audioGeneration, volumePercent);
+        return carried(id, entityId, track, null, offset, audioGeneration, volumePercent);
     }
 
     public static BoomboxPlayPayload placed(long id, BlockPos pos, CustomTrackData track,
             long offset, long audioGeneration, int volumePercent) {
-        return new BoomboxPlayPayload(id, PLACED, pos, track, offset, audioGeneration, volumePercent);
+        return placed(id, pos, track, null, offset, audioGeneration, volumePercent);
+    }
+
+    /** {@code track} と {@code vanilla} はどちらか一方。バニラの盤なら {@code track} は無視して空にする。 */
+    public static BoomboxPlayPayload carried(long id, int entityId, @Nullable CustomTrackData track,
+            @Nullable VanillaTrackData vanilla, long offset, long audioGeneration, int volumePercent) {
+        return new BoomboxPlayPayload(id, entityId, BlockPos.ZERO,
+                vanilla != null || track == null ? CustomTrackData.EMPTY : track, offset, audioGeneration,
+                volumePercent, vanilla);
+    }
+
+    /** {@code track} と {@code vanilla} はどちらか一方。バニラの盤なら {@code track} は無視して空にする。 */
+    public static BoomboxPlayPayload placed(long id, BlockPos pos, @Nullable CustomTrackData track,
+            @Nullable VanillaTrackData vanilla, long offset, long audioGeneration, int volumePercent) {
+        return new BoomboxPlayPayload(id, PLACED, pos,
+                vanilla != null || track == null ? CustomTrackData.EMPTY : track, offset, audioGeneration,
+                volumePercent, vanilla);
     }
 
     public static final String PATH = "boombox_play";
@@ -102,8 +133,16 @@ public record BoomboxPlayPayload(long boomboxId, int ownerEntityId, BlockPos pos
      * @return 復元した payload
      */
     public static BoomboxPlayPayload read(FriendlyByteBuf buf) {
-        return new BoomboxPlayPayload(buf.readLong(), buf.readVarInt(), BlockPos.of(buf.readLong()),
-                CustomTrackData.read(buf), buf.readVarLong(), buf.readVarLong(), buf.readVarInt());
+        final long id = buf.readLong();
+        final int owner = buf.readVarInt();
+        final BlockPos pos = BlockPos.of(buf.readLong());
+        final CustomTrackData track = CustomTrackData.read(buf);
+        final long offset = buf.readVarLong();
+        final long generation = buf.readVarLong();
+        final int volume = buf.readVarInt();
+        final VanillaTrackData vanilla = buf.readBoolean()
+                ? new VanillaTrackData(buf.readUtf(256), buf.readVarLong()) : null;
+        return new BoomboxPlayPayload(id, owner, pos, track, offset, generation, volume, vanilla);
     }
 
     @Override
@@ -115,5 +154,10 @@ public record BoomboxPlayPayload(long boomboxId, int ownerEntityId, BlockPos pos
         buf.writeVarLong(startOffsetMs);
         buf.writeVarLong(audioGeneration);
         buf.writeVarInt(volumePercent);
+        buf.writeBoolean(vanilla != null);
+        if (vanilla != null) {
+            buf.writeUtf(vanilla.soundEventId(), 256);
+            buf.writeVarLong(vanilla.durationMs());
+        }
     }
 }

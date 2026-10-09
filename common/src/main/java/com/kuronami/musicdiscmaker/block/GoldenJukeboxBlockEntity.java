@@ -578,7 +578,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     private Optional<MediaSequenceResolver.ResolvedTrack> nextResolved(boolean manual) {
         if (!manual) {
             final Optional<MediaSequenceResolver.ResolvedTrack> playing = mediaSequence.at(mediaPosition());
-            if (playing.isEmpty() || !MediaSequence.allowsAutomaticAdvance(
+            if (playing.isEmpty() || !playing.get().isVanilla() && !MediaSequence.allowsAutomaticAdvance(
                     playing.get().track().durationMs(), playing.get().track().radio())) {
                 return Optional.empty();
             }
@@ -1473,8 +1473,14 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     private boolean currentMdmTrackFinished() {
         final CustomTrackData track = currentTrack();
-        return track != null && PlaylistPlayback.finished(
-                playbackTimeMs() - startMillis, track.durationMs(), track.radio());
+        if (track != null) {
+            return PlaylistPlayback.finished(playbackTimeMs() - startMillis, track.durationMs(), track.radio());
+        }
+        // アルバムの中のバニラ・他 MOD の盤は曲尺で次へ送る。下の単曲の終わりの判定 (同じ尺) より先に
+        // ここで拾わないと、アルバムが次の盤へ進まずに止まる。
+        final long duration = trackDurationMs();
+        return duration > 0L && playbackTimeMs() - startMillis
+                >= duration + (mount != null ? MOUNTED_VANILLA_END_GRACE_MS : 0L);
     }
 
     //? if >=1.21 {

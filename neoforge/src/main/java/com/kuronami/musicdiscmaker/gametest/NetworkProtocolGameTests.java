@@ -107,9 +107,9 @@ public class NetworkProtocolGameTests {
     private static final String TEMPLATE = "empty8x3x8";
 
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
-        を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18 にした。
-        {@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "18";
+        を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18、ブームボックスの再生に
+        バニラ・他 MOD の盤の曲を足して 19 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "19";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -118,10 +118,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "b5230491a1ebda4f3703b988804346f962ce6c7797b25ab2efd0f868d13842d4";
+            "dcca4f49289324c8a788295a40e933dfadd55582027c8285a8b73cb521cab184";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "ae9db152ddeb19582906a35d7fd7a8e006159f791322e714a673301ad09fe4c2";
+            "b4c71adb5d107940665bd0b6a62445c6c107ae03522186c4fc2f2ba02fc86713";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -395,6 +395,10 @@ public class NetworkProtocolGameTests {
         encoded.put("boombox_play", encode(mdmCodec(BoomboxPlayPayload::read),
                 BoomboxPlayPayload.placed(42L, SAMPLE_POS, SAMPLE_TRACK, 1_000L, 123L, 70)));
         encoded.put("boombox_stop", encode(mdmCodec(BoomboxStopPayload::read), new BoomboxStopPayload(42L)));
+        encoded.put("boombox_play_vanilla", encode(mdmCodec(BoomboxPlayPayload::read),
+                BoomboxPlayPayload.carried(42L, 7, null,
+                        new com.kuronami.musicdiscmaker.component.VanillaTrackData("minecraft:music_disc.cat", 185_000L),
+                        1_000L, 123L, 70)));
         encoded.put("resolve_url", encode(mdmCodec(ResolveUrlPayload::read),
                 new ResolveUrlPayload(SAMPLE_POS, SAMPLE_TRACK.url())));
         encoded.put("speaker_set", encode(mdmCodec(com.kuronami.musicdiscmaker.network.SpeakerSetPayload::read),

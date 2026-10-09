@@ -200,7 +200,7 @@ public class AlbumMenu extends AbstractContainerMenu {
     }
 
     private boolean mayStore(ItemStack stack) {
-        if (!AlbumContents.canInsert(stack, candidate -> candidate.is(ModItems.CUSTOM_MUSIC_DISC.get()),
+        if (!AlbumContents.canInsert(stack, com.kuronami.musicdiscmaker.component.PlayableDiscs::isDisc,
                 candidate -> candidate.is(ModItems.ALBUM.get()) || candidate.is(ModItems.BOOMBOX.get()))) {
             return false;
         }

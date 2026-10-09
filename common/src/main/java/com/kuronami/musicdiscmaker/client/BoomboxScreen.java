@@ -138,6 +138,24 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         return menu.currentTrack();
     }
 
+    /** 今の盤がバニラ・他 MOD の盤なら、その曲 (音と尺)。 */
+    @org.jetbrains.annotations.Nullable
+    private com.kuronami.musicdiscmaker.component.VanillaTrackData currentVanilla() {
+        final ItemStack disc = menu.currentVanillaDisc();
+        return disc.isEmpty() || minecraft == null || minecraft.level == null ? null
+                : com.kuronami.musicdiscmaker.component.PlayableDiscs.vanillaTrackOf(disc, minecraft.level);
+    }
+
+    /** 今の曲の尺。尺の無いラジオ・不明は 0。 */
+    private long currentDurationMs() {
+        final CustomTrackData track = currentTrack();
+        if (track != null) {
+            return track.radio() ? 0L : Math.max(0L, track.durationMs());
+        }
+        final com.kuronami.musicdiscmaker.component.VanillaTrackData vanilla = currentVanilla();
+        return vanilla == null ? 0L : vanilla.durationMs();
+    }
+
     private boolean isLive() {
         final CustomTrackData track = currentTrack();
         return track != null && track.radio();
@@ -198,9 +216,8 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             return 0L;
         }
         long elapsed = Math.max(0L, state.elapsedMs());
-        final CustomTrackData track = currentTrack();
-        return track != null && !track.radio() && track.durationMs() > 0L
-                ? Math.min(elapsed, track.durationMs()) : elapsed;
+        final long duration = currentDurationMs();
+        return duration > 0L ? Math.min(elapsed, duration) : elapsed;
     }
 
     private void refreshWidgets() {
@@ -331,11 +348,16 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
                         BoomboxScreenLayout.TRACK_TEXT_X, BoomboxScreenLayout.AUTHOR_Y, TIME_TEXT, false);
             }
         } else if (hasMedia()) {
-            final ItemStack stack = menu.getSlot(0).getItem();
+            // バニラ・他 MOD の盤は曲名 (例「C418 - cat」)、それ以外は入っている物の名前。
+            final ItemStack vanillaDisc = menu.currentVanillaDisc();
+            final String mediaName = !vanillaDisc.isEmpty() && minecraft != null && minecraft.level != null
+                    ? com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOf(vanillaDisc,
+                            minecraft.level).getString()
+                    : menu.getSlot(0).getItem().getHoverName().getString();
             //? if >=26.1 {
-            graphics.text(font, font.plainSubstrByWidth(stack.getHoverName().getString(), titleWidth),
+            graphics.text(font, font.plainSubstrByWidth(mediaName, titleWidth),
             //?} else {
-            /*graphics.drawString(font, font.plainSubstrByWidth(stack.getHoverName().getString(), titleWidth),
+            /*graphics.drawString(font, font.plainSubstrByWidth(mediaName, titleWidth),
             *///?}
                     BoomboxScreenLayout.TRACK_TEXT_X, BoomboxScreenLayout.TITLE_Y, TEXT, false);
         } else {
@@ -346,16 +368,17 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             *///?}
                     BoomboxScreenLayout.TRACK_TEXT_X, BoomboxScreenLayout.TITLE_Y, TEXT, false);
         }
-        if (track == null) {
+        if (track == null && currentVanilla() == null) {
             return;
         }
+        final long duration = currentDurationMs();
         final String elapsed = formatMs(displayElapsedMs());
         //? if >=26.1 {
         graphics.text(font, elapsed, BoomboxScreenLayout.TIME_X, BoomboxScreenLayout.TIME_Y, TIME_TEXT, false);
         //?} else {
         /*graphics.drawString(font, elapsed, BoomboxScreenLayout.TIME_X, BoomboxScreenLayout.TIME_Y, TIME_TEXT, false);
         *///?}
-        if (track.radio()) {
+        if (track != null && track.radio()) {
             final Component live = Component.translatable("tooltip.music_disc_maker.live");
             //? if >=26.1 {
             graphics.text(font, live, BoomboxScreenLayout.TIME_RIGHT - font.width(live),
@@ -363,8 +386,8 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             /*graphics.drawString(font, live, BoomboxScreenLayout.TIME_RIGHT - font.width(live),
             *///?}
                     BoomboxScreenLayout.TIME_Y, LIVE_TEXT, false);
-        } else if (track.durationMs() > 0L) {
-            final String total = formatMs(track.durationMs());
+        } else if (duration > 0L) {
+            final String total = formatMs(duration);
             //? if >=26.1 {
             graphics.text(font, total, BoomboxScreenLayout.TIME_RIGHT - font.width(total),
             //?} else {
@@ -653,7 +676,7 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             final String elapsed = formatMs(displayElapsedMs());
             final int rightWidth = track != null && track.radio()
                     ? font.width(Component.translatable("tooltip.music_disc_maker.live"))
-                    : track == null ? 0 : font.width(formatMs(track.durationMs()));
+                    : currentDurationMs() <= 0L ? 0 : font.width(formatMs(currentDurationMs()));
             final GoldenJukeboxTransportLayout.SeekBounds bounds =
                     GoldenJukeboxTransportLayout.seekBounds(font.width(elapsed), rightWidth);
             setX(leftPos + bounds.x());
@@ -661,9 +684,8 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         }
 
         private double displayFraction() {
-            final CustomTrackData track = currentTrack();
-            return track == null || track.durationMs() <= 0L ? 0.0D
-                    : Mth.clamp(displayElapsedMs() / (double) track.durationMs(), 0.0D, 1.0D);
+            final long duration = currentDurationMs();
+            return duration <= 0L ? 0.0D : Mth.clamp(displayElapsedMs() / (double) duration, 0.0D, 1.0D);
         }
 
         private void setFromMouse(double mouseX) {

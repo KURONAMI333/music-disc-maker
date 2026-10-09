@@ -194,6 +194,17 @@ public class BoomboxMenu extends AbstractContainerMenu {
                 : resolved.first()).map(MediaSequenceResolver.ResolvedTrack::track).orElse(null);
     }
 
+    /** 今の位置の盤がバニラ・他 MOD の盤なら、その盤。MDM の盤・位置が無ければ空。 */
+    public ItemStack currentVanillaDisc() {
+        final MediaSequenceResolver.ResolvedSequence resolved = resolveMedium();
+        if (resolved == null) return ItemStack.EMPTY;
+        final PlaybackCursor cursor = playbackState().cursor();
+        return (cursor.hasPosition()
+                ? resolved.at(new MediaSequence.Position(cursor.discIndex(), cursor.trackIndex()))
+                : resolved.first()).filter(MediaSequenceResolver.ResolvedTrack::isVanilla)
+                .map(MediaSequenceResolver.ResolvedTrack::disc).orElse(ItemStack.EMPTY);
+    }
+
     public int navigableTrackCount() {
         final MediaSequenceResolver.ResolvedSequence resolved = resolveMedium();
         return resolved == null ? 0 : resolved.tracks().size();
@@ -353,7 +364,8 @@ public class BoomboxMenu extends AbstractContainerMenu {
 
     private static boolean isBoombox(ItemStack stack) { return !stack.isEmpty() && stack.is(ModItems.BOOMBOX.get()); }
     private static boolean isAcceptedMedium(ItemStack stack) {
-        return stack.is(ModItems.CUSTOM_MUSIC_DISC.get()) || stack.is(ModItems.ALBUM.get());
+        // どの盤でも (MDM・バニラ・他 MOD) と、アルバム (2026-10-09 本人裁定)。
+        return com.kuronami.musicdiscmaker.component.PlayableDiscs.isDisc(stack) || stack.is(ModItems.ALBUM.get());
     }
 
     private static BoomboxContents contentsOf(ItemStack stack) {

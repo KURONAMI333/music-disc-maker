@@ -56,7 +56,8 @@ public final class ModNetwork {
     // 17: stop_disc に曲の終わりの印 (naturalEnd) を追加。
     // 18: 金ジューク付きトロッコを金ジュークの menu・画面・操作 payload へ統合 (control_golden_cart と
     // golden_cart_state を廃止し golden_cart_sync を追加、golden_cart_stop に曲の終わりの印を追加)。
-    public static final String PROTOCOL_VERSION = "18";
+    // 19: boombox_play にバニラ・他 MOD の盤の曲を追加 (ブームボックスでどの盤でも鳴る)。
+    public static final String PROTOCOL_VERSION = "19";
 
     private static final double MAX_REACH_SQR = 64.0;
 
