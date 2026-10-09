@@ -15,6 +15,7 @@
     "MixinVanillaJukeboxAudio",
     "MixinNowPlayingPlaceholder",
     "MixinTooltipJacketOrder",
+    "MixinPedestalJacketHud",
     "MixinClientLevelAudioBridge",
     "IntegratedServerPlaybackClockMixin",
     "BoomboxShoulderPoseMixin",
