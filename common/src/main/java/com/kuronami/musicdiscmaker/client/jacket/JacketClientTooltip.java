@@ -25,8 +25,8 @@ import net.minecraft.client.renderer.RenderPipelines;
  */
 public class JacketClientTooltip implements ClientTooltipComponent {
 
-    /** 収める最大枠 (px)。 */
-    private static final int MAX = 64;
+    /** 収める最大枠 (px)。64 では小さいという声 (HappyMeek、2026-10-09) で 96 に広げた。 */
+    private static final int MAX = 96;
     /** テキストとの上下余白。 */
     private static final int PAD = 2;
 

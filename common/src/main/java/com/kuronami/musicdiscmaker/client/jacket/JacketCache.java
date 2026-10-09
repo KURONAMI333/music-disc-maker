@@ -256,14 +256,18 @@ public final class JacketCache {
 
     /**
      * {@link NativeImage#read} は PNG 署名を必須とする ({@code PngInfo.validateHeader}) ため PNG 専用。
-     * PNG ならそのまま返し、JPEG 等はいったん {@link ImageIO} で decode → PNG に再エンコードして返す。
-     * 寸法は呼び出し前に {@link #dimensionsWithinLimit} で検査済み。
+     * {@link ImageIO} で decode し、端の単色の帯を切って ({@link JacketBars}) PNG に再エンコードして返す。
+     * 帯が無い PNG はそのまま返す。寸法は呼び出し前に {@link #dimensionsWithinLimit} で検査済み。
      */
     private static byte[] toPngBytes(byte[] bytes) throws IOException {
-        if (isPng(bytes)) {
+        final java.awt.image.BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(bytes));
+        if (decoded == null && isPng(bytes)) {
             return bytes;
         }
-        final java.awt.image.BufferedImage img = ImageIO.read(new ByteArrayInputStream(bytes));
+        final java.awt.image.BufferedImage img = decoded == null ? null : JacketBars.trim(decoded);
+        if (img == decoded && isPng(bytes)) {
+            return bytes;
+        }
         if (img == null) {
             //? if >=1.21.11 {
             throw new IOException("ImageIO could not decode the image");
