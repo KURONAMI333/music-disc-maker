@@ -103,11 +103,29 @@ public final class MetadataCleaner {
      * 表示では客演・録音版を残す。動画種別だけの括弧と末尾注記に限って落とし、
      * 曲名の一部か判断できない括弧はそのままにする。Topicの曲名は分割も除去もしない。
      *
+     * <p>2026-10-09 本人指摘で、表示では次も落とす (実タイトル 690 件の採取に出た形。
+     * {@code _work/mdm-310-execution/title-corpus-20261009/}): 【】の見出し全部・ハッシュタグ・
+     * 曲を使った作品の紹介 ({@code TVアニメ『X』ノンクレジットOP} / {@code (映画「X」主題歌)})・
+     * 投稿者名の再掲 ({@code / THE FIRST TAKE})。作品名の引用を曲名に取り違えない
+     * ({@link #quotedSong})。
+     *
      * @return [title, author] の表示用配列
      */
     static String[] display(String rawTitle, String rawAuthor) {
-        String title = rawTitle == null ? "" : rawTitle.trim();
-        String author = rawAuthor == null ? "" : rawAuthor.trim();
+        return display(rawTitle, rawAuthor, null);
+    }
+
+    /**
+     * {@link #display(String, String)} に、動画の説明欄を足した版。題に作品名と OP/ED の紹介しか無く
+     * 曲名が書かれていない時 ({@code TVアニメ『彼方から』ノンクレジットエンディング映像}) だけ、説明欄の
+     * 先頭から曲名と歌手を探す ({@link #descriptionSong})。説明欄は解決時に watch ページから既に取って
+     * いるので、通信は増えない。
+     *
+     * @param description 同じ動画の説明欄。無ければ null
+     */
+    static String[] display(String rawTitle, String rawAuthor, String description) {
+        String title = rawTitle == null ? "" : spaces(rawTitle).strip();
+        String author = rawAuthor == null ? "" : spaces(rawAuthor).strip();
 
         final boolean topic = author.toLowerCase(Locale.ROOT).endsWith("- topic");
         if (topic) {
@@ -115,7 +133,7 @@ public final class MetadataCleaner {
             return new String[] {stripArtistPrefix(title, author), author};
         }
 
-        author = cleanAuthor(author);
+        author = displayAuthor(cleanAuthor(author));
         final String original = title;
         title = stripDisplayNoise(title);
         title = stripPipeCredit(title, author);
@@ -125,29 +143,527 @@ public final class MetadataCleaner {
             title = title.substring(credit.end()).trim();
         }
         if (title.isBlank()) return new String[] {original, author};
+        // 向きの判定はクレジット括弧が消える前に済ませる ({@link #separatorFlips})。
+        final boolean flip = separatorFlips(title, author);
+        final boolean coverHeading = COVER_HEADING.matcher(title).find();
+        final boolean coverCredit = coverHeading || COVER_CREDIT.matcher(title).find();
+        final String headed = stripHeadings(title);
+        if (!headed.isBlank()) {
+            title = headed;
+        }
 
+        final String[] song = quotedSong(title, author);
+        if (song != null && song.length == 3) {
+            // 題に曲名が無い: 説明欄の「オープニングテーマ「曲」歌手」を使う。
+            final String[] described = descriptionSong(description);
+            if (described != null) {
+                return new String[] {described[0], described[1].isEmpty() ? author : described[1]};
+            }
+            return new String[] {finishDisplay(song[0]), author};
+        }
+        if (song != null) {
+            return new String[] {finishDisplay(song[0]), trimArtist(coverArtist(original, author, song[1]))};
+        }
+        // 曲名の引用が無い時は、見出しで区切られた最初の部分だけを見る (後ろは所属・企画名)。
+        title = firstPart(title);
         final Matcher quoted = QUOTED.matcher(title);
-        if (quoted.find()) {
-            final String song = firstNonNull(
-                    quoted.group(2), quoted.group(3), quoted.group(4), quoted.group(5));
-            final String artist = quoted.group(1).trim();
-            if (song != null && !song.isBlank() && !artist.isBlank()) {
+        if (quoted.find() && quoted.group(4) != null) {
+            final String artist = trimArtist(quoted.group(1));
+            if (!quoted.group(4).isBlank() && !artist.isBlank()) {
                 final String suffix = title.substring(quoted.end()).trim();
-                return new String[] {song.trim() + (suffix.isEmpty() ? "" : " " + suffix),
-                        coverArtist(title, author, cleanAuthor(artist))};
+                return new String[] {finishDisplay(quoted.group(4).trim() + (suffix.isEmpty() ? "" : " " + suffix)),
+                        coverArtist(original, author, cleanAuthor(artist))};
             }
         }
 
-        final String[] split = separatorSplit(title, author, separatorFlips(title, author));
+        final String[] split = separatorSplit(title, author, flip);
         // Song - Live のような版の注記をアーティスト／曲名と取り違えない。
         if (split != null && !RECORDING_SUFFIX.matcher(split[0]).find()) {
-            return new String[] {split[0], coverArtist(title, author, cleanAuthor(split[1]))};
+            if (coverHeading) {
+                // 【歌ってみた】曲 - 原曲の歌手: 左が曲名、歌っているのは投稿者。
+                return new String[] {finishDisplay(coverSong(title)), author};
+            }
+            return new String[] {finishDisplay(stripUploaderTail(split[0], author)),
+                    trimArtist(coverArtist(original, author, cleanAuthor(split[1])))};
+        }
+        final String[] slash = slashCredit(title, author, coverCredit);
+        if (slash != null) {
+            return new String[] {finishDisplay(slash[0]), trimArtist(slash[1])};
         }
         title = stripSlashMvSuffix(stripTrailingCredit(title));
         if (title.isBlank()) {
             title = original;
         }
-        return new String[] {title, coverArtist(original, author, author)};
+        return new String[] {finishDisplay(title), coverArtist(original, author, author)};
+    }
+
+    /** 見出しを落とした跡。区切りとして扱い、表示には残さない。 */
+    private static final char CUT = '\uE000';
+    /** 動画の見出しに付く括弧。中身は問わず、表示では落とす (2026-10-09 本人指摘)。 */
+    private static final Pattern HEADING_BRACKET = Pattern.compile("【([^】]*)】");
+    /** 見出しが歌ってみた・カバーを示すか。曲名と原曲の歌手の並びが逆になる。 */
+    private static final Pattern COVER_HEADING = Pattern.compile(
+            "(?i)【[^】]*(?:歌ってみた|カバー|cover)[^】]*】|[(（\\[［]\\s*cover\\s*[)）\\]］]");
+    private static final Pattern COVER_CREDIT = Pattern.compile("(?i)\\bcover(?:ed)?\\s+by\\b|\\scover$");
+    private static final Pattern HASHTAG = Pattern.compile("[#＃](?![0-9０-９])[^\\s#＃【】\\[\\]()（）]+");
+    private static final Pattern NOTE_TAIL = Pattern.compile("\\s*※.*$");
+    private static final Pattern EMPTY_BRACKET = Pattern.compile("[(（\\[［]\\s*[)）\\]］]");
+    private static final String WORK_KINDS =
+            "TV\\s*アニメ|アニメ|ドラマ|映画|劇場版|日曜劇場|月9|ゲーム|番組|舞台|ミュージカル|朝ドラ|(?<![A-Za-z])CM";
+    /** 曲を使った作品の種類。この直後の引用は作品名で、曲名ではない。 */
+    private static final Pattern WORK_KIND_BEFORE = Pattern.compile("(?:" + WORK_KINDS + ")\\s*$");
+    /** 引用の直後に続けば、その引用は作品名 (主題歌・OP などの紹介)。 */
+    private static final Pattern WORK_ROLE_AFTER = Pattern.compile(
+            "^\\s*(?:主題歌|挿入歌|テーマ|オープニング|エンディング|ノンクレジット|ノンテロップ|第\\S{1,4}(?:期|クール|話)"
+            + "|(?i:season)|篇|編|(?:OP|ED)(?![A-Za-z]))");
+    /** 曲がその作品で担う役割 (主題歌・OP 等)。この直後の引用は曲名、直後に続けばその前の引用は作品名。 */
+    private static final String ROLES = "主題歌|挿入歌|オープニング|エンディング|テーマ|ノンクレジット|ノンテロップ"
+            + "|(?<![A-Za-z])(?:OP|ED)(?![A-Za-z])|(?i:opening|ending|theme\\s+song)";
+    private static final Pattern ROLE = Pattern.compile(ROLES);
+    private static final Pattern ROLE_BEFORE = Pattern.compile("(?:" + ROLES + ")\\s*[:：]?\\s*$");
+    /** 作品の紹介を示す語。括弧や区切りの後ろの部分がこれを含めば、曲の紹介文として落とす。 */
+    private static final Pattern TIE_IN = Pattern.compile(
+            "主題歌|挿入歌|オープニング|エンディング|テーマ|ノンクレジット|ノンテロップ|" + WORK_KINDS
+            + "|(?<![A-Za-z])(?:OP|ED)(?![A-Za-z])|(?i:opening|ending|theme\\s+song)");
+    /** 末尾にある作品の紹介 ({@code ／TVアニメ『X』OPテーマ})。後ろに曲名の引用が無い時だけ落とす。 */
+    private static final Pattern TIE_IN_TAIL = Pattern.compile(
+            "[\\s\u3000/／|｜]*(?:" + WORK_KINDS + ")\\s*[「『｢][^」』｣]+[」』｣][^「『｢]*$");
+    /** 動画の種類だけを表す語。括弧の中身・引用の中身・曲名の後ろがこれだけなら落とす。 */
+    private static final Pattern MEDIA_ONLY = Pattern.compile(
+            "(?i)^[\\s/／・+&-]*(?:(?:official|公式|music|video|audio|lyrics?|visualizer|4k|8k|hd|hq|1080p|60fps"
+            + "|m/?v|pv|clip|remaster(?:ed)?|animation|anime|ミュージックビデオ|スペシャル|special|movie|ムービー|full|size"
+            + "|フル|ver\\.?|\\d+(?:st|nd|rd|th)|single|album)[\\s/／・+&-]*)+$");
+    private static final Pattern MEDIA_TAIL = Pattern.compile(
+            "(?i)[\\s:：/／|｜\\-–—]*(?:official\\s+|アニメ|anime\\s+|animation\\s+|スペシャル|special\\s+)?(?:music\\s+video|music\\s+clip"
+            + "|lyric\\s+video|video|m/?v|pv|ミュージックビデオ|ムービー|movie)(?:\\s+full(?:\\s+size)?)?[\\s\\-–—]*$");
+    private static final Pattern SEPARATED_MEDIA_TAIL = Pattern.compile(
+            "(?i)[\\s:：/／|｜\\-–—]+(?:official\\s+)?(?:music\\s+video|music\\s+clip|lyric\\s+video|video|m/?v|pv"
+            + "|ミュージックビデオ)(?:\\s+full(?:\\s+size)?)?[\\s\\-–—]*$");
+    private static final Pattern ANY_BRACKET = Pattern.compile("[(（\\[［]([^)）\\]］]*)[)）\\]］]");
+    private static final Pattern JP_QUOTE = Pattern.compile(
+            "「([^」]+)」|『([^』]+)』|｢([^｣]+)｣|“([^”]+)”|\"([^\"]+)\"");
+    private static final Pattern ARTIST_EDGE = Pattern.compile(
+            "^[\\s\u3000♪×xX:：/／|｜│\\-–—・、,\uE000]+|[\\s\u3000♪×:：/／|｜│\\-–—・、,\uE000]+$");
+    private static final Pattern SEGMENT_BREAK = Pattern.compile("[｜|│／/\u3000】」』｣\uE000]");
+    private static final Pattern RELEASE_LABEL = Pattern.compile(
+            "(?i)\\d+(?:st|nd|rd|th)\\s+(?:single|album)|\\b(?:single|album)\\b");
+
+    /** NBSP 等を普通の空白にそろえる (実タイトルの区切りに NBSP が出る・2026-10-09 採取)。 */
+    private static String spaces(String text) {
+        return text.replaceAll("[\\u00A0\\u2000-\\u200B\\u202F\\u205F]", " ");
+    }
+
+    /** 投稿者名の表示: 【にじさんじ】のような所属の見出しを落とす。 */
+    private static String displayAuthor(String author) {
+        final String stripped = MULTISPACE.matcher(HEADING_BRACKET.matcher(author).replaceAll(" ")).replaceAll(" ").strip();
+        return stripped.isEmpty() ? author : stripped;
+    }
+
+    /**
+     * 見出しと紹介文を落とす: 【】 (中に曲名の引用があれば中身だけ残す)・ハッシュタグ・※の注記・
+     * 作品の紹介を含む括弧・動画の種類だけの括弧・末尾の作品の紹介と動画の種類。
+     */
+    private static String stripHeadings(String title) {
+        final Matcher heading = HEADING_BRACKET.matcher(title);
+        final StringBuilder out = new StringBuilder();
+        while (heading.find()) {
+            final String inner = heading.group(1);
+            heading.appendReplacement(out, Matcher.quoteReplacement(
+                    inner.contains("「") || inner.contains("『") ? " " + inner + " " : " " + CUT + " "));
+        }
+        heading.appendTail(out);
+        String t = HASHTAG.matcher(out.toString()).replaceAll(" ");
+        t = NOTE_TAIL.matcher(t).replaceAll("");
+        final Matcher bracket = ANY_BRACKET.matcher(t);
+        final StringBuilder kept = new StringBuilder();
+        while (bracket.find()) {
+            final String inner = bracket.group(1);
+            final boolean drop = (TIE_IN.matcher(inner).find() && !hasVersionMarker(inner))
+                    || MEDIA_ONLY.matcher(inner).matches();
+            bracket.appendReplacement(kept, Matcher.quoteReplacement(drop ? " " : bracket.group()));
+        }
+        bracket.appendTail(kept);
+        t = EMPTY_BRACKET.matcher(kept.toString()).replaceAll(" ");
+        final Matcher tieTail = TIE_IN_TAIL.matcher(t);
+        if (tieTail.find() && !t.substring(0, tieTail.start()).isBlank()) {
+            t = t.substring(0, tieTail.start());
+        }
+        // 区切りの後ろに独立した動画種別 ("新宝島 -Music Video-") を先に落とし、
+        // 「/ 1stアルバムスペシャルMV」型の宣伝尾は、語に付いた動画種別を削る前に丸ごと落とす。
+        t = tidy(t);
+        final String separated = SEPARATED_MEDIA_TAIL.matcher(t).replaceAll("").strip();
+        if (!separated.isEmpty()) {
+            t = separated;
+        }
+        return tidy(cutMediaTail(stripSlashMvSuffix(t)));
+    }
+
+    private static String cutMediaTail(String t) {
+        final String cut = MEDIA_TAIL.matcher(t).replaceAll("").strip();
+        return cut.isEmpty() ? t : cut;
+    }
+
+    /** 区切りだけが残った端を整える。 */
+    private static String tidy(String t) {
+        t = MULTISPACE.matcher(t.replace('\u3000', ' ')).replaceAll(" ");
+        t = t.replaceAll("\\s*\uE000(?:\\s*\uE000)*\\s*", " " + CUT + " ");
+        t = t.replaceAll("^[\\s\uE000]+|[\\s\uE000｜|\\-–—]+$", "");
+        return t.strip();
+    }
+
+    /** 見出しの跡で区切られた、最初の空でない部分。 */
+    private static String firstPart(String title) {
+        for (final String part : title.split(String.valueOf(CUT))) {
+            if (!part.isBlank()) {
+                return part.strip();
+            }
+        }
+        return title;
+    }
+
+    /**
+     * 引用 (「」『』｢｣“” "") に入った曲名を選ぶ。作品名の引用
+     * ({@code TVアニメ『X』} / {@code 『X』主題歌} / {@code 『X』×歌手「曲」}) は飛ばす。
+     * アーティストは、曲名の引用の直前の区切り以降、無ければ直後の短い語句か括弧、
+     * それも無ければ引用の中の {@code 曲 / 歌手}、最後に投稿者。
+     *
+     * <p>曲名の引用が無く作品名の引用だけの時は、作品の種類の語と引用符を外した見出しを返す
+     * ({@code TVアニメ『彼方から』ノンクレジットエンディング映像} → {@code 彼方から ノンクレジットエンディング映像})。
+     *
+     * @return [曲名, アーティスト]。引用が無ければ null
+     */
+    private static String[] quotedSong(String title, String author) {
+        final Matcher m = JP_QUOTE.matcher(title);
+        final java.util.ArrayList<int[]> spans = new java.util.ArrayList<>();
+        final java.util.ArrayList<String> contents = new java.util.ArrayList<>();
+        while (m.find()) {
+            spans.add(new int[] {m.start(), m.end()});
+            contents.add(firstNonNull(m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)).strip());
+        }
+        boolean anyWork = false;
+        String quotedArtist = "";
+        for (int i = 0; i < spans.size(); i++) {
+            final String content = contents.get(i);
+            final String before = title.substring(i == 0 ? 0 : spans.get(i - 1)[1], spans.get(i)[0]);
+            final String after = title.substring(spans.get(i)[1]);
+            if (content.isEmpty() || MEDIA_ONLY.matcher(java.text.Normalizer.normalize(content,
+                    java.text.Normalizer.Form.NFKC)).matches()) {
+                continue;
+            }
+            if (isWork(i, before, after)) {
+                anyWork = true;
+                continue;
+            }
+            if (after.matches("^\\s*[「『｢].*")) {
+                // 『歌手』「曲」: 続けて引用が来る時、前の引用は歌手名。
+                quotedArtist = content;
+                continue;
+            }
+            String songTitle = content;
+            String artist = artistBefore(i == 0 ? before : title.substring(0, spans.get(i)[0]));
+            if (artist.isEmpty() && !quotedArtist.isEmpty() && before.isBlank()) {
+                artist = quotedArtist;
+            }
+            if (artist.isEmpty()) {
+                artist = artistAfter(after);
+            }
+            if (artist.isEmpty()) {
+                final int slash = content.indexOf(" / ");
+                if (slash > 0) {
+                    songTitle = content.substring(0, slash).strip();
+                    artist = content.substring(slash + 3).strip();
+                }
+            }
+            if (artist.isEmpty()) {
+                artist = author;
+            }
+            return new String[] {songTitle + versionSuffix(after), artist};
+        }
+        if (anyWork) {
+            String t = title.replaceAll("(?:" + WORK_KINDS + ")\\s*(?=[「『｢])", "");
+            t = t.replaceAll("[「『｢」』｣]", " ");
+            // 3 つ目の要素は「題に曲名が無かった」印。
+            return new String[] {firstPart(tidy(t)), author, ""};
+        }
+        return null;
+    }
+
+    private static final int DESCRIPTION_LINES = 25;
+    private static final Pattern CREDIT_LINE = Pattern.compile(
+            "^\\s*(?:歌|歌唱|唄|アーティスト|artist|vocals?)\\s*[:：]\\s*(.+)$", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 説明欄の先頭から、曲の役割 (オープニングテーマ・主題歌 等) の行と、その行か次の 2 行にある
+     * 曲名の引用を探す。歌手は同じ行の引用の前後か、続く「歌：」「アーティスト：」の行。
+     * 実物 (2026-10-09 採取): {@code オープニングテーマ：「Unbroken」MADKID} /
+     * {@code ♪オープニングテーマ} + {@code CLAN QUEEN「WARNING!!」} /
+     * {@code ▼エンディングテーマ} + {@code 「False Love」} + {@code 歌：Ceui}。
+     *
+     * @return [曲名, 歌手 (無ければ空)]。見つからなければ null
+     */
+    static String[] descriptionSong(String description) {
+        if (description == null || description.isBlank()) {
+            return null;
+        }
+        final String[] lines = spaces(description).split("\\R");
+        final int limit = Math.min(lines.length, DESCRIPTION_LINES);
+        for (int i = 0; i < limit; i++) {
+            if (!ROLE.matcher(lines[i]).find() || lines[i].length() > 120) {
+                continue;
+            }
+            for (int j = i; j < Math.min(limit, i + 3); j++) {
+                final String line = lines[j];
+                final Matcher quote = JP_QUOTE.matcher(line);
+                while (quote.find()) {
+                    final String before = line.substring(0, quote.start());
+                    final String after = line.substring(quote.end());
+                    final String song = firstNonNull(quote.group(1), quote.group(2), quote.group(3),
+                            quote.group(4), quote.group(5)).strip();
+                    if (song.isEmpty() || song.length() > 100 || WORK_KIND_BEFORE.matcher(before).find()
+                            || WORK_ROLE_AFTER.matcher(after).find()) {
+                        continue;
+                    }
+                    String artist = artistBefore(before);
+                    if (artist.isEmpty()) {
+                        artist = artistAfter(after);
+                    }
+                    for (int k = j + 1; artist.isEmpty() && k < Math.min(limit, j + 3); k++) {
+                        final Matcher credit = CREDIT_LINE.matcher(lines[k]);
+                        if (credit.find()) {
+                            artist = artistCandidate(credit.group(1));
+                        }
+                    }
+                    return new String[] {song, trimArtist(artist)};
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 引用が作品名か。直前が作品の種類の語、直後が主題歌・OP 等の紹介、
+     * 直後から次の区切りまでに紹介の語がある、または「作品」×歌手「曲」の前側。
+     */
+    private static boolean isWork(int index, String before, String after) {
+        if (WORK_KIND_BEFORE.matcher(before).find()) {
+            return true;
+        }
+        if (ROLE_BEFORE.matcher(before).find()) {
+            // 主題歌「曲」・EDテーマ「曲」
+            return false;
+        }
+        if (index > 0 && before.matches("^\\s*[×xX]\\s*$")) {
+            // 歌手「曲」×「作品」の後ろ側
+            return true;
+        }
+        final Matcher cross = Pattern.compile("^\\s*[×xX]\\s*(.*)$", Pattern.DOTALL).matcher(after);
+        if (cross.find()) {
+            final String rest = cross.group(1).strip();
+            // 「曲」×ドラマ『作品』・歌手「曲」×「作品」は曲側、「作品」× 歌手「曲」は作品側。
+            return !(rest.isEmpty() || rest.matches("^[「『｢].*")
+                    || Pattern.compile("^(?:" + WORK_KINDS + ")").matcher(rest).find());
+        }
+        if (!artistBefore(before).isEmpty()) {
+            // 歌手「曲」主題歌スペシャルムービー: 前に歌手名があれば曲名。
+            return false;
+        }
+        if (WORK_ROLE_AFTER.matcher(after).find()) {
+            return true;
+        }
+        final String segment = after.split("[｜|│／(（【「『｢\"“\uE000]", 2)[0];
+        return ROLE.matcher(segment).find();
+    }
+
+    /**
+     * 曲名の引用の直前で、区切りより後ろの語句。紹介の語の後ろだけを取る
+     * ({@code OPテーマ：キタニタツヤ} → {@code キタニタツヤ})。作品の紹介語や発売情報だけなら
+     * 1 つ前の区切りまで戻る (2 つまで)。
+     */
+    private static String artistBefore(String before) {
+        String rest = ARTIST_EDGE.matcher(before).replaceAll("");
+        for (int round = 0; round < 3 && !rest.isEmpty(); round++) {
+            final Matcher seg = SEGMENT_BREAK.matcher(rest);
+            int cut = 0;
+            while (seg.find()) {
+                cut = seg.end();
+            }
+            final int note = rest.lastIndexOf('♪');
+            if (note >= cut) {
+                cut = note + 1;
+            }
+            String candidate = rest.substring(cut);
+            final Matcher tie = ROLE.matcher(candidate);
+            int tieEnd = -1;
+            while (tie.find()) {
+                tieEnd = tie.end();
+            }
+            if (tieEnd >= 0) {
+                candidate = candidate.substring(tieEnd);
+            }
+            candidate = RELEASE_LABEL.matcher(candidate).replaceAll("");
+            candidate = ARTIST_EDGE.matcher(candidate.replaceAll("^\\s*(?:映像|ムービー|movie)", "")).replaceAll("").strip();
+            if (!candidate.isEmpty() && candidate.length() <= 40 && !MEDIA_ONLY.matcher(candidate).matches()
+                    && !WORK_KIND_BEFORE.matcher(candidate).find()
+                    && !candidate.matches("^(?:第\\S{1,4}(?:期|クール|話)|(?i:season)\\s*\\d*|.*[「『」』｢｣].*)$")) {
+                return candidate;
+            }
+            if (tieEnd >= 0 && !candidate.isEmpty()) {
+                return "";
+            }
+            rest = ARTIST_EDGE.matcher(rest.substring(0, Math.max(0, cut - 1))).replaceAll("");
+            if (rest.matches(".*(?:" + WORK_KINDS + ")\\s*$") || rest.endsWith("』") || rest.endsWith("」")) {
+                return "";
+            }
+        }
+        return "";
+    }
+
+    /** 曲名の引用の直後のアーティスト: 括弧の中身か、次の区切りまでの短い語句。 */
+    private static String artistAfter(String after) {
+        final Matcher paren = Pattern.compile("^\\s*[(（]([^)）]+)[)）]").matcher(after);
+        if (paren.find()) {
+            return artistCandidate(paren.group(1));
+        }
+        // 「曲」フルver. / 歌手 のように、最初の区切りまでが版や動画の種類なら次へ進む (3 つまで)。
+        final String[] chunks = ARTIST_EDGE.matcher(cutMediaTail(after.strip())).replaceAll("")
+                .split("\\s*[｜|│/／【\\[(（\uE000]\\s*");
+        for (int i = 0; i < Math.min(3, chunks.length); i++) {
+            final String chunk = chunks[i].strip();
+            final String found = artistCandidate(chunk);
+            if (!found.isEmpty()) {
+                return found;
+            }
+            if (!chunk.isEmpty() && !MEDIA_ONLY.matcher(chunk).matches() && !hasVersionMarker(chunk)
+                    && !chunk.matches("(?i)^(?:フル|full).*")) {
+                return "";
+            }
+        }
+        return "";
+    }
+
+    private static String artistCandidate(String raw) {
+        String a = ARTIST_EDGE.matcher(cutMediaTail(raw.strip())).replaceAll("").strip();
+        a = a.replaceAll("^(?:歌|歌唱|唄|Vo\\.?)\\s*[:：]\\s*|^(?i:by)\\s+", "");
+        final String withoutFeature = a.replaceAll("(?i)\\s*(?<![A-Za-z])(?:feat|ft|featuring)\\.?\\s.*$", "");
+        if (a.isEmpty() || a.length() > 40 || TIE_IN.matcher(a).find() || MEDIA_ONLY.matcher(a).matches()
+                || hasVersionMarker(withoutFeature) || a.matches("(?i)^(?:feat|ft|featuring)\\b.*")
+                || a.matches("(?i)^(?:from|at|on|live|ver)\\b.*") || a.startsWith("📍") || a.startsWith("@")) {
+            return "";
+        }
+        return a;
+    }
+
+    /**
+     * 曲名の引用の直後に続く版の情報 (「(Live) feat. X」「feat. X」)。直後が版の括弧か客演で
+     * 始まる時だけ残す — 後ろは動画の種類・作品の紹介・ローマ字の再掲 ({@code Kenshi Yonezu - Yodaka})・
+     * 歌手名が大半。
+     */
+    private static String versionSuffix(String after) {
+        String s = after.split("[｜|│／【\uE000]", 2)[0];
+        final Matcher bracket = ANY_BRACKET.matcher(s);
+        final StringBuilder kept = new StringBuilder();
+        while (bracket.find()) {
+            final String inner = bracket.group(1);
+            bracket.appendReplacement(kept, Matcher.quoteReplacement(
+                    (TIE_IN.matcher(inner).find() && !hasVersionMarker(inner)) || MEDIA_ONLY.matcher(inner).matches()
+                            ? " " : bracket.group()));
+        }
+        bracket.appendTail(kept);
+        s = cutMediaTail(kept.toString().strip());
+        if (s.isEmpty() || MEDIA_TAIL.matcher(s).replaceAll("").isBlank()) {
+            return "";
+        }
+        final Matcher lead = Pattern.compile("^[(（\\[［]([^)）\\]］]*)[)）\\]］]").matcher(s);
+        final boolean versionBracket = lead.find() && hasVersionMarker(lead.group(1));
+        final boolean feature = s.matches("(?i)^(?:feat|ft|featuring)\\.?\\s.*");
+        return versionBracket || feature ? " " + s : "";
+    }
+
+    /**
+     * 「曲 / 歌手」型。歌手が投稿者名の再掲なら分ける ({@code Okie Dokie Dance ／ 大空スバル} @
+     * {@code Subaru Ch. 大空スバル}・{@code ベテルギウス / THE FIRST TAKE} @ {@code THE FIRST TAKE})。
+     * 左が投稿者名の再掲なら「歌手 / 曲」({@code サカナクション / 新宝島})。
+     * 歌ってみた・カバーの時は右が原曲の歌手なので、曲名だけ取って歌い手は投稿者にする。
+     *
+     * @return [曲名, アーティスト]。当てはまらなければ null
+     */
+    private static String[] slashCredit(String title, String author, boolean cover) {
+        if (cover) {
+            // 歌ってみたは「曲/原曲の歌手」を空白無しでも書く。
+            final String first = title.split("\\s*[/／]\\s*", 2)[0].strip();
+            return first.isEmpty() || first.length() == title.length() ? null : new String[] {first, author};
+        }
+        // 空白の無い / は曲名の一部 ("relax/study"・"24/7"・"W/X/Y") なので区切りにしない。
+        final String[] parts = title.split("\\s+/\\s*|\\s*/\\s+|\\s*／\\s*");
+        if (parts.length < 2 || parts[0].isBlank() || parts[parts.length - 1].isBlank()) {
+            return null;
+        }
+        final String head = title.substring(0, title.length() - parts[parts.length - 1].length())
+                .replaceAll("\\s*[/／]\\s*$", "").strip();
+        final String tail = parts[parts.length - 1].strip();
+        if (sameName(tail, author)) {
+            return new String[] {head, tail};
+        }
+        if (parts.length == 2 && sameName(parts[0], author)) {
+            return new String[] {tail, parts[0].strip()};
+        }
+        return null;
+    }
+
+    /**
+     * 名前が投稿者名の再掲か: 客演表記を除いた語が全部、投稿者名の語に含まれる
+     * ({@code 大空スバル} ⊂ {@code Subaru Ch. 大空スバル})。1 語が共通なだけでは再掲としない
+     * ({@code lofi hip hop radio} と {@code Lofi Girl})。
+     */
+    private static boolean sameName(String name, String author) {
+        final String bare = name.replaceAll("(?i)\\s*(?<![A-Za-z])(?:feat|ft|featuring)(?:\\.\\s*|\\s+).*$", "");
+        final List<String> words = TrackMatch.wordList(bare);
+        if (words.isEmpty()) {
+            return false;
+        }
+        if (TrackMatch.wordList(author).containsAll(words)) {
+            return true;
+        }
+        // まふまふ ⊂ まふまふちゃんねる: 語の切れ目の無い投稿者名は、名前全体の包含で見る。
+        final String compactName = compact(bare);
+        return substantial(compactName) && compact(author).contains(compactName);
+    }
+
+    /** 曲名の末尾の「/ 投稿者名」({@code カフェ・オ・レ / THE FIRST TAKE}) を落とす。 */
+    private static String stripUploaderTail(String text, String author) {
+        final Matcher slash = Pattern.compile("\\s+/\\s*|\\s*/\\s+|\\s*／\\s*").matcher(text);
+        int start = -1;
+        int end = -1;
+        while (slash.find()) {
+            start = slash.start();
+            end = slash.end();
+        }
+        if (start > 0 && end < text.length() && sameName(text.substring(end), author)) {
+            return text.substring(0, start).strip();
+        }
+        return text;
+    }
+
+    /** 歌ってみたの「曲 - 原曲の歌手」から曲名を取る。 */
+    private static String coverSong(String title) {
+        final Matcher separator = SEPARATOR.matcher(title);
+        final String head = separator.find() ? title.substring(0, separator.start()) : title;
+        return head.split("\\s*[/／]\\s*", 2)[0].strip();
+    }
+
+    private static String trimArtist(String artist) {
+        final String raw = artist == null ? "" : artist.strip();
+        final String t = ARTIST_EDGE.matcher(raw.replaceAll("[「」『』｢｣]", "")).replaceAll("").strip();
+        return t.isEmpty() ? raw : t;
+    }
+
+    /** 表示する曲名の仕上げ: 動画の種類だけの末尾と、端に残った区切りを落とす。 */
+    private static String finishDisplay(String title) {
+        String t = firstPart(tidy(title)).replace(String.valueOf(CUT), " ");
+        t = cutMediaTail(t);
+        t = t.replaceAll("^[\\s｜|/／:：\\-–—]+|[\\s｜|/／:：\\-–—]+$", "").strip();
+        t = MULTISPACE.matcher(t).replaceAll(" ");
+        return t.isEmpty() ? tidy(title).replace(String.valueOf(CUT), " ").strip() : t;
     }
 
     /**

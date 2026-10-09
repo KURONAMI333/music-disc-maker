@@ -677,7 +677,8 @@ public class MusicLoaderImpl implements IMusicLoader {
             }
         }
 
-        final String[] display = MetadataCleaner.display(title, author);
+        final boolean samePage = watch != null && title.equals(watch.title()) && author.equals(watch.author());
+        final String[] display = MetadataCleaner.display(title, author, samePage ? watch.shortDescription() : null);
         final String[] search = MetadataCleaner.clean(title, author);
         if (isGenericTopicAuthor(author)) {
             // Release / Various Artists は自動生成配信の仮置き名で、曲固有情報が取れない時に
