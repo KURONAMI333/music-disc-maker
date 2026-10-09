@@ -12,13 +12,15 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 /**
  * 曲の始まりに出す「Now Playing」。
  *
- * <p>既定では出さず、client 設定 {@link Config#showNowPlaying()} で出す (2026-10-09 本人裁定:
- * 動画タイトルをうまく曲名に直せなかった盤ではその題がそのまま出るため、見たい人だけ有効にする)。
- * MDM の再生機器と compat はすべてここを通す。
+ * <p>MDM を入れたら、既定ではどの盤の Now Playing も出さない。MDM の盤だけでなく、バニラの盤や
+ * 他 MOD の再生も含める (2026-10-09 本人裁定: 動画タイトルをうまく曲名に直せなかった盤ではその題が
+ * そのまま出るため既定は出さない。MDM の盤だけ出ないと「MDM の盤だけ表示されない」と言われるので、
+ * 全部まとめて止める)。client 設定 {@link Config#showNowPlaying()} を有効にすると全部出る。
+ * 止めるのは {@code MixinNowPlayingPlaceholder}、MDM の再生機器と compat はすべてここを通す。
  *
  * <p>MDM の盤は無音の曲としてバニラの再生に乗っているので、バニラや他 MOD は盤の名前
- * (「Custom Music Disc」) を Now Playing に出そうとする。その仮の名前は設定に関係なく出さない
- * ({@code MixinNowPlayingPlaceholder})。設定が有効なら、MDM が本当の曲名を出す。
+ * (「Custom Music Disc」) を Now Playing に出そうとする。その仮の名前は設定が有効でも出さず、
+ * MDM が本当の曲名を出す。
  */
 public final class NowPlaying {
 
@@ -55,6 +57,11 @@ public final class NowPlaying {
         //?} else {
         /*Minecraft.getInstance().gui.setNowPlaying(text);
         *///?}
+    }
+
+    /** Now Playing の表示を止めるか。設定が無効なら全部、有効なら MDM の盤の仮の名前だけ。 */
+    public static boolean suppresses(Component text) {
+        return !Config.showNowPlaying() || isPlaceholder(text);
     }
 
     /** バニラや他 MOD が MDM の盤に出そうとする仮の名前 (「Custom Music Disc」) か。 */

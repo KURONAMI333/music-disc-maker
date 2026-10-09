@@ -38,8 +38,8 @@ public class ForgeConfigHelper implements IConfigHelper {
             .defineInRange("boomboxRange", 16, 4, 64);
 
     public static final ForgeConfigSpec.BooleanValue SHOW_NOW_PLAYING = BUILDER
-            .comment("Show \"Now Playing\" with the song name when a custom disc starts.",
-                    "Off by default: a disc whose video title could not be turned into a clean song name "
+            .comment("Show \"Now Playing\" when a music disc starts, for every disc and every mod.",
+                    "Off by default: a custom disc whose video title could not be turned into a clean song name "
                     + "would show that title as it is.")
             .define("showNowPlaying", false);
 

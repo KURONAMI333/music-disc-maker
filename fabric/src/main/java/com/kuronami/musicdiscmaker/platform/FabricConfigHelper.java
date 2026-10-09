@@ -81,7 +81,7 @@ public class FabricConfigHelper implements IConfigHelper {
                 Files.createDirectories(file.getParent());
                 try (Writer writer = Files.newBufferedWriter(file)) {
                     properties.store(writer, "Music Disc Maker client settings. "
-                            + "showNowPlaying: show \"Now Playing\" with the song name when a custom disc starts.");
+                            + "showNowPlaying: show \"Now Playing\" when a music disc starts, for every disc and every mod.");
                 }
             }
         } catch (final IOException | IllegalArgumentException e) {

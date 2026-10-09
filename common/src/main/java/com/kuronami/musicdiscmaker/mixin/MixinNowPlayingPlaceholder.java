@@ -15,14 +15,14 @@ import net.minecraft.client.gui.Hud;
 @Mixin(Gui.class)
 *///?}
 /**
- * バニラのジュークボックスや他 MOD が MDM の盤の仮の名前 (「Custom Music Disc」) を Now Playing に
- * 出すのを止める。本当の曲名は MDM が設定に従って出す ({@link NowPlaying})。
+ * Now Playing の表示を止める。設定が無効 (既定) ならバニラや他 MOD の分も含めて全部、
+ * 有効なら MDM の盤の仮の名前 (「Custom Music Disc」) だけ ({@link NowPlaying#suppresses})。
  */
 public abstract class MixinNowPlayingPlaceholder {
 
     @Inject(method = "setNowPlaying", at = @At("HEAD"), cancellable = true)
     private void mdm$hidePlaceholder(Component text, CallbackInfo ci) {
-        if (NowPlaying.isPlaceholder(text)) {
+        if (NowPlaying.suppresses(text)) {
             ci.cancel();
         }
     }
