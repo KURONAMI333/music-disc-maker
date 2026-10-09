@@ -81,7 +81,7 @@ public class AlbumItem extends Item {
                 final ItemStack disc = stored.discAt(index);
                 final Component line = Component.literal((index + 1) + ". ")
                         .withStyle(ChatFormatting.DARK_GRAY)
-                        .append(Component.literal(tooltipName(disc)).withStyle(ChatFormatting.GRAY));
+                        .append(Component.literal(tooltipName(discName(disc, context))).withStyle(ChatFormatting.GRAY));
                 //? if >=1.21.11 {
                 tooltip.accept(line);
                 //?} else {
@@ -106,9 +106,35 @@ public class AlbumItem extends Item {
         //?}
     }
 
+    /**
+     * 盤の表示名。バニラ・他 MOD の盤は名前がどれも「Music Disc」で見分けがつかないので、曲名
+     * (例「C418 - cat」) を出す。MDM の盤は名前 (曲名・金床での名前) のまま。
+     */
+    //? if >=1.21 {
+    private static String discName(ItemStack disc, TooltipContext context) {
+    //?} else {
+    /*private static String discName(ItemStack disc, @org.jetbrains.annotations.Nullable net.minecraft.world.level.Level context) {
+    *///?}
+        if (!disc.is(com.kuronami.musicdiscmaker.register.ModItems.CUSTOM_MUSIC_DISC.get())) {
+            //? if >=26.1 {
+            final var song = net.minecraft.world.item.JukeboxSong.fromStack(disc);
+            if (song.isPresent()) return song.get().value().description().getString();
+            //?} elif >=1.21 {
+            /*if (context.registries() != null) {
+                final var song = net.minecraft.world.item.JukeboxSong.fromStack(context.registries(), disc);
+                if (song.isPresent()) return song.get().value().description().getString();
+            }
+            *///?} else {
+            /*if (disc.getItem() instanceof net.minecraft.world.item.RecordItem record) {
+                return record.getDisplayName().getString();
+            }
+            *///?}
+        }
+        return disc.getHoverName().getString();
+    }
+
     /** 横に画面外まで伸びる曲名を抑え、サロゲート対も途中で切らない。 */
-    private static String tooltipName(ItemStack disc) {
-        final String name = disc.getHoverName().getString();
+    private static String tooltipName(String name) {
         if (name.codePointCount(0, name.length()) <= TOOLTIP_NAME_CODEPOINT_LIMIT) {
             return name;
         }

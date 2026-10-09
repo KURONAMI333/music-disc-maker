@@ -1025,7 +1025,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
                 else cursor = cursor.moveTo(0, 0).stop();
             } else
             //?}
-            if (track == null) {
+            // アルバムの中のバニラ・他 MOD の盤は、単独の盤ではなくアルバムの次の曲へ送る。
+            if (track == null && !isMdmAlbum()) {
                 cursor = repeat ? cursor.startAt(cursor.discIndex(), cursor.trackIndex()) : cursor.stop();
             } else {
             final var next = nextResolved(false);
@@ -1132,7 +1133,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         //? if >=1.21 {
         final ItemStack disc = effectiveDisc();
         //?} else {
-/*        final ItemStack disc = items.get(SLOT_DISC);
+/*        // アルバムの中のバニラの盤も鳴らす (アルバムそのものは RecordItem ではない)。
+        final ItemStack disc = effectiveDisc();
         */
         //?}
         cursor = cursor.startAt(Math.max(0, cursor.discIndex()), Math.max(0, cursor.trackIndex()));

@@ -161,6 +161,8 @@ public final class MdmGameTestRegistration {
                 PlayableDiscsGameTests::albumsCountVanillaDiscsAsTracks, empty, 100);
         register(event, "playable_discs_boombox_plays_vanilla_and_advances",
                 PlayableDiscsGameTests::boomboxPlaysVanillaDiscsAndAdvancesAfterTheirLength, empty, 100);
+        register(event, "playable_discs_moving_golden_album_advances_past_vanilla",
+                PlayableDiscsGameTests::movingGoldenJukeboxAlbumsAdvancePastVanillaDiscs, empty, 100);
         register(event, "boombox_manual_wrap", BoomboxPlaybackStateGameTests::manualNavigationWrapsBothDirectionsAndPreservesPause, empty, 200);
         register(event, "boombox_natural_tail_repeat", BoomboxPlaybackStateGameTests::naturalTailStillUsesRepeatSetting, empty, 200);
         register(event, "boombox_control_wire", BoomboxControlGameTests::wireRetainsLongGenerationAndAtomicState, empty, 100);

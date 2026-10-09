@@ -122,6 +122,44 @@ public final class PlayableDiscsGameTests {
         }
     }
 
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void movingGoldenJukeboxAlbumsAdvancePastVanillaDiscs(GameTestHelper helper) {
+        final var level = helper.getLevel();
+        final BlockPos pos = helper.absolutePos(new BlockPos(2, 1, 2));
+        level.setBlock(pos, com.kuronami.musicdiscmaker.register.ModBlocks.GOLDEN_JUKEBOX.get().defaultBlockState(), 3);
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(List.of(new ItemStack(Items.MUSIC_DISC_CAT),
+                custom("after-captured-vanilla", 120_000L))));
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            final var jukebox = (com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity) level.getBlockEntity(pos);
+            jukebox.setItem(com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity.SLOT_DISC, album);
+            helper.assertTrue(jukebox.playbackCursor().discIndex() == 0 && !jukebox.isStopped(),
+                    "the album did not start on its vanilla disc");
+            final long catLength = PlayableDiscs.vanillaTrackOf(new ItemStack(Items.MUSIC_DISC_CAT), level).durationMs();
+            // Create の動く構造物は、載せた金のジュークボックスの保存データだけを進める。
+            final net.minecraft.nbt.CompoundTag captured = jukebox.saveCustomOnly(level.registryAccess());
+            com.kuronami.musicdiscmaker.component.CapturedGoldenPlayback.advance(level, pos, captured, catLength + 1L);
+            //? if >=1.21.11 {
+            final int disc = captured.getIntOr("albumTrack", -1);
+            final String state = captured.getStringOr("playbackState", "");
+            //?} else {
+            /*final int disc = captured.getInt("albumTrack");
+            final String state = captured.getString("playbackState");
+            *///?}
+            helper.assertTrue(disc == 1 && state.equals("PLAYING"),
+                    "a moving golden jukebox did not move from the vanilla disc to the next album track: disc="
+                            + disc + " state=" + state);
+            level.removeBlock(pos, false);
+            helper.succeed();
+        } finally {
+            Services.swapNetwork(previous);
+        }
+    }
+
     private static BoomboxPlayPayload lastPlay(CapturingNetwork net) {
         BoomboxPlayPayload last = null;
         for (final var sent : net.of(BoomboxPlayPayload.class)) {
