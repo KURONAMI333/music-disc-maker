@@ -7,6 +7,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.network.chat.Component;
 //? if >=1.21.11 {
 import net.minecraft.client.renderer.RenderPipelines;
 //?} elif >=1.21.4 {
@@ -30,9 +31,16 @@ public class JacketClientTooltip implements ClientTooltipComponent {
     private static final int PAD = 2;
 
     private final String url;
+    private final Component name;
 
     public JacketClientTooltip(JacketTooltip tooltip) {
         this.url = tooltip.url();
+        this.name = tooltip.name();
+    }
+
+    /** ツールチップ先頭行に出る盤の名前。 */
+    public Component name() {
+        return name;
     }
 
     private JacketCache.Jacket jacket() {

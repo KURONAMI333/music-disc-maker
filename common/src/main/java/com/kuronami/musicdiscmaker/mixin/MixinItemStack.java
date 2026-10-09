@@ -10,12 +10,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.kuronami.musicdiscmaker.client.DiscTooltipLines;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -24,8 +24,9 @@ import net.minecraft.world.item.TooltipFlag;
 /**
  * custom music disc のツールチップ各行を一定幅で折り返す。曲名は disc の表示名 (tooltip 先頭行) や
  * 補足行に入るため、長い曲名 (全角 30 文字超など) では既定のツールチップが画面幅レベルに横長になる。
- * 全テキスト行 (名前・アーティスト・長さ) を {@link #MAX_WIDTH}px で複数行へ折り返し、バニラの
- * ツールチップ折り返し慣行に近づける。
+ * 全テキスト行 (名前・アーティスト・長さ) を {@link DiscTooltipLines#MAX_WIDTH}px で複数行へ折り返し、
+ * バニラのツールチップ折り返し慣行に近づける。名前が折り返されたときのジャケット画像の位置は
+ * {@code MixinTooltipJacketOrder} が直す。
  *
  * <p>{@code getTooltipLines} は vanilla の基底経路で両ローダーが最終的に通るため、単一の common mixin で
  * 足りる (client 専用: font 幅計算に client font を使う)。custom disc 以外・折り返し不要な短い行は素通し、
@@ -33,9 +34,6 @@ import net.minecraft.world.item.TooltipFlag;
  */
 @Mixin(ItemStack.class)
 public abstract class MixinItemStack {
-
-    /** 折り返し最大幅 (px)。バニラのツールチップ折り返し慣行に合わせた目安。 */
-    private static final int MAX_WIDTH = 200;
 
     @Inject(method = "getTooltipLines", at = @At("RETURN"), cancellable = true)
     private void musicdiscmaker$wrapDiscTooltip(Item.TooltipContext context, @Nullable Player player,
@@ -53,14 +51,9 @@ public abstract class MixinItemStack {
         boolean wrappedAny = false;
         final List<Component> out = new ArrayList<>(original.size());
         for (final Component line : original) {
-            if (font.width(line) <= MAX_WIDTH) {
-                out.add(line);
-                continue;
-            }
-            wrappedAny = true;
-            for (final FormattedText part : font.getSplitter().splitLines(line, MAX_WIDTH, line.getStyle())) {
-                out.add(Component.literal(part.getString()).setStyle(line.getStyle()));
-            }
+            final List<Component> parts = DiscTooltipLines.wrap(line, font);
+            wrappedAny |= parts.size() > 1;
+            out.addAll(parts);
         }
         if (wrappedAny) {
             cir.setReturnValue(out);
@@ -77,19 +70,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.kuronami.musicdiscmaker.client.DiscTooltipLines;
 import com.kuronami.musicdiscmaker.item.CustomMusicDiscItem;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 
 @Mixin(ItemStack.class)
 public abstract class MixinItemStack {
-    private static final int MAX_WIDTH = 200;
 
     @Inject(method = "getTooltipLines", at = @At("RETURN"), cancellable = true)
     private void musicdiscmaker$wrapDiscTooltip(@Nullable Player player, TooltipFlag flag,
@@ -107,14 +99,9 @@ public abstract class MixinItemStack {
         boolean wrappedAny = false;
         final List<Component> out = new ArrayList<>(original.size());
         for (final Component line : original) {
-            if (font.width(line) <= MAX_WIDTH) {
-                out.add(line);
-                continue;
-            }
-            wrappedAny = true;
-            for (final FormattedText part : font.getSplitter().splitLines(line, MAX_WIDTH, line.getStyle())) {
-                out.add(Component.literal(part.getString()).setStyle(line.getStyle()));
-            }
+            final List<Component> parts = DiscTooltipLines.wrap(line, font);
+            wrappedAny |= parts.size() > 1;
+            out.addAll(parts);
         }
         if (wrappedAny) {
             cir.setReturnValue(out);

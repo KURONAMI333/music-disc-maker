@@ -13,6 +13,7 @@
     "PocketJukeboxPlayerMixin",
     "MixinVanillaJukeboxAudio",
     "MixinNowPlayingPlaceholder",
+    "MixinTooltipJacketOrder",
     "MixinClientLevelAudioBridge",
     "IntegratedServerPlaybackClockMixin",
     "BoomboxShoulderPoseMixin",

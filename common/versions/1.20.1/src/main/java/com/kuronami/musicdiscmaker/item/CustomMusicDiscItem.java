@@ -170,6 +170,6 @@ public class CustomMusicDiscItem extends RecordItem {
         if (jacketUrl.isBlank()) {
             return Optional.empty();
         }
-        return Optional.of(new JacketTooltip(jacketUrl));
+        return Optional.of(new JacketTooltip(jacketUrl, stack.getHoverName()));
     }
 }
