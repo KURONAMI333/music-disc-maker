@@ -10,13 +10,13 @@ Use links from **YouTube, Spotify, SoundCloud, Bandcamp**, or a direct audio URL
 
 ## Build your collection
 
-- **Album:** Keep up to 18 custom discs together in two rows. Right-click to arrange them, check the contents in its tooltip, and dye the cover to tell your collections apart. Dyeing preserves the discs, their order, and the Album's name.
+- **Album:** Keep up to 18 discs together in two rows, whether they are custom discs, vanilla discs, or music discs from other mods. Right-click to arrange them, check the contents in its tooltip, and dye the cover to tell your collections apart. Dyeing preserves the discs, their order, and the Album's name.
 - **Disc Dyeing Table:** Recolor a custom disc's surface and accent separately. Change either color or both.
 - **Disc Pedestal:** Put a favorite disc on display with its track title and artist. Swap the displayed disc in one interaction.
 
 ## Listen at home or on the move
 
-The **Boombox** plays a custom disc or an Album while carried or placed. Pause, skip between tracks, shuffle an Album, repeat, seek, and adjust the volume from its controls. On supported NeoForge and Forge versions, an optional Curios slot lets you equip a Boombox. Curios is not needed for the rest of the mod.
+The **Boombox** plays any music disc that works in a jukebox, including vanilla discs and discs from other mods, or an Album, while carried or placed. Pause, skip between tracks, shuffle an Album, repeat, seek within custom discs, and adjust the volume from its controls. On supported NeoForge and Forge versions, an optional Curios slot lets you equip a Boombox. Curios is not needed for the rest of the mod.
 
 The **Golden Jukebox** gives you control over a listening area: set the range from **16 to 256 blocks**, adjust the volume from **0 to 200%**, and choose positional sound or an even volume throughout the area. It also has playback controls, including track skipping and shuffle for Albums.
 
