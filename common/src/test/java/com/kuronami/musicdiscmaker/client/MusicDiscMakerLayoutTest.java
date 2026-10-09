@@ -50,19 +50,31 @@ class MusicDiscMakerLayoutTest {
     }
 
     @Test
-    void statusRowAndWarningSitBelowSlotsWithoutColliding() {
-        // 状態行は旧ボタン帯 (y≈69-85) を再利用するが、スロット下端 (47+18=65) より下。
-        assertTrue(MusicDiscMakerLayout.STATUS_Y >= MusicDiscMakerLayout.INPUT_Y + 18);
-        // 1 行分の高さ (lineHeight=9) で在庫ラベルへ入らない。
-        assertTrue(MusicDiscMakerLayout.STATUS_Y + 9 < MusicDiscMakerLayout.INVENTORY_LABEL_Y);
-        // 警告印は状態文の右。切り詰め後の状態文と接しない 4px 以上の隙間を保つ。
-        assertTrue(MusicDiscMakerLayout.WARNING_X
-                >= MusicDiscMakerLayout.STATUS_X + MusicDiscMakerLayout.STATUS_MAX_W + 4);
-        assertTrue(MusicDiscMakerLayout.WARNING_Y == MusicDiscMakerLayout.STATUS_Y);
+    void panelMatchesTheVanillaInventoryWidth() {
+        assertEquals(176, MusicDiscMakerLayout.PANEL_WIDTH);
+        assertEquals(8, MusicDiscMakerLayout.INVENTORY_X);
+        // 入出力の組 (入力枠の左端〜出力枠の右端) がパネルの中央付近にある。
+        final int pairCenter = (MusicDiscMakerLayout.INPUT_X - 1 + MusicDiscMakerLayout.OUTPUT_X + 17) / 2;
+        assertTrue(Math.abs(pairCenter - MusicDiscMakerLayout.PANEL_WIDTH / 2) <= 5);
+    }
+
+    @Test
+    void statusBandFitsTwoLinesBetweenSlotsAndInventoryLabel() {
+        // 2 行のときもスロット下端 (47+18=65) より下、在庫ラベル (88) より上。
+        assertTrue(MusicDiscMakerLayout.STATUS_TWO_LINE_Y >= MusicDiscMakerLayout.INPUT_Y + 18);
+        assertTrue(MusicDiscMakerLayout.STATUS_TWO_LINE_Y + 9 * MusicDiscMakerLayout.STATUS_MAX_LINES
+                <= MusicDiscMakerLayout.INVENTORY_LABEL_Y);
+        assertTrue(MusicDiscMakerLayout.STATUS_Y >= MusicDiscMakerLayout.STATUS_TWO_LINE_Y);
+        assertTrue(MusicDiscMakerLayout.STATUS_X + MusicDiscMakerLayout.STATUS_MAX_W
+                <= MusicDiscMakerLayout.PANEL_WIDTH - 8);
+    }
+
+    @Test
+    void warningSitsInsideTheUrlFieldAfterItsText() {
+        assertTrue(MusicDiscMakerLayout.WARNING_X >= MusicDiscMakerLayout.URL_X + MusicDiscMakerLayout.URL_W);
         assertTrue(MusicDiscMakerLayout.WARNING_X + MusicDiscMakerLayout.WARNING_SIZE
-                <= MusicDiscMakerLayout.PANEL_WIDTH);
-        // 警告印はボタン行より下 (旧座標 (112,72) で起きた重なりの再発防止)。
-        assertTrue(MusicDiscMakerLayout.WARNING_Y
-                > MusicDiscMakerLayout.TOOL_Y + MusicDiscMakerLayout.TOOL_SIZE);
+                <= MusicDiscMakerLayout.TOOL_PASTE_X);
+        assertTrue(MusicDiscMakerLayout.WARNING_Y >= MusicDiscMakerLayout.URL_Y
+                && MusicDiscMakerLayout.WARNING_Y + 8 <= MusicDiscMakerLayout.URL_Y + MusicDiscMakerLayout.URL_H + 2);
     }
 }

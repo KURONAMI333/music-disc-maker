@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.client;
 
+import java.util.List;
+
 //? if >=1.21.11 {
 //?} else {
 
@@ -38,6 +40,8 @@ import net.minecraft.client.renderer.RenderPipelines;
 //?}
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.Style;
 //? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
 //?} else {
@@ -78,8 +82,6 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     /*// 出所: branding/b1-legibility (design review 却下後の候補シート「配置B・色4」)。
     private static final int ERROR = 0xB02020;
     *///?}
-    // v2.2.4 と同じく取得中表示は右端8px、主工程と同じ高さに置く。
-    private static final int FETCHING_Y = 51;
 
     private EditBox urlField;
     private IconButton clearButton;
@@ -201,8 +203,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
                 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
         // 在庫帯はバニラの generic_54 slice を外枠 (左右3px・下3px) と右下の斜めの角だけ除いて重畳する。
-        // パネル200px内のスロット起点 (19,98) に slice 内セル (8,140) が一致する配置。
-        VanillaPlayerInventoryBackground.draw(graphics, leftPos + 14, topPos + 84,
+        // スロット起点 (8,98) に slice 内セル (8,140) が一致する配置 (バニラと同じ幅 176)。
+        VanillaPlayerInventoryBackground.draw(graphics, leftPos + 3, topPos + 84,
                 3.0F, 126.0F, 170, 92);
     //?} elif >=1.21.11 {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -214,12 +216,12 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         g.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
                 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
-        VanillaPlayerInventoryBackground.draw(g, leftPos + 14, topPos + 84,
+        VanillaPlayerInventoryBackground.draw(g, leftPos + 3, topPos + 84,
                 3.0F, 126.0F, 170, 92);
     *///?} else {
     /*protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         GuiTextureBlit.blit(g, TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
-        VanillaPlayerInventoryBackground.draw(g, leftPos + 14, topPos + 84,
+        VanillaPlayerInventoryBackground.draw(g, leftPos + 3, topPos + 84,
                 3.0F, 126.0F, 170, 92);
     *///?}
     }
@@ -238,19 +240,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     /*protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
     *///?}
-        // 取得中は v2.2.4 と同じ右端8px・Y=51に置く。
-        if (menu.getBlockEntity().isResolving()) {
-            final String spin = SPINNER[(int) ((System.currentTimeMillis() / 120L) % SPINNER.length)];
-            final Component fetching = Component.translatable("gui.music_disc_maker.fetching")
-                    .copy().append(" " + spin);
-            //? if >=26.1 {
-            graphics.text(font, fetching, imageWidth - 8 - font.width(fetching), FETCHING_Y, TEXT, false);
-            //?} elif >=1.21.11 {
-            /*graphics.drawString(font, fetching, imageWidth - 8 - font.width(fetching), FETCHING_Y, TEXT, false);
-            *///?} else {
-            /*g.drawString(font, fetching, imageWidth - 8 - font.width(fetching), FETCHING_Y, TEXT, false);
-            *///?}
-        } else if (menu.getBlockEntity().isResolveFailed()) {
+        if (menu.getBlockEntity().isResolveFailed() && !menu.getBlockEntity().isResolving()) {
             // 固定文で主経路を説明しない。詳細は同じ座標のホバーで出す。
             //? if >=26.1 {
             graphics.text(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
@@ -260,37 +250,65 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             /*g.drawString(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
             *///?}
         }
-        // ローカル取込の状態はツールボタン帯の行へ。idle 時は描かない。
-        if (LocalAudioClient.hasStatus()) {
-            // 欄からはみ出す文 (長いファイル名など) は末尾を「…」にし、欄へのホバーで全文を出す。
-            final Component status = LocalAudioClient.status();
-            final FormattedCharSequence statusText = statusOverflows()
-                    ? Language.getInstance().getVisualOrder(net.minecraft.network.chat.FormattedText.composite(
-                            font.substrByWidth(status, MusicDiscMakerLayout.STATUS_MAX_W - font.width(ELLIPSIS)),
-                            ELLIPSIS))
-                    : status.getVisualOrderText();
+        // ローカル取込の状態 (無ければ URL の取得中表示) は入出力の下の帯へ。最大2行で折り返す。
+        final List<FormattedCharSequence> statusLines = statusLines();
+        final int statusY = statusLines.size() > 1
+                ? MusicDiscMakerLayout.STATUS_TWO_LINE_Y : MusicDiscMakerLayout.STATUS_Y;
+        for (int i = 0; i < statusLines.size(); i++) {
             //? if >=26.1 {
-            graphics.text(font, statusText, MusicDiscMakerLayout.STATUS_X, MusicDiscMakerLayout.STATUS_Y, TEXT, false);
+            graphics.text(font, statusLines.get(i), MusicDiscMakerLayout.STATUS_X, statusY + i * font.lineHeight,
+                    TEXT, false);
             //?} elif >=1.21.11 {
-            /*graphics.drawString(font, statusText, MusicDiscMakerLayout.STATUS_X, MusicDiscMakerLayout.STATUS_Y, TEXT, false);
+            /*graphics.drawString(font, statusLines.get(i), MusicDiscMakerLayout.STATUS_X,
+                    statusY + i * font.lineHeight, TEXT, false);
             *///?} else {
-            /*g.drawString(font, statusText, MusicDiscMakerLayout.STATUS_X, MusicDiscMakerLayout.STATUS_Y, TEXT, false);
+            /*g.drawString(font, statusLines.get(i), MusicDiscMakerLayout.STATUS_X,
+                    statusY + i * font.lineHeight, TEXT, false);
             *///?}
         }
     }
 
     private static final Component ELLIPSIS = Component.literal("…");
 
+    /** 帯に出す文。ローカル取込の状態が優先で、無ければ URL の取得中表示。どちらも無ければ {@code null}。 */
+    private Component statusMessage() {
+        if (LocalAudioClient.hasStatus()) {
+            return LocalAudioClient.status();
+        }
+        if (menu.getBlockEntity().isResolving()) {
+            final String spin = SPINNER[(int) ((System.currentTimeMillis() / 120L) % SPINNER.length)];
+            return Component.translatable("gui.music_disc_maker.fetching").copy().append(" " + spin);
+        }
+        return null;
+    }
+
+    private List<FormattedText> statusParts() {
+        final Component status = statusMessage();
+        return status == null ? List.of()
+                : font.getSplitter().splitLines(status, MusicDiscMakerLayout.STATUS_MAX_W, Style.EMPTY);
+    }
+
+    /** 帯に描く行。2 行に収まらない文 (長いファイル名など) は 2 行目の末尾を「…」にし、ホバーで全文を出す。 */
+    private List<FormattedCharSequence> statusLines() {
+        final List<FormattedText> parts = statusParts();
+        final Language language = Language.getInstance();
+        if (parts.size() <= MusicDiscMakerLayout.STATUS_MAX_LINES) {
+            return parts.stream().map(language::getVisualOrder).toList();
+        }
+        final FormattedText cut = FormattedText.composite(font.substrByWidth(parts.get(1),
+                MusicDiscMakerLayout.STATUS_MAX_W - font.width(ELLIPSIS)), ELLIPSIS);
+        return List.of(language.getVisualOrder(parts.get(0)), language.getVisualOrder(cut));
+    }
+
     private boolean statusOverflows() {
-        return LocalAudioClient.hasStatus()
-                && font.width(LocalAudioClient.status()) > MusicDiscMakerLayout.STATUS_MAX_W;
+        return LocalAudioClient.hasStatus() && statusParts().size() > MusicDiscMakerLayout.STATUS_MAX_LINES;
     }
 
     private boolean overStatus(int mouseX, int mouseY) {
         final int left = leftPos + MusicDiscMakerLayout.STATUS_X;
-        final int top = topPos + MusicDiscMakerLayout.STATUS_Y;
+        final int top = topPos + MusicDiscMakerLayout.STATUS_TWO_LINE_Y;
         return mouseX >= left && mouseX < left + MusicDiscMakerLayout.STATUS_MAX_W
-                && mouseY >= top && mouseY < top + font.lineHeight;
+                && mouseY >= top && mouseY < top + font.lineHeight * MusicDiscMakerLayout.STATUS_MAX_LINES;
     }
 
     /**
