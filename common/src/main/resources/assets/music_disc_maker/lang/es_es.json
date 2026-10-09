@@ -107,7 +107,7 @@
   "gui.music_disc_maker.local.cancel": "Cancelar",
   "gui.music_disc_maker.local.done": "Disco creado",
   "gui.music_disc_maker.local.busy": "Transferencia ocupada; reintenta",
-  "gui.music_disc_maker.local.disc": "Pon un disco en blanco y vacía la salida",
+  "gui.music_disc_maker.local.disc": "Disco en blanco y salida vacía",
   "gui.music_disc_maker.local.import_failed": "No se pudo importar",
   "gui.music_disc_maker.local.download_failed": "No se pudo recibir el audio",
   "gui.music_disc_maker.local.quota": "Tus 256 MiB están llenos",

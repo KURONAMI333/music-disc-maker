@@ -107,7 +107,7 @@
   "gui.music_disc_maker.local.cancel": "Скасувати",
   "gui.music_disc_maker.local.done": "Платівку створено",
   "gui.music_disc_maker.local.busy": "Передача зайнята; пізніше",
-  "gui.music_disc_maker.local.disc": "Потрібна порожня платівка й вихід",
+  "gui.music_disc_maker.local.disc": "Порожня платівка й вихід",
   "gui.music_disc_maker.local.import_failed": "Не вдалося імпортувати",
   "gui.music_disc_maker.local.download_failed": "Звук не отримано",
   "gui.music_disc_maker.local.quota": "Ваші 256 МіБ заповнено",

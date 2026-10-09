@@ -107,7 +107,7 @@
   "gui.music_disc_maker.local.cancel": "Abbrechen",
   "gui.music_disc_maker.local.done": "Platte erstellt",
   "gui.music_disc_maker.local.busy": "Übertragung voll; später erneut",
-  "gui.music_disc_maker.local.disc": "Leere Platte rein; Ausgabe leeren",
+  "gui.music_disc_maker.local.disc": "Leere Platte + freie Ausgabe",
   "gui.music_disc_maker.local.import_failed": "Datei nicht importierbar",
   "gui.music_disc_maker.local.download_failed": "Ton nicht empfangen",
   "gui.music_disc_maker.local.quota": "Dein 256-MiB-Speicher ist voll",

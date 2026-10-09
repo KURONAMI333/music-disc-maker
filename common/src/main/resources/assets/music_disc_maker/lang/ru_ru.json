@@ -107,7 +107,7 @@
   "gui.music_disc_maker.local.cancel": "Отмена",
   "gui.music_disc_maker.local.done": "Пластинка создана",
   "gui.music_disc_maker.local.busy": "Передача занята; позже",
-  "gui.music_disc_maker.local.disc": "Нужна пустая пластинка и выход",
+  "gui.music_disc_maker.local.disc": "Пустая пластинка и выход",
   "gui.music_disc_maker.local.import_failed": "Не удалось импортировать",
   "gui.music_disc_maker.local.download_failed": "Звук не получен",
   "gui.music_disc_maker.local.quota": "Ваши 256 МиБ заполнены",
