@@ -1,7 +1,12 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
@@ -70,6 +75,35 @@ class HeadingDisplayTest {
                 "lofi hip hop radio 📚 beats to relax/study to", "Lofi Girl");
         assertDisplay("Best Anime Openings & Endings Mix #4 [FULL SONGS]", "ShOckTuNes",
                 "Best Anime Openings & Endings Mix #4 [FULL SONGS]", "ShOckTuNes");
+    }
+
+    @Test
+    void dropsVideoKindAfterTheSinger() {
+        // 独立レビューの指摘 (2026-10-09): 「歌手 MV「曲」」で歌手名に MV が残っていた。
+        assertDisplay("米津玄師 MV「Lemon」", "Kenshi Yonezu 米津玄師", "Lemon", "米津玄師");
+        assertDisplay("Eve Music Video「ドラマツルギー」", "Eve", "ドラマツルギー", "Eve");
+        assertDisplay("6th オリジナルフルアルバム『POPS』", "Artist", "POPS", "Artist");
+    }
+
+    @Test
+    void longTitlesStayFast() {
+        final String dashes = "a" + "-".repeat(12_000) + "b";
+        final String slashes = "/ ".repeat(6_000);
+        final String description = "OP\n「a」" + " /".repeat(30_000);
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            MetadataCleaner.display(dashes, "Uploader");
+            MetadataCleaner.display(slashes, "Uploader");
+            MetadataCleaner.display("TVアニメ『X』ノンクレジットOP", "Uploader", description);
+        });
+    }
+
+    @Test
+    void asksForTheDescriptionOnlyWhenTheTitleNamesNoSong() {
+        assertTrue(MetadataCleaner.needsDescription("TVアニメ『彼方から』ノンクレジットエンディング映像", "NBCUniversal"));
+        assertFalse(MetadataCleaner.needsDescription("TVアニメ『リコリス・リコイル』ノンテロップOPムービー｜ClariS「ALIVE」",
+                "アニプレックス チャンネル"));
+        assertFalse(MetadataCleaner.needsDescription("Adele - Hello", "Adele"));
+        assertFalse(MetadataCleaner.needsDescription("Song", "Artist - Topic"));
     }
 
     @Test

@@ -356,7 +356,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             *///?}
             return;
         }
-        if (!menu.getBlockEntity().isResolveFailed()) {
+        if (!menu.getBlockEntity().isResolveFailed() || menu.getBlockEntity().isResolving()) {
             return;
         }
         final FailureReason reason = menu.getBlockEntity().getFailureReason();

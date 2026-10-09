@@ -118,14 +118,34 @@ public final class MetadataCleaner {
     /**
      * {@link #display(String, String)} に、動画の説明欄を足した版。題に作品名と OP/ED の紹介しか無く
      * 曲名が書かれていない時 ({@code TVアニメ『彼方から』ノンクレジットエンディング映像}) だけ、説明欄の
-     * 先頭から曲名と歌手を探す ({@link #descriptionSong})。説明欄は解決時に watch ページから既に取って
-     * いるので、通信は増えない。
+     * 先頭から曲名と歌手を探す ({@link #descriptionSong})。説明欄の watch ページは
+     * {@link #needsDescription} が真の動画だけ取りに行く (呼び出し側 {@code MusicLoaderImpl})。
      *
      * @param description 同じ動画の説明欄。無ければ null
      */
     static String[] display(String rawTitle, String rawAuthor, String description) {
-        String title = rawTitle == null ? "" : spaces(rawTitle).strip();
-        String author = rawAuthor == null ? "" : spaces(rawAuthor).strip();
+        final String[] parts = displayParts(rawTitle, rawAuthor, description);
+        return parts.length == 2 ? parts : new String[] {parts[0], parts[1]};
+    }
+
+    /**
+     * 題に曲名が書かれておらず、説明欄があれば曲名を探せる動画か
+     * ({@code TVアニメ『X』ノンクレジットOP}・作品名と役割だけの題)。
+     */
+    static boolean needsDescription(String rawTitle, String rawAuthor) {
+        return displayParts(rawTitle, rawAuthor, null).length == 3;
+    }
+
+    /** 表示の長さの上限。YouTube の題は 100 字まで。長い入力で整形の正規表現が遅くならないよう切る。 */
+    private static final int MAX_DISPLAY_INPUT = 512;
+
+    /** @return [曲名, 歌手]。題に曲名が無く説明欄からも取れなかった時だけ 3 つ目に印 (空文字) */
+    private static String[] displayParts(String rawTitle, String rawAuthor, String description) {
+        String title = rawTitle == null ? "" : bounded(spaces(rawTitle).strip());
+        String author = rawAuthor == null ? "" : bounded(spaces(rawAuthor).strip());
+        if (title.isEmpty() && rawTitle != null) {
+            title = rawTitle.strip().isEmpty() ? rawTitle : bounded(rawTitle);
+        }
 
         final boolean topic = author.toLowerCase(Locale.ROOT).endsWith("- topic");
         if (topic) {
@@ -159,7 +179,7 @@ public final class MetadataCleaner {
             if (described != null) {
                 return new String[] {described[0], described[1].isEmpty() ? author : described[1]};
             }
-            return new String[] {finishDisplay(song[0]), author};
+            return new String[] {finishDisplay(song[0]), author, ""};
         }
         if (song != null) {
             return new String[] {finishDisplay(song[0]), trimArtist(coverArtist(original, author, song[1]))};
@@ -204,7 +224,8 @@ public final class MetadataCleaner {
     /** 見出しが歌ってみた・カバーを示すか。曲名と原曲の歌手の並びが逆になる。 */
     private static final Pattern COVER_HEADING = Pattern.compile(
             "(?i)【[^】]*(?:歌ってみた|カバー|cover)[^】]*】|[(（\\[［]\\s*cover\\s*[)）\\]］]");
-    private static final Pattern COVER_CREDIT = Pattern.compile("(?i)\\bcover(?:ed)?\\s+by\\b|\\scover$");
+    private static final Pattern COVER_CREDIT = Pattern.compile(
+            "(?i)(?<![A-Za-z0-9])cover(?:ed)?\\s+by(?![A-Za-z0-9])|\\scover$");
     private static final Pattern HASHTAG = Pattern.compile("[#＃](?![0-9０-９])[^\\s#＃【】\\[\\]()（）]+");
     private static final Pattern NOTE_TAIL = Pattern.compile("\\s*※.*$");
     private static final Pattern EMPTY_BRACKET = Pattern.compile("[(（\\[［]\\s*[)）\\]］]");
@@ -246,7 +267,12 @@ public final class MetadataCleaner {
             "^[\\s\u3000♪×xX:：/／|｜│\\-–—・、,\uE000]+|[\\s\u3000♪×:：/／|｜│\\-–—・、,\uE000]+$");
     private static final Pattern SEGMENT_BREAK = Pattern.compile("[｜|│／/\u3000】」』｣\uE000]");
     private static final Pattern RELEASE_LABEL = Pattern.compile(
-            "(?i)\\d+(?:st|nd|rd|th)\\s+(?:single|album)|\\b(?:single|album)\\b");
+            "(?i)\\d+(?:st|nd|rd|th)\\s+(?:single|album)|(?<![A-Za-z0-9])(?:single|album)(?![A-Za-z0-9])"
+            + "|\\d+(?:st|nd|rd|th)?\\s*(?:オリジナル)?(?:フル|ミニ)?(?:アルバム|シングル)");
+
+    private static String bounded(String text) {
+        return text.length() <= MAX_DISPLAY_INPUT ? text : text.substring(0, MAX_DISPLAY_INPUT);
+    }
 
     /** NBSP 等を普通の空白にそろえる (実タイトルの区切りに NBSP が出る・2026-10-09 採取)。 */
     private static String spaces(String text) {
@@ -408,10 +434,13 @@ public final class MetadataCleaner {
         final String[] lines = spaces(description).split("\\R");
         final int limit = Math.min(lines.length, DESCRIPTION_LINES);
         for (int i = 0; i < limit; i++) {
-            if (!ROLE.matcher(lines[i]).find() || lines[i].length() > 120) {
+            if (lines[i].length() > 120 || !ROLE.matcher(lines[i]).find()) {
                 continue;
             }
             for (int j = i; j < Math.min(limit, i + 3); j++) {
+                if (lines[j].length() > 300) {
+                    continue;
+                }
                 final String line = lines[j];
                 final Matcher quote = JP_QUOTE.matcher(line);
                 while (quote.find()) {
@@ -501,6 +530,7 @@ public final class MetadataCleaner {
                 candidate = candidate.substring(tieEnd);
             }
             candidate = RELEASE_LABEL.matcher(candidate).replaceAll("");
+            candidate = cutMediaTail(candidate.strip());
             candidate = ARTIST_EDGE.matcher(candidate.replaceAll("^\\s*(?:映像|ムービー|movie)", "")).replaceAll("").strip();
             if (!candidate.isEmpty() && candidate.length() <= 40 && !MEDIA_ONLY.matcher(candidate).matches()
                     && !WORK_KIND_BEFORE.matcher(candidate).find()
@@ -547,7 +577,7 @@ public final class MetadataCleaner {
         final String withoutFeature = a.replaceAll("(?i)\\s*(?<![A-Za-z])(?:feat|ft|featuring)\\.?\\s.*$", "");
         if (a.isEmpty() || a.length() > 40 || TIE_IN.matcher(a).find() || MEDIA_ONLY.matcher(a).matches()
                 || hasVersionMarker(withoutFeature) || a.matches("(?i)^(?:feat|ft|featuring)\\b.*")
-                || a.matches("(?i)^(?:from|at|on|live|ver)\\b.*") || a.startsWith("📍") || a.startsWith("@")) {
+                || a.matches("(?i)^(?:from|at|on|live|ver)(?![A-Za-z0-9]).*") || a.startsWith("📍") || a.startsWith("@")) {
             return "";
         }
         return a;

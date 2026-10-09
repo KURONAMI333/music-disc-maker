@@ -21,7 +21,11 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  */
 public abstract class MixinTooltipJacketOrder {
 
-    //? if >=1.21.6 {
+    //? if >=26.3 {
+    /*// 26.3 は同名の private メソッドが 2 つ (7 引数・8 引数) あり、名前だけでは片方にしか入らない。
+    // アイテムのツールチップは 8 引数版を通るので、両方に入れる (26.x は難読化が無く refmap も不要)。
+    @ModifyVariable(method = "setTooltipForNextFrameInternal*", at = @At("HEAD"), argsOnly = true)
+    *///?} elif >=1.21.6 {
     @ModifyVariable(method = "setTooltipForNextFrameInternal", at = @At("HEAD"), argsOnly = true)
     //?} else {
     /*@ModifyVariable(method = "renderTooltipInternal", at = @At("HEAD"), argsOnly = true)

@@ -314,7 +314,9 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
         final AudioTrackInfo info = track.getInfo();
         final String normalized = normalizeYoutubeUrl(url);
-        final YoutubeWatchPage.Result watch = isNormalizedWatchUrl(normalized) && isTopicAuthor(info.author)
+        // 説明欄を読むのは自動生成の配信曲 (Topic) と、題に曲名が無い動画 (作品名と OP/ED だけ) の時だけ。
+        final YoutubeWatchPage.Result watch = isNormalizedWatchUrl(normalized)
+                && (isTopicAuthor(info.author) || MetadataCleaner.needsDescription(info.title, info.author))
                 ? YoutubeWatchPage.fetch(normalized, WATCH_PAGE_TIMEOUT_MS)
                 : YoutubeWatchPage.Result.EMPTY;
         final SourceMetadata source = sourceMetadata(info.title, info.author, watch);
@@ -453,7 +455,7 @@ public class MusicLoaderImpl implements IMusicLoader {
                     normalizedUrl, reason);
             return null;
         }
-        final YoutubeWatchPage.Result watch = isTopicAuthor(meta[1])
+        final YoutubeWatchPage.Result watch = isTopicAuthor(meta[1]) || MetadataCleaner.needsDescription(meta[0], meta[1])
                 ? YoutubeWatchPage.fetch(normalizedUrl,
                         Math.min(WATCH_PAGE_TIMEOUT_MS, deadline - System.currentTimeMillis()))
                 : YoutubeWatchPage.Result.EMPTY;
