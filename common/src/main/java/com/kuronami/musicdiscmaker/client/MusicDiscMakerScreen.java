@@ -504,7 +504,10 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             //? if >=1.21.11 {
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED, Identifier.withDefaultNamespace(sprite),
                     getX(), getY(), width, height, net.minecraft.util.ARGB.white(this.alpha));
-            //?} elif >=1.21 {
+            //?} elif >=1.21.2 {
+            /*graphics.blitSprite(net.minecraft.client.renderer.RenderType::guiTextured,
+                    ResourceLocation.withDefaultNamespace(sprite), getX(), getY(), width, height);
+            *///?} elif >=1.21 {
             /*com.mojang.blaze3d.systems.RenderSystem.enableBlend();
             graphics.blitSprite(ResourceLocation.withDefaultNamespace(sprite), getX(), getY(), width, height);
             *///?} else {
