@@ -33,6 +33,7 @@
   "music_disc_maker.configuration.title": "음반 제작기 설정",
   "music_disc_maker.configuration.volumeMultiplier": "음량 배수",
   "music_disc_maker.configuration.maxConcurrent": "최대 동시 재생 음반 수",
+  "music_disc_maker.configuration.showNowPlaying": "현재 재생 중 표시",
   "music_disc_maker.playback_failed": "이 디스크를 재생할 수 없습니다 (스트림을 사용할 수 없음)",
   "music_disc_maker.playback_failed.chat": "이 디스크를 재생할 수 없습니다: %1$s",
   "music_disc_maker.playback_failed.reason.stream": "오디오 소스를 열 수 없습니다 (스트림을 사용할 수 없음)",

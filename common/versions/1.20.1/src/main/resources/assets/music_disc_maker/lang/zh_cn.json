@@ -32,6 +32,7 @@
   "music_disc_maker.configuration.title": "音乐唱片制作机设置",
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
   "music_disc_maker.configuration.maxConcurrent": "最大同时播放唱片数",
+  "music_disc_maker.configuration.showNowPlaying": "显示“正在播放”",
   "music_disc_maker.playback_failed": "无法播放此唱片（音频流不可用）",
   "music_disc_maker.playback_failed.chat": "无法播放此唱片：%1$s",
   "music_disc_maker.playback_failed.reason.stream": "无法打开音频源（音频流不可用）",

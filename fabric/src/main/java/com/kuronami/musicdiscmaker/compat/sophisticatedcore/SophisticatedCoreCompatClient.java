@@ -103,7 +103,7 @@ public final class SophisticatedCoreCompatClient {
                         ? track.author() + " - " + track.title()
                         : track.title();
                 if (desc != null && !desc.isBlank()) {
-                    Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+                    com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
                 }
             });
         });
@@ -209,7 +209,7 @@ public final class SophisticatedCoreCompatClient {
                         ? track.author() + " - " + track.title()
                         : track.title();
                 if (desc != null && !desc.isBlank()) {
-                    Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+                    com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
                 }
             });
         });

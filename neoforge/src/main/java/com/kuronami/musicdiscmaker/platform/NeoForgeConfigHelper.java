@@ -41,6 +41,12 @@ public class NeoForgeConfigHelper implements IConfigHelper {
                     + "range and directional audio belong to the Golden Jukebox.")
             .defineInRange("boomboxRange", 16, 4, 64);
 
+    public static final ModConfigSpec.BooleanValue SHOW_NOW_PLAYING = BUILDER
+            .comment("Show \"Now Playing\" with the song name when a custom disc starts.",
+                    "Off by default: a disc whose video title could not be turned into a clean song name "
+                    + "would show that title as it is.")
+            .define("showNowPlaying", false);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     @Override
@@ -64,6 +70,11 @@ public class NeoForgeConfigHelper implements IConfigHelper {
     @Override
     public int boomboxRange() {
         return BOOMBOX_RANGE.get();
+    }
+
+    @Override
+    public boolean showNowPlaying() {
+        return SHOW_NOW_PLAYING.get();
     }
 
     @Override

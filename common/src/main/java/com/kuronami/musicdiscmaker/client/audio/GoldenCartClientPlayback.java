@@ -56,7 +56,7 @@ public final class GoldenCartClientPlayback {
     private static final Map<UUID, Playing> ACTIVE = new ConcurrentHashMap<>();
     /**
      * 機体ごとに最後に「Now Playing」を出した曲。同じ曲を鳴らし直す (単曲 repeat) ときは最初の1回だけ出す
-     * (2026-10-09 本人裁定)。明示の停止とワールド退出で忘れる。
+     * (2026-10-09 本人裁定)。一時停止から同じ曲を再開したときも出さない。ワールド退出で忘れる。
      */
     private static final Map<UUID, String> ANNOUNCED = new ConcurrentHashMap<>();
 
@@ -352,11 +352,7 @@ public final class GoldenCartClientPlayback {
                 ? track.author() + " - " + track.title()
                 : track.title();
         if (desc != null && !desc.isBlank() && !track.sourceKey().equals(ANNOUNCED.put(source, track.sourceKey()))) {
-            //? if >=26.2 {
-            mc.gui.hud.setNowPlaying(Component.literal(desc));
-            //?} else {
-            /*mc.gui.setNowPlaying(Component.literal(desc));
-            *///?}
+            com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
         }
     }
 
@@ -459,7 +455,7 @@ public final class GoldenCartClientPlayback {
         LATEST_REQUESTS.remove(source);
         BACKOFF.reset(source);
         LIMIT_NOTICES.forget(source);
-        ANNOUNCED.remove(source);
+        // ANNOUNCED は残す: 一時停止から同じ曲を再開しても Now Playing を出し直さない (2026-10-09 本人裁定)。
     }
 
     /** lease 失効時に ownership から呼ばれる畳み込み (別経路への置き換え含む)。 */

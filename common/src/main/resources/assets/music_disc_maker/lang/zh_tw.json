@@ -33,6 +33,7 @@
   "music_disc_maker.configuration.title": "音樂唱片製作機設定",
   "music_disc_maker.configuration.volumeMultiplier": "音量倍率",
   "music_disc_maker.configuration.maxConcurrent": "最大同時播放唱片數",
+  "music_disc_maker.configuration.showNowPlaying": "顯示「正在播放」",
   "music_disc_maker.playback_failed": "無法播放此唱片（音訊串流無法取得）",
   "music_disc_maker.playback_failed.chat": "無法播放此唱片：%1$s",
   "music_disc_maker.playback_failed.reason.stream": "無法開啟音訊來源（音訊串流無法取得）",

@@ -33,6 +33,7 @@
   "music_disc_maker.configuration.title": "Schallplatten-Hersteller-Einstellungen",
   "music_disc_maker.configuration.volumeMultiplier": "Lautstärkefaktor",
   "music_disc_maker.configuration.maxConcurrent": "Max. gleichzeitige Schallplatten",
+  "music_disc_maker.configuration.showNowPlaying": "„Jetzt läuft“ anzeigen",
   "music_disc_maker.playback_failed": "Diese Schallplatte konnte nicht abgespielt werden (Stream nicht verfügbar)",
   "music_disc_maker.playback_failed.chat": "Diese Schallplatte konnte nicht abgespielt werden: %1$s",
   "music_disc_maker.playback_failed.reason.stream": "Die Audioquelle konnte nicht geöffnet werden (Stream nicht verfügbar)",

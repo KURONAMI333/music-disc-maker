@@ -33,6 +33,7 @@
   "music_disc_maker.configuration.title": "Configuration du fabricant de disques",
   "music_disc_maker.configuration.volumeMultiplier": "Multiplicateur de volume",
   "music_disc_maker.configuration.maxConcurrent": "Disques simultanés max.",
+  "music_disc_maker.configuration.showNowPlaying": "Afficher « En cours de lecture »",
   "music_disc_maker.playback_failed": "Impossible de lire ce disque (flux indisponible)",
   "music_disc_maker.playback_failed.chat": "Impossible de lire ce disque : %1$s",
   "music_disc_maker.playback_failed.reason.stream": "La source audio n'a pas pu être ouverte (flux indisponible)",

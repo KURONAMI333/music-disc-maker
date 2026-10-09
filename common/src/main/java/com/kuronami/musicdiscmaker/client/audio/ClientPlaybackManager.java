@@ -726,24 +726,15 @@ public final class ClientPlaybackManager {
     }
 
     /**
-     * 再生要求を受けた時点で Now Playing を曲名にする。
+     * 再生要求を受けた時点で Now Playing を曲名にする (client 設定で有効な時だけ)。
      *
-     * <p>custom disc は無音の {@code jukebox_song} で vanilla の再生状態に乗っており、vanilla は再生開始の
-     * level event でその説明文 (= アイテム名「Custom Music Disc」) を Now Playing に出す。曲名での上書きが
-     * 実音の開始時だけだと、読込に失敗した client には「Custom Music Disc」だけが残り、ディスクの中身が
-     * 消えたように見える (CF 報告「一人だけ鳴らず、曲名が Custom Music Disc になる」)。server は level event
-     * を再生 payload より先に送るので、ここで上書きすれば vanilla の説明文は残らない。
+     * <p>実音の開始を待たないのは、読込に失敗した client にも曲名を出すため。custom disc は無音の
+     * {@code jukebox_song} で vanilla の再生状態に乗っており、vanilla が出そうとするアイテム名
+     * 「Custom Music Disc」は {@code MixinNowPlayingPlaceholder} が止める (CF 報告「一人だけ鳴らず、
+     * 曲名が Custom Music Disc になる」)。
      */
     private static void announceRequestedTrack(CustomTrackData track) {
-        final String desc = (track.author() != null && !track.author().isBlank())
-                ? track.author() + " - " + track.title()
-                : track.title();
-        if (desc == null || desc.isBlank()) return;
-        //? if >=26.2 {
-        Minecraft.getInstance().gui.hud.setNowPlaying(Component.literal(desc));
-        //?} else {
-        /*Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
-        *///?}
+        com.kuronami.musicdiscmaker.client.NowPlaying.show(track);
     }
 
     /**
@@ -1052,12 +1043,7 @@ public final class ClientPlaybackManager {
     //?} else {
     //?}
         if (desc != null && !desc.isBlank() && mayAnnounce(key, token)) {
-            //? if >=26.2 {
-            Minecraft.getInstance().gui.hud.setNowPlaying(Component.literal(desc));
-            //?} else {
-/*            Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
-            */
-            //?}
+            com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
         }
     //? if >=1.21.2 {
     //?} elif >=1.21 {
@@ -1278,7 +1264,7 @@ public final class ClientPlaybackManager {
         pendingCoreActions.remove(key);
         reloadRequests.remove(key);
         speakerAnchors.remove(key);
-        announced.remove(key); // 明示の停止 (取り出し・差し替え・一時停止) の後は、同じ曲でも次は出す
+        // announced は残す: 一時停止から同じ曲を再開しても Now Playing を出し直さない (2026-10-09 本人裁定)。
         failures.clear(key);
     }
 

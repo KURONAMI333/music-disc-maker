@@ -137,11 +137,7 @@ public final class TravelersBackpackCompatClient {
                         ? track.author() + " - " + track.title()
                         : track.title();
                 if (desc != null && !desc.isBlank()) {
-                    //? if >=26.2 {
-                    Minecraft.getInstance().gui.hud.setNowPlaying(Component.literal(desc));
-                    //?} else {
-                    /*Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
-                    *///?}
+                    com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
                 }
             });
         });

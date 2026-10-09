@@ -32,6 +32,7 @@
   "music_disc_maker.configuration.title": "Muziekschijfjesmaker-instellingen",
   "music_disc_maker.configuration.volumeMultiplier": "Volumevermenigvuldiger",
   "music_disc_maker.configuration.maxConcurrent": "Max. gelijktijdige schijfjes",
+  "music_disc_maker.configuration.showNowPlaying": "\"Speelt nu\" tonen",
   "music_disc_maker.playback_failed": "Kan deze schijf niet afspelen (stream niet beschikbaar)",
   "music_disc_maker.playback_failed.chat": "Kan deze schijf niet afspelen: %1$s",
   "music_disc_maker.playback_failed.reason.stream": "De audiobron kon niet worden geopend (stream niet beschikbaar)",

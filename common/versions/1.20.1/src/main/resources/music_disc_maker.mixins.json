@@ -13,6 +13,7 @@
   "client": [
     "MixinItemStack",
     "MixinVanillaJukeboxAudio",
+    "MixinNowPlayingPlaceholder",
     "MixinClientLevelAudioBridge",
     "IntegratedServerPlaybackClockMixin",
     "BoomboxShoulderPoseMixin",

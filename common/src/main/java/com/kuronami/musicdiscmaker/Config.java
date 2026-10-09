@@ -54,4 +54,8 @@ public final class Config {
     public static int boomboxRange() {
         return Services.CONFIG.boomboxRange();
     }
+
+    public static boolean showNowPlaying() {
+        return Services.CONFIG.showNowPlaying();
+    }
 }

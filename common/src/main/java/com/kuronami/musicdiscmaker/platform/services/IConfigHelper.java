@@ -35,4 +35,10 @@ public interface IConfigHelper {
      * 上限を金ジュークの 256 まで開けないのはそのため。
      */
     int boomboxRange();
+
+    /**
+     * 曲の始まりに「Now Playing」を出すか。既定は出さない (2026-10-09 本人裁定)。
+     * 動画タイトルをうまく曲名に直せなかった盤ではその題がそのまま出るので、見たい人だけ有効にする。
+     */
+    boolean showNowPlaying();
 }

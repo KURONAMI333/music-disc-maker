@@ -32,6 +32,7 @@
   "music_disc_maker.configuration.title": "Configuración del fabricante de discos",
   "music_disc_maker.configuration.volumeMultiplier": "Multiplicador de volumen",
   "music_disc_maker.configuration.maxConcurrent": "Discos simultáneos máx.",
+  "music_disc_maker.configuration.showNowPlaying": "Mostrar «Reproduciendo»",
   "music_disc_maker.playback_failed": "No se pudo reproducir este disco (transmisión no disponible)",
   "music_disc_maker.playback_failed.chat": "No se pudo reproducir este disco: %1$s",
   "music_disc_maker.playback_failed.reason.stream": "No se pudo abrir la fuente de audio (transmisión no disponible)",

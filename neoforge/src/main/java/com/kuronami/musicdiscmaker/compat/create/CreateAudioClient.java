@@ -221,7 +221,7 @@ public final class CreateAudioClient {
                 final var track = latest.track();
                 final String desc = track.author() != null && !track.author().isBlank()
                         ? track.author() + " - " + track.title() : track.title();
-                if (desc != null && !desc.isBlank()) Minecraft.getInstance().gui.setNowPlaying(Component.literal(desc));
+                if (desc != null && !desc.isBlank()) com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
             });
         });
     }

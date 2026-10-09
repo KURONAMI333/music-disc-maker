@@ -32,6 +32,7 @@
   "music_disc_maker.configuration.title": "Настройки изготовителя пластинок",
   "music_disc_maker.configuration.volumeMultiplier": "Множитель громкости",
   "music_disc_maker.configuration.maxConcurrent": "Макс. одновременных пластинок",
+  "music_disc_maker.configuration.showNowPlaying": "Показывать «Сейчас играет»",
   "music_disc_maker.playback_failed": "Не удалось воспроизвести диск (поток недоступен)",
   "music_disc_maker.playback_failed.chat": "Не удалось воспроизвести диск: %1$s",
   "music_disc_maker.playback_failed.reason.stream": "Не удалось открыть источник звука (поток недоступен)",

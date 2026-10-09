@@ -76,7 +76,7 @@ public final class BoomboxClientPlayback {
 
     /**
      * 機体ごとに最後に「Now Playing」を出した曲。同じ曲を鳴らし直す (単曲 repeat) ときは最初の1回だけ出す
-     * (2026-10-09 本人裁定)。明示の停止とワールド退出で忘れる。
+     * (2026-10-09 本人裁定)。一時停止から同じ曲を再開したときも出さない。ワールド退出で忘れる。
      */
     private static final Map<Long, String> ANNOUNCED = new ConcurrentHashMap<>();
 
@@ -273,11 +273,7 @@ public final class BoomboxClientPlayback {
                 : track.title();
         if (desc != null && !desc.isBlank() && withinBoomboxRange(live)
                 && !track.sourceKey().equals(ANNOUNCED.put(id, track.sourceKey()))) {
-            //? if >=26.2 {
-            mc.gui.hud.setNowPlaying(Component.literal(desc));
-            //?} else {
-            /*mc.gui.setNowPlaying(Component.literal(desc));
-            *///?}
+            com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
         }
     }
 
@@ -340,11 +336,7 @@ public final class BoomboxClientPlayback {
         final Component desc = mc.level == null ? null
                 : com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOfSound(vanilla.soundEventId(), mc.level);
         if (desc != null && withinBoomboxRange(live) && !key.equals(ANNOUNCED.put(id, key))) {
-            //? if >=26.2 {
-            mc.gui.hud.setNowPlaying(desc);
-            //?} else {
-            /*mc.gui.setNowPlaying(desc);
-            *///?}
+            com.kuronami.musicdiscmaker.client.NowPlaying.show(desc);
         }
     }
 
@@ -433,7 +425,7 @@ public final class BoomboxClientPlayback {
         com.kuronami.musicdiscmaker.network.BoomboxTrace.stop("client-stop-received", boomboxId);
         LATEST_REQUESTS.remove(boomboxId);
         LATEST_RECEIVED_MS.remove(boomboxId);
-        ANNOUNCED.remove(boomboxId);
+        // ANNOUNCED は残す: 止めて同じ曲を掛け直しても Now Playing を出し直さない (2026-10-09 本人裁定)。
         BACKOFF.reset(boomboxId);
         LIMIT_NOTICES.forget(boomboxId);
         teardown(boomboxId);
