@@ -198,14 +198,21 @@ public final class GoldenCartClientPlayback {
         }
         final int limit = Config.maxConcurrent();
         if (PlaybackConcurrency.client().sweepAll() >= limit) {
-            PlaybackFailureReport.report((CustomTrackData) null,
-                    PlaybackFailure.concurrentLimit(limit));
+            final PlaybackFailure overLimit = PlaybackFailure.concurrentLimit(limit);
+            if (LIMIT_NOTICES.shouldReport(source, overLimit)) {
+                PlaybackFailureReport.report((CustomTrackData) null, overLimit);
+            }
             return;
         }
         final VanillaSpeakerSoundInstance instance = new VanillaSpeakerSoundInstance(
                 vanilla.soundEventId(), payload.startOffsetMs(), anchor);
+        // 断られた理由 (音量 0 など) は送り直しのたびに起き直すので、機体ごとに 1 回だけ報告する。
         if (!startVanillaCartVoice(instance, instance::stopAndRelease,
-                failure -> PlaybackFailureReport.report((CustomTrackData) null, failure),
+                failure -> {
+                    if (LIMIT_NOTICES.shouldReport(source, failure)) {
+                        PlaybackFailureReport.report((CustomTrackData) null, failure);
+                    }
+                },
                 () -> ACTIVE.put(source, new Playing("vanilla:" + vanilla.soundEventId(), anchor, instance, true)))) {
             return;
         }

@@ -325,8 +325,13 @@ public final class BoomboxClientPlayback {
         final BoomboxVanillaAnchor vanillaAnchor = new BoomboxVanillaAnchor(live, payload.volumePercent());
         final VanillaSpeakerSoundInstance instance = new VanillaSpeakerSoundInstance(
                 vanilla.soundEventId(), payload.startOffsetMs(), vanillaAnchor);
+        // 断られた理由 (音量 0 など) は送り直しのたびに起き直すので、機体ごとに 1 回だけ報告する。
         if (!GoldenCartClientPlayback.startVanillaCartVoice(instance, instance::stopAndRelease,
-                failure -> PlaybackFailureReport.report((CustomTrackData) null, failure),
+                failure -> {
+                    if (LIMIT_NOTICES.shouldReport(id, failure)) {
+                        PlaybackFailureReport.report((CustomTrackData) null, failure);
+                    }
+                },
                 () -> ACTIVE.put(id, new Playing(key, live, instance, vanillaAnchor)))) {
             return;
         }
