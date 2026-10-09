@@ -12,7 +12,6 @@
     "MixinVanillaJukeboxAudio",
     "MixinNowPlayingPlaceholder",
     "MixinTooltipJacketOrder",
-    "MixinPedestalJacketHud",
     "MixinClientLevelAudioBridge",
     "IntegratedServerPlaybackClockMixin",
     "MixinChannelPlayback",
