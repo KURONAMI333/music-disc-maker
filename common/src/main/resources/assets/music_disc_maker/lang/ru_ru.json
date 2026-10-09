@@ -4,7 +4,7 @@
   "item.music_disc_maker.blank_disc": "Пустая пластинка",
   "item.music_disc_maker.custom_music_disc": "Своя пластинка",
   "gui.music_disc_maker.title": "Изготовитель пластинок",
-  "gui.music_disc_maker.url_placeholder": "Вставьте ссылку…",
+  "gui.music_disc_maker.url_placeholder": "Вставьте URL…",
   "gui.music_disc_maker.fetching": "Загрузка…",
   "gui.music_disc_maker.failed": "Не удалось воспроизвести трек.",
   "gui.music_disc_maker.failed.unsupported": "Ссылка не поддерживается. Нужен YouTube или прямая ссылка.",

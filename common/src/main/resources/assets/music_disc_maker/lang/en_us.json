@@ -9,7 +9,7 @@
   "item.music_disc_maker.golden_jukebox_minecart": "Minecart with Golden Jukebox",
   "entity.music_disc_maker.golden_jukebox_minecart": "Minecart with Golden Jukebox",
   "gui.music_disc_maker.title": "Music Disc Maker",
-  "gui.music_disc_maker.url_placeholder": "Paste a URL here...",
+  "gui.music_disc_maker.url_placeholder": "Paste a URL...",
   "gui.music_disc_maker.fetching": "Fetching…",
   "gui.music_disc_maker.failed": "Could not play this track.",
   "gui.music_disc_maker.failed.unsupported": "Link not supported. Try a YouTube or direct audio link.",

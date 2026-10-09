@@ -3,7 +3,7 @@
   "item.music_disc_maker.blank_disc": "Leere Schallplatte",
   "item.music_disc_maker.custom_music_disc": "Eigene Schallplatte",
   "gui.music_disc_maker.title": "Schallplatten-Hersteller",
-  "gui.music_disc_maker.url_placeholder": "URL hier einfügen…",
+  "gui.music_disc_maker.url_placeholder": "URL einfügen…",
   "gui.music_disc_maker.fetching": "Lädt…",
   "gui.music_disc_maker.failed": "Titel konnte nicht abgespielt werden.",
   "gui.music_disc_maker.failed.unsupported": "Link nicht unterstützt. Nimm YouTube oder einen Audiolink.",
