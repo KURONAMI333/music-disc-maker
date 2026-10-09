@@ -56,7 +56,7 @@ public final class MusicDiscMakerForgeClient {
         event.enqueueWork(() -> {
             MenuScreens.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
             MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
-            MenuScreens.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxCartScreen::new);
+            MenuScreens.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxScreen::new);
             MenuScreens.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
             MenuScreens.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
             MenuScreens.register(ModMenus.ALBUM.get(), AlbumScreen::new);

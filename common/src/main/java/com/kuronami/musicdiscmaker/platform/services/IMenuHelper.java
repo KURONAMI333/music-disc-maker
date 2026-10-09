@@ -59,7 +59,7 @@ public interface IMenuHelper {
      * 金ジューク付きトロッコの extended MenuType。運ぶのは対象 entity の {@code entityId}
      * (移動 entity は BlockPos で指せない。client 側は player.level().getEntity で引く)。
      */
-    MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu> createGoldenJukeboxCartMenuType();
+    MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu> createGoldenJukeboxCartMenuType();
 
     /** server 側: 対象の cart を付けて GUI を開く。 */
     void openGoldenJukeboxCartMenu(ServerPlayer player,

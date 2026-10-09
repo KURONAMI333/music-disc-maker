@@ -35,7 +35,7 @@ public final class CartAnchor implements DiscAnchor, LiveAudioConfig {
 
     /**
      * この時間 keep-alive が来なければ停止する (ms)。server の再送間隔
-     * ({@code GoldenCartPlayback.KEEPALIVE_INTERVAL_TICKS} = 1 秒) の 3 倍に取る。
+     * ({@code GoldenJukeboxMinecartEntity.KEEPALIVE_INTERVAL_TICKS} = 1 秒) の 3 倍に取る。
      */
     public static final long TIMEOUT_MS = 3_000L;
 

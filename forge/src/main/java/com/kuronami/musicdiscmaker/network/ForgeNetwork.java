@@ -193,15 +193,7 @@ public final class ForgeNetwork {
                 })
                 .add();
 
-        // 金ジュークトロッコの操作と状態/再生通知。既存 ID 列を保つため末尾へ追加する。
-        CHANNEL.messageBuilder(ControlGoldenCartPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(ControlGoldenCartPayload::write)
-                .decoder(ControlGoldenCartPayload::read)
-                .consumerMainThread((msg, ctx) -> {
-                    final ServerPlayer sender = ctx.get().getSender();
-                    if (sender != null) ModNetwork.handleControlGoldenCart(msg, sender);
-                })
-                .add();
+        // 金ジュークトロッコの状態/再生通知。既存 ID 列を保つため末尾へ追加する。
         CHANNEL.messageBuilder(GoldenCartPlayPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(GoldenCartPlayPayload::write)
                 .decoder(GoldenCartPlayPayload::read)
@@ -212,10 +204,10 @@ public final class ForgeNetwork {
                 .decoder(GoldenCartStopPayload::read)
                 .consumerMainThread((msg, ctx) -> ModNetwork.handleGoldenCartStop(msg))
                 .add();
-        CHANNEL.messageBuilder(GoldenCartStatePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(GoldenCartStatePayload::write)
-                .decoder(GoldenCartStatePayload::read)
-                .consumerMainThread((msg, ctx) -> ModNetwork.handleGoldenCartState(msg))
+        CHANNEL.messageBuilder(GoldenCartSyncPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(GoldenCartSyncPayload::write)
+                .decoder(GoldenCartSyncPayload::read)
+                .consumerMainThread((msg, ctx) -> ModNetwork.handleGoldenCartSync(msg))
                 .add();
     }
 }

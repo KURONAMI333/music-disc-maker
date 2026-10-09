@@ -92,11 +92,8 @@ public final class ModPayloadTypes {
         if (payload instanceof GoldenCartStopPayload p) {
             return new GoldenCartStop(p);
         }
-        if (payload instanceof GoldenCartStatePayload p) {
-            return new GoldenCartState(p);
-        }
-        if (payload instanceof ControlGoldenCartPayload p) {
-            return new ControlGoldenCart(p);
+        if (payload instanceof GoldenCartSyncPayload p) {
+            return new GoldenCartSync(p);
         }
         throw new IllegalArgumentException("Unregistered payload: " + payload.getClass().getName());
     }
@@ -288,21 +285,10 @@ public final class ModPayloadTypes {
         }
     }
 
-    public record GoldenCartState(GoldenCartStatePayload inner) implements CustomPacketPayload {
-        public static final Type<GoldenCartState> TYPE = new Type<>(id(GoldenCartStatePayload.PATH));
-        public static final StreamCodec<FriendlyByteBuf, GoldenCartState> STREAM_CODEC = StreamCodec.of(
-                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartState(GoldenCartStatePayload.read(buf)));
-
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
-    }
-
-    public record ControlGoldenCart(ControlGoldenCartPayload inner) implements CustomPacketPayload {
-        public static final Type<ControlGoldenCart> TYPE = new Type<>(id(ControlGoldenCartPayload.PATH));
-        public static final StreamCodec<FriendlyByteBuf, ControlGoldenCart> STREAM_CODEC = StreamCodec.of(
-                (buf, msg) -> msg.inner().write(buf), buf -> new ControlGoldenCart(ControlGoldenCartPayload.read(buf)));
+    public record GoldenCartSync(GoldenCartSyncPayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartSync> TYPE = new Type<>(id(GoldenCartSyncPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartSync> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartSync(GoldenCartSyncPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -401,11 +387,8 @@ public final class ModPayloadTypes {
         if (payload instanceof GoldenCartStopPayload p) {
             return new GoldenCartStop(p);
         }
-        if (payload instanceof GoldenCartStatePayload p) {
-            return new GoldenCartState(p);
-        }
-        if (payload instanceof ControlGoldenCartPayload p) {
-            return new ControlGoldenCart(p);
+        if (payload instanceof GoldenCartSyncPayload p) {
+            return new GoldenCartSync(p);
         }
         throw new IllegalArgumentException("Unregistered payload: " + payload.getClass().getName());
     }
@@ -596,21 +579,10 @@ public final class ModPayloadTypes {
         }
     }
 
-    public record GoldenCartState(GoldenCartStatePayload inner) implements CustomPacketPayload {
-        public static final Type<GoldenCartState> TYPE = new Type<>(id(GoldenCartStatePayload.PATH));
-        public static final StreamCodec<FriendlyByteBuf, GoldenCartState> STREAM_CODEC = StreamCodec.of(
-                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartState(GoldenCartStatePayload.read(buf)));
-
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
-    }
-
-    public record ControlGoldenCart(ControlGoldenCartPayload inner) implements CustomPacketPayload {
-        public static final Type<ControlGoldenCart> TYPE = new Type<>(id(ControlGoldenCartPayload.PATH));
-        public static final StreamCodec<FriendlyByteBuf, ControlGoldenCart> STREAM_CODEC = StreamCodec.of(
-                (buf, msg) -> msg.inner().write(buf), buf -> new ControlGoldenCart(ControlGoldenCartPayload.read(buf)));
+    public record GoldenCartSync(GoldenCartSyncPayload inner) implements CustomPacketPayload {
+        public static final Type<GoldenCartSync> TYPE = new Type<>(id(GoldenCartSyncPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, GoldenCartSync> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new GoldenCartSync(GoldenCartSyncPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

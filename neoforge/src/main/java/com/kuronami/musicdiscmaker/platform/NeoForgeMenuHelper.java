@@ -142,9 +142,9 @@ public class NeoForgeMenuHelper implements IMenuHelper {
     }
 
     @Override
-    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu> createGoldenJukeboxCartMenuType() {
+    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu> createGoldenJukeboxCartMenuType() {
         // client ctor が buf を直接受け、entityId を読んで level().getEntity で引く。
-        return IMenuTypeExtension.create(com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu::new);
+        return IMenuTypeExtension.create(com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu::forCartBuf);
     }
 
     @Override
@@ -154,7 +154,7 @@ public class NeoForgeMenuHelper implements IMenuHelper {
             return;
         }
         player.openMenu(new SimpleMenuProvider(
-                (id, inv, p) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(id, inv, cart),
+                (id, inv, p) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu(id, inv, cart.jukebox()),
                 Component.translatable("entity.music_disc_maker.golden_jukebox_minecart")),
                 buf -> buf.writeVarInt(cart.getId()));
     }

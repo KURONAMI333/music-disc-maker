@@ -2,9 +2,11 @@ package com.kuronami.musicdiscmaker.client.audio;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.kuronami.musicdiscmaker.Config;
@@ -376,7 +378,50 @@ public final class GoldenCartClientPlayback {
      * server 由来の明示停止 (stop payload 経由)。<b>ここが失敗予算のリセット境界</b>。
      */
     public static void stop(GoldenCartStopPayload payload) {
+        if (payload.naturalEnd() && deferNaturalEndStop(payload)) {
+            return;
+        }
         stop(payload.entityId(), payload.identity());
+    }
+
+    /** 曲の終わりの停止を待つ上限。設置した金のジュークボックスと同じ。 */
+    private static final long NATURAL_END_MAX_WAIT_MS = 10_000L;
+
+    /**
+     * server が曲の終わりで送った停止を、この client の音が鳴り終わるまで遅らせる
+     * ({@code ClientPlaybackManager#deferNaturalEndStop} と同じ理由: URL 音源は読み込みの後に
+     * 要求された位置から鳴り始めるので、server の時計より遅れている)。待っている間に次の曲が
+     * 始まっていたら、遅らせた停止は撃たない。
+     *
+     * @return 遅らせたら {@code true}
+     */
+    private static boolean deferNaturalEndStop(GoldenCartStopPayload payload) {
+        final UUID source = payload.identity().sourceId();
+        if (source == null) {
+            return false;
+        }
+        final Playing current = ACTIVE.get(source);
+        final GoldenCartPlayPayload request = LATEST_REQUESTS.get(source);
+        if (current == null || current.vanilla() || current.instance().isVoiceStopped() || request == null
+                || request.identity().generation() != payload.identity().generation()
+                || current.startOffsetMs() < 0L || current.startedAtMs() < 0L) {
+            return false;
+        }
+        final CustomTrackData track = request.track();
+        if (track == null || track.isEmpty() || track.radio() || track.durationMs() <= 0L) {
+            return false;
+        }
+        final long played = Math.max(0L, TrackAudioResolver.playbackClockMs() - current.startedAtMs());
+        final long tail = Math.min(track.durationMs() - (current.startOffsetMs() + played), NATURAL_END_MAX_WAIT_MS);
+        if (tail <= 0L) {
+            return false;
+        }
+        CompletableFuture.delayedExecutor(tail, TimeUnit.MILLISECONDS).execute(() -> Minecraft.getInstance().execute(() -> {
+            if (ACTIVE.get(source) == current) {
+                stop(payload.entityId(), payload.identity());
+            }
+        }));
+        return true;
     }
 
     /** 停止形の play payload 経由の明示停止。 */

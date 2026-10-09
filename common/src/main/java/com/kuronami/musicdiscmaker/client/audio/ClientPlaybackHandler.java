@@ -136,14 +136,12 @@ public final class ClientPlaybackHandler {
         GoldenCartClientPlayback.stop(payload);
     }
 
-    /** client 受信: 開いている cart menu への再生状態 (操作直後の即時反映)。 */
-    public static void goldenCartState(com.kuronami.musicdiscmaker.network.GoldenCartStatePayload payload) {
-        final var player = Minecraft.getInstance().player;
-        if (!protocolMismatch && player != null
-                && player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu menu
-                && menu.containerId == payload.containerId()
-                && payload.entityId() == menu.cartEntityId()) {
-            menu.applyPlaybackState(payload.state());
+    /** client 受信: 金のジュークボックス付きトロッコが載せた金のジュークボックスの状態 (GUI の表示用)。 */
+    public static void goldenCartSync(com.kuronami.musicdiscmaker.network.GoldenCartSyncPayload payload) {
+        final var level = Minecraft.getInstance().level;
+        if (!protocolMismatch && level != null && level.getEntity(payload.entityId())
+                instanceof com.kuronami.musicdiscmaker.entity.GoldenJukeboxMinecartEntity cart) {
+            cart.applySyncedState(payload.state());
         }
     }
 

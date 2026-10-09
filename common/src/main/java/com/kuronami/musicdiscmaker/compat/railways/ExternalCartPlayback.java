@@ -6,9 +6,9 @@ import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioServer;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
-import com.kuronami.musicdiscmaker.component.GoldenDeck;
 import com.kuronami.musicdiscmaker.component.MediaSequenceResolver;
-import com.kuronami.musicdiscmaker.event.GoldenCartPlayback;
+import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.entity.GoldenJukeboxMinecartEntity;
 import com.kuronami.musicdiscmaker.network.GoldenCartPlayPayload;
 import com.kuronami.musicdiscmaker.network.GoldenCartStopPayload;
 import com.kuronami.musicdiscmaker.network.PlaybackSourceStamp;
@@ -26,7 +26,7 @@ import net.minecraft.world.item.ItemStack;
  *
  * <p>相手のトロッコは盤の SoundEvent / jukebox song を client で鳴らすだけなので、MDM の盤 (無音) では
  * 何も聞こえない。ここは毎 tick「いま入っている盤」を見て、MDM の盤なら再生 / keep-alive、外れたら停止を送る。
- * 金ジューク付きトロッコと違い操作 (一時停止・音量・範囲) は持たず、値は {@link GoldenDeck} の既定値。
+ * 金ジューク付きトロッコと違い操作 (一時停止・音量・範囲) は持たず、値は金のジュークボックスの既定値。
  * 曲は一度鳴らし切ったら止まる (相手のトロッコのバニラ盤と同じ)。
  *
  * <p>再生位置は tick 基準 (MDM_DECISIONS D4)。音源の識別子は entity の UUID、世代は鳴らし始めた
@@ -99,7 +99,7 @@ public final class ExternalCartPlayback {
             }
             return;
         }
-        if (cart.tickCount % GoldenCartPlayback.KEEPALIVE_INTERVAL_TICKS != 0) {
+        if (cart.tickCount % GoldenJukeboxMinecartEntity.KEEPALIVE_INTERVAL_TICKS != 0) {
             return;
         }
         final long offset = Math.max(0L, now - state.startGameTime) * 50L;
@@ -134,9 +134,9 @@ public final class ExternalCartPlayback {
     private static void broadcastPlay(Entity cart, ServerLevel level, State state, CustomTrackData track) {
         final long offset = Math.max(0L, level.getGameTime() - state.startGameTime) * 50L;
         final GoldenCartPlayPayload payload = new GoldenCartPlayPayload(cart.getId(), track, null, offset,
-                GoldenDeck.RANGE_DEFAULT, GoldenDeck.VOLUME_DEFAULT, GoldenDeck.DIRECTIONAL_DEFAULT,
+                GoldenJukeboxBlockEntity.RANGE_DEFAULT, GoldenJukeboxBlockEntity.VOLUME_DEFAULT, GoldenJukeboxBlockEntity.DIRECTIONAL_DEFAULT,
                 identity(cart, state));
-        final double rangeSq = (double) GoldenDeck.RANGE_DEFAULT * GoldenDeck.RANGE_DEFAULT;
+        final double rangeSq = (double) GoldenJukeboxBlockEntity.RANGE_DEFAULT * GoldenJukeboxBlockEntity.RANGE_DEFAULT;
         for (final ServerPlayer player : level.players()) {
             if (player.distanceToSqr(cart) <= rangeSq) {
                 LocalAudioServer.observe(player, payload);

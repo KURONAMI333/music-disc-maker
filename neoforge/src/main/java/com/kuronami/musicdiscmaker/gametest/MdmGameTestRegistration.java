@@ -544,10 +544,12 @@ public final class MdmGameTestRegistration {
                 GoldenRedstoneGameTests::naturalCompletionSurvivesReloadAndExtracts, empty, 400);
         register(event, "golden_redstone_vanilla_jukebox_song_naturally_ends_and_extracts",
                 GoldenRedstoneGameTests::vanillaJukeboxSongNaturallyEndsAndExtracts, empty, 520);
-        register(event, "golden_cart_playback_offset_pause_resume_seek_natural_end",
-                GoldenCartPlaybackOffsetGameTests::playingSeekAndPauseResumeUseThePausedOffsetAsBase, empty, 100);
-        register(event, "golden_cart_drop_stack_saves_and_reloads_with_its_media",
-                GoldenCartPlaybackOffsetGameTests::dropStackSavesAndReloadsWithItsMedia, empty, 40);
+        register(event, "golden_cart_inserted_disc_plays_and_the_golden_jukebox_screen_controls_it",
+                GoldenCartPlaybackOffsetGameTests::insertedDiscPlaysAndTheGoldenJukeboxScreenControlsIt, empty, 100);
+        register(event, "golden_cart_saves_and_reloads_the_mounted_jukebox",
+                GoldenCartPlaybackOffsetGameTests::savesAndReloadsTheMountedJukebox, empty, 40);
+        register(event, "golden_cart_breaking_drops_the_cart_and_the_disc",
+                GoldenCartPlaybackOffsetGameTests::breakingDropsTheCartAndTheDisc, empty, 40);
         register(event, "stop_disc_natural_end_flag_survives_the_wire",
                 StopDiscPayloadGameTests::naturalEndFlagSurvivesTheWire, empty, 20);
         register(event, "external_cart_starts_stops_and_switches_with_the_disc",

@@ -39,7 +39,7 @@ public final class ModMenus {
     public static final RegistryHolder<MenuType<SpeakerMenu>> SPEAKER =
             MENUS.register("speaker", () -> Services.MENU.createSpeakerMenuType());
 
-    public static final RegistryHolder<MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu>> GOLDEN_JUKEBOX_CART =
+    public static final RegistryHolder<MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu>> GOLDEN_JUKEBOX_CART =
             MENUS.register("golden_jukebox_minecart", () -> Services.MENU.createGoldenJukeboxCartMenuType());
 
     private ModMenus() {

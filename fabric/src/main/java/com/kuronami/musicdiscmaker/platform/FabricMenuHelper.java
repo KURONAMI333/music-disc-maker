@@ -371,17 +371,15 @@ public class FabricMenuHelper implements IMenuHelper {
     }
 
     @Override
-    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu> createGoldenJukeboxCartMenuType() {
+    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu> createGoldenJukeboxCartMenuType() {
         // 運ぶ data は対象 entity の id だけ (VarInt)。menu ctor が level().getEntity で解決する。
         //? if >=26.1 {
-        return new ExtendedMenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu, Integer>(
-                (id, inv, entityId) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(
-                        id, inv, (int) entityId),
+        return new ExtendedMenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu, Integer>(
+                (id, inv, entityId) -> com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu.forCart(id, inv, (int) entityId),
                 net.minecraft.network.codec.ByteBufCodecs.VAR_INT);
         //?} else {
-        /*return new ExtendedScreenHandlerType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu, Integer>(
-                (id, inv, entityId) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(
-                        id, inv, (int) entityId),
+        /*return new ExtendedScreenHandlerType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu, Integer>(
+                (id, inv, entityId) -> com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu.forCart(id, inv, (int) entityId),
                 net.minecraft.network.codec.ByteBufCodecs.VAR_INT);
         *///?}
     }
@@ -410,7 +408,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
             @Override
             public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
-                return new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(id, inv, cart);
+                return new com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu(id, inv, cart.jukebox());
             }
         });
     }
@@ -463,10 +461,10 @@ public class FabricMenuHelper implements IMenuHelper {
     }
 
     @Override
-    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu> createGoldenJukeboxCartMenuType() {
+    public MenuType<com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu> createGoldenJukeboxCartMenuType() {
         // client ctor が buf を直接受け、entityId を読んで level().getEntity で引く。
         return new ExtendedScreenHandlerType<>(
-                (id, inv, buf) -> new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(id, inv, buf));
+                (id, inv, buf) -> com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu.forCartBuf(id, inv, buf));
     }
 
     @Override
@@ -489,7 +487,7 @@ public class FabricMenuHelper implements IMenuHelper {
 
             @Override
             public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) {
-                return new com.kuronami.musicdiscmaker.menu.GoldenJukeboxCartMenu(id, inv, cart);
+                return new com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu(id, inv, cart.jukebox());
             }
         });
     }

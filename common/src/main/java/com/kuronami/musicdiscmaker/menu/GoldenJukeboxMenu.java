@@ -7,6 +7,7 @@ import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 //?} else {
 /*import com.kuronami.musicdiscmaker.client.GoldenJukeboxLayout;
 *///?}
+import com.kuronami.musicdiscmaker.entity.GoldenJukeboxMinecartEntity;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModMenus;
 
@@ -15,6 +16,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 //?} else {
 /*import net.minecraft.core.BlockPos;
 *///?}
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -28,6 +30,9 @@ import net.minecraft.world.item.ItemStack;
 /**
  * 強化版ジュークボックスの設定 menu。ディスクスロット 1 枠 + プレイヤーインベントリ。
  * 範囲/音量/リピート/再生停止は widget として Screen 側が描画し、C2S で BE に反映する。
+ *
+ * <p>金のジュークボックス付きトロッコも同じ menu と画面を使う。トロッコが載せた BE を渡し、
+ * client へは座標の代わりにトロッコの entity id を運ぶ ({@link #forCart})。
  */
 public class GoldenJukeboxMenu extends AbstractContainerMenu {
 
@@ -44,9 +49,10 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
     *///?}
     }
 
-    // server 側コンストラクタ
+    // server 側コンストラクタ。トロッコに載った BE ならトロッコ用の menu type で開く。
     public GoldenJukeboxMenu(int containerId, Inventory playerInventory, GoldenJukeboxBlockEntity blockEntity) {
-        super(ModMenus.GOLDEN_JUKEBOX.get(), containerId);
+        super(blockEntity.isMounted() ? ModMenus.GOLDEN_JUKEBOX_CART.get() : ModMenus.GOLDEN_JUKEBOX.get(),
+                containerId);
         this.blockEntity = blockEntity;
 
         // スロット座標は branding/gen_golden_jukebox_gui.py (レイアウトの正本) の
@@ -102,12 +108,28 @@ public class GoldenJukeboxMenu extends AbstractContainerMenu {
         *///?}
     }
 
+    /** client 側: トロッコの entity id から、そのトロッコが載せた BE で menu を作る。 */
+    public static GoldenJukeboxMenu forCart(int containerId, Inventory playerInventory, int entityId) {
+        if (playerInventory.player.level().getEntity(entityId) instanceof GoldenJukeboxMinecartEntity cart) {
+            return new GoldenJukeboxMenu(containerId, playerInventory, cart.jukebox());
+        }
+        throw new IllegalStateException("Minecart with Golden Jukebox not found");
+    }
+
+    /** client 側: {@link #forCart(int, Inventory, int)} の entity id を buf から読む版。 */
+    public static GoldenJukeboxMenu forCartBuf(int containerId, Inventory playerInventory, FriendlyByteBuf buf) {
+        return forCart(containerId, playerInventory, buf.readVarInt());
+    }
+
     public GoldenJukeboxBlockEntity getBlockEntity() {
         return blockEntity;
     }
 
     @Override
     public boolean stillValid(Player player) {
+        if (blockEntity.isMounted()) {
+            return blockEntity.stillValid(player);
+        }
         return blockEntity.getLevel() != null
                 && blockEntity.getLevel().getBlockState(blockEntity.getBlockPos()).is(ModBlocks.GOLDEN_JUKEBOX.get())
                 && player.distanceToSqr(

@@ -107,8 +107,9 @@ public class NetworkProtocolGameTests {
     private static final String TEMPLATE = "empty8x3x8";
 
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
-        を足して 17 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "17";
+        を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18 にした。
+        {@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "18";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -117,10 +118,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "157002ad7e1fc6c3e33e46e83edc53112723c20074432c919845bd0c2481d029";
+            "b5230491a1ebda4f3703b988804346f962ce6c7797b25ab2efd0f868d13842d4";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "02c9b14483f734dbffdeecd28e72e27771c4533e07bec43322f0834fd3bd5bb0";
+            "ae9db152ddeb19582906a35d7fd7a8e006159f791322e714a673301ad09fe4c2";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -447,6 +448,18 @@ public class NetworkProtocolGameTests {
         encoded.put("sable_sublevel_stop", encode(SubLevelStopDiscPayload.STREAM_CODEC,
                 new SubLevelStopDiscPayload(SAMPLE_POS, compatIdentity)));
         *///?}
+        final com.kuronami.musicdiscmaker.network.PlaybackSourceStamp cartIdentity =
+                new com.kuronami.musicdiscmaker.network.PlaybackSourceStamp(
+                        java.util.UUID.fromString("00000000-0000-4000-8000-00000000c0de"), 123L);
+        encoded.put("golden_cart_play", encode(mdmCodec(com.kuronami.musicdiscmaker.network.GoldenCartPlayPayload::read),
+                new com.kuronami.musicdiscmaker.network.GoldenCartPlayPayload(42, SAMPLE_TRACK, null, 1_000L,
+                        96, 70, false, cartIdentity)));
+        encoded.put("golden_cart_stop", encode(mdmCodec(com.kuronami.musicdiscmaker.network.GoldenCartStopPayload::read),
+                new com.kuronami.musicdiscmaker.network.GoldenCartStopPayload(42, cartIdentity, true)));
+        final net.minecraft.nbt.CompoundTag cartState = new net.minecraft.nbt.CompoundTag();
+        cartState.putInt("range", 96);
+        encoded.put("golden_cart_sync", encode(mdmCodec(com.kuronami.musicdiscmaker.network.GoldenCartSyncPayload::read),
+                new com.kuronami.musicdiscmaker.network.GoldenCartSyncPayload(42, cartState)));
         // handshake 自体の形式も見る。運ぶ文字列は版の値ではなく固定の見本にする
         // (current() を入れると版を上げるたびに指紋が動き、「形式が変わった」検出と混ざる)。
         encoded.put("version", encode(mdmCodec(VersionPayload::read),

@@ -8,7 +8,6 @@ import com.kuronami.musicdiscmaker.client.AlbumScreen;
 import com.kuronami.musicdiscmaker.client.SpeakerScreen;
 import com.kuronami.musicdiscmaker.client.DiscDyeingTableScreen;
 import com.kuronami.musicdiscmaker.client.GoldenJukeboxScreen;
-import com.kuronami.musicdiscmaker.client.GoldenJukeboxCartScreen;
 import com.kuronami.musicdiscmaker.client.MusicDiscMakerScreen;
 import com.kuronami.musicdiscmaker.client.DiscDyeTintSource;
 import com.kuronami.musicdiscmaker.client.VariantItemModelProperty;
@@ -142,7 +141,7 @@ public class MusicDiscMakerClient {
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.MUSIC_DISC_MAKER.get(), MusicDiscMakerScreen::new);
         event.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
-        event.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxCartScreen::new);
+        event.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxScreen::new);
         event.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         event.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         event.register(ModMenus.ALBUM.get(), AlbumScreen::new);

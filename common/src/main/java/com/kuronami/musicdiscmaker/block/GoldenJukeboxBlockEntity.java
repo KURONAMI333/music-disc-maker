@@ -108,6 +108,10 @@ import net.minecraft.world.level.storage.ValueOutput;
  *
  * <p>再生の権威はこの BE (server)。ActiveDiscRegistry は使わず、late-join には
  * {@link #resendTo(ServerPlayer)} で現在位置を送る。
+ *
+ * <p>金のジュークボックス付きトロッコは、この BE を {@link GoldenJukeboxMount} つきで 1 つ載せる。
+ * 曲の選び方・送り方・止め方・保存は設置した時と同じで、座標に結び付いた処理 (赤石入力・コンパレータ・
+ * blockstate・Speaker・座標宛ての再生 payload) だけを使わず、鳴らす・知らせるを mount に任せる。
  */
 public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyContainer {
 
@@ -201,8 +205,59 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     /** そのアンカーを受け取った client の壁時計 (ms)。 */
     private long clientAnchorWallClockMs = 0L;
 
+    /** 載せられている時の持ち主。設置した金のジュークボックスでは null。 */
+    @Nullable
+    private GoldenJukeboxMount mount;
+
     public GoldenJukeboxBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.GOLDEN_JUKEBOX.get(), pos, state);
+    }
+
+    /** トロッコに載せる BE。{@link #setLevel} より先に mount を持たせ、設置物の登録簿へ載せない。 */
+    public GoldenJukeboxBlockEntity(BlockPos pos, BlockState state, GoldenJukeboxMount mount) {
+        this(pos, state);
+        this.mount = mount;
+    }
+
+    /** トロッコに載っているか。 */
+    public boolean isMounted() {
+        return mount != null;
+    }
+
+    /** 載せた側が chest vehicle の保存・hopper 経路で同じ盤のリストを見るための口。 */
+    public NonNullList<ItemStack> mountedItems() {
+        return items;
+    }
+
+    /** 載せた BE の全状態 (保存と client への反映に使う)。 */
+    public CompoundTag mountedStateTag() {
+        //? if >=1.21 {
+        return getUpdateTag(level.registryAccess());
+        //?} else {
+        /*return getUpdateTag();
+        *///?}
+    }
+
+    /** {@link #mountedStateTag()} を読み込む。設置した BE の同期と同じ読み込み経路。 */
+    public void loadMountedState(CompoundTag tag) {
+        //? if >=1.21.11 {
+        loadWithComponents(net.minecraft.world.level.storage.TagValueInput.create(
+                net.minecraft.util.ProblemReporter.DISCARDING, level.registryAccess(), tag));
+        //?} elif >=1.21 {
+        /*loadWithComponents(tag, level.registryAccess());
+        *///?} else {
+        /*load(tag);
+        *///?}
+    }
+
+    @Override
+    public void setChanged() {
+        // 載せた BE の座標は世界のブロックではない。そこへ chunk の変更やコンパレータ更新を撃たない。
+        if (mount != null) {
+            mount.markDirty();
+            return;
+        }
+        super.setChanged();
     }
 
     // ── GUI / block 用アクセサ ──
@@ -242,6 +297,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     public PlaybackCursor playbackCursor() {
         return cursor;
+    }
+
+    /** 今まさに音を出しているか (再生中で、読み込み直し後の再開も済んでいる)。 */
+    public boolean isSounding() {
+        return startMillis > 0L && cursor.state() == PlaybackCursor.State.PLAYING;
     }
 
     /** true = positional audio (既定)。false = 範囲内フラット聴取 (BGM モード)。 */
@@ -687,6 +747,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
      * 毎 tick は撃たない。
      */
     private void refreshRedstoneSignal() {
+        if (mount != null) return; // 載せた BE には隣接ブロックが無い
         final boolean now = isRedstonePlaying();
         final boolean playingChanged = now != redstonePlayingLatch;
         redstonePlayingLatch = now;
@@ -815,7 +876,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     /** A rising edge toggles playback once; falling power only rearms the input. */
     private void updateRedstonePower() {
-        if (!isServer()) return;
+        if (!isServer() || mount != null) return;
         final boolean powered = level.hasNeighborSignal(getBlockPos());
         if (!redstonePowerInitialized) {
             redstonePowerInitialized = true;
@@ -1051,11 +1112,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         startMillis = playbackTimeMs() - offsetMs;
         playbackStartGameTime = level.getGameTime() - offsetMs / 50L;
         //? if >=1.21 {
-        songFor(disc).ifPresent(song -> songPlayer.play(level, song));
+        if (mount == null) songFor(disc).ifPresent(song -> songPlayer.play(level, song));
         //?} else {
         //?}
         final CustomTrackData track = currentTrack();
-        if (track != null) {
+        if (mount != null) {
+            final VanillaTrackData vanillaTrack = track == null ? currentVanillaTrack() : null;
+            if (track != null || vanillaTrack != null) {
+                mount.play(track, vanillaTrack, offsetMs, rangeBlocks, volumePercent, directional, playbackIdentity());
+            }
+        } else if (track != null) {
             if (!SpeakerPlayback.play(this, track, offsetMs)) {
                 broadcast(new PlayDiscPayload(getBlockPos(), track, offsetMs, rangeBlocks, volumePercent, directional, playbackIdentity()));
             }
@@ -1109,6 +1175,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     /** @param naturalEnd 曲を鳴らし切ったことによる停止か (client は自分の音が鳴り終わるまで待つ) */
     private void stopAudio(boolean naturalEnd) {
         if (!isServer()) {
+            return;
+        }
+        if (mount != null) {
+            startMillis = 0L;
+            playbackStartGameTime = -1L;
+            mount.stop(playbackIdentity(), naturalEnd);
             return;
         }
         //? if >=1.21 {
@@ -1203,7 +1275,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     private void updateHasRecordState(boolean hasRecord) {
-        if (level != null && level.getBlockState(getBlockPos()) == getBlockState()
+        if (mount == null && level != null && level.getBlockState(getBlockPos()) == getBlockState()
                 && getBlockState().hasProperty(GoldenJukeboxBlock.HAS_RECORD)
                 && getBlockState().getValue(GoldenJukeboxBlock.HAS_RECORD) != hasRecord) {
             level.setBlock(getBlockPos(), getBlockState().setValue(GoldenJukeboxBlock.HAS_RECORD, hasRecord), 2);
@@ -1232,28 +1304,30 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     @Override
     public void setRemoved() {
         redstonePowerInitialized = false;
-        GoldenSourceRegistry.unregister(this);
-        SpeakerPlayback.remove(this);
+        if (mount == null) {
+            GoldenSourceRegistry.unregister(this);
+            SpeakerPlayback.remove(this);
+        }
         super.setRemoved();
     }
 
     @Override
     public void setLevel(Level level) {
         final long oldClock = playbackTimeMs();
-        if (this.level != null && this.level != level) GoldenSourceRegistry.unregister(this);
+        if (mount == null && this.level != null && this.level != level) GoldenSourceRegistry.unregister(this);
         super.setLevel(level);
         // Deserialization can receive the client anchor before the level (and its paused clock).
         final long clockDelta = playbackTimeMs() - oldClock;
         if (clientElapsedAnchorMs >= 0L) clientAnchorWallClockMs += clockDelta;
         if (startMillis > 0L) startMillis += clockDelta;
-        GoldenSourceRegistry.register(this);
+        if (mount == null) GoldenSourceRegistry.register(this);
     }
 
     @Override
     public void clearRemoved() {
         super.clearRemoved();
         redstonePowerInitialized = false;
-        GoldenSourceRegistry.register(this);
+        if (mount == null) GoldenSourceRegistry.register(this);
     }
 
     /** late-join した player へ、再生中なら現在位置で音源種別に対応するpayloadを再送する。 */
@@ -1321,8 +1395,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             return;
         }
         //? if >=1.21 {
-        songPlayer.tick(level, getBlockState());
-        if (!isMdmAlbum() && getAlbumTrack() < 0
+        if (mount == null) songPlayer.tick(level, getBlockState());
+        // 載せた BE は songPlayer を鳴らさない。バニラ盤の終わりは下の尺の判定で拾う。
+        if (mount == null && !isMdmAlbum() && getAlbumTrack() < 0
                 && currentTrack() == null && cursor.state() == PlaybackCursor.State.PLAYING
                 && !songPlayer.isPlaying()) {
             // Standalone vanilla media has no custom wall-clock track. Its authoritative
@@ -1351,12 +1426,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
                 }
             }
             //? if >=1.21 {
-            if (startMillis > 0L && !songPlayer.isPlaying() && track != null
+            if (mount == null && startMillis > 0L && !songPlayer.isPlaying() && track != null
                     && (track.radio() || track.durationMs() <= 0L)) {
                 songFor(effectiveDisc()).ifPresent(song -> songPlayer.play(level, song));
             }
             //?} else {
-            /*if (startMillis > 0L && track != null && level instanceof ServerLevel serverLevel
+            /*if (mount == null && startMillis > 0L && track != null && level instanceof ServerLevel serverLevel
                     && level.getGameTime() % 20L == 0L) {
                 level.gameEvent(GameEvent.JUKEBOX_PLAY, getBlockPos(), GameEvent.Context.of(getBlockState()));
                 spawnNoteParticle(serverLevel);
@@ -1364,7 +1439,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             *///?}
         }
         refreshRedstoneSignal();
-        SpeakerPlayback.tick(this);
+        if (mount == null) SpeakerPlayback.tick(this);
     }
 
     private boolean currentMdmTrackFinished() {
@@ -1382,6 +1457,10 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         final long dur = track != null ? track.durationMs() : 0L;
         if (dur > 0L) {
             return playbackTimeMs() - startMillis >= dur;
+        }
+        if (mount != null) {
+            final long vanillaDuration = trackDurationMs();
+            return vanillaDuration > 0L && playbackTimeMs() - startMillis >= vanillaDuration;
         }
         return !songPlayer.isPlaying();
     //?} else {
@@ -1419,7 +1498,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     private void onSongChanged() {
-        if (level != null) {
+        if (level != null && mount == null) {
             level.updateNeighborsAt(getBlockPos(), getBlockState().getBlock());
         }
         setChanged();
@@ -1451,7 +1530,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     private void onSongChanged() {
-        if (level != null) {
+        if (level != null && mount == null) {
             level.updateNeighborsAt(getBlockPos(), getBlockState().getBlock());
         }
         setChanged();
@@ -1474,6 +1553,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     public void sync() {
+        if (mount != null) {
+            mount.markDirty();
+            mount.sync();
+            return;
+        }
         setChanged();
         //? if >=1.21.2 {
         if (level != null && !level.isClientSide()) {
@@ -1505,7 +1589,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             sourceId = UUID.randomUUID();
             setChanged();
         }
-        GoldenSourceRegistry.register(this);
+        if (mount == null) GoldenSourceRegistry.register(this);
         return sourceId;
     }
 
@@ -1664,7 +1748,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
         */
         //?}
-        GoldenSourceRegistry.register(this);
+        if (mount == null) GoldenSourceRegistry.register(this);
     }
 
     @Override
@@ -1815,6 +1899,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     @Override
     public boolean stillValid(Player player) {
+        if (mount != null) return mount.stillValid(player);
         return Container.stillValidBlockEntity(this, player);
     }
 

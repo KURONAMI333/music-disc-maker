@@ -283,7 +283,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         */
         //?}
         MenuScreens.register(ModMenus.GOLDEN_JUKEBOX.get(), GoldenJukeboxScreen::new);
-        MenuScreens.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxCartScreen::new);
+        MenuScreens.register(ModMenus.GOLDEN_JUKEBOX_CART.get(), GoldenJukeboxScreen::new);
         MenuScreens.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         MenuScreens.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         MenuScreens.register(ModMenus.ALBUM.get(), AlbumScreen::new);
@@ -427,8 +427,8 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartPlay(payload.inner())));
         ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartStop.TYPE,
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartStop(payload.inner())));
-        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartState.TYPE,
-                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartState(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartSync.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartSync(payload.inner())));
         //?} elif >=1.21 {
         /*        // client 受信: 再生制御 (main thread へ enqueue)。
         ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.Play.TYPE,
@@ -453,8 +453,8 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartPlay(payload.inner())));
         ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartStop.TYPE,
                 (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartStop(payload.inner())));
-        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartState.TYPE,
-                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartState(payload.inner())));
+        ClientPlayNetworking.registerGlobalReceiver(ModPayloadTypes.GoldenCartSync.TYPE,
+                (payload, ctx) -> ctx.client().execute(() -> ModNetwork.handleGoldenCartSync(payload.inner())));
         // SB Fabric port の backpack jukebox 再生受信 (port 非依存)。
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompat.registerClientReceiver();
         */
@@ -515,10 +515,10 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 });
         ClientPlayNetworking.registerGlobalReceiver(
                 com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
-                        com.kuronami.musicdiscmaker.network.GoldenCartStatePayload.PATH),
+                        com.kuronami.musicdiscmaker.network.GoldenCartSyncPayload.PATH),
                 (client, handler, buf, responseSender) -> {
-                    final var payload = com.kuronami.musicdiscmaker.network.GoldenCartStatePayload.read(buf);
-                    client.execute(() -> ModNetwork.handleGoldenCartState(payload));
+                    final var payload = com.kuronami.musicdiscmaker.network.GoldenCartSyncPayload.read(buf);
+                    client.execute(() -> ModNetwork.handleGoldenCartSync(payload));
                 });
 
         ClientPlayNetworking.registerGlobalReceiver(
