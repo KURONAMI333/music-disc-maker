@@ -209,9 +209,10 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
             return InteractionResult.PASS;
         }
         if (player instanceof ServerPlayer serverPlayer) {
-            // 画面が最初の描画から今の状態を出せるよう、開く前に届ける。
-            this.sendState(serverPlayer);
             Services.MENU.openGoldenJukeboxCartMenu(serverPlayer, this);
+            // 状態は盤を運ばないので、menu を開いた時のスロット同期 (盤) の後に届くよう、この tick の
+            // 終わりに送る。先に届くと client は盤の無い状態として読み、再生位置を失う。
+            this.syncPending = true;
             return InteractionResult.CONSUME;
         }
         return InteractionResult.SUCCESS;
@@ -323,10 +324,6 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
                 Services.NETWORK.sendToPlayer(player, new GoldenCartSyncPayload(this.getId(), state));
             }
         }
-    }
-
-    private void sendState(ServerPlayer player) {
-        Services.NETWORK.sendToPlayer(player, new GoldenCartSyncPayload(this.getId(), this.jukebox.mountedSyncTag()));
     }
 
     private void rememberAudioSettings(int rangeBlocks, int volumePercent, boolean directional) {
