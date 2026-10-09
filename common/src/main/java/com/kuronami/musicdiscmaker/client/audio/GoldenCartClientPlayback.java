@@ -335,6 +335,11 @@ public final class GoldenCartClientPlayback {
         }
         final Minecraft mc = Minecraft.getInstance();
         mc.getSoundManager().play(instance);
+        if (mc.level != null && mc.level.getEntity(liveRequest.entityId())
+                instanceof com.kuronami.musicdiscmaker.entity.GoldenJukeboxMinecartEntity cart) {
+            // 進捗バーを読み込みの後に鳴り始めた位置へ合わせる (設置した金のジュークボックスと同じ)。
+            cart.jukebox().clientReanchorElapsedToAudioStart(startOffsetMs);
+        }
         LIMIT_NOTICES.forget(source); // 鳴り始めた = 次に上限へ当たったらまた出してよい
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
@@ -403,7 +408,7 @@ public final class GoldenCartClientPlayback {
         final Playing current = ACTIVE.get(source);
         final GoldenCartPlayPayload request = LATEST_REQUESTS.get(source);
         if (current == null || current.vanilla() || current.instance().isVoiceStopped() || request == null
-                || request.identity().generation() != payload.identity().generation()
+                || payload.identity().generation() < request.identity().generation()
                 || current.startOffsetMs() < 0L || current.startedAtMs() < 0L) {
             return false;
         }
@@ -416,6 +421,8 @@ public final class GoldenCartClientPlayback {
         if (tail <= 0L) {
             return false;
         }
+        // server は曲の終わりで送り直しを止めるので、待つ間は追従先の生存判定に末尾の猶予を開く。
+        current.anchor().armTailSilence(0L, tail);
         CompletableFuture.delayedExecutor(tail, TimeUnit.MILLISECONDS).execute(() -> Minecraft.getInstance().execute(() -> {
             if (ACTIVE.get(source) == current) {
                 stop(payload.entityId(), payload.identity());

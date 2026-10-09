@@ -94,6 +94,18 @@ public final class GoldenCartPlaybackOffsetGameTests {
                         .anyMatch(sent -> sent.player() == player
                                 && ((GoldenCartPlayPayload) sent.payload()).entityId() == cart.getId()),
                 "the mounted golden jukebox did not send its sound to follow the cart");
+        final long playedGeneration = lastPlay(net, cart).identity().generation();
+
+        // シャッフルの切り替えは世代を進めるが、設置した金のジュークボックスと同じく鳴っている音は
+        // 鳴らし直さない (送り直しは鳴らし始めた時の識別子のまま)。
+        jukebox.setShuffle(true);
+        jukebox.setVolumePercent(120);
+        net.clear();
+        cart.tick();
+        final GoldenCartPlayPayload refreshed = lastPlay(net, cart);
+        helper.assertTrue(refreshed != null && refreshed.identity().generation() == playedGeneration
+                        && refreshed.volumePercent() == 120,
+                "toggling shuffle made the cart reload its sound, or the volume change was not sent");
         final GoldenJukeboxMenu menu = new GoldenJukeboxMenu(7, player.getInventory(), jukebox);
         helper.assertTrue(menu.getType() == ModMenus.GOLDEN_JUKEBOX_CART.get(),
                 "the cart did not open the golden jukebox menu under the cart menu type");
@@ -107,8 +119,15 @@ public final class GoldenCartPlaybackOffsetGameTests {
         helper.assertTrue(jukebox.getRangeBlocks() == 40 && jukebox.getVolumePercent() == 150
                         && jukebox.isRepeat() && !jukebox.isDirectional(),
                 "the golden jukebox screen settings did not reach the cart");
-        helper.assertTrue(net.of(GoldenCartSyncPayload.class).stream().anyMatch(sent -> sent.player() == player),
-                "the screen of the player using the cart was not refreshed");
+        helper.assertTrue(net.of(GoldenCartSyncPayload.class).isEmpty(),
+                "the cart sent its state once per setting instead of once per tick");
+        cart.tick();
+        final var syncs = net.of(GoldenCartSyncPayload.class);
+        helper.assertTrue(syncs.size() == 1 && syncs.get(0).player() == player,
+                "the screen of the player using the cart was not refreshed exactly once: " + syncs.size());
+        final var state = ((GoldenCartSyncPayload) syncs.get(0).payload()).state();
+        helper.assertTrue(!state.contains("Items") && !state.contains("inventory") && state.contains("range"),
+                "the cart's screen state carried the disc (the slot sync already does)");
 
         net.clear();
         ModNetwork.handleConfigureJukebox(new ConfigureJukeboxPayload(jukebox.getBlockPos(),
@@ -204,6 +223,16 @@ public final class GoldenCartPlaybackOffsetGameTests {
         } finally {
             Services.swapNetwork(previous);
         }
+    }
+
+    @org.jetbrains.annotations.Nullable
+    private static GoldenCartPlayPayload lastPlay(CapturingNetwork net, GoldenJukeboxMinecartEntity cart) {
+        GoldenCartPlayPayload last = null;
+        for (final var sent : net.of(GoldenCartPlayPayload.class)) {
+            final GoldenCartPlayPayload play = (GoldenCartPlayPayload) sent.payload();
+            if (play.entityId() == cart.getId()) last = play;
+        }
+        return last;
     }
 
     private static GoldenJukeboxMinecartEntity cart(GameTestHelper helper) {

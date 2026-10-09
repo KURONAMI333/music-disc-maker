@@ -28,8 +28,8 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>末尾の猶予帯</h2>
  * {@link BoomboxLiveness} を共有する。server が尺の終端で意図的に黙る場合に備えて
- * {@link #armTailSilence} で窓を開く (cart の server driver は現状 終端で黙らないが、
- * 受け側を時計に依存させないために同じ手順を置く)。
+ * {@link #armTailSilence} で窓を開く。トロッコは曲を鳴らし切ると送り直しを止めるので、
+ * 読み込みの遅れで server より後ろを鳴らしている client は、曲の終わりの停止を待つ間この窓で生き残る。
  */
 public final class CartAnchor implements DiscAnchor, LiveAudioConfig {
 

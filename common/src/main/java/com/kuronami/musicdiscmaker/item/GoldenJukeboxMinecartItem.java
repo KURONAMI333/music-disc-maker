@@ -46,7 +46,7 @@ import net.minecraft.nbt.Tag;
 /**
  * 金のジュークボックス付きトロッコをレールへ置く item。
  * バニラの {@code MinecartItem} と同じ挙動 (レール上のみ・dispenser 対応) で、
- * 破壊 drop が埋め込んだ entity data を再設置時に復元する。
+ * item に entity data が付いていれば (バニラの spawn egg 等と同じく) 置いた entity へ読み込む。
  */
 public class GoldenJukeboxMinecartItem extends Item {
 

@@ -62,6 +62,15 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
 
     @Nullable
     private GoldenJukeboxBlockEntity jukebox;
+    /** 鳴らしている音の識別子 (最後に鳴らし始めた時のもの)。鳴っていなければ null。 */
+    @Nullable
+    private PlaybackSourceStamp audioIdentity;
+    /** 状態の変更があり、この tick の終わりに GUI を開いている player へ届ける。 */
+    private boolean syncPending;
+    private int resendStateTick = -1;
+    private int sentRange;
+    private int sentVolume;
+    private boolean sentDirectional;
 
     public GoldenJukeboxMinecartEntity(EntityType<?> type, Level level) {
         super(type, level);
@@ -113,7 +122,9 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
 
     @Override
     public void clearItemStacks() {
-        if (this.jukebox != null) this.jukebox.clearContent();
+        // 保存からの読み込みの前に呼ばれる。盤の変更として扱わず (停止の送信もしない)、
+        // 直後に読み込む金のジュークボックスの状態に任せる。
+        if (this.jukebox != null) this.jukebox.mountedItems().clear();
     }
 
     @Override
@@ -236,7 +247,17 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
             if (this.jukebox.getLevel() != this.level()) this.jukebox.setLevel(this.level());
             GoldenJukeboxBlockEntity.serverTick(this.level(), this.jukebox.getBlockPos(),
                     this.jukebox.getBlockState(), this.jukebox);
-            if (this.tickCount % KEEPALIVE_INTERVAL_TICKS == 0) {
+            final boolean periodic = this.tickCount % KEEPALIVE_INTERVAL_TICKS == 0;
+            if (this.syncPending) {
+                // 1 tick の間の変更 (画面の 1 操作で設定 4 つ) をまとめて 1 回届ける。盤のスロット同期と
+                // 届く順が前後しても画面がずれたままにならないよう、2 tick 後にもう一度届ける。
+                this.syncPending = false;
+                this.resendStateTick = this.tickCount + 2;
+                this.sendStateToViewers();
+            } else if (this.tickCount == this.resendStateTick) {
+                this.sendStateToViewers();
+            }
+            if (periodic || this.audioSettingsChanged()) {
                 this.sendKeepAlive();
             }
         }
@@ -244,10 +265,11 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
 
     @Override
     public void remove(Entity.RemovalReason reason) {
-        if (this.level() instanceof ServerLevel && this.jukebox.peekSourceIdentity() != null) {
-            // 破壊・回収・chunk の unload・次元移動のどれでも、この entity に付いた音を止める。
-            // 再生状態は変えない (読み込み直した entity が続きから鳴らす)。
-            this.broadcastStop(this.jukebox.playbackIdentity(), false);
+        if (this.level() instanceof ServerLevel && this.audioIdentity != null) {
+            // 破壊・回収・kill でこの entity に付いた音を止める。再生状態は変えない。
+            // chunk の unload と次元移動は remove を通らないが、client の EntityAnchor が
+            // entity の消滅を見て止める。
+            this.broadcastStop(this.audioIdentity, false);
         }
         super.remove(reason);
     }
@@ -257,6 +279,8 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
     @Override
     public void play(@Nullable CustomTrackData track, @Nullable VanillaTrackData vanilla, long offsetMs,
             int rangeBlocks, int volumePercent, boolean directional, PlaybackSourceStamp identity) {
+        this.audioIdentity = identity;
+        this.rememberAudioSettings(rangeBlocks, volumePercent, directional);
         if (this.level() instanceof ServerLevel level) {
             this.broadcastPlay(level, new GoldenCartPlayPayload(this.getId(),
                     track == null ? CustomTrackData.EMPTY : track, vanilla, offsetMs,
@@ -266,21 +290,13 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
 
     @Override
     public void stop(PlaybackSourceStamp identity, boolean naturalEnd) {
+        this.audioIdentity = null;
         this.broadcastStop(identity, naturalEnd);
     }
 
     @Override
     public void sync() {
-        if (!(this.level() instanceof ServerLevel level)) {
-            return;
-        }
-        for (final ServerPlayer player : level.players()) {
-            if (player.containerMenu instanceof GoldenJukeboxMenu menu && menu.getBlockEntity() == this.jukebox) {
-                this.sendState(player);
-            }
-        }
-        // 音量・範囲・指向性の変更を、次の送り直しを待たずに鳴っている音へ届ける。
-        this.sendKeepAlive();
+        this.syncPending = true;
     }
 
     @Override
@@ -295,13 +311,43 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
 
     // ── 配送 ──
 
-    private void sendState(ServerPlayer player) {
-        Services.NETWORK.sendToPlayer(player, new GoldenCartSyncPayload(this.getId(), this.jukebox.mountedStateTag()));
+    /** 載せた金のジュークボックスの GUI を開いている player へ、今の状態を届ける。 */
+    private void sendStateToViewers() {
+        if (!(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        CompoundTag state = null;
+        for (final ServerPlayer player : level.players()) {
+            if (player.containerMenu instanceof GoldenJukeboxMenu menu && menu.getBlockEntity() == this.jukebox) {
+                if (state == null) state = this.jukebox.mountedSyncTag();
+                Services.NETWORK.sendToPlayer(player, new GoldenCartSyncPayload(this.getId(), state));
+            }
+        }
     }
 
-    /** 鳴っている間、今の曲と位置をトロッコに付いた音として送り直す。 */
+    private void sendState(ServerPlayer player) {
+        Services.NETWORK.sendToPlayer(player, new GoldenCartSyncPayload(this.getId(), this.jukebox.mountedSyncTag()));
+    }
+
+    private void rememberAudioSettings(int rangeBlocks, int volumePercent, boolean directional) {
+        this.sentRange = rangeBlocks;
+        this.sentVolume = volumePercent;
+        this.sentDirectional = directional;
+    }
+
+    /** 鳴っている音へ最後に届けた範囲・音量・指向性から、設定が変わったか。 */
+    private boolean audioSettingsChanged() {
+        return this.audioIdentity != null && (this.sentRange != this.jukebox.getRangeBlocks()
+                || this.sentVolume != this.jukebox.getVolumePercent()
+                || this.sentDirectional != this.jukebox.isDirectional());
+    }
+
+    /**
+     * 鳴っている間、今の曲と位置をトロッコに付いた音として送り直す。識別子は最後に鳴らし始めた時のもの
+     * (シャッフルの切り替えは世代を進めるが、設置した金のジュークボックスと同じく音は鳴らし直さない)。
+     */
     private void sendKeepAlive() {
-        if (!(this.level() instanceof ServerLevel level) || !this.jukebox.isSounding()) {
+        if (!(this.level() instanceof ServerLevel level) || this.audioIdentity == null || !this.jukebox.isSounding()) {
             return;
         }
         final CustomTrackData track = this.jukebox.currentTrack();
@@ -309,10 +355,11 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
         if (track == null && vanilla == null) {
             return;
         }
+        this.rememberAudioSettings(this.jukebox.getRangeBlocks(), this.jukebox.getVolumePercent(),
+                this.jukebox.isDirectional());
         this.broadcastPlay(level, new GoldenCartPlayPayload(this.getId(),
                 track == null ? CustomTrackData.EMPTY : track, vanilla, this.jukebox.currentElapsedMs(),
-                this.jukebox.getRangeBlocks(), this.jukebox.getVolumePercent(), this.jukebox.isDirectional(),
-                this.jukebox.playbackIdentity()));
+                this.sentRange, this.sentVolume, this.sentDirectional, this.audioIdentity));
     }
 
     /** 可聴範囲の中の player へ。 */
@@ -377,6 +424,7 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
 
     /** client: server から届いた載せた金のジュークボックスの状態を、画面用に反映する。 */
     public void applySyncedState(CompoundTag tag) {
-        this.loadJukebox(tag);
+        if (this.jukebox.getLevel() != this.level()) this.jukebox.setLevel(this.level());
+        this.jukebox.applyMountedSync(tag);
     }
 }

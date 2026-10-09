@@ -205,6 +205,12 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     /** そのアンカーを受け取った client の壁時計 (ms)。 */
     private long clientAnchorWallClockMs = 0L;
 
+    /**
+     * 載せた BE がバニラ盤の終わりを尺で決める時の猶予。設置した BE が使う {@code JukeboxSongPlayer} は
+     * 尺 + 20 tick で終わるので、それに合わせる。
+     */
+    private static final long MOUNTED_VANILLA_END_GRACE_MS = 1_000L;
+
     /** 載せられている時の持ち主。設置した金のジュークボックスでは null。 */
     @Nullable
     private GoldenJukeboxMount mount;
@@ -236,6 +242,27 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         //?} else {
         /*return getUpdateTag();
         *///?}
+    }
+
+    /**
+     * GUI へ届ける状態。盤 (アルバムは大きい) は menu のスロット同期が運ぶので外す。
+     * 受け側は {@link #applyMountedSync} で自分の盤を残したまま読み込む。
+     */
+    public CompoundTag mountedSyncTag() {
+        final CompoundTag tag = mountedStateTag().copy();
+        tag.remove("Items");
+        tag.remove("inventory");
+        return tag;
+    }
+
+    /** client: {@link #mountedSyncTag()} を、今持っている盤を残したまま読み込む。 */
+    public void applyMountedSync(CompoundTag state) {
+        final CompoundTag local = mountedStateTag();
+        final CompoundTag merged = state.copy();
+        for (final String key : new String[] {"Items", "inventory"}) {
+            if (local.contains(key)) merged.put(key, local.get(key));
+        }
+        loadMountedState(merged);
     }
 
     /** {@link #mountedStateTag()} を読み込む。設置した BE の同期と同じ読み込み経路。 */
@@ -1231,7 +1258,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             // so changes during the empty interval cannot become a phantom rising edge.
             if (!hasDisc) {
                 redstonePowerInitialized = false;
-            } else if (!redstonePowerInitialized) {
+            } else if (!redstonePowerInitialized && mount == null) {
                 redstonePowerInitialized = true;
                 lastRedstonePower = level.hasNeighborSignal(getBlockPos());
             }
@@ -1267,7 +1294,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
         //? if >=1.21 {
         //?} else {
-/*        if (level != null) {
+/*        if (level != null && mount == null) {
             level.updateNeighborsAt(getBlockPos(), getBlockState().getBlock());
         }
         */
@@ -1416,7 +1443,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (startMillis > 0L && !isPaused()) {
             final CustomTrackData track = currentTrack();
             if (getAlbumTrack() < 0) {
-                final long duration = trackDurationMs();
+                final long baseDuration = trackDurationMs();
+                final long duration = baseDuration > 0L && mount != null && track == null
+                        ? baseDuration + MOUNTED_VANILLA_END_GRACE_MS : baseDuration;
                 if (!isLiveStream() && duration > 0L && playbackTimeMs() - startMillis >= duration) {
                     if (repeat) {
                         startPlayback(0L);
@@ -1460,7 +1489,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
         if (mount != null) {
             final long vanillaDuration = trackDurationMs();
-            return vanillaDuration > 0L && playbackTimeMs() - startMillis >= vanillaDuration;
+            return vanillaDuration > 0L
+                    && playbackTimeMs() - startMillis >= vanillaDuration + MOUNTED_VANILLA_END_GRACE_MS;
         }
         return !songPlayer.isPlaying();
     //?} else {

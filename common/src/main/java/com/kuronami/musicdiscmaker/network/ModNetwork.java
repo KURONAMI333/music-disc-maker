@@ -83,8 +83,9 @@ public final class ModNetwork {
     }
 
     public static void handleConfigureJukebox(ConfigureJukeboxPayload payload, ServerPlayer player) {
-        final GoldenJukeboxBlockEntity mounted = mountedJukebox(player);
-        if (mounted != null) {
+        if (opensMountedJukebox(player)) {
+            final GoldenJukeboxBlockEntity mounted = mountedJukebox(player);
+            if (mounted == null) return;
             mounted.setRangeBlocks(payload.rangeBlocks());
             mounted.setVolumePercent(payload.volumePercent());
             mounted.setRepeat(payload.repeat());
@@ -126,9 +127,9 @@ public final class ModNetwork {
     }
 
     public static void handleSeekJukebox(SeekJukeboxPayload payload, ServerPlayer player) {
-        final GoldenJukeboxBlockEntity mounted = mountedJukebox(player);
-        if (mounted != null) {
-            mounted.seekTo(payload.offsetMs());
+        if (opensMountedJukebox(player)) {
+            final GoldenJukeboxBlockEntity mounted = mountedJukebox(player);
+            if (mounted != null) mounted.seekTo(payload.offsetMs());
             return;
         }
         final BlockPos pos = payload.pos();
@@ -207,6 +208,14 @@ public final class ModNetwork {
      * 開いている GUI がトロッコに載った金のジュークボックスなら、その BE。
      * 載せた BE は世界の座標に無いので、payload の座標ではなく開いている menu で対象を決める。
      */
+    /**
+     * 開いている GUI がトロッコに載った金のジュークボックスか。距離が離れて使えなくなっていても true で、
+     * その時の操作を座標で引いた設置物 (座標は世界の原点) へ落とさない。
+     */
+    private static boolean opensMountedJukebox(ServerPlayer player) {
+        return player.containerMenu instanceof GoldenJukeboxMenu menu && menu.getBlockEntity().isMounted();
+    }
+
     @org.jetbrains.annotations.Nullable
     private static GoldenJukeboxBlockEntity mountedJukebox(ServerPlayer player) {
         return player.containerMenu instanceof GoldenJukeboxMenu menu && menu.getBlockEntity().isMounted()

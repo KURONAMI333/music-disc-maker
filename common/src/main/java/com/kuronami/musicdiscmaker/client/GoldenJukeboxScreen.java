@@ -609,7 +609,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
      ^/
     private void renderFailureLabel(GuiGraphics g, GoldenJukeboxBlockEntity be) {
     *///?}
-        final PlaybackFailure failure = GoldenJukeboxFailures.get().latest(be.getBlockPos());
+        // トロッコに載った BE の座標は世界のブロックではない (失敗はチャットへ出る)。
+        final PlaybackFailure failure = be.isMounted() ? null : GoldenJukeboxFailures.get().latest(be.getBlockPos());
         if (failure == null) {
             return;
         }
