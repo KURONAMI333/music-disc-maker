@@ -1173,7 +1173,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             //?}
             final VanillaTrackData vanillaTrack = currentVanillaTrack();
             if (vanillaTrack != null) {
-                SpeakerPlayback.play(this, vanillaTrack, offsetMs);
+                SpeakerPlayback.play(this, vanillaTrack, offsetMs, managedVanilla);
             }
         }
         //? if >=1.21 {

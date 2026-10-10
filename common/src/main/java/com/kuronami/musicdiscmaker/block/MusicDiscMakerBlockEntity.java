@@ -331,7 +331,11 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         if (!output.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
             return;
         }
-        final String name = title == null ? "" : title.replace("\u00a7", "").strip();
+        //? if >=1.21 {
+        final String name = title == null ? "" : net.minecraft.util.StringUtil.filterText(title).strip();
+        //?} else {
+        /*final String name = title == null ? "" : net.minecraft.SharedConstants.filterText(title).strip();
+        *///?}
         if (name.isEmpty()) {
             return;
         }

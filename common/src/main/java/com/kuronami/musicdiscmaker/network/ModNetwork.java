@@ -57,7 +57,8 @@ public final class ModNetwork {
     // 18: 金ジューク付きトロッコを金ジュークの menu・画面・操作 payload へ統合 (control_golden_cart と
     // golden_cart_state を廃止し golden_cart_sync を追加、golden_cart_stop に曲の終わりの印を追加)。
     // 19: boombox_play にバニラ・他 MOD の盤の曲を追加 (ブームボックスでどの盤でも鳴る)。
-    public static final String PROTOCOL_VERSION = "19";
+    // 20: rename_disc (製作機で作った盤の曲名の付け直し) を追加。
+    public static final String PROTOCOL_VERSION = "20";
 
     private static final double MAX_REACH_SQR = 64.0;
 
@@ -89,7 +90,9 @@ public final class ModNetwork {
         if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
             return;
         }
-        if (player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu menu
+        if (!player.isSpectator()
+                && player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu menu
+                && menu.stillValid(player)
                 && menu.getBlockEntity().getBlockPos().equals(pos)
                 && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
             maker.renameOutput(payload.title());

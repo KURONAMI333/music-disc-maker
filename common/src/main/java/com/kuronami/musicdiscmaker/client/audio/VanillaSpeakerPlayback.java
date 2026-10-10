@@ -70,10 +70,12 @@ public final class VanillaSpeakerPlayback {
                     payload.track().soundEventId(), payload.startOffsetMs(), now, VanillaSpeakerPlayback::playbackClockMs);
             VOICES.put(pos, new Playing(payload, now, voice));
             // 管理再生の通常盤にはバニラの再生 event が来ないので、頭からの再生だけ曲名を出す
-            // (一時停止からの再開・シークは途中からなので出さない)。
-            if (payload.startOffsetMs() == 0L && mc.level.getBlockEntity(pos)
-                    instanceof com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity jukebox) {
-                com.kuronami.musicdiscmaker.client.NowPlaying.show(jukebox.discSongDescription());
+            // (一時停止からの再開・シークは途中からなので出さない)。client の BlockEntity は再生の
+            // payload より遅れて同期されるので、曲名は届いた音の識別子から引く。
+            if (payload.startOffsetMs() == 0L) {
+                com.kuronami.musicdiscmaker.client.NowPlaying.show(
+                        com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOfSound(
+                                payload.track().soundEventId(), mc.level));
             }
             // The master is accepted before any child can prefill/read, keeping the initial timeline anchored.
             voice.update(set);

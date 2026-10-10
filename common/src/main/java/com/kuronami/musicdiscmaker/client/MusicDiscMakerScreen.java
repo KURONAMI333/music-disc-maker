@@ -186,7 +186,9 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     /** 出力枠にある作ったばかりの盤の曲名。付け直せる盤が無ければ {@code null}。 */
     private String outputTitle() {
-        if (!menu.getBlockEntity().getCurrentUrl().isEmpty() || LocalAudioClient.uploading()) {
+        // 送った URL がまだサーバーに残っている間 (次の盤の取得待ち) は URL 欄のまま。
+        if (!menu.getBlockEntity().getCurrentUrl().isEmpty() || !lastSentUrl.isEmpty()
+                || LocalAudioClient.uploading()) {
             return null;
         }
         final net.minecraft.world.item.ItemStack output =
@@ -213,15 +215,33 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             commitUrl();
             return;
         }
-        final String name = urlField.getValue().strip();
+        String name = urlField.getValue().strip();
+        if (looksLikeUrl(name)) {
+            // 付け直し中の欄へ Ctrl+V などで次の盤の URL を入れた時は、曲名ではなく URL として送る。
+            shownTitle = null;
+            urlField.setValue(name);
+            commitUrl();
+            return;
+        }
         if (name.isEmpty() || name.equals(shownTitle)) {
             urlField.setValue(shownTitle);
             return;
+        }
+        final int max = com.kuronami.musicdiscmaker.network.RenameDiscPayload.MAX_TITLE;
+        if (name.length() > max) {
+            // 上限を超えると送信側で例外になり、マルチでは切断される。サロゲート対は切らない。
+            final int end = Character.isHighSurrogate(name.charAt(max - 1)) ? max - 1 : max;
+            name = name.substring(0, end);
         }
         if (!com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
             Services.NETWORK.sendToServer(new com.kuronami.musicdiscmaker.network.RenameDiscPayload(
                     menu.getBlockEntity().getBlockPos(), name));
         }
+    }
+
+    /** 曲名ではなく URL として扱う入力か (スキーム付き、または www. で始まる)。 */
+    private static boolean looksLikeUrl(String value) {
+        return value.contains("://") || value.regionMatches(true, 0, "www.", 0, 4);
     }
 
     /** URL をサーバへコミット (URL + 空ディスクが揃えば server が自動生成)。同じ URL は再送しない。 */
@@ -451,6 +471,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         *///?}
             commitField();
             urlField.setFocused(false);
+            urlWasFocused = false; // 次の tick のフォーカス喪失で同じ内容を二重に確定しない
             return true;
         }
         //? if >=1.21.11 {
@@ -504,9 +525,17 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         }
         urlWasFocused = focused;
 
-        // 作った盤が出力枠にある間は、欄に曲名を出して付け直せるようにする。取り出したら URL 欄へ戻す。
-        final String title = outputTitle();
         if (!focused) {
+            final String serverUrl = menu.getBlockEntity().getCurrentUrl();
+            // サーバーが URL をクリアした (ディスク生成後のニュートラル化) ら、欄も空に戻す。
+            // 盤の生成と URL のクリアは同じ同期で届くので、曲名を出す判断より先に済ませる。
+            if (!serverUrl.equals(lastSentUrl)) {
+                leaveRename();
+                lastSentUrl = serverUrl; // 先に更新 → 以後の commitUrl が dedup で再送しない
+                urlField.setValue(serverUrl);
+            }
+            // 作った盤が出力枠にある間は、欄に曲名を出して付け直せるようにする。取り出したら URL 欄へ戻す。
+            final String title = outputTitle();
             if (title != null && !title.equals(shownTitle)) {
                 shownTitle = title;
                 urlField.setValue(title);
@@ -515,13 +544,6 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             } else if (title == null && shownTitle != null) {
                 leaveRename();
             }
-        }
-
-        // サーバーが URL をクリアした (ディスク生成後のニュートラル化) ら、入力中でなければフィールドも空に戻す
-        final String serverUrl = menu.getBlockEntity().getCurrentUrl();
-        if (!focused && !serverUrl.equals(lastSentUrl)) {
-            lastSentUrl = serverUrl; // 先に更新 → 以後の commitUrl が dedup で再送しない
-            urlField.setValue(serverUrl);
         }
         //? if >=1.21.11 {
         //?} else {

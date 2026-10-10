@@ -74,7 +74,13 @@ public final class SpeakerPlayback {
 
     /** 通常盤を管理再生で鳴らす時だけ配送する。{@link #managesVanilla} が偽ならバニラの再生に任せる。 */
     public static boolean play(GoldenJukeboxBlockEntity source, VanillaTrackData track, long offsetMs) {
-        return play(source, Playback.vanilla(track), offsetMs, managesVanilla(source, offsetMs));
+        return play(source, track, offsetMs, managesVanilla(source, offsetMs));
+    }
+
+    /** 呼び出し側がバニラの再生 event を送るかを決めた値 ({@link #managesVanilla}) をそのまま使う。 */
+    public static boolean play(GoldenJukeboxBlockEntity source, VanillaTrackData track, long offsetMs,
+            boolean managed) {
+        return play(source, Playback.vanilla(track), offsetMs, managed);
     }
 
     /**

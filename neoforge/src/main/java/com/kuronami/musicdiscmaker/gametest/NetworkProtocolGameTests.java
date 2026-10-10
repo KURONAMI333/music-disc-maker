@@ -109,7 +109,7 @@ public class NetworkProtocolGameTests {
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
         を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18、ブームボックスの再生に
         バニラ・他 MOD の盤の曲を足して 19 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "19";
+    private static final String PROTOCOL_VERSION = "20";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -118,10 +118,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "dcca4f49289324c8a788295a40e933dfadd55582027c8285a8b73cb521cab184";
+            "12677c5d219dac5b80a61c753280b479674ac6e762f36ec29c2894b24d599d8f";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "b4c71adb5d107940665bd0b6a62445c6c107ae03522186c4fc2f2ba02fc86713";
+            "9bf7d0f7b2ac64d39db5ea2ae08bbd8e927dd62e6e5f99163443447b51446819";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -401,6 +401,8 @@ public class NetworkProtocolGameTests {
                         1_000L, 123L, 70)));
         encoded.put("resolve_url", encode(mdmCodec(ResolveUrlPayload::read),
                 new ResolveUrlPayload(SAMPLE_POS, SAMPLE_TRACK.url())));
+        encoded.put("rename_disc", encode(mdmCodec(com.kuronami.musicdiscmaker.network.RenameDiscPayload::read),
+                new com.kuronami.musicdiscmaker.network.RenameDiscPayload(SAMPLE_POS, SAMPLE_TRACK.title())));
         encoded.put("speaker_set", encode(mdmCodec(com.kuronami.musicdiscmaker.network.SpeakerSetPayload::read),
                 new com.kuronami.musicdiscmaker.network.SpeakerSetPayload(SAMPLE_POS, 96, 173, false,
                         java.util.List.of(new com.kuronami.musicdiscmaker.network.SpeakerEntry(

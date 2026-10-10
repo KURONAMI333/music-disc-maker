@@ -621,7 +621,11 @@ public final class SpeakerPlaybackGameTests {
                     new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "Wrong"), player);
             helper.assertValueEqual(trackOf(maker.getItem(output)).title(), "Speaker Playback",
                     "製作機の画面を開いていない player の付け直しを通した");
-            maker.renameOutput("  Fixed Title  ");
+            // その製作機の画面を開いている player の付け直しは通す。
+            player.containerMenu = new com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu(1, player.getInventory(), maker);
+            com.kuronami.musicdiscmaker.network.ModNetwork.handleRenameDisc(
+                    new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "  Fixed Title  "), player);
+            player.containerMenu = player.inventoryMenu;
             final CustomTrackData renamed = trackOf(maker.getItem(output));
             helper.assertValueEqual(renamed.title(), "Fixed Title", "付け直した曲名");
             helper.assertValueEqual(renamed.author(), "tester", "付け直しでアーティストが変わった");
