@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 import com.kuronami.musicdiscmaker.component.DiscDyeData;
 
 /**
- * {@link DiscPalette} の盤面と有彩色アクセントの主段が Python の参照実装
+ * {@link DiscPalette} の盤面と未染色曲の自動アクセントが Python の参照実装
  * ({@code _work/stonecutter-loader-2026-08-24/assets-v3/mkauto.py}) と同じ色を返すことを固定する。
- * 明示した有彩色が灰白になる場合だけ色名の視認性を優先して参照実装から分岐する。
+ * 明示染色のアクセントは 2026-10-10 から盤面に関係なく染料ごとに1色 (同じ染料どうしだけ特別な縁)。
  *
  * <p>無彩色アクセントだけは 2026-09-10 裁定で参照実装から分岐する。利用者が選んだ
  * black / gray / light_gray / white の明度を保持し、盤面との ΔE 床は例外にする。
@@ -25,15 +25,6 @@ class DiscPaletteTest {
         final DiscPalette.Board board = DiscPalette.board(dye);
         assertArrayEquals(expected, board.steps(), "board steps for " + dye.id());
         assertEquals(expected[3], board.dominant(), "dominant for " + dye.id());
-    }
-
-    private static void assertAccent(DiscDye boardDye, DiscDye accentDye, double expectedDeltaE, int... expected) {
-        final DiscPalette.Board board = DiscPalette.board(boardDye);
-        final DiscPalette.Accent accent = DiscPalette.accent(accentDye, board);
-        final String label = boardDye.id() + " x " + accentDye.id();
-        assertArrayEquals(expected, accent.steps(), "accent steps for " + label);
-        assertEquals(expectedDeltaE, accent.deltaE(), 1e-6, "deltaE for " + label);
-        assertEquals(expected[4], accent.main(), "main step for " + label);
     }
 
     private static void assertAutomaticAccent(DiscDye boardDye, DiscDye accentDye, double expectedDeltaE,
@@ -69,63 +60,23 @@ class DiscPaletteTest {
         assertEquals(0x300607, DiscPalette.board(DiscDye.RED).step(0));
     }
 
-    /** 設計で検証した 16 通り (mkauto.py のシート)。ΔE 52〜89 に収まるのも合わせて固定する。 */
+    /** 設計で検証したシート (mkauto.py) のうち自動配色の分。明示染色の分は 2026-10-10 に規則が変わった。 */
     @Test
     void mkautoSheetReproducesExactly() {
-        assertAccent(DiscDye.WHITE, DiscDye.RED, 79.4651165274,
-                0x901F18, 0xA6231C, 0xB4261E, 0xC72B21, 0xDF483F, 0xE1524A, 0xE4655D);
-        assertAccent(DiscDye.WHITE, DiscDye.CYAN, 52.0747983017,
-                0x041717, 0x082D2E, 0x0A3B3B, 0x0D4E4F, 0x157B7D, 0x178688, 0x1A9A9C);
-        assertAccent(DiscDye.WHITE, DiscDye.YELLOW, 64.9427914880,
-                0x251F06, 0x3B310A, 0x493D0C, 0x5C4D0F, 0x8A7417, 0x957D19, 0xA98D1C);
         assertAutomaticAccent(DiscDye.WHITE, DiscDye.WHITE, 56.9124750692,
                 0x151515, 0x222222, 0x2A2A2A, 0x363636, 0x505050, 0x575757, 0x626262);
-        assertAccent(DiscDye.BLACK, DiscDye.RED, 56.9257329011,
-                0x250806, 0x3B0D0A, 0x49100C, 0x5C140F, 0x8A1D17, 0x952019, 0xA9241C);
-        assertAccent(DiscDye.BLACK, DiscDye.CYAN, 52.2012189765,
-                0x093536, 0x0D4B4C, 0x0F595A, 0x126C6E, 0x1A999B, 0x1CA4A6, 0x1FB8BA);
-        assertAccent(DiscDye.BLACK, DiscDye.YELLOW, 59.7839592332,
-                0x251F06, 0x3B310A, 0x493D0C, 0x5C4D0F, 0x8A7417, 0x957D19, 0xA98D1C);
         assertAutomaticAccent(DiscDye.BLACK, DiscDye.WHITE, 52.2759521875,
                 0x6D6D6D, 0x7A7A7A, 0x828282, 0x8E8E8E, 0xA8A8A8, 0xAFAFAF, 0xBABABA);
-        assertAccent(DiscDye.RED, DiscDye.RED, 52.5407051010,
-                0xDE4137, 0xE2564E, 0xE4635B, 0xE7766F, 0xEFA19D, 0xF1ACA8, 0xF4BFBB);
-        assertAccent(DiscDye.RED, DiscDye.CYAN, 79.9315447389,
-                0x0F1414, 0x1A2323, 0x202C2D, 0x2A3A3A, 0x405859, 0x466060, 0x4F6D6E);
-        assertAccent(DiscDye.RED, DiscDye.YELLOW, 63.1525311546,
-                0x4C400D, 0x625210, 0x705E13, 0x846E16, 0xB1951D, 0xBC9E1F, 0xD0AE23);
         assertAutomaticAccent(DiscDye.RED, DiscDye.WHITE, 70.8040662198,
                 0x2C2C2C, 0x393939, 0x414141, 0x4D4D4D, 0x676767, 0x6E6E6E, 0x797979);
-        assertAccent(DiscDye.LIME, DiscDye.RED, 92.3646306491,
-                0xB85E58, 0xBF706B, 0xC47A76, 0xCB8A86, 0xDBAEAB, 0xDFB7B4, 0xE6C6C4);
-        assertAccent(DiscDye.LIME, DiscDye.CYAN, 83.7488178571,
-                0x327374, 0x398586, 0x3E9091, 0x45A0A1, 0x60BABB, 0x69BDBF, 0x79C5C6);
-        assertAccent(DiscDye.LIME, DiscDye.YELLOW, 52.1274583521,
-                0xBE9F20, 0xD4B223, 0xDCBA2B, 0xDFC03F, 0xE7CF6C, 0xE9D378, 0xECD98B);
         assertAutomaticAccent(DiscDye.LIME, DiscDye.WHITE, 87.6939330957,
                 0x7A7A7A, 0x878787, 0x8F8F8F, 0x9B9B9B, 0xB5B5B5, 0xBCBCBC, 0xC7C7C7);
     }
 
-    /**
-     * mkauto のシートに入っていない盤面も 1 つ固定する。青は既定色の染料で、ここには
-     * 帯に解が無くてフォールバック (床を満たす中で天井に一番近い点) を通る組み合わせが混ざる
-     * (lime は ΔE 80.06 = 天井超え)。
-     */
-    @Test
-    void blueBoardAccentsMatchPythonReference() {
-        assertAccent(DiscDye.BLUE, DiscDye.CYAN, 79.8760404885,
-                0x010404, 0x031414, 0x051E1E, 0x072C2C, 0x0D4C4D, 0x0F5758, 0x126A6B);
-        assertAccent(DiscDye.BLUE, DiscDye.MAGENTA, 52.4992068938,
-                0x73136F, 0x8A1785, 0x971992, 0xAB1CA5, 0xD824D1, 0xDC2DD5, 0xDF41D9);
-        assertAccent(DiscDye.BLUE, DiscDye.PURPLE, 52.6361879453,
-                0x9E3ADE, 0xA950E2, 0xB05EE4, 0xB971E7, 0xD09FEF, 0xD5AAF1, 0xDFBEF4);
-        assertAccent(DiscDye.BLUE, DiscDye.PINK, 78.3830382140,
-                0x550E27, 0x6B1231, 0x791437, 0x8C1740, 0xBA1F55, 0xC5215A, 0xD92463);
-    }
 
     // ── 規則そのもの ───────────────────────────────────────────────────
 
-    /** 色相を持つアクセントは床を必達にする。無彩色は選択した明度を優先する例外。 */
+    /** 未染色曲の自動配色のアクセントは、色相を持つ色で床を必達にする。 */
     @Test
     void everyChromaticAccentClearsTheFloor() {
         double min = Double.MAX_VALUE;
@@ -136,7 +87,7 @@ class DiscPaletteTest {
                 if (!accentDye.isChromatic()) {
                     continue;
                 }
-                final double e = DiscPalette.accent(accentDye, board).deltaE();
+                final double e = DiscPalette.automaticAccent(accentDye, board).deltaE();
                 assertTrue(e >= DiscPalette.FLOOR,
                         "床を割った: " + boardDye.id() + " x " + accentDye.id() + " dE=" + e);
                 min = Math.min(min, e);
@@ -147,13 +98,50 @@ class DiscPaletteTest {
         assertTrue(max >= min, "有彩色アクセントの ΔE 範囲");
     }
 
-    /** 橙の盤面で青系の下面がほぼ白になった報告の再発を防ぐ。 */
+    /**
+     * 明示した有彩色のアクセントは盤面に関係なく染料ごとに1色 (2026-10-10 本人「相対じゃなく絶対」)。
+     * 全 256 配色を並べると、盤面との色差を探す旧規則で青の盤面の黄が黒、白の盤面の桃が暗い赤紫・
+     * 赤紫が明るいピンクになっていた。同じ染料どうしだけは {@link DiscPalette#sameDyeAccent} の特別な縁。
+     */
     @Test
-    void explicitlyDyedChromaticAccentDoesNotTurnPaleGray() {
-        final DiscPalette.Board orange = DiscPalette.board(DiscDye.ORANGE);
-        assertEquals(0x82B2B2, DiscPalette.accent(DiscDye.CYAN, orange).main());
-        assertEquals(0xB5BCE5, DiscPalette.accent(DiscDye.BLUE, orange).main());
-        assertEquals(0x82A8B2, DiscPalette.accent(DiscDye.LIGHT_BLUE, orange).main());
+    void explicitChromaticAccentIsTheSameOnEveryBoard() {
+        for (DiscDye accentDye : DiscDye.values()) {
+            if (!accentDye.isChromatic()) continue;
+            final DiscPalette.Accent reference = DiscPalette.accent(accentDye, DiscDye.WHITE, DiscPalette.board(DiscDye.WHITE));
+            for (DiscDye boardDye : DiscDye.values()) {
+                if (boardDye == accentDye) continue;
+                final DiscPalette.Accent accent = DiscPalette.accent(accentDye, boardDye, DiscPalette.board(boardDye));
+                assertArrayEquals(reference.steps(), accent.steps(), boardDye.id() + " x " + accentDye.id());
+            }
+            final int main = reference.main();
+            final int spread = Math.max(ColorMath.red(main), Math.max(ColorMath.green(main), ColorMath.blue(main)))
+                    - Math.min(ColorMath.red(main), Math.min(ColorMath.green(main), ColorMath.blue(main)));
+            assertTrue(spread >= 48, "有彩色の縁が灰に見える: " + accentDye.id());
+        }
+        // HappyMeek「Pink and Magenta dyes seem to be swapped」: 桃は赤紫より明るい。
+        assertTrue(ColorMath.hslLightness(DiscPalette.accent(DiscDye.PINK, DiscPalette.board(DiscDye.WHITE)).main())
+                > ColorMath.hslLightness(DiscPalette.accent(DiscDye.MAGENTA, DiscPalette.board(DiscDye.WHITE)).main()));
+    }
+
+    /** 同じ染料どうしは縁を盤面から浮かせる (2026-10-10 本人「同色コンビのときは特別に」)。 */
+    @Test
+    void sameDyeAccentStandsOutFromItsBoard() {
+        for (DiscDye dye : DiscDye.values()) {
+            final DiscPalette.Board board = DiscPalette.board(dye);
+            final DiscPalette.Accent same = DiscPalette.accent(dye, dye, board);
+            assertTrue(ColorMath.deltaE(board.dominant(), same.main()) >= 20.0,
+                    "同じ染料どうしの縁が盤面に溶ける: " + dye.id() + " dE=" + ColorMath.deltaE(board.dominant(), same.main()));
+        }
+    }
+
+    /** 明るい染料 (桃) の盤面でも、最も明るい段が白に飛ばない。 */
+    @Test
+    void chromaticBoardsDoNotTurnWhite() {
+        for (DiscDye dye : DiscDye.values()) {
+            if (!dye.isChromatic()) continue;
+            final DiscPalette.Board board = DiscPalette.board(dye);
+            assertTrue(ColorMath.hslLightness(board.step(board.size() - 1)) <= 84.5, "白に飛んだ: " + dye.id());
+        }
     }
 
     /**

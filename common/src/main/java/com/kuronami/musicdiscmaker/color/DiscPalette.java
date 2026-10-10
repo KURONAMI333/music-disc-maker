@@ -24,7 +24,7 @@ package com.kuronami.musicdiscmaker.color;
  */
 public final class DiscPalette {
 
-    /** 有彩色・自動配色の色差の床。明示的な無彩色の染色には適用しない。 */
+    /** 未染色曲の自動配色の色差の床。明示染色 (染料ごとの固定色) には適用しない。 */
     public static final double FLOOR = 52.0;
     /** 同・天井。努力目標 (盤面が明るく彩度も高いと満たせない)。 */
     public static final double CEIL = 80.0;
@@ -55,13 +55,23 @@ public final class DiscPalette {
     private static final double ACHROMATIC_MAIN_DYE_SCALE = 0.75;
     private static final double ACHROMATIC_MAIN_MIN = 20.0;
     private static final double ACHROMATIC_MAIN_MAX = 86.0;
+    /** 同じ染料どうしの縁: 盤面の支配色から離す明度・彩度・明度の範囲。 */
+    private static final double SAME_DYE_SHIFT = 28.0;
+    private static final double SAME_DYE_SATURATION = 96.0;
+    private static final double SAME_DYE_L_MIN = 14.0;
+    private static final double SAME_DYE_L_MAX = 86.0;
+    /** これより明るい盤面だけ縁を暗い側へ (それ以外は明るく光らせる)。 */
+    private static final double SAME_DYE_DARKEN_ABOVE = 65.0;
+    /** 有彩色の盤面の最も明るい段の上限 (これより明るいと白に見える)。 */
+    private static final double BOARD_MAX_L = 84.0;
+    /** 明示した有彩色アクセントの主段の明度の範囲 (染料の実測明度をここへ収める)。 */
+    private static final double EXPLICIT_L_MIN = 30.0;
+    private static final double EXPLICIT_L_MAX = 75.0;
 
     /** 探索する彩度 (高い順)。帯へ入る中で最も彩度が高い点を採るための順序。 */
     private static final double[] SEARCH_SATURATIONS = { 71.5, 64, 56, 48, 40, 32, 24, 16 };
     /** 帯に解が無い時の粗い彩度リスト。 */
     private static final double[] FALLBACK_SATURATIONS = { 71.5, 56, 40, 24, 12 };
-    /** 明示した有彩色が灰白に見えないための主色RGBチャンネル差。 */
-    private static final int EXPLICIT_CHROMA_SPREAD = 48;
 
     // 明度の探索格子: 5.0 .. 94.0 を 0.5 刻み。整数で回して 10 で割る
     // (double を加算していくと後半でずれ、参照実装と一致しなくなる)。
@@ -122,9 +132,16 @@ public final class DiscPalette {
         final double h = dye.hue();
         final double s = dye.isChromatic() ? Math.min(dye.saturation() * 1.25, 96.0) : 0.0;
         final double scale = Math.max(dye.lightness(), 18.0) / 18.43 * 0.9;
+        final double dominantL = L_BOARD[BOARD_DOMINANT] * scale;
+        final double top = L_BOARD[L_BOARD.length - 1] * scale;
         final int[] steps = new int[L_BOARD.length];
         for (int i = 0; i < L_BOARD.length; i++) {
-            steps[i] = ColorMath.rgb(ColorMath.pyMod(h - 4 + 8.0 * i / 4.0, 360.0), s, L_BOARD[i] * scale);
+            double l = L_BOARD[i] * scale;
+            // 明るい染料 (桃) は最も明るい段が白に飛ぶので、支配色より上の段だけを上限へ縮める。
+            if (dye.isChromatic() && top > BOARD_MAX_L && l > dominantL) {
+                l = dominantL + (l - dominantL) * (BOARD_MAX_L - dominantL) / (top - dominantL);
+            }
+            steps[i] = ColorMath.rgb(ColorMath.pyMod(h - 4 + 8.0 * i / 4.0, 360.0), s, l);
         }
         return new Board(steps, steps[BOARD_DOMINANT]);
     }
@@ -135,20 +152,63 @@ public final class DiscPalette {
     }
 
     /**
-     * 明示染色用のアクセント。白・薄灰・灰・黒は盤面との ΔE 床よりも、選んだ染料の
-     * 明度と順序を優先する。有彩色は従来どおりコントラスト探索を使う。
+     * 明示染色用のアクセント。盤面と同じ染料を選んだ時だけ {@link #sameDyeAccent} の特別な縁にする
+     * (2026-10-10 本人「同色コンビのときは特別に、調整しましょう　特別感あってカッコいいかも」)。
+     *
+     * @param boardDye 盤面の染料。未染色の盤面なら {@code null}
+     */
+    public static Accent accent(DiscDye dye, DiscDye boardDye, Board board) {
+        return dye == boardDye ? sameDyeAccent(dye, board) : accent(dye, board);
+    }
+
+    /**
+     * 盤面と縁に同じ染料を選んだ時の縁。同じ色相を最も鮮やかにし、明るさを盤面の支配色から離して
+     * 縁を浮かせる (白・薄灰・桃のような明るい盤面だけ暗く、それ以外は明るく光らせる)。無彩色は明るさだけで離す。
+     */
+    public static Accent sameDyeAccent(DiscDye dye, Board board) {
+        final int dominant = board.dominant();
+        final double dominantL = ColorMath.hslLightness(dominant);
+        final double h = dye.isChromatic() ? dye.hue() : 0.0;
+        final double s = dye.isChromatic() ? SAME_DYE_SATURATION : 0.0;
+        final double main = Math.max(SAME_DYE_L_MIN, Math.min(SAME_DYE_L_MAX,
+                dominantL < SAME_DYE_DARKEN_ABOVE ? dominantL + SAME_DYE_SHIFT : dominantL - SAME_DYE_SHIFT));
+        final int[] steps = new int[L_ACC.length];
+        for (int i = 0; i < L_ACC.length; i++) {
+            steps[i] = ColorMath.rgb(h, s, accentStepLightness(main, L_ACC[i]));
+        }
+        return new Accent(steps, ColorMath.deltaE(dominant, steps[4]));
+    }
+
+    /**
+     * 明示染色用のアクセント。盤面に関係なく染料ごとに1色 (2026-10-10 本人「相対じゃなく絶対」)。
+     * 白・薄灰・灰・黒は色名の明度と順序、有彩色は染料の色相・彩度・明度から作る。
      *
      * @param dominant 盤面の支配色 (0xRRGGBB)
      */
     public static Accent accent(DiscDye dye, int dominant) {
-        return dye.isChromatic() ? contrastAccent(dye, dominant, true) : achromaticAccent(dye, dominant);
+        return dye.isChromatic() ? absoluteAccent(dye, dominant) : achromaticAccent(dye, dominant);
+    }
+
+    /**
+     * 明示的に選んだ有彩色のアクセント。盤面に関係なく染料ごとに1つの色 (色相・彩度・明度とも染料から)。
+     * {@code dominant} は色差の記録にだけ使う。
+     */
+    private static Accent absoluteAccent(DiscDye dye, int dominant) {
+        final double h = dye.hue();
+        final double s = Math.min(dye.saturation() * 1.25, 96.0);
+        final double main = Math.max(EXPLICIT_L_MIN, Math.min(EXPLICIT_L_MAX, dye.lightness()));
+        final int[] steps = new int[L_ACC.length];
+        for (int i = 0; i < L_ACC.length; i++) {
+            steps[i] = ColorMath.rgb(h, s, accentStepLightness(main, L_ACC[i]));
+        }
+        return new Accent(steps, ColorMath.deltaE(dominant, steps[4]));
     }
 
     /**
      * 未染色曲の自動配色用。選択されていない色名を優先せず、全16色で従来の可読性を保つ。
      */
     public static Accent automaticAccent(DiscDye dye, Board board) {
-        return contrastAccent(dye, board.dominant(), false);
+        return contrastAccent(dye, board.dominant());
     }
 
     private static Accent achromaticAccent(DiscDye dye, int dominant) {
@@ -162,8 +222,8 @@ public final class DiscPalette {
         return new Accent(steps, ColorMath.deltaE(dominant, steps[4]));
     }
 
-    /** コントラスト探索。明示有彩色と未染色曲の自動配色の共有実装。 */
-    private static Accent contrastAccent(DiscDye dye, int dominant, boolean explicitDye) {
+    /** コントラスト探索。未染色曲の自動配色に使う (明示染色は 2026-10-10 から染料ごとの固定色)。 */
+    private static Accent contrastAccent(DiscDye dye, int dominant) {
         final double h = dye.hue();
         final boolean chroma = dye.isChromatic();
         final double dominantL = ColorMath.hslLightness(dominant);
@@ -240,47 +300,11 @@ public final class DiscPalette {
             }
         }
 
-        // 色差が適切でも、有彩色がほぼ灰白では選んだ染料の色名を読めない。
-        // 明示染色だけを補正し、自動配色の既存結果は変えない。
-        if (explicitDye && isPale(ColorMath.rgb(h, bestS, bestL))) {
-            boolean legible = false;
-            double nearestCeil = Double.POSITIVE_INFINITY;
-            for (double s : SEARCH_SATURATIONS) {
-                for (int l10 = L_STEP_MIN; l10 < L_STEP_MAX; l10 += L_STEP) {
-                    final double l = l10 / 10.0;
-                    final int rgb = ColorMath.rgb(h, s, l);
-                    if (channelSpread(rgb) < EXPLICIT_CHROMA_SPREAD) continue;
-                    final double e = ColorMath.deltaE(dominant, rgb);
-                    if (e < FLOOR) continue;
-                    final double distance = Math.abs(e - CEIL);
-                    if (!legible || distance < nearestCeil) {
-                        legible = true;
-                        nearestCeil = distance;
-                        bestS = s;
-                        bestL = l;
-                        bestE = e;
-                    }
-                }
-            }
-        }
-
         final int[] steps = new int[L_ACC.length];
         for (int i = 0; i < L_ACC.length; i++) {
             steps[i] = ColorMath.rgb(h, bestS, accentStepLightness(bestL, L_ACC[i]));
         }
         return new Accent(steps, bestE);
-    }
-
-    private static int channelSpread(int rgb) {
-        final int r = ColorMath.red(rgb);
-        final int g = ColorMath.green(rgb);
-        final int b = ColorMath.blue(rgb);
-        return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
-    }
-
-    private static boolean isPale(int rgb) {
-        return Math.min(ColorMath.red(rgb), Math.min(ColorMath.green(rgb), ColorMath.blue(rgb))) > 160
-                && channelSpread(rgb) < EXPLICIT_CHROMA_SPREAD;
     }
 
     private static double accentStepLightness(double mainLightness, double baseLightness) {

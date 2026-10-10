@@ -80,7 +80,7 @@ public final class DiscDyeTint {
             return cached;
         }
         final DiscPalette.Board board = DiscPalette.board(dye.board());
-        final DiscPalette.Accent accent = DiscPalette.accent(dye.accent(), board);
+        final DiscPalette.Accent accent = DiscPalette.accent(dye.accent(), dye.board(), board);
         final int[] built = combine(board, accent);
         CUSTOM_CACHE[key] = built;
         return built;
@@ -94,7 +94,7 @@ public final class DiscDyeTint {
                 ? DiscPalette.defaultBoard()
                 : DiscPalette.board(dye.board());
         if (dye.accent() != null) {
-            return combine(board, DiscPalette.accent(dye.accent(), board));
+            return combine(board, DiscPalette.accent(dye.accent(), dye.board(), board));
         }
 
         // 右側が未指定なら、元の未染色アクセントをRGBのまま残す。
