@@ -157,7 +157,9 @@ public class BoomboxBlock extends Block implements EntityBlock {
                 BoomboxPlayback.servePlaced(server, tickPos, boombox);
                 final boolean playing = BoomboxPlayback.isPlaying(boombox.getStored());
                 if (tickState.getValue(PLAYING) != playing) {
-                    tickLevel.setBlock(tickPos, tickState.setValue(PLAYING, playing), Block.UPDATE_CLIENTS);
+                    // 見た目だけの状態なので、隣のブロック (オブザーバー等) には知らせない。
+                    tickLevel.setBlock(tickPos, tickState.setValue(PLAYING, playing),
+                            Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
                 }
             }
         };

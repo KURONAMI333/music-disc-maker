@@ -205,9 +205,14 @@ public final class BoomboxPlayback {
         *///?}
     }
 
-    /** 機体の中身が再生中か (置いたブームボックスの blockstate {@code playing} に使う)。 */
+    /**
+     * 機体の中身が実際に鳴っているか (置いたブームボックスの blockstate {@code playing} に使う)。
+     * 画面の表示と同じく、保存された cursor が再生中でもセッションが無ければ鳴っていない扱い
+     * (ワールドの読み直し・chunk の読み直し・曲が引けない時)。
+     */
     public static boolean isPlaying(ItemStack stack) {
-        return contentsOf(stack).cursor().state() == PlaybackCursor.State.PLAYING;
+        final BoomboxContents contents = contentsOf(stack);
+        return contents.cursor().state() == PlaybackCursor.State.PLAYING && isPlaying(contents.id());
     }
 
     private static void storeContents(ItemStack stack, BoomboxContents contents) {

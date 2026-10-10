@@ -79,7 +79,7 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     /**
      * ボタンの台座・音量スライダー・再生バーの画像 (256x128)。リソースパックで差し替えられる
      * (2026-10-10 HappyMeek の「Boombox GUI is unable to be changed」)。並びは
-     * 台座 22x23 を v=0 に 通常/指した時/押せない時/キー操作の選択 の順、音量の空・満の帯 160x15 を
+     * 台座 22x23 を v=0 に 通常/指した時/押せない時/キー操作の選択/押せない時のキー操作の選択 の順、音量の空・満の帯 160x15 を
      * v=24/40、つまみ 4x15 を u=160/164、再生バーの枠 202x8 を v=56、満ちた所 200x6 を v=64 (通常)/72 (ラジオ)、
      * 再生バーのつまみ 5x12 を (210,56)。長さが変わる帯は左から切り、右端の1列を別に描く。
      */
@@ -533,7 +533,8 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         *///?} else {
         /*protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         *///?}
-            final int keyU = !active ? 44 : hasVisibleKeyboardFocus() ? 66 : isHovered() ? 22 : 0;
+            final int keyU = !active ? (hasVisibleKeyboardFocus() ? 88 : 44)
+                    : hasVisibleKeyboardFocus() ? 66 : isHovered() ? 22 : 0;
             controls(graphics, getX() - 1, getY() - 1, keyU, 0, width + 2, height + 3);
             // Center the mark on the lit key face; the bottom two pixels are its shadow.
             final int faceHeight = height - 2;
