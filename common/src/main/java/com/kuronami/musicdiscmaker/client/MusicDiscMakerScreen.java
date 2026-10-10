@@ -397,9 +397,6 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             final String spin = SPINNER[(int) ((System.currentTimeMillis() / 120L) % SPINNER.length)];
             return Component.translatable("gui.music_disc_maker.fetching").copy().append(" " + spin);
         }
-        if (shownTitle != null) {
-            return Component.translatable("gui.music_disc_maker.rename_hint");
-        }
         return null;
     }
 

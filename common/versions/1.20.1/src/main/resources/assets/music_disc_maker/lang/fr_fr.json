@@ -5,7 +5,6 @@
   "gui.music_disc_maker.title": "Fabricant de disques",
   "gui.music_disc_maker.url_placeholder": "Collez une URL…",
   "gui.music_disc_maker.fetching": "Chargement…",
-  "gui.music_disc_maker.rename_hint": "Avant de retirer le disque, renomme le morceau ici",
   "gui.music_disc_maker.failed": "Impossible de lire cette piste.",
   "gui.music_disc_maker.failed.unsupported": "Lien non pris en charge. Utilisez YouTube ou un lien audio direct.",
   "gui.music_disc_maker.failed.private": "Vidéo privée ou supprimée. Essayez un autre lien.",

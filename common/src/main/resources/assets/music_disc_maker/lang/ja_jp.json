@@ -10,7 +10,6 @@
   "gui.music_disc_maker.title": "音楽ディスク製作機",
   "gui.music_disc_maker.url_placeholder": "URL を貼り付け...",
   "gui.music_disc_maker.fetching": "取得中…",
-  "gui.music_disc_maker.rename_hint": "取り出す前なら、ここで曲名を変えられます",
   "gui.music_disc_maker.failed": "この曲を再生できませんでした。",
   "gui.music_disc_maker.failed.unsupported": "非対応のリンクです。YouTubeか音声の直リンクをお試しください。",
   "gui.music_disc_maker.failed.private": "動画が非公開か削除済みです。別のリンクをお試しください。",

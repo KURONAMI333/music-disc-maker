@@ -5,7 +5,6 @@
   "gui.music_disc_maker.title": "Fabricante de discos",
   "gui.music_disc_maker.url_placeholder": "Pega una URL…",
   "gui.music_disc_maker.fetching": "Cargando…",
-  "gui.music_disc_maker.rename_hint": "Antes de sacar el disco puedes renombrar la canción aquí",
   "gui.music_disc_maker.failed": "No se pudo reproducir esta pista.",
   "gui.music_disc_maker.failed.unsupported": "Enlace no compatible. Usa YouTube o un enlace de audio directo.",
   "gui.music_disc_maker.failed.private": "Vídeo privado o inexistente. Prueba otro enlace.",
