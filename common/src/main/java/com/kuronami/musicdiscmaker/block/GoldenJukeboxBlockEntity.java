@@ -119,7 +119,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     private static final int SIZE = 1;
     private static final int[] AUTOMATION_SLOTS = {SLOT_DISC};
 
-    public static final int RANGE_MIN = 16;
+    /** 範囲の下限。机の周り・小部屋だけで鳴らせるよう 16 から下げた (2026-10-10 本人裁定)。 */
+    public static final int RANGE_MIN = 4;
     public static final int RANGE_MAX = 256;
     public static final int RANGE_DEFAULT = 64;
     public static final int VOLUME_MIN = 0;
