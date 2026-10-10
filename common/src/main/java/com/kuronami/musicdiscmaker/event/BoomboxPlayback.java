@@ -205,6 +205,11 @@ public final class BoomboxPlayback {
         *///?}
     }
 
+    /** 機体の中身が再生中か (置いたブームボックスの blockstate {@code playing} に使う)。 */
+    public static boolean isPlaying(ItemStack stack) {
+        return contentsOf(stack).cursor().state() == PlaybackCursor.State.PLAYING;
+    }
+
     private static void storeContents(ItemStack stack, BoomboxContents contents) {
         //? if >=1.21 {
         stack.set(ModDataComponents.BOOMBOX_CONTENTS.get(), contents);

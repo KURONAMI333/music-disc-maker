@@ -38,6 +38,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 //? if >=1.21.2 {
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 //?} else {
@@ -65,6 +66,12 @@ public class BoomboxBlock extends Block implements EntityBlock {
     /*public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
     *///?}
 
+    /**
+     * 鳴っているか。見た目を状態ごとに変えられるようにするための状態で、既定のモデルはどちらも同じ
+     * (リソースパックが blockstate で playing=true に別のモデルを当てられる。2026-10-10 HappyMeek 要望)。
+     */
+    public static final BooleanProperty PLAYING = BooleanProperty.create("playing");
+
     // 3D モデル (MDM_DECISIONS「ブームボックスの3Dモデルの形が確定した」) の外形:
     // 本体 x0..16 / y2..11 / z5..11、脚 y0..2、取っ手 y11..14。north 向きが素の姿。
     private static final VoxelShape SHAPE_NORTH = Block.box(0.0, 0.0, 4.0, 16.0, 14.0, 11.0);
@@ -74,12 +81,12 @@ public class BoomboxBlock extends Block implements EntityBlock {
 
     public BoomboxBlock(Properties properties) {
         super(properties);
-        registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH));
+        registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(PLAYING, false));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
+        builder.add(FACING, PLAYING);
     }
 
     @Nullable
@@ -148,6 +155,10 @@ public class BoomboxBlock extends Block implements EntityBlock {
         return (tickLevel, tickPos, tickState, blockEntity) -> {
             if (blockEntity instanceof BoomboxBlockEntity boombox && tickLevel instanceof ServerLevel server) {
                 BoomboxPlayback.servePlaced(server, tickPos, boombox);
+                final boolean playing = BoomboxPlayback.isPlaying(boombox.getStored());
+                if (tickState.getValue(PLAYING) != playing) {
+                    tickLevel.setBlock(tickPos, tickState.setValue(PLAYING, playing), Block.UPDATE_CLIENTS);
+                }
             }
         };
     }
