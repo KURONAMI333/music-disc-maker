@@ -62,15 +62,19 @@ public final class SpeakerVanillaPlaybackLegacyGameTests {
         final INetworkHelper previous = Services.swapNetwork(net);
         try {
             source.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, new ItemStack(Items.MUSIC_DISC_13));
-            helper.assertTrue(source.isVanillaPlaying(), "speakerなしのRecordItemがnative再生を開始していない");
-            helper.assertTrue(net.of(PlayVanillaDiscPayload.class).isEmpty(),
-                    "speakerなしのRecordItemへ追加payloadを送っている");
+            helper.assertTrue(source.isVanillaPlaying(), "speakerなしのRecordItemが再生状態に入っていない");
+            // 2026-10-10 から金ジュークの通常盤は speaker が無くても管理再生で配送する。
+            assertSetThenVanilla(helper, net, first, source);
+            assertSetThenVanilla(helper, net, second, source);
 
             speaker.linkTo(level, source.getBlockPos());
             net.clear();
             GoldenJukeboxBlockEntity.serverTick(level, source.getBlockPos(), source.getBlockState(), source);
-            assertSetThenVanilla(helper, net, first, source);
-            assertSetThenVanilla(helper, net, second, source);
+            for (final ServerPlayer listener : java.util.List.of(first, second)) {
+                helper.assertTrue(net.forPlayer(listener).size() == 1
+                                && net.forPlayer(listener).get(0).payload() instanceof SpeakerSetPayload,
+                        "speaker追加で既に聴いている player へ Set 以外を送っている: " + net.forPlayer(listener));
+            }
 
             net.clear();
             source.clearContent();

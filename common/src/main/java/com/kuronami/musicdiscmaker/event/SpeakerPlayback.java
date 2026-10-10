@@ -89,23 +89,14 @@ public final class SpeakerPlayback {
      * <p>バニラの再生 event で始めた音を直後に client で止めると、ストリームの読み込みが終わる前の停止を
      * SoundEngine が取りこぼし、どの経路からも止められない音が残る (2026-10-10 Mac 開発クライアントで
      * 再現: 範囲を変えて一時停止→再開すると頭からの cat が残り、壊しても鳴り続けた)。管理再生になる
-     * 再生ではバニラの音を最初から鳴らさない。途中からの再生 (再開・シーク) はバニラの再生では頭からに
-     * なるので常に管理再生にする。リピート中も管理再生にする。
+     * 再生ではバニラの音を最初から鳴らさない。今は常に真 ({@link #requiresManagedVanilla})。
      */
     public static boolean managesVanilla(GoldenJukeboxBlockEntity source, long offsetMs) {
         final ServerLevel level = serverLevel(source);
         if (level == null) {
             return false;
         }
-        final State state = STATES.get(source);
-        // リピートの2周目以降はバニラの再生 event だと毎周「Now Playing」を出し直すので、管理再生にして
-        // 同じ曲の出し直しを止める (VanillaSpeakerPlayback)。
-        return offsetMs > 0L
-                || source.isRepeat()
-                || requiresManagedVanilla(source, level)
-                || !snapshot(level, source).speakers().isEmpty()
-                || !SourcePlaybackAudienceRegistry.viewers(source).isEmpty()
-                || (state != null && state.playback != null && state.playback.vanilla() != null);
+        return requiresManagedVanilla(source, level);
     }
 
     /** Moving hosts cannot use a fixed vanilla block-event sound, even without extra speakers. */
@@ -465,15 +456,13 @@ public final class SpeakerPlayback {
     }
 
     /**
-     * 固定音源の通常盤は既定設定の間だけバニラ再生を使える。音量・範囲・指向性を変えたら
-     * 設定を実音へ反映できる管理再生へ移す。一度移した曲は既定値へ戻しても同じ経路に保ち、
-     * 曲の途中でバニラ音源との二重再生を起こさない。
+     * 金ジュークの通常盤は常に管理再生で鳴らす (2026-10-10 本人裁定「1は入れてくれよ」)。
+     * バニラの再生は後から範囲に入った人・ワールドに入った人に聞こえず、途中から鳴らせず、
+     * 管理再生へ切り替える時に止め損ねた音が残り得たため。以前は既定設定の頭からの再生だけ
+     * バニラの再生に任せていた。
      */
     private static boolean requiresManagedVanilla(GoldenJukeboxBlockEntity source, ServerLevel level) {
-        return Services.PLATFORM.isMovingAudioSource(level, source.getBlockPos())
-                || source.getRangeBlocks() != GoldenJukeboxBlockEntity.RANGE_DEFAULT
-                || source.getVolumePercent() != GoldenJukeboxBlockEntity.VOLUME_DEFAULT
-                || source.isDirectional() != GoldenJukeboxBlockEntity.DIRECTIONAL_DEFAULT;
+        return true;
     }
 
     public static List<SpeakerEntry> movingSpeakers(ServerLevel level, UUID id, Object actor) {

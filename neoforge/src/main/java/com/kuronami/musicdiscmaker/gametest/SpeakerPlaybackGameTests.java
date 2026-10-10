@@ -270,17 +270,17 @@ public final class SpeakerPlaybackGameTests {
         final INetworkHelper previous = Services.swapNetwork(net);
         try {
             source.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, new ItemStack(Items.MUSIC_DISC_13));
-            helper.assertTrue(source.isVanillaPlaying(), "speaker無しのvanilla盤がnative再生を開始していない");
-            helper.assertTrue(net.of(PlayVanillaDiscPayload.class).isEmpty(),
-                    "speaker無しのvanilla盤へ追加音源payloadを送っている");
+            helper.assertTrue(source.isVanillaPlaying(), "speaker無しのvanilla盤が盤の再生状態に入っていない");
+            // 2026-10-10 から金ジュークの通常盤は常に管理再生 (SpeakerPlayback#requiresManagedVanilla)。
+            assertSetThenVanilla(helper, net, first, source, "speaker無しのvanilla盤の開始(first)");
 
             net.clear();
-            // 固定sourceの既定設定はnative再生を維持し、speaker移行時の範囲だけ16へ切り替える。
+            // 再生途中に speaker を足し、範囲を16へ。既に聴いている player へは Set だけを送る。
             source.setRangeBlocks(16);
             speaker.linkTo(level, sourcePos);
             tick(level, source);
-            assertSetThenVanilla(helper, net, first, source, "再生途中のspeaker追加(first)");
-            assertSetThenVanilla(helper, net, second, source, "再生途中のspeaker追加(second)");
+            assertSetOnly(helper, net, first, "再生途中のspeaker追加(first)");
+            assertSetOnly(helper, net, second, "再生途中のspeaker追加(second)");
             helper.assertTrue(forPlayer(net, outsideEnvelope).stream()
                             .filter(sent -> sent.payload() instanceof StopDiscPayload).count() == 1,
                     "native 64-block圏内だがspeaker envelope外のplayerへStopを送っていない");
@@ -486,15 +486,14 @@ public final class SpeakerPlaybackGameTests {
         final var net = new CapturingNetwork();
         final var previous = Services.swapNetwork(net);
         try {
-            // A fixed source at the vanilla-compatible defaults leaves sound ownership to the native
-            // JukeboxSongPlayer.  Changing a Golden setting during that playback must promote it to
-            // the managed route, so the setting can actually reach the client.
+            // A fixed source plays vanilla records on the managed route from the start (2026-10-10), so
+            // later setting changes only resend the speaker set.
             source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
-            helper.assertTrue(forPlayer(net, player).isEmpty(),
-                    "Fixed vanilla defaults unexpectedly created a managed client sound");
+            assertSetThenVanilla(helper, net, player, source, "fixed vanilla start");
+            net.clear();
             source.setRangeBlocks(32);
             com.kuronami.musicdiscmaker.event.SpeakerPlayback.tick(source);
-            assertSetThenVanilla(helper, net, player, source, "fixed vanilla range change");
+            assertSetOnly(helper, net, player, "fixed vanilla range change");
             final var configuredSet = (SpeakerSetPayload) forPlayer(net, player).get(0).payload();
             helper.assertTrue(configuredSet.rangeBlocks() == 32,
                     "Fixed vanilla range was not carried by the managed payload");
@@ -527,8 +526,8 @@ public final class SpeakerPlaybackGameTests {
 
             com.kuronami.musicdiscmaker.event.SpeakerPlayback.remove(source);
             source.setItem(0, ItemStack.EMPTY);
-            net.clear();
             source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
+            net.clear(); // 固定音源としての開始 (管理再生) は上で確かめた。ここは移動音源の開始だけを見る
             helper.assertTrue(com.kuronami.musicdiscmaker.event.SpeakerPlayback.playMovingVanilla(source),
                     "Moving vanilla source without speakers was not managed");
             assertSetThenVanilla(helper, net, player, source, "moving vanilla start");
@@ -570,8 +569,8 @@ public final class SpeakerPlaybackGameTests {
         final var previous = Services.swapNetwork(net);
         try {
             source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
-            helper.assertTrue(forPlayer(net, player).isEmpty(),
-                    "既定設定の通常盤の頭からの再生が管理再生になった");
+            assertSetThenVanilla(helper, net, player, source, "既定設定の通常盤の開始");
+            net.clear();
             helper.assertTrue(source.isSeekable(), "通常盤がシークできない");
             source.seekTo(60_000L);
             assertSetThenVanilla(helper, net, player, source, "通常盤のシーク");
