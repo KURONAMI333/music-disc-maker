@@ -101,8 +101,8 @@ import net.minecraft.world.level.storage.ValueOutput;
  * 強化版ジュークボックスの BlockEntity。
  *
  * <p>ディスク 1 枚を持ち、再生設定 (可聴範囲・音量・リピート・再生/停止) を NBT に永続化する。
- * vanilla {@link JukeboxSongPlayer} を埋め込み、vanilla ディスクの音・ノートパーティクル・
- * コンパレータ出力・gameEvent・曲終了検知を得る。custom disc は既存 maker と同じく silent song
+ * vanilla {@link JukeboxSongPlayer} を埋め込み、ノートパーティクル・コンパレータ出力・gameEvent・
+ * 曲終了検知を得る (通常盤の実音は {@code SpeakerPlayback} の管理再生)。custom disc は既存 maker と同じく silent song
  * (JUKEBOX_PLAYABLE) 経由で vanilla 再生状態に乗り、実音声は LavaPlayer が per-block の
  * 可聴範囲・音量つきでストリームする ({@link PlayDiscPayload})。
  *
@@ -477,7 +477,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     /**
      * progress バーで頭出し操作を許可できるか。有限尺の custom disc と、バニラ・他 MOD の盤。
      *
-     * <p>バニラ・他 MOD の盤は途中からの再生を管理再生で鳴らす ({@code SpeakerPlayback#managesVanilla})。
+     * <p>バニラ・他 MOD の盤は管理再生で鳴らすので途中から鳴らせる ({@code SpeakerPlayback#managesVanilla})。
      * 2026-10-10 本人要望でカスタム盤と同じく動かせるようにした。
      */
     public boolean isSeekable() {
@@ -1395,7 +1395,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
                     new PlayDiscPayload(getBlockPos(), customTrack, offset,
                             rangeBlocks, volumePercent, directional, playbackIdentity()));
         } else {
-            // Speakerが無ければvanillaの通常同期を維持し、追加のclient音源は作らない。
+            // 通常盤も管理再生なので、後から範囲に入った player へ現在位置から送る。
             SpeakerPlayback.resendTo(this, player, vanillaTrack, offset);
         }
     }

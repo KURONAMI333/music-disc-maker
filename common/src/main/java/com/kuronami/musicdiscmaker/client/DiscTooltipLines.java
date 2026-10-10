@@ -59,7 +59,8 @@ public final class DiscTooltipLines {
             return components;
         }
         final JacketClientTooltip jacket = (JacketClientTooltip) components.get(at);
-        final int name = letters(jacket.name().getString());
+        // 行は描画用の文字 (§ の書式記号を除いたもの) なので、名前も同じ形にして数える。
+        final int name = letters(text(jacket.name().getVisualOrderText()));
         final List<ClientTooltipComponent> out = new ArrayList<>(components);
         out.remove(at);
         int seen = 0;

@@ -110,6 +110,8 @@ public final class SpeakerVanillaPlaybackLegacyGameTests {
             helper.assertFalse(Services.PLATFORM.isMovingAudioSource(level, source.getBlockPos()),
                     "ordinary block was treated as a moving source without VS");
             source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
+            // 固定音源としての開始で state ができるので外し、state の無い所からの移動音源の開始を見る。
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.remove(source);
             net.clear();
             helper.assertTrue(com.kuronami.musicdiscmaker.event.SpeakerPlayback.playMovingVanilla(source),
                     "moving vanilla source with no speakers was rejected");

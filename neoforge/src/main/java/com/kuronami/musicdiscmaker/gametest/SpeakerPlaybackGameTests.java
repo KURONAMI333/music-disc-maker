@@ -527,7 +527,9 @@ public final class SpeakerPlaybackGameTests {
             com.kuronami.musicdiscmaker.event.SpeakerPlayback.remove(source);
             source.setItem(0, ItemStack.EMPTY);
             source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
-            net.clear(); // 固定音源としての開始 (管理再生) は上で確かめた。ここは移動音源の開始だけを見る
+            // 固定音源としての開始 (管理再生) は上で確かめた。state の無い所からの移動音源の開始だけを見る。
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.remove(source);
+            net.clear();
             helper.assertTrue(com.kuronami.musicdiscmaker.event.SpeakerPlayback.playMovingVanilla(source),
                     "Moving vanilla source without speakers was not managed");
             assertSetThenVanilla(helper, net, player, source, "moving vanilla start");
@@ -549,9 +551,9 @@ public final class SpeakerPlaybackGameTests {
     }
 
     /**
-     * 既定設定の通常盤は頭からの再生だけバニラに任せ、途中からの再生 (シーク・一時停止からの再開) は
-     * 管理再生にする。2026-10-10 Mac 開発クライアントで、バニラの再生 event で始めた音を直後に止めると
-     * 止め損ねて壊しても鳴り続けること、再開が頭からになることを再現した (SpeakerPlayback#managesVanilla)。
+     * 金ジュークの通常盤は管理再生で鳴らす。シーク・一時停止からの再開は途中から、後から範囲に入った
+     * player にも現在位置から届く。2026-10-10 Mac 開発クライアントで、バニラの再生 event で始めた音を直後に
+     * 止めると止め損ねて壊しても鳴り続けること、再開が頭からになることを再現した (SpeakerPlayback#managesVanilla)。
      */
     //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
@@ -587,6 +589,19 @@ public final class SpeakerPlaybackGameTests {
             assertSetThenVanilla(helper, net, player, source, "通常盤の再開");
             final var resume = (PlayVanillaDiscPayload) forPlayer(net, player).get(1).payload();
             helper.assertTrue(resume.startOffsetMs() >= 60_000L, "再開が頭からになっている: " + resume.startOffsetMs());
+
+            // 範囲の外にいた player が後から入ると、現在位置から届く。
+            final var late = helper.makeMockServerPlayerInLevel();
+            late.teleportTo(pos.getX() + 500.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.tick(source);
+            net.clear();
+            late.teleportTo(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.tick(source);
+            final var lateSent = forPlayer(net, late);
+            helper.assertTrue(lateSent.stream().anyMatch(sent -> sent.payload() instanceof PlayVanillaDiscPayload p
+                            && p.startOffsetMs() >= 60_000L),
+                    "後から範囲に入った player へ通常盤を現在位置から送っていない: " + lateSent);
+            late.discard();
 
             net.clear();
             source.onBlockRemoved();

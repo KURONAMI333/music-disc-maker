@@ -72,7 +72,7 @@ public final class SpeakerPlayback {
         return play(source, Playback.custom(track), offsetMs);
     }
 
-    /** 通常盤を管理再生で鳴らす時だけ配送する。{@link #managesVanilla} が偽ならバニラの再生に任せる。 */
+    /** 通常盤を管理再生で配送する ({@link #managesVanilla})。 */
     public static boolean play(GoldenJukeboxBlockEntity source, VanillaTrackData track, long offsetMs) {
         return play(source, track, offsetMs, managesVanilla(source, offsetMs));
     }
@@ -92,11 +92,7 @@ public final class SpeakerPlayback {
      * 再生ではバニラの音を最初から鳴らさない。今は常に真 ({@link #requiresManagedVanilla})。
      */
     public static boolean managesVanilla(GoldenJukeboxBlockEntity source, long offsetMs) {
-        final ServerLevel level = serverLevel(source);
-        if (level == null) {
-            return false;
-        }
-        return requiresManagedVanilla(source, level);
+        return serverLevel(source) != null;
     }
 
     /** Moving hosts cannot use a fixed vanilla block-event sound, even without extra speakers. */
@@ -127,7 +123,7 @@ public final class SpeakerPlayback {
             clearSpeakerSet(source, level);
             return false;
         }
-        // nativeの開始eventは毎回chunkへ届く。Speaker envelope外ではsource本来の64-block音を残さない。
+        // 範囲 (Speaker を含む) の外に残っている listener の音を止める。
         if (state == null || playback.vanilla() != null) {
             stopLegacyListenersOutside(level, source.getBlockPos(), snapshot, state);
         }
@@ -500,8 +496,8 @@ public final class SpeakerPlayback {
         for (ServerPlayer player : level.players()) {
             if (!audible(player, sourcePos, snapshot)) {
                 Services.NETWORK.sendToPlayer(player, new StopDiscPayload(sourcePos, snapshot.identity()));
-                // 新しいnative開始では、旧managed listenerを残すとreconcile(replay=true)が
-                // muted Speakerへ直後にPlayを送り直す。unmute時に現在offsetから入り直させる。
+                // 旧 listener を残すと reconcile(replay=true) が muted Speaker へ直後に Play を
+                // 送り直す。unmute 時に現在 offset から入り直させる。
                 if (previousState != null) {
                     previousState.listeners.remove(player.getUUID());
                 }

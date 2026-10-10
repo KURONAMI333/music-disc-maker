@@ -71,7 +71,9 @@ public class FabricConfigHelper implements IConfigHelper {
             final long modified = lastModified(file);
             if (loaded == null || modified != loadedModified) {
                 loaded = read(file);
-                loadedModified = lastModified(file); // 無ければ read が書き出すので読み直す
+                // 読む前の時刻を記録する (読んだ後に書かれた変更を次の確認で拾う)。
+                // ファイルが無かった時だけ、read が書き出した時刻を取る。
+                loadedModified = modified != Long.MIN_VALUE ? modified : lastModified(file);
             }
             nextCheckMs = now + CHECK_INTERVAL_MS;
             return loaded;
