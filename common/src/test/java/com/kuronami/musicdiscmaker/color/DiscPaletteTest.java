@@ -27,6 +27,13 @@ class DiscPaletteTest {
         assertEquals(expected[3], board.dominant(), "dominant for " + dye.id());
     }
 
+    /** 未染色曲が実際に使う既定の盤面 (確定した青) の自動アクセント。 */
+    private static void assertDefaultAutomatic(DiscDye accentDye, double expectedDeltaE, int... expected) {
+        final DiscPalette.Accent accent = DiscPalette.automaticAccent(accentDye, DiscPalette.defaultBoard());
+        assertArrayEquals(expected, accent.steps(), "default automatic " + accentDye.id());
+        assertEquals(expectedDeltaE, accent.deltaE(), 1e-6, "deltaE for default automatic " + accentDye.id());
+    }
+
     private static void assertAutomaticAccent(DiscDye boardDye, DiscDye accentDye, double expectedDeltaE,
             int... expected) {
         final DiscPalette.Board board = DiscPalette.board(boardDye);
@@ -71,6 +78,54 @@ class DiscPaletteTest {
                 0x2C2C2C, 0x393939, 0x414141, 0x4D4D4D, 0x676767, 0x6E6E6E, 0x797979);
         assertAutomaticAccent(DiscDye.LIME, DiscDye.WHITE, 87.6939330957,
                 0x7A7A7A, 0x878787, 0x8F8F8F, 0x9B9B9B, 0xB5B5B5, 0xBCBCBC, 0xC7C7C7);
+        // 旧来は明示染色として固定していた値。自動配色の探索 (帯・フォールバック) の検出器として残す。
+        assertAutomaticAccent(DiscDye.WHITE, DiscDye.RED, 79.4651165274,
+                0x901F18, 0xA6231C, 0xB4261E, 0xC72B21, 0xDF483F, 0xE1524A, 0xE4655D);
+        assertAutomaticAccent(DiscDye.WHITE, DiscDye.CYAN, 52.0747983017,
+                0x041717, 0x082D2E, 0x0A3B3B, 0x0D4E4F, 0x157B7D, 0x178688, 0x1A9A9C);
+        assertAutomaticAccent(DiscDye.RED, DiscDye.RED, 52.5407051010,
+                0xDE4137, 0xE2564E, 0xE4635B, 0xE7766F, 0xEFA19D, 0xF1ACA8, 0xF4BFBB);
+        assertAutomaticAccent(DiscDye.BLUE, DiscDye.CYAN, 79.8760404885,
+                0x010404, 0x031414, 0x051E1E, 0x072C2C, 0x0D4C4D, 0x0F5758, 0x126A6B);
+        assertAutomaticAccent(DiscDye.BLUE, DiscDye.PINK, 78.3830382140,
+                0x550E27, 0x6B1231, 0x791437, 0x8C1740, 0xBA1F55, 0xC5215A, 0xD92463);
+    }
+
+    /** 未染色の単曲が実際に使う既定の盤面 × 16 色。未染色の見た目は 2026-10-10 の変更前と同じ。 */
+    @Test
+    void undyedDiscsKeepTheirAutomaticColours() {
+        assertDefaultAutomatic(DiscDye.WHITE, 52.17080996170593,
+                0x535353, 0x606060, 0x686868, 0x737373, 0x8E8E8E, 0x949494, 0xA0A0A0);
+        assertDefaultAutomatic(DiscDye.ORANGE, 71.67619211869687,
+                0x251506, 0x3B230A, 0x492B0C, 0x5C360F, 0x8A5117, 0x955719, 0xA9631C);
+        assertDefaultAutomatic(DiscDye.MAGENTA, 56.556760865632256,
+                0x250623, 0x3B0A39, 0x490C46, 0x5C0F59, 0x8A1785, 0x951990, 0xA91CA3);
+        assertDefaultAutomatic(DiscDye.LIGHT_BLUE, 52.00661062837402,
+                0x0E4555, 0x12576B, 0x146279, 0x17728C, 0x1F97BA, 0x21A1C5, 0x24B1D9);
+        assertDefaultAutomatic(DiscDye.YELLOW, 79.20685865534969,
+                0x1E1905, 0x342C09, 0x42370B, 0x56480E, 0x836E16, 0x8E7718, 0xA2881B);
+        assertDefaultAutomatic(DiscDye.LIME, 79.50541689289311,
+                0x050801, 0x141E05, 0x1D2C07, 0x29400B, 0x476D12, 0x4E7814, 0x5B8C17);
+        assertDefaultAutomatic(DiscDye.PINK, 55.2340774639958,
+                0x250611, 0x3B0A1B, 0x490C21, 0x5C0F2A, 0x8A173F, 0x951944, 0xA91C4D);
+        assertDefaultAutomatic(DiscDye.GRAY, 52.17080996170593,
+                0x535353, 0x606060, 0x686868, 0x737373, 0x8E8E8E, 0x949494, 0xA0A0A0);
+        assertDefaultAutomatic(DiscDye.LIGHT_GRAY, 52.17080996170593,
+                0x535353, 0x606060, 0x686868, 0x737373, 0x8E8E8E, 0x949494, 0xA0A0A0);
+        assertDefaultAutomatic(DiscDye.CYAN, 53.37578057317173,
+                0x062425, 0x0A3A3B, 0x0C4849, 0x0F5B5C, 0x17888A, 0x199395, 0x1CA6A9);
+        assertDefaultAutomatic(DiscDye.PURPLE, 52.70462693238888,
+                0x190625, 0x280A3B, 0x310C49, 0x3E0F5C, 0x5D178A, 0x641995, 0x721CA9);
+        assertDefaultAutomatic(DiscDye.BLUE, 53.02610886801779,
+                0x0A103A, 0x0D1651, 0x101A5E, 0x131F72, 0x1B2CA0, 0x1C2FAB, 0x2034BE);
+        assertDefaultAutomatic(DiscDye.BROWN, 70.14570324901254,
+                0x251306, 0x3B1E0A, 0x49250C, 0x5C2F0F, 0x8A4717, 0x954D19, 0xA9571C);
+        assertDefaultAutomatic(DiscDye.GREEN, 78.65634079134388,
+                0x060801, 0x171E05, 0x212C07, 0x30400B, 0x526D12, 0x5A7814, 0x698C17);
+        assertDefaultAutomatic(DiscDye.RED, 69.99583700931197,
+                0x250806, 0x3B0D0A, 0x49100C, 0x5C140F, 0x8A1D17, 0x952019, 0xA9241C);
+        assertDefaultAutomatic(DiscDye.BLACK, 52.17080996170593,
+                0x535353, 0x606060, 0x686868, 0x737373, 0x8E8E8E, 0x949494, 0xA0A0A0);
     }
 
 
@@ -129,6 +184,12 @@ class DiscPaletteTest {
         for (DiscDye dye : DiscDye.values()) {
             final DiscPalette.Board board = DiscPalette.board(dye);
             final DiscPalette.Accent same = DiscPalette.accent(dye, dye, board);
+            for (int step = 1; step < same.size(); step++) {
+                assertTrue(ColorMath.hslLightness(same.step(step)) > ColorMath.hslLightness(same.step(step - 1)),
+                        "同色の縁の陰影が単調でない: " + dye.id());
+            }
+            assertTrue(same.step(0) != 0, "同色の縁の暗部が純黒: " + dye.id());
+            assertTrue(ColorMath.hslLightness(same.step(same.size() - 1)) <= 84.5, "同色の縁が白に飛んだ: " + dye.id());
             assertTrue(ColorMath.deltaE(board.dominant(), same.main()) >= 20.0,
                     "同じ染料どうしの縁が盤面に溶ける: " + dye.id() + " dE=" + ColorMath.deltaE(board.dominant(), same.main()));
         }
@@ -189,7 +250,10 @@ class DiscPaletteTest {
             final DiscPalette.Board board = DiscPalette.board(boardDye);
             int previousMain = -1;
             for (int i = 0; i < ramp.length; i++) {
-                final DiscPalette.Accent accent = DiscPalette.accent(ramp[i], board);
+                if (ramp[i] == boardDye) {
+                    continue; // 同じ染料どうしは sameDyeAccent (別のテスト)
+                }
+                final DiscPalette.Accent accent = DiscPalette.accent(ramp[i], boardDye, board);
                 assertArrayEquals(expected[i], accent.steps(), "無彩色ランプ " + ramp[i].id());
                 for (int step : accent.steps()) {
                     assertEquals(ColorMath.red(step), ColorMath.green(step));
@@ -203,7 +267,9 @@ class DiscPaletteTest {
                         "主段の順序が崩れた: " + boardDye.id() + " / " + ramp[i].id());
                 previousMain = ColorMath.red(accent.main());
             }
-            assertTrue(previousMain >= 0xD0, "white が十分に明るくない: " + boardDye.id());
+            if (boardDye != DiscDye.WHITE) {
+                assertTrue(previousMain >= 0xD0, "white が十分に明るくない: " + boardDye.id());
+            }
         }
         for (int i = 1; i < ramp.length; i++) {
             final int previous = expected[i - 1][4];
@@ -220,8 +286,8 @@ class DiscPaletteTest {
                 final DiscPalette.Board b1 = DiscPalette.board(boardDye);
                 final DiscPalette.Board b2 = DiscPalette.board(boardDye);
                 assertArrayEquals(b1.steps(), b2.steps());
-                final DiscPalette.Accent a1 = DiscPalette.accent(accentDye, b1);
-                final DiscPalette.Accent a2 = DiscPalette.accent(accentDye, b2);
+                final DiscPalette.Accent a1 = DiscPalette.accent(accentDye, boardDye, b1);
+                final DiscPalette.Accent a2 = DiscPalette.accent(accentDye, boardDye, b2);
                 assertArrayEquals(a1.steps(), a2.steps());
                 assertEquals(a1.deltaE(), a2.deltaE());
             }

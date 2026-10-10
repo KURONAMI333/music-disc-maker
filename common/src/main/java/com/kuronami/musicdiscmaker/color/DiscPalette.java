@@ -15,10 +15,13 @@ package com.kuronami.musicdiscmaker.color;
  * </ul>
  *
  * <p><b>参照実装</b>は {@code _work/stonecutter-loader-2026-08-24/assets-v3/mkauto.py}。
- * 有彩色と自動配色の主段を探す処理は、探索順・スコア・早期打ち切り・フォールバックまで
- * 参照実装と一致する。主段から遠い陰影は 0/96 の clamp へ潰れないよう圧縮する。
- * 明示的な白/薄灰/灰/黒は、2026-09-10の黒化報告への修正として染料の明るさを優先し、
- * 色差の床を適用しない。自動配色は従来の探索を維持する。
+ * 未染色曲の自動配色の主段を探す処理は、探索順・スコア・早期打ち切り・フォールバックまで
+ * 参照実装と一致する。主段から遠い陰影は 0/96 の clamp へ潰れないよう圧縮する。盤面は桃
+ * (最も明るい段を明度 84 までに縮める) を除いて参照実装と一致する。
+ *
+ * <p>明示染色の縁は 2026-10-10 から盤面に関係なく染料ごとに1色 (有彩色は染料の色相・彩度・明度、
+ * 白/薄灰/灰/黒は 2026-09-10 の色名の明度)。同じ染料どうしだけ {@link #sameDyeAccent} の特別な縁。
+ * 経緯は MDM_DECISIONS.md の 2026-10-10「ディスクの縁は染料ごとの固定色」。
  *
  * <p>純粋計算 = MC も描画も参照しない。tint レイヤーの宣言はここの外側 (次のユニット)。
  */
@@ -59,7 +62,7 @@ public final class DiscPalette {
     private static final double SAME_DYE_SHIFT = 28.0;
     private static final double SAME_DYE_SATURATION = 96.0;
     private static final double SAME_DYE_L_MIN = 14.0;
-    private static final double SAME_DYE_L_MAX = 86.0;
+    private static final double SAME_DYE_L_MAX = 77.0;
     /** これより明るい盤面だけ縁を暗い側へ (それ以外は明るく光らせる)。 */
     private static final double SAME_DYE_DARKEN_ABOVE = 65.0;
     /** 有彩色の盤面の最も明るい段の上限 (これより明るいと白に見える)。 */
@@ -124,7 +127,8 @@ public final class DiscPalette {
 
     /**
      * 盤面 5 段。色相は染料から暗 → 明で +8 度回し、彩度は染料の彩度を 1.25 倍 (上限 96)、
-     * 明度は確定した骨格を「染料自身の明るさ」で持ち上げる。
+     * 明度は確定した骨格を「染料自身の明るさ」で持ち上げる。有彩色で最も明るい段が明度 84 を
+     * 超える時 (桃だけ) は、支配色より上の段を 84 までに縮める (白い点に見えるため)。
      *
      * <p>無彩色の染料 (白/薄灰/灰/黒) は彩度 0 になるので、盤面は明度だけで分かれる。
      */
@@ -163,7 +167,8 @@ public final class DiscPalette {
 
     /**
      * 盤面と縁に同じ染料を選んだ時の縁。同じ色相を最も鮮やかにし、明るさを盤面の支配色から離して
-     * 縁を浮かせる (白・薄灰・桃のような明るい盤面だけ暗く、それ以外は明るく光らせる)。無彩色は明るさだけで離す。
+     * 縁を浮かせる (白・桃の盤面だけ暗く、それ以外は明るく光らせる)。無彩色は明るさだけで離す。
+     * 主段は明度 77 までにして、最も明るい段が白に見えないようにする。
      */
     public static Accent sameDyeAccent(DiscDye dye, Board board) {
         final int dominant = board.dominant();
