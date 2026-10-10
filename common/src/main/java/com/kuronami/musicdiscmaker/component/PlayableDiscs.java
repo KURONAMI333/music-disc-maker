@@ -111,6 +111,26 @@ public final class PlayableDiscs {
         *///?}
     }
 
+    /**
+     * バニラの盤の曲名「アーティスト - 曲名」(例「C418 - cat」) を {曲名, アーティスト} に分ける
+     * (2026-10-10 本人要望「曲名にはcat、アーティスト名にはC418」)。対象はバニラ (minecraft) の盤だけ。
+     * 他 MOD の盤の説明文は書式が決まっていないので分けず {@code null} を返す。
+     */
+    @Nullable
+    public static String[] splitVanillaDescription(ItemStack disc, @Nullable String description) {
+        if (description == null || disc.isEmpty()
+                || !"minecraft".equals(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(disc.getItem()).getNamespace())) {
+            return null;
+        }
+        final int at = description.indexOf(" - ");
+        if (at <= 0) {
+            return null;
+        }
+        final String artist = description.substring(0, at).strip();
+        final String title = description.substring(at + 3).strip();
+        return artist.isEmpty() || title.isEmpty() ? null : new String[] {title, artist};
+    }
+
     /** バニラ・他 MOD の盤の曲名 (例「C418 - cat」)。引けなければ盤の名前。 */
     public static Component descriptionOf(ItemStack disc, Level level) {
         //? if >=26.1 {

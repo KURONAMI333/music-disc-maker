@@ -72,11 +72,31 @@ public final class SpeakerPlayback {
         return play(source, Playback.custom(track), offsetMs);
     }
 
-    /** nativeの再生eventは維持しつつ、Speakerがある時だけresource-pack音声の配送へ切り替える。 */
+    /** 通常盤を管理再生で鳴らす時だけ配送する。{@link #managesVanilla} が偽ならバニラの再生に任せる。 */
     public static boolean play(GoldenJukeboxBlockEntity source, VanillaTrackData track, long offsetMs) {
+        return play(source, Playback.vanilla(track), offsetMs, managesVanilla(source, offsetMs));
+    }
+
+    /**
+     * 固定音源の通常盤をこの再生から管理再生で鳴らすか。真なら呼び出し側はバニラの再生 event を送らない。
+     *
+     * <p>バニラの再生 event で始めた音を直後に client で止めると、ストリームの読み込みが終わる前の停止を
+     * SoundEngine が取りこぼし、どの経路からも止められない音が残る (2026-10-10 Mac 開発クライアントで
+     * 再現: 範囲を変えて一時停止→再開すると頭からの cat が残り、壊しても鳴り続けた)。管理再生になる
+     * 再生ではバニラの音を最初から鳴らさない。途中からの再生 (再開・シーク) はバニラの再生では頭からに
+     * なるので常に管理再生にする。
+     */
+    public static boolean managesVanilla(GoldenJukeboxBlockEntity source, long offsetMs) {
         final ServerLevel level = serverLevel(source);
-        return play(source, Playback.vanilla(track), offsetMs,
-                level != null && requiresManagedVanilla(source, level));
+        if (level == null) {
+            return false;
+        }
+        final State state = STATES.get(source);
+        return offsetMs > 0L
+                || requiresManagedVanilla(source, level)
+                || !snapshot(level, source).speakers().isEmpty()
+                || !SourcePlaybackAudienceRegistry.viewers(source).isEmpty()
+                || (state != null && state.playback != null && state.playback.vanilla() != null);
     }
 
     /** Moving hosts cannot use a fixed vanilla block-event sound, even without extra speakers. */

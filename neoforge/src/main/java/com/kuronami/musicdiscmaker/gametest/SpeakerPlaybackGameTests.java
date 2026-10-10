@@ -549,6 +549,97 @@ public final class SpeakerPlaybackGameTests {
         helper.succeed();
     }
 
+    /**
+     * 既定設定の通常盤は頭からの再生だけバニラに任せ、途中からの再生 (シーク・一時停止からの再開) は
+     * 管理再生にする。2026-10-10 Mac 開発クライアントで、バニラの再生 event で始めた音を直後に止めると
+     * 止め損ねて壊しても鳴り続けること、再開が頭からになることを再現した (SpeakerPlayback#managesVanilla)。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerPlayback")
+    *///?}
+    public static void fixedVanillaSeekAndResumeUseManagedRoute(GameTestHelper helper) {
+        final var level = helper.getLevel();
+        final var relative = new BlockPos(1, 1, 1);
+        helper.setBlock(relative, ModBlocks.GOLDEN_JUKEBOX.get());
+        final var source = (GoldenJukeboxBlockEntity) level.getBlockEntity(helper.absolutePos(relative));
+        final var player = helper.makeMockServerPlayerInLevel();
+        final var pos = source.getBlockPos();
+        player.teleportTo(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5);
+        final var net = new CapturingNetwork();
+        final var previous = Services.swapNetwork(net);
+        try {
+            source.setItem(0, new ItemStack(Items.MUSIC_DISC_13));
+            helper.assertTrue(forPlayer(net, player).isEmpty(),
+                    "既定設定の通常盤の頭からの再生が管理再生になった");
+            helper.assertTrue(source.isSeekable(), "通常盤がシークできない");
+            source.seekTo(60_000L);
+            assertSetThenVanilla(helper, net, player, source, "通常盤のシーク");
+            final var seek = (PlayVanillaDiscPayload) forPlayer(net, player).get(1).payload();
+            helper.assertTrue(seek.startOffsetMs() == 60_000L, "シーク位置から鳴らしていない: " + seek.startOffsetMs());
+            helper.assertTrue(source.isVanillaPlaying(), "管理再生の間に盤の再生状態 (粒子・コンパレータ) が落ちた");
+
+            net.clear();
+            source.setPaused(true);
+            helper.assertTrue(forPlayer(net, player).stream().anyMatch(sent -> sent.payload() instanceof StopDiscPayload),
+                    "一時停止で止めていない");
+            net.clear();
+            source.setPaused(false);
+            assertSetThenVanilla(helper, net, player, source, "通常盤の再開");
+            final var resume = (PlayVanillaDiscPayload) forPlayer(net, player).get(1).payload();
+            helper.assertTrue(resume.startOffsetMs() >= 60_000L, "再開が頭からになっている: " + resume.startOffsetMs());
+
+            net.clear();
+            source.onBlockRemoved();
+            helper.assertTrue(forPlayer(net, player).stream().anyMatch(sent -> sent.payload() instanceof StopDiscPayload),
+                    "壊した時に止めていない");
+        } finally {
+            com.kuronami.musicdiscmaker.event.SpeakerPlayback.remove(source);
+            Services.swapNetwork(previous);
+            player.discard();
+        }
+        helper.succeed();
+    }
+
+    /** 製作機の出力枠にある作ったばかりの盤だけ、画面を開いている player が曲名を付け直せる (2026-10-10 本人要望)。 */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerPlayback")
+    *///?}
+    public static void makerRenamesItsFreshOutputOnly(GameTestHelper helper) {
+        final var relative = new BlockPos(1, 1, 1);
+        helper.setBlock(relative, ModBlocks.MUSIC_DISC_MAKER.get());
+        final var maker = (com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity)
+                helper.getLevel().getBlockEntity(helper.absolutePos(relative));
+        final int output = com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_OUTPUT;
+        maker.setItem(output, customDisc(helper));
+        final var player = helper.makeMockServerPlayerInLevel();
+        final var pos = maker.getBlockPos();
+        player.teleportTo(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5);
+        try {
+            com.kuronami.musicdiscmaker.network.ModNetwork.handleRenameDisc(
+                    new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "Wrong"), player);
+            helper.assertValueEqual(trackOf(maker.getItem(output)).title(), "Speaker Playback",
+                    "製作機の画面を開いていない player の付け直しを通した");
+            maker.renameOutput("  Fixed Title  ");
+            final CustomTrackData renamed = trackOf(maker.getItem(output));
+            helper.assertValueEqual(renamed.title(), "Fixed Title", "付け直した曲名");
+            helper.assertValueEqual(renamed.author(), "tester", "付け直しでアーティストが変わった");
+            helper.assertValueEqual(renamed.url(), "https://example.invalid/speaker-playback", "付け直しで URL が変わった");
+            helper.assertValueEqual(renamed.durationMs(), 120_000L, "付け直しで尺が変わった");
+            maker.renameOutput("   ");
+            helper.assertValueEqual(trackOf(maker.getItem(output)).title(), "Fixed Title", "空の名前で曲名を消した");
+        } finally {
+            maker.setItem(output, ItemStack.EMPTY);
+            player.discard();
+        }
+        helper.succeed();
+    }
+
+    private static CustomTrackData trackOf(ItemStack disc) {
+        return com.kuronami.musicdiscmaker.item.CustomMusicDiscItem.getTrack(disc);
+    }
+
     private static void assertSetThenVanilla(GameTestHelper helper, CapturingNetwork net, ServerPlayer player,
             GoldenJukeboxBlockEntity source, String operation) {
         final List<CapturingNetwork.Sent> sent = forPlayer(net, player);

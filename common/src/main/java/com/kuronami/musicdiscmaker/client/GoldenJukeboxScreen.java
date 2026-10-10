@@ -490,8 +490,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
         } else if (be.hasDisc()) {
             // vanilla / 他 MOD のディスク: jukebox_song の description (例 "C418 - cat") を 1 行目、
             // アイテム表示名 (例 "ミュージックディスク") を 2 行目に。custom disc と同じ 2 行構造を汎用化する。
-            // description の "Artist - Title" 分割はしない (書式は vanilla lang の慣習で API 契約でなく、
-            // 他 MOD の任意 description を壊すため)。description が無ければアイテム名だけ。
+            // バニラの盤だけは "Artist - Title" を曲名 / アーティストに分ける (PlayableDiscs#splitVanillaDescription)。
+            // 他 MOD の description は書式が API 契約でないので分けない。description が無ければアイテム名だけ。
             //? if >=1.21 {
             // アルバムなら現在トラックのディスク。空アルバム等で解決できなければアルバム本体の名前に落とす。
             final ItemStack shown = be.effectiveDisc().isEmpty() ? be.getDisc() : be.effectiveDisc();
@@ -499,17 +499,22 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             //?}
             final Component desc = be.discSongDescription();
             //? if >=1.21 {
-            final String itemName = shown.getHoverName().getString();
+            final String[] split = com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(
+                    shown, desc == null ? null : desc.getString());
+            final String itemName = split != null ? split[1] : shown.getHoverName().getString();
             //?} else {
-            /*final String itemName = be.getDisc().getHoverName().getString();
+            /*final String[] split = com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(
+                    be.getDisc(), desc == null ? null : desc.getString());
+            final String itemName = split != null ? split[1] : be.getDisc().getHoverName().getString();
             *///?}
             if (desc != null) {
+                final String songName = split != null ? split[0] : desc.getString();
                 //? if >=26.1 {
-                g.text(font, font.plainSubstrByWidth(desc.getString(), titleW),
+                g.text(font, font.plainSubstrByWidth(songName, titleW),
                 //?} elif >=1.21 {
-                /*g.drawString(font, font.plainSubstrByWidth(desc.getString(), titleW),
+                /*g.drawString(font, font.plainSubstrByWidth(songName, titleW),
                 *///?} else {
-                /*g.drawString(font, font.plainSubstrByWidth(desc.getString(), TRACK_TEXT_W),
+                /*g.drawString(font, font.plainSubstrByWidth(songName, TRACK_TEXT_W),
                 *///?}
                         TRACK_TEXT_X, TITLE_Y, TEXT, false);
                 //? if >=26.1 {

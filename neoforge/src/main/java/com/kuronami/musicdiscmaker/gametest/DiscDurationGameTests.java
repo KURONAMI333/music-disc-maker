@@ -130,7 +130,7 @@ public class DiscDurationGameTests {
     /**
      * vanilla のレコードでも総尺が取れる。値そのものはバニラのデータ次第なので、
      * 「0 でない」「常識的な範囲に収まる」だけを見る (バージョン更新で秒数が変わっても落とさない)。
-     * あわせて、尺が取れてもシーク可能にはしないことを同じテストで固定する。
+     * 2026-10-10 から通常盤もシークできる (途中からは管理再生で鳴らす)。
      */
     //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
@@ -150,8 +150,14 @@ public class DiscDurationGameTests {
         helper.assertTrue(dur < 3_600_000L, "vanilla のレコードの総尺が非現実的に長い: " + dur);
         helper.assertTrue(jukebox.currentTrack() == null,
                 "vanilla のレコードが custom track として解決されている");
-        helper.assertFalse(jukebox.isSeekable(),
-                "vanilla のレコードでシーク可能になっている (つまみが出るが seekTo は即 return する)");
+        helper.assertTrue(jukebox.isSeekable(), "vanilla のレコードでシークできない");
+        // 画面ではバニラの盤の「アーティスト - 曲名」を曲名とアーティストに分ける (2026-10-10 本人要望)。
+        final String[] split = com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(
+                new ItemStack(Items.MUSIC_DISC_CAT), "C418 - cat");
+        helper.assertTrue(split != null && "cat".equals(split[0]) && "C418".equals(split[1]),
+                "バニラの盤の曲名を分けていない: " + java.util.Arrays.toString(split));
+        helper.assertTrue(com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(
+                new ItemStack(Items.MUSIC_DISC_CAT), "Pigstep") == null, "区切りの無い曲名を分けた");
         final VanillaTrackData track = jukebox.currentVanillaTrack();
         helper.assertTrue(track != null, "vanilla のレコードから再生記述を抽出できない");
         helper.assertValueEqual(track.soundEventId(), "minecraft:music_disc.13",

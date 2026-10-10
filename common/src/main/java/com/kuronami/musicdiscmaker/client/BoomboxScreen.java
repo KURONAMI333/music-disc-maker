@@ -162,8 +162,7 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     }
 
     private boolean isSeekable() {
-        final CustomTrackData track = currentTrack();
-        return track != null && !track.radio() && track.durationMs() > 0L;
+        return currentDurationMs() > 0L;
     }
 
     private int currentVolume() {
@@ -349,11 +348,24 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             }
         } else if (hasMedia()) {
             // バニラ・他 MOD の盤は曲名 (例「C418 - cat」)、それ以外は入っている物の名前。
+            // バニラの盤は曲名とアーティストに分けて 2 行にする (PlayableDiscs#splitVanillaDescription)。
             final ItemStack vanillaDisc = menu.currentVanillaDisc();
-            final String mediaName = !vanillaDisc.isEmpty() && minecraft != null && minecraft.level != null
+            final String description = !vanillaDisc.isEmpty() && minecraft != null && minecraft.level != null
                     ? com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOf(vanillaDisc,
                             minecraft.level).getString()
-                    : menu.getSlot(0).getItem().getHoverName().getString();
+                    : null;
+            final String[] split = com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(
+                    vanillaDisc, description);
+            final String mediaName = split != null ? split[0]
+                    : description != null ? description : menu.getSlot(0).getItem().getHoverName().getString();
+            if (split != null) {
+                //? if >=26.1 {
+                graphics.text(font, font.plainSubstrByWidth(split[1], BoomboxScreenLayout.TRACK_TEXT_WIDTH),
+                //?} else {
+                /*graphics.drawString(font, font.plainSubstrByWidth(split[1], BoomboxScreenLayout.TRACK_TEXT_WIDTH),
+                *///?}
+                        BoomboxScreenLayout.TRACK_TEXT_X, BoomboxScreenLayout.AUTHOR_Y, TIME_TEXT, false);
+            }
             //? if >=26.1 {
             graphics.text(font, font.plainSubstrByWidth(mediaName, titleWidth),
             //?} else {

@@ -69,6 +69,12 @@ public final class VanillaSpeakerPlayback {
             final VanillaSpeakerVoiceGroup voice = new VanillaSpeakerVoiceGroup(sourceVoice, sourceAnchor,
                     payload.track().soundEventId(), payload.startOffsetMs(), now, VanillaSpeakerPlayback::playbackClockMs);
             VOICES.put(pos, new Playing(payload, now, voice));
+            // 管理再生の通常盤にはバニラの再生 event が来ないので、頭からの再生だけ曲名を出す
+            // (一時停止からの再開・シークは途中からなので出さない)。
+            if (payload.startOffsetMs() == 0L && mc.level.getBlockEntity(pos)
+                    instanceof com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity jukebox) {
+                com.kuronami.musicdiscmaker.client.NowPlaying.show(jukebox.discSongDescription());
+            }
             // The master is accepted before any child can prefill/read, keeping the initial timeline anchored.
             voice.update(set);
         }

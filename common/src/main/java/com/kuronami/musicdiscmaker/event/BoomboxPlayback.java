@@ -612,19 +612,12 @@ public final class BoomboxPlayback {
         final MediaSequenceResolver.ResolvedSequence resolved = MediaSequenceResolver.resolve(contents.disc());
         final MediaSequence.Position position = new MediaSequence.Position(contents.cursor().discIndex(),
                 contents.cursor().trackIndex());
-        final CustomTrackData track = resolved.at(position).map(MediaSequenceResolver.ResolvedTrack::track).orElse(null);
-        if (track == null) {
+        // バニラ・他 MOD の盤も MDM の音として鳴らしているので、カスタム盤と同じく頭出しできる。
+        final Sound sound = resolved.at(position).map(found -> soundOf(found, context.level())).orElse(null);
+        if (sound == null || sound.live() || sound.automaticDurationMs() <= 0L) {
             return false;
         }
-        if (track.radio() || track.durationMs() <= 0L) {
-            return false;
-        }
-        long offset = Math.max(0L, requestedOffset);
-        if (track.durationMs() > 0L) {
-            offset = Math.min(offset, track.durationMs());
-        } else {
-            offset = 0L;
-        }
+        final long offset = Math.min(Math.max(0L, requestedOffset), sound.automaticDurationMs());
         if (contents.cursor().state() == PlaybackCursor.State.PLAYING) {
             return startAt(context, contents, position, offset);
         }

@@ -474,15 +474,14 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     /**
-     * progress バーで頭出し操作を許可できるか (有限尺の custom disc のみ)。
+     * progress バーで頭出し操作を許可できるか。有限尺の custom disc と、バニラ・他 MOD の盤。
      *
-     * <p><b>{@code trackDurationMs() > 0} だけで判定してはいけない</b> — vanilla / 他 MOD の
-     * ディスクも尺を返すようになったが、実音は {@code JukeboxSongPlayer} が鳴らしていて頭出しの手段が
-     * 無い ({@link #seekTo} が {@code currentTrack() == null} で即 return する)。つまみだけ出て
-     * 掴んでも戻る、という形になるので custom disc であることを明示条件に残す。
+     * <p>バニラ・他 MOD の盤は途中からの再生を管理再生で鳴らす ({@code SpeakerPlayback#managesVanilla})。
+     * 2026-10-10 本人要望でカスタム盤と同じく動かせるようにした。
      */
     public boolean isSeekable() {
-        return hasDisc() && currentTrack() != null && !isLiveStream() && trackDurationMs() > 0L;
+        return hasDisc() && (currentTrack() != null || currentVanillaTrack() != null)
+                && !isLiveStream() && trackDurationMs() > 0L;
     }
 
     //? if >=26.1 {
@@ -919,7 +918,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     }
 
     /**
-     * GUI シークバーからの頭出し。有限尺 (非ラジオ) の custom disc の時だけ効く。
+     * GUI シークバーからの頭出し。有限尺 (非ラジオ) の custom disc と、バニラ・他 MOD の盤で効く。
      * 再生中は即座にその位置へ、一時停止中は resume 位置だけを更新する。
      */
     public void seekTo(long offsetMs) {
@@ -934,14 +933,14 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (isLiveStream()) {
             return;
         }
-        final CustomTrackData track = currentTrack();
-        if (track == null || track.durationMs() <= 0L) {
+        if (!isSeekable()) {
             return;
         }
+        final long duration = trackDurationMs();
         //? if >=1.21 {
-        final long clamped = Mth.clamp(offsetMs, 0L, track.durationMs());
+        final long clamped = Mth.clamp(offsetMs, 0L, duration);
         //?} else {
-/*        final long clamped = Math.max(0L, Math.min(offsetMs, track.durationMs()));
+/*        final long clamped = Math.max(0L, Math.min(offsetMs, duration));
         */
         //?}
         if (isPaused()) {
@@ -1140,11 +1139,17 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         cursor = cursor.startAt(Math.max(0, cursor.discIndex()), Math.max(0, cursor.trackIndex()));
         startMillis = playbackTimeMs() - offsetMs;
         playbackStartGameTime = level.getGameTime() - offsetMs / 50L;
+        final CustomTrackData track = currentTrack();
+        // 管理再生で鳴らす通常盤にはバニラの再生 event を送らない (SpeakerPlayback#managesVanilla)。
+        final boolean managedVanilla = mount == null && track == null && currentVanillaTrack() != null
+                && SpeakerPlayback.managesVanilla(this, offsetMs);
         //? if >=1.21 {
-        if (mount == null) songFor(disc).ifPresent(song -> songPlayer.play(level, song));
+        if (mount == null) songFor(disc).ifPresent(song -> {
+            if (managedVanilla) songPlayer.setSongWithoutPlaying(song, offsetMs / 50L);
+            else songPlayer.play(level, song);
+        });
         //?} else {
         //?}
-        final CustomTrackData track = currentTrack();
         if (mount != null) {
             final VanillaTrackData vanillaTrack = track == null ? currentVanillaTrack() : null;
             if (track != null || vanillaTrack != null) {
@@ -1162,8 +1167,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         } else {
             //? if >=1.21 {
             //?} else {
-/*            // 先にvanilla eventを送り、続くSpeaker payloadが同じ座標のnative音を置き換える。
-            level.levelEvent(EVENT_PLAY_RECORD, getBlockPos(), Item.getId(disc.getItem()));
+/*            if (!managedVanilla) level.levelEvent(EVENT_PLAY_RECORD, getBlockPos(), Item.getId(disc.getItem()));
             */
             //?}
             final VanillaTrackData vanillaTrack = currentVanillaTrack();
