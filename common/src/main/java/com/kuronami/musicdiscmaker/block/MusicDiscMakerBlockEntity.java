@@ -322,6 +322,37 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         return true;
     }
 
+    /**
+     * 出力枠にある作ったばかりの盤の曲名を付け直す (取り出す前だけ・コスト無し)。自動で取った曲名が
+     * 間違っていた時の手直し用 (2026-10-10 本人要望)。空の名前は無視する。
+     */
+    public void renameOutput(String title) {
+        final ItemStack output = items.get(SLOT_OUTPUT);
+        if (!output.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            return;
+        }
+        final String name = title == null ? "" : title.replace("\u00a7", "").strip();
+        if (name.isEmpty()) {
+            return;
+        }
+        //? if >=1.21 {
+        final CustomTrackData track = output.get(ModDataComponents.CUSTOM_TRACK.get());
+        //?} else {
+        /*final CustomTrackData track = CustomMusicDiscItem.getTrack(output);
+        *///?}
+        if (track == null || track.isEmpty() || track.title().equals(name)) {
+            return;
+        }
+        final ItemStack renamed = output.copy();
+        //? if >=1.21 {
+        renamed.set(ModDataComponents.CUSTOM_TRACK.get(), track.withTitle(name));
+        //?} else {
+        /*CustomMusicDiscItem.setTrack(renamed, track.withTitle(name));
+        *///?}
+        setItem(SLOT_OUTPUT, renamed);
+        sync();
+    }
+
     /** Saves the verified fabrication input beside the resolved track without changing audio metadata. */
     private void saveOriginalSourceUrl(ItemStack disc) {
         if (resolvedTrack == null || resolvedTrack.isEmpty() || resolvedTrack.isLocal()

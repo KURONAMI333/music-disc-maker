@@ -6,6 +6,7 @@
   "gui.music_disc_maker.title": "Изготовитель пластинок",
   "gui.music_disc_maker.url_placeholder": "Вставьте URL…",
   "gui.music_disc_maker.fetching": "Загрузка…",
+  "gui.music_disc_maker.rename_hint": "Пока диск не забран, название можно изменить здесь",
   "gui.music_disc_maker.failed": "Не удалось воспроизвести трек.",
   "gui.music_disc_maker.failed.unsupported": "Ссылка не поддерживается. Нужен YouTube или прямая ссылка.",
   "gui.music_disc_maker.failed.private": "Скрыто или удалено. Нужна другая ссылка.",

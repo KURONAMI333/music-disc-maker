@@ -11,6 +11,7 @@
   "gui.music_disc_maker.title": "Music Disc Maker",
   "gui.music_disc_maker.url_placeholder": "Paste a URL...",
   "gui.music_disc_maker.fetching": "Fetching…",
+  "gui.music_disc_maker.rename_hint": "Rename the song here before taking the disc",
   "gui.music_disc_maker.failed": "Could not play this track.",
   "gui.music_disc_maker.failed.unsupported": "Link not supported. Try a YouTube or direct audio link.",
   "gui.music_disc_maker.failed.private": "Video is private or gone. Try another.",

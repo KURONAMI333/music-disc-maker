@@ -37,6 +37,9 @@ public final class LegacyPayloadIds {
         if (payload instanceof ResolveUrlPayload) {
             return ResolveUrlPayload.PATH;
         }
+        if (payload instanceof RenameDiscPayload) {
+            return RenameDiscPayload.PATH;
+        }
         if (payload instanceof ConfigureJukeboxPayload) {
             return ConfigureJukeboxPayload.PATH;
         }

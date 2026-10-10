@@ -87,6 +87,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private IconButton clearButton;
     private boolean urlWasFocused;
     private String lastSentUrl = "";
+    /**
+     * URL 欄に出している出力の盤の曲名。{@code null} なら URL 欄として使っている。作った盤を取り出す前は
+     * 欄に曲名を出し、そこで付け直せる (2026-10-10 本人要望)。
+     */
+    private String shownTitle;
 
     public MusicDiscMakerScreen(MusicDiscMakerMenu menu, Inventory playerInventory, Component title) {
         //? if >=26.1 {
@@ -141,6 +146,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                     if (LocalAudioClient.uploading()) {
                         LocalAudioClient.confirm();
                     } else {
+                        leaveRename();
                         urlField.setValue(""); commitUrl();
                         LocalAudioClient.select(menu);
                     }
@@ -159,22 +165,72 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     private void pasteFromClipboard() {
         final String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
-        if (clip != null && !clip.isBlank()) {
-            urlField.setValue(clip.trim());
+        if (clip == null || clip.isBlank()) {
+            return;
         }
+        // 貼り付けは常に URL として扱う (曲名の付け直し中でも、次の盤の URL を入れる操作)。
+        leaveRename();
+        urlField.setValue(clip.trim());
         commitUrl();
     }
 
     private void clearUrl() {
-        urlField.setValue("");
         urlField.setFocused(false);
+        if (shownTitle != null) {
+            urlField.setValue(shownTitle); // 付け直し中の × は書きかけを捨てて今の曲名へ戻す
+            return;
+        }
+        urlField.setValue("");
         commitUrl();
+    }
+
+    /** 出力枠にある作ったばかりの盤の曲名。付け直せる盤が無ければ {@code null}。 */
+    private String outputTitle() {
+        if (!menu.getBlockEntity().getCurrentUrl().isEmpty() || LocalAudioClient.uploading()) {
+            return null;
+        }
+        final net.minecraft.world.item.ItemStack output =
+                menu.getSlot(com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_OUTPUT).getItem();
+        if (!output.is(com.kuronami.musicdiscmaker.register.ModItems.CUSTOM_MUSIC_DISC.get())) {
+            return null;
+        }
+        final com.kuronami.musicdiscmaker.component.CustomTrackData track =
+                com.kuronami.musicdiscmaker.item.CustomMusicDiscItem.getTrack(output);
+        return track == null || track.isEmpty() ? null : track.title();
+    }
+
+    /** 曲名の付け直しをやめて URL 欄に戻す (欄の文字は呼び出し側が入れる)。 */
+    private void leaveRename() {
+        if (shownTitle != null) {
+            shownTitle = null;
+            urlField.setValue("");
+        }
+    }
+
+    /** 欄の内容を確定する。付け直し中は曲名の変更、それ以外は URL のコミット。 */
+    private void commitField() {
+        if (shownTitle == null) {
+            commitUrl();
+            return;
+        }
+        final String name = urlField.getValue().strip();
+        if (name.isEmpty() || name.equals(shownTitle)) {
+            urlField.setValue(shownTitle);
+            return;
+        }
+        if (!com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
+            Services.NETWORK.sendToServer(new com.kuronami.musicdiscmaker.network.RenameDiscPayload(
+                    menu.getBlockEntity().getBlockPos(), name));
+        }
     }
 
     /** URL をサーバへコミット (URL + 空ディスクが揃えば server が自動生成)。同じ URL は再送しない。 */
     private void commitUrl() {
         if (com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
             return; // B5/C12: 版不一致で client 機能を無効化中
+        }
+        if (shownTitle != null) {
+            return; // 欄は曲名を出している。URL として送らない
         }
         final String url = urlField.getValue().trim();
         if (url.equals(lastSentUrl)) {
@@ -187,7 +243,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     @Override
     public void onClose() {
-        commitUrl(); // 入力したまま閉じた URL を取りこぼさない
+        commitField(); // 入力したまま閉じた URL・曲名を取りこぼさない
         LocalAudioClient.cancel(menu);
         super.onClose();
     }
@@ -278,6 +334,9 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         if (menu.getBlockEntity().isResolving()) {
             final String spin = SPINNER[(int) ((System.currentTimeMillis() / 120L) % SPINNER.length)];
             return Component.translatable("gui.music_disc_maker.fetching").copy().append(" " + spin);
+        }
+        if (shownTitle != null) {
+            return Component.translatable("gui.music_disc_maker.rename_hint");
         }
         return null;
     }
@@ -390,7 +449,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         //?} else {
         /*if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) && urlField.isFocused()) {
         *///?}
-            commitUrl();
+            commitField();
             urlField.setFocused(false);
             return true;
         }
@@ -441,9 +500,22 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                         ? "gui.music_disc_maker.local.cancel" : "gui.music_disc_maker.clear")));
         final boolean focused = urlField.isFocused();
         if (urlWasFocused && !focused) {
-            commitUrl(); // フォーカスを外した瞬間に URL をコミット
+            commitField(); // フォーカスを外した瞬間に URL (付け直し中は曲名) をコミット
         }
         urlWasFocused = focused;
+
+        // 作った盤が出力枠にある間は、欄に曲名を出して付け直せるようにする。取り出したら URL 欄へ戻す。
+        final String title = outputTitle();
+        if (!focused) {
+            if (title != null && !title.equals(shownTitle)) {
+                shownTitle = title;
+                urlField.setValue(title);
+                urlField.setCursorPosition(0);
+                urlField.setHighlightPos(0);
+            } else if (title == null && shownTitle != null) {
+                leaveRename();
+            }
+        }
 
         // サーバーが URL をクリアした (ディスク生成後のニュートラル化) ら、入力中でなければフィールドも空に戻す
         final String serverUrl = menu.getBlockEntity().getCurrentUrl();

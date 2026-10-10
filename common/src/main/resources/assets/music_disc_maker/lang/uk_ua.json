@@ -6,6 +6,7 @@
   "gui.music_disc_maker.title": "Виготовлювач платівок",
   "gui.music_disc_maker.url_placeholder": "Вставте URL…",
   "gui.music_disc_maker.fetching": "Завантаження…",
+  "gui.music_disc_maker.rename_hint": "Поки диск не забрано, назву можна змінити тут",
   "gui.music_disc_maker.failed": "Не вдалося відтворити трек.",
   "gui.music_disc_maker.failed.unsupported": "Посилання не підтримується. Потрібен YouTube або пряме.",
   "gui.music_disc_maker.failed.private": "Приховане або видалене. Інше посилання?",

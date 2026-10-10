@@ -5,6 +5,7 @@
   "gui.music_disc_maker.title": "Schallplatten-Hersteller",
   "gui.music_disc_maker.url_placeholder": "URL einfügen…",
   "gui.music_disc_maker.fetching": "Lädt…",
+  "gui.music_disc_maker.rename_hint": "Vor dem Herausnehmen kannst du hier den Titel ändern",
   "gui.music_disc_maker.failed": "Titel konnte nicht abgespielt werden.",
   "gui.music_disc_maker.failed.unsupported": "Link nicht unterstützt. Nimm YouTube oder einen Audiolink.",
   "gui.music_disc_maker.failed.private": "Video ist privat oder weg. Probiere einen anderen.",

@@ -56,6 +56,9 @@ public final class ModPayloadTypes {
         if (payload instanceof ResolveUrlPayload p) {
             return new ResolveUrl(p);
         }
+        if (payload instanceof RenameDiscPayload p) {
+            return new RenameDisc(p);
+        }
         if (payload instanceof ConfigureJukeboxPayload p) {
             return new ConfigureJukebox(p);
         }
@@ -153,6 +156,17 @@ public final class ModPayloadTypes {
         public static final Type<ResolveUrl> TYPE = new Type<>(id(ResolveUrlPayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, ResolveUrl> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new ResolveUrl(ResolveUrlPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record RenameDisc(RenameDiscPayload inner) implements CustomPacketPayload {
+        public static final Type<RenameDisc> TYPE = new Type<>(id(RenameDiscPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, RenameDisc> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new RenameDisc(RenameDiscPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -351,6 +365,9 @@ public final class ModPayloadTypes {
         if (payload instanceof ResolveUrlPayload p) {
             return new ResolveUrl(p);
         }
+        if (payload instanceof RenameDiscPayload p) {
+            return new RenameDisc(p);
+        }
         if (payload instanceof ConfigureJukeboxPayload p) {
             return new ConfigureJukebox(p);
         }
@@ -448,6 +465,17 @@ public final class ModPayloadTypes {
         public static final Type<ResolveUrl> TYPE = new Type<>(id(ResolveUrlPayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, ResolveUrl> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new ResolveUrl(ResolveUrlPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record RenameDisc(RenameDiscPayload inner) implements CustomPacketPayload {
+        public static final Type<RenameDisc> TYPE = new Type<>(id(RenameDiscPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, RenameDisc> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new RenameDisc(RenameDiscPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

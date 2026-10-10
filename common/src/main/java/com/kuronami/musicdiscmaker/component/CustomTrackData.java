@@ -83,6 +83,11 @@ public record CustomTrackData(
 
     public boolean isLocal() { return "local".equals(sourceKind); }
 
+    /** 曲名だけを差し替えた写し (製作機での付け直し)。 */
+    public CustomTrackData withTitle(String newTitle) {
+        return new CustomTrackData(url, newTitle, author, durationMs, thumbnailUrl, radio, sourceKind, localHash);
+    }
+
     /** 再生世代・重複抑止の比較鍵。URL入力として解釈しない。 */
     public String sourceKey() { return isLocal() ? "local:" + localHash : url; }
 

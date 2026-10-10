@@ -83,6 +83,19 @@ public final class ModNetwork {
         }
     }
 
+    /** 製作機の出力枠にある盤の曲名を付け直す。その製作機の画面を開いている player だけ。 */
+    public static void handleRenameDisc(RenameDiscPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu menu
+                && menu.getBlockEntity().getBlockPos().equals(pos)
+                && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
+            maker.renameOutput(payload.title());
+        }
+    }
+
     public static void handleConfigureJukebox(ConfigureJukeboxPayload payload, ServerPlayer player) {
         if (opensMountedJukebox(player)) {
             final GoldenJukeboxBlockEntity mounted = mountedJukebox(player);

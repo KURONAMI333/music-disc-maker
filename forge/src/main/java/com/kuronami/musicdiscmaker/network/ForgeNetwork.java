@@ -60,6 +60,18 @@ public final class ForgeNetwork {
                 })
                 .add();
 
+        // client → server: 製作機で作った盤の曲名の付け直し。
+        CHANNEL.messageBuilder(RenameDiscPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RenameDiscPayload::write)
+                .decoder(RenameDiscPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    final ServerPlayer sender = ctx.get().getSender();
+                    if (sender != null) {
+                        ModNetwork.handleRenameDisc(msg, sender);
+                    }
+                })
+                .add();
+
         // server → client: 再生制御。
         CHANNEL.messageBuilder(PlayDiscPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(PlayDiscPayload::write)

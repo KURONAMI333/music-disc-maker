@@ -6,6 +6,7 @@
   "gui.music_disc_maker.title": "Creatore di dischi",
   "gui.music_disc_maker.url_placeholder": "Incolla un URL…",
   "gui.music_disc_maker.fetching": "Caricamento…",
+  "gui.music_disc_maker.rename_hint": "Prima di prendere il disco puoi rinominare il brano qui",
   "gui.music_disc_maker.failed": "Impossibile riprodurre questa traccia.",
   "gui.music_disc_maker.failed.unsupported": "Link non supportato. Usa YouTube o un link audio diretto.",
   "gui.music_disc_maker.failed.private": "Video privato o rimosso. Prova un altro link.",

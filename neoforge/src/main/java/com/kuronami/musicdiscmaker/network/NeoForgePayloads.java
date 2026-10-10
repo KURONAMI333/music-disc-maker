@@ -43,6 +43,10 @@ public final class NeoForgePayloads {
         registrar.playToServer(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC,
                 NeoForgePayloads::handleResolveUrl);
 
+        // client → server: 製作機で作った盤の曲名の付け直し
+        registrar.playToServer(ModPayloadTypes.RenameDisc.TYPE, ModPayloadTypes.RenameDisc.STREAM_CODEC,
+                NeoForgePayloads::handleRenameDisc);
+
         // client → server: 強化版ジュークボックスの設定適用
         registrar.playToServer(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC,
                 NeoForgePayloads::handleConfigureJukebox);
@@ -104,6 +108,13 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleResolveUrl(msg.inner(), player));
+    }
+
+    private static void handleRenameDisc(ModPayloadTypes.RenameDisc msg, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleRenameDisc(msg.inner(), player));
     }
 
     private static void handleConfigureJukebox(ModPayloadTypes.ConfigureJukebox msg, IPayloadContext context) {

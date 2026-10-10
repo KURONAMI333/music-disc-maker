@@ -83,6 +83,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // 26.2 fabric-networking: playC2S/playS2C は serverboundPlay/clientboundPlay に rename。
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.RenameDisc.TYPE, ModPayloadTypes.RenameDisc.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.SeekJukebox.TYPE, ModPayloadTypes.SeekJukebox.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
@@ -109,6 +110,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         /*        // payload 型を登録する。
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.RenameDisc.TYPE, ModPayloadTypes.RenameDisc.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.SeekJukebox.TYPE, ModPayloadTypes.SeekJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
@@ -137,6 +139,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // AA の型に触れるのはガード通過後の呼び出しだけ (AlbumProvider がこの時点で初めて class-load される)。
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.LocalAudio.TYPE, ModPayloadTypes.LocalAudio.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.RenameDisc.TYPE, ModPayloadTypes.RenameDisc.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.SeekJukebox.TYPE, ModPayloadTypes.SeekJukebox.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.NavigateJukebox.TYPE, ModPayloadTypes.NavigateJukebox.STREAM_CODEC);
@@ -163,6 +166,13 @@ public class MusicDiscMakerFabric implements ModInitializer {
                     final ResolveUrlPayload payload = ResolveUrlPayload.read(buf);
                     server.execute(() -> ModNetwork.handleResolveUrl(payload, player));
                 });
+        ServerPlayNetworking.registerGlobalReceiver(com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                        com.kuronami.musicdiscmaker.network.RenameDiscPayload.PATH),
+                (server, player, handler, buf, responseSender) -> {
+                    final com.kuronami.musicdiscmaker.network.RenameDiscPayload payload =
+                            com.kuronami.musicdiscmaker.network.RenameDiscPayload.read(buf);
+                    server.execute(() -> ModNetwork.handleRenameDisc(payload, player));
+                });
         */
         //?}
 
@@ -170,12 +180,16 @@ public class MusicDiscMakerFabric implements ModInitializer {
         // server 受信: URL コミット (main thread へ enqueue して BlockEntity に保存)。
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ResolveUrl.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleResolveUrl(msg.inner(), ctx.player())));
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.RenameDisc.TYPE,
+                (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleRenameDisc(msg.inner(), ctx.player())));
         // server 受信: 強化版ジュークボックスの設定適用。
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ConfigureJukebox.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleConfigureJukebox(msg.inner(), ctx.player())));
         //?} elif >=1.21 {
 /*        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ResolveUrl.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleResolveUrl(payload.inner(), ctx.player())));
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.RenameDisc.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleRenameDisc(payload.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ConfigureJukebox.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleConfigureJukebox(payload.inner(), ctx.player())));
         */
