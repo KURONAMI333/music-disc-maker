@@ -76,7 +76,32 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     private static final int INVENTORY_TEXT = 0xFF404040;
     private static final int TIME_TEXT = 0xFFE5C99C;
     private static final int LIVE_TEXT = 0xFFD03030;
-    private static final int CASE_EDGE = 0xFF242424;
+    /**
+     * ボタンの台座・音量スライダー・再生バーの画像 (256x128)。リソースパックで差し替えられる
+     * (2026-10-10 HappyMeek の「Boombox GUI is unable to be changed」)。並びは
+     * 台座 22x23 を v=0 に 通常/指した時/押せない時/キー操作の選択 の順、音量の空・満の帯 160x15 を
+     * v=24/40、つまみ 4x15 を u=160/164、再生バーの枠 202x8 を v=56、満ちた所 200x6 を v=64 (通常)/72 (ラジオ)、
+     * 再生バーのつまみ 5x12 を (210,56)。長さが変わる帯は左から切り、右端の1列を別に描く。
+     */
+    private static final String CONTROLS = "textures/gui/boombox/controls.png";
+
+    //? if >=26.1 {
+    private static void controls(GuiGraphicsExtractor g, int x, int y, int u, int v, int w, int h) {
+    //?} else {
+    /*private static void controls(GuiGraphics g, int x, int y, int u, int v, int w, int h) {
+    *///?}
+        if (w <= 0 || h <= 0) return;
+        //? if >=1.21.11 {
+        g.blit(RenderPipelines.GUI_TEXTURED, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, CONTROLS),
+                x, y, (float) u, (float) v, w, h, 256, 128);
+        //?} elif >=1.21 {
+        /*GuiTextureBlit.blit(g, ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, CONTROLS),
+                x, y, (float) u, (float) v, w, h, 256, 128);
+        *///?} else {
+        /*GuiTextureBlit.blit(g, new ResourceLocation(MusicDiscMaker.MODID, CONTROLS),
+                x, y, (float) u, (float) v, w, h, 256, 128);
+        *///?}
+    }
     private static final int LOOP_SPRITE = 16;
 
     private IconButton shuffleButton;
@@ -508,12 +533,8 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         *///?} else {
         /*protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         *///?}
-            final int keyColor = !active ? 0xFF8B8B8B
-                    : isHovered() || hasVisibleKeyboardFocus() ? 0xFFF0E9DC : 0xFFC6C6C6;
-            graphics.fill(getX() - 1, getY() - 1, getX() + width + 1, getY() + height + 2,
-                    hasVisibleKeyboardFocus() ? 0xFFFFD58A : CASE_EDGE);
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, keyColor);
-            graphics.fill(getX(), getY() + height - 2, getX() + width, getY() + height, 0xFF747474);
+            final int keyU = !active ? 44 : hasVisibleKeyboardFocus() ? 66 : isHovered() ? 22 : 0;
+            controls(graphics, getX() - 1, getY() - 1, keyU, 0, width + 2, height + 3);
             // Center the mark on the lit key face; the bottom two pixels are its shadow.
             final int faceHeight = height - 2;
             // Boombox の再生/停止キーは金色/灰色の専用スプライト (active で切替)。
@@ -629,16 +650,12 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             final int y = getY();
             final int width = this.width;
             final int height = this.height;
-            graphics.fill(x, y, x + width, y + height, 0xFF161616);
-            graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF2C2C2C);
+            controls(graphics, x, y, 0, 24, width - 1, height);
+            controls(graphics, x + width - 1, y, 159, 24, 1, height);
             final int fill = (int) Math.round(value * (width - 2));
-            if (fill > 0) graphics.fill(x + 1, y + 1, x + 1 + fill, y + height - 1, 0xFF464646);
-            graphics.fill(x + 1, y + 1, x + width - 1, y + 2, 0xFF383838);
-            graphics.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, 0xFF121212);
+            controls(graphics, x + 1, y, 1, 40, fill, height);
             final int knobX = x + (int) Math.round(value * (width - 4));
-            graphics.fill(knobX, y, knobX + 4, y + height, 0xFF121212);
-            graphics.fill(knobX + 1, y + 1, knobX + 3, y + height - 1,
-                    isHoveredOrFocused() ? 0xFFA6A6A6 : 0xFF848484);
+            controls(graphics, knobX, y, isHoveredOrFocused() ? 164 : 160, 24, 4, height);
             final var minecraftFont = net.minecraft.client.Minecraft.getInstance().font;
             //? if >=26.1 {
             graphics.text(minecraftFont, getMessage(), x + (width - minecraftFont.width(getMessage())) / 2,
@@ -716,13 +733,11 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             final int y = getY() + (height - 6) / 2;
             final boolean live = isLive();
             final int filled = (int) Math.round((live ? 1.0D : (scrubbing ? scrubFraction : displayFraction())) * width);
-            graphics.fill(x - 1, y - 1, x + width + 1, y + 7, 0xFF3A3A3A);
-            graphics.fill(x, y, x + width, y + 6, 0xFF555555);
-            if (filled > 0) graphics.fill(x, y, x + filled, y + 6, live ? 0xFFE5C99C : 0xFFB88B49);
+            controls(graphics, x - 1, y - 1, 0, 56, width + 1, 8);
+            controls(graphics, x + width, y - 1, 201, 56, 1, 8);
+            controls(graphics, x, y, 0, live ? 72 : 64, filled, 6);
             if (isSeekable()) {
-                final int knob = x + filled;
-                graphics.fill(knob - 2, y - 3, knob + 3, y + 9, 0xFF2A2A2A);
-                graphics.fill(knob - 1, y - 2, knob + 2, y + 8, 0xFFFFD58A);
+                controls(graphics, x + filled - 2, y - 3, 210, 56, 5, 12);
             }
         }
 
