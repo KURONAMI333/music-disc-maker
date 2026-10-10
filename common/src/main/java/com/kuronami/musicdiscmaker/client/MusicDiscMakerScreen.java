@@ -357,7 +357,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     /*protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
     *///?}
-        if (menu.getBlockEntity().isResolveFailed() && !menu.getBlockEntity().isResolving()) {
+        // 欄に入力している間は「!」を出さない (満杯の欄の末尾のカーソルと重なるため)。
+        if (menu.getBlockEntity().isResolveFailed() && !menu.getBlockEntity().isResolving() && !urlField.isFocused()) {
             // 固定文で主経路を説明しない。詳細は同じ座標のホバーで出す。
             //? if >=26.1 {
             graphics.text(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
@@ -476,7 +477,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             *///?}
             return;
         }
-        if (!menu.getBlockEntity().isResolveFailed() || menu.getBlockEntity().isResolving()) {
+        if (!menu.getBlockEntity().isResolveFailed() || menu.getBlockEntity().isResolving() || urlField.isFocused()) {
             return;
         }
         final FailureReason reason = menu.getBlockEntity().getFailureReason();
