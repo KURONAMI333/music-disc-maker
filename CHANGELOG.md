@@ -21,6 +21,8 @@
 - New client setting "Show Now Playing", off by default. While it is off, no "Now Playing" message appears for any disc, including vanilla discs and discs from other mods.
 - The Music Disc Maker screen is narrower, the same width as a furnace.
 - The Curios Boombox slot shows a Boombox outline when empty.
+- Clear button in the Music Disc Maker cancels a new disc that has not been taken out yet and returns the blank disc.
+- More of the look can be changed with resource packs: the Boombox screen's keys, volume slider and playback bar come from a texture, a placed Boombox has a `playing` block state for its model, and the Golden Jukebox's inventory area follows the vanilla container texture like the other screens.
 
 ### Fixes
 
@@ -35,6 +37,7 @@
 - Fixed a vanilla disc on a Golden Jukebox starting over from the beginning after a pause.
 - Fixed a vanilla disc that kept playing after its Golden Jukebox was broken, until leaving the world.
 - Fixed album art in disc tooltips appearing between the lines of a long song title.
+- Dyed discs: each dye now gives the same edge colour on every disc face, so a chosen colour no longer turns black, salmon or swaps with a neighbouring colour (such as pink and magenta). Choosing the same dye for both parts gives a highlighted edge, and a pink face no longer shows white spots.
 
 Use the same Music Disc Maker version on the server and all clients.
 
