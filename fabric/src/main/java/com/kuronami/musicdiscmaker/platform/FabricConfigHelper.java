@@ -27,6 +27,10 @@ public class FabricConfigHelper implements IConfigHelper {
     private static final String SHOW_NOW_PLAYING = "showNowPlaying";
 
     private static volatile Properties loaded;
+    /** 読んだ時のファイルの更新時刻と、次に更新時刻を見てよい時刻 (ms)。書き換えをゲーム中に拾う。 */
+    private static long loadedModified = Long.MIN_VALUE;
+    private static long nextCheckMs;
+    private static final long CHECK_INTERVAL_MS = 1_000L;
 
     @Override
     public double volumeMultiplier() {
@@ -55,18 +59,31 @@ public class FabricConfigHelper implements IConfigHelper {
         return Boolean.parseBoolean(properties().getProperty(SHOW_NOW_PLAYING, "false").trim());
     }
 
+    /** 設定ファイルを書き換えたら、ゲームを再起動しなくても1秒以内に効く (2026-10-10)。 */
     private static Properties properties() {
+        final long now = System.currentTimeMillis();
         Properties current = loaded;
-        if (current == null) {
-            synchronized (FabricConfigHelper.class) {
-                current = loaded;
-                if (current == null) {
-                    current = read(FabricLoader.getInstance().getConfigDir().resolve(FILE_NAME));
-                    loaded = current;
-                }
-            }
+        if (current != null && now < nextCheckMs) {
+            return current;
         }
-        return current;
+        synchronized (FabricConfigHelper.class) {
+            final Path file = FabricLoader.getInstance().getConfigDir().resolve(FILE_NAME);
+            final long modified = lastModified(file);
+            if (loaded == null || modified != loadedModified) {
+                loaded = read(file);
+                loadedModified = lastModified(file); // 無ければ read が書き出すので読み直す
+            }
+            nextCheckMs = now + CHECK_INTERVAL_MS;
+            return loaded;
+        }
+    }
+
+    private static long lastModified(Path file) {
+        try {
+            return Files.exists(file) ? Files.getLastModifiedTime(file).toMillis() : Long.MIN_VALUE;
+        } catch (final IOException e) {
+            return Long.MIN_VALUE;
+        }
     }
 
     private static Properties read(Path file) {
