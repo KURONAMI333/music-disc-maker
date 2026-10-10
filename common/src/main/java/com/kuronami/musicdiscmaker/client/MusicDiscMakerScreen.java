@@ -92,6 +92,16 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
      * 欄に曲名を出し、そこで付け直せる (2026-10-10 本人要望)。
      */
     private String shownTitle;
+    /** 送った曲名と、サーバーからの反映を待つ期限 (ms)。拒否された時に欄を実際の曲名へ戻す。 */
+    private String pendingName;
+    private long pendingUntilMs;
+    /** 送った URL がサーバーに届いたと分かるまで欄を巻き戻さないための印 (送信時の出力の曲名と期限)。 */
+    private String awaitingUrl;
+    private String awaitingOutput;
+    private long awaitingUntilMs;
+    private static final long CONFIRM_WAIT_MS = 3_000L;
+    private static final java.util.regex.Pattern BARE_URL =
+            java.util.regex.Pattern.compile("(?i)^[a-z0-9-]+(\\.[a-z0-9-]+)+(:\\d+)?/\\S*$");
 
     public MusicDiscMakerScreen(MusicDiscMakerMenu menu, Inventory playerInventory, Component title) {
         //? if >=26.1 {
@@ -129,6 +139,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         *///?}
         this.urlField.setValue(menu.getBlockEntity().getCurrentUrl());
         this.lastSentUrl = this.urlField.getValue();
+        this.shownTitle = null; // 画面サイズの変更で欄を作り直した時も、次の tick で曲名を入れ直す
         // 1 文字ごとに自動コミットすると部分 URL の解決失敗が GUI で点滅するので行わない。
         // コミット契機 = Enter / フォーカス喪失 / PASTE / CLEAR / GUI を閉じる時。
         addRenderableWidget(this.urlField);
@@ -163,6 +174,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         addRenderableWidget(this.clearButton);
     }
 
+    private static boolean clipboardIsUrl() {
+        final String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
+        return clip != null && looksLikeUrl(clip.strip());
+    }
+
     private void pasteFromClipboard() {
         final String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
         if (clip == null || clip.isBlank()) {
@@ -191,6 +207,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                 || LocalAudioClient.uploading()) {
             return null;
         }
+        return rawOutputTitle();
+    }
+
+    /** 出力枠の盤の曲名 (URL 欄の状態を問わない)。盤が無ければ {@code null}。 */
+    private String rawOutputTitle() {
         final net.minecraft.world.item.ItemStack output =
                 menu.getSlot(com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_OUTPUT).getItem();
         if (!output.is(com.kuronami.musicdiscmaker.register.ModItems.CUSTOM_MUSIC_DISC.get())) {
@@ -234,14 +255,24 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             name = name.substring(0, end);
         }
         if (!com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
+            // 元の曲名を添え、その間に盤が入れ替わっていたらサーバーは付け直さない。
             Services.NETWORK.sendToServer(new com.kuronami.musicdiscmaker.network.RenameDiscPayload(
-                    menu.getBlockEntity().getBlockPos(), name));
+                    menu.getBlockEntity().getBlockPos(), shownTitle, name));
+            urlField.setValue(name);
+            pendingName = name;
+            pendingUntilMs = System.currentTimeMillis() + CONFIRM_WAIT_MS;
         }
     }
 
-    /** 曲名ではなく URL として扱う入力か (スキーム付き、または www. で始まる)。 */
+    /**
+     * 曲名ではなく URL として扱う入力か。スキーム付き・www. 始まり・検索 (ytsearch: 等) と、
+     * スキームを省いた「ホスト名/パス」(youtu.be/… など、UrlGuard が https とみなす形)。
+     * 「Mr.Children」のように / の無い名前は曲名のまま。
+     */
     private static boolean looksLikeUrl(String value) {
-        return value.contains("://") || value.regionMatches(true, 0, "www.", 0, 4);
+        return value.contains("://") || value.regionMatches(true, 0, "www.", 0, 4)
+                || com.kuronami.musicdiscmaker.network.UrlGuard.isSearchQuery(value)
+                || BARE_URL.matcher(value).matches();
     }
 
     /** URL をサーバへコミット (URL + 空ディスクが揃えば server が自動生成)。同じ URL は再送しない。 */
@@ -259,6 +290,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         LocalAudioClient.cancel(menu);
         lastSentUrl = url;
         Services.NETWORK.sendToServer(new ResolveUrlPayload(menu.getBlockEntity().getBlockPos(), url));
+        if (url.isEmpty()) {
+            awaitingUrl = null;
+        } else {
+            awaitingUrl = url;
+            awaitingOutput = rawOutputTitle();
+            awaitingUntilMs = System.currentTimeMillis() + CONFIRM_WAIT_MS;
+        }
     }
 
     @Override
@@ -474,6 +512,18 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             urlWasFocused = false; // 次の tick のフォーカス喪失で同じ内容を二重に確定しない
             return true;
         }
+        // 曲名を出している欄へ URL を貼った時は、曲名に足さずに次の盤の URL として扱う。
+        //? if >=1.21.11 {
+        if (shownTitle != null && urlField.isFocused() && event.isPaste() && clipboardIsUrl()) {
+        //?} else {
+        /*if (shownTitle != null && urlField.isFocused()
+                && net.minecraft.client.gui.screens.Screen.isPaste(keyCode) && clipboardIsUrl()) {
+        *///?}
+            urlField.setFocused(false);
+            urlWasFocused = false;
+            pasteFromClipboard();
+            return true;
+        }
         //? if >=1.21.11 {
         if (this.urlField.keyPressed(event) || this.urlField.canConsumeInput()) {
         //?} else {
@@ -525,8 +575,18 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         }
         urlWasFocused = focused;
 
-        if (!focused) {
-            final String serverUrl = menu.getBlockEntity().getCurrentUrl();
+        final String serverUrl = menu.getBlockEntity().getCurrentUrl();
+        final long now = System.currentTimeMillis();
+        if (awaitingUrl != null && (serverUrl.equals(awaitingUrl) || now > awaitingUntilMs
+                || !java.util.Objects.equals(rawOutputTitle(), awaitingOutput))) {
+            awaitingUrl = null; // サーバーが URL を受け取った (または盤ができた)
+        }
+        if (pendingName != null && now > pendingUntilMs) {
+            // 付け直しが反映されなかった (拒否・盤の入れ替わり)。欄を実際の曲名へ戻す。
+            pendingName = null;
+            if (!focused && shownTitle != null) urlField.setValue(shownTitle);
+        }
+        if (!focused && awaitingUrl == null) {
             // サーバーが URL をクリアした (ディスク生成後のニュートラル化) ら、欄も空に戻す。
             // 盤の生成と URL のクリアは同じ同期で届くので、曲名を出す判断より先に済ませる。
             if (!serverUrl.equals(lastSentUrl)) {
@@ -538,6 +598,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             final String title = outputTitle();
             if (title != null && !title.equals(shownTitle)) {
                 shownTitle = title;
+                pendingName = null;
                 urlField.setValue(title);
                 urlField.setCursorPosition(0);
                 urlField.setHighlightPos(0);

@@ -95,7 +95,7 @@ public final class ModNetwork {
                 && menu.stillValid(player)
                 && menu.getBlockEntity().getBlockPos().equals(pos)
                 && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
-            maker.renameOutput(payload.title());
+            maker.renameOutput(payload.expectedTitle(), payload.title());
         }
     }
 

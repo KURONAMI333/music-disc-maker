@@ -18,7 +18,7 @@ Use links from **YouTube, Spotify, SoundCloud, Bandcamp**, or a direct audio URL
 
 The **Boombox** plays any music disc that works in a jukebox, including vanilla discs and discs from other mods, or an Album, while carried or placed. Pause, skip between tracks, shuffle an Album, repeat, seek within custom discs, and adjust the volume from its controls. On supported NeoForge and Forge versions, an optional Curios slot lets you equip a Boombox. Curios is not needed for the rest of the mod.
 
-The **Golden Jukebox** gives you control over a listening area: set the range from **16 to 256 blocks**, adjust the volume from **0 to 200%**, and choose positional sound or an even volume throughout the area. It also has playback controls, including track skipping and shuffle for Albums.
+The **Golden Jukebox** gives you control over a listening area: set the range from **4 to 256 blocks**, adjust the volume from **0 to 200%**, and choose positional sound or an even volume throughout the area. It also has playback controls, including track skipping and shuffle for Albums.
 
 The **Minecart with Golden Jukebox** brings playback controls to a rail build. Insert a compatible disc or Album, then open its controls while it is stopped or moving.
 

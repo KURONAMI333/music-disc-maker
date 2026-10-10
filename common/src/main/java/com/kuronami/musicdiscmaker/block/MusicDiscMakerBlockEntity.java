@@ -325,8 +325,10 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
     /**
      * 出力枠にある作ったばかりの盤の曲名を付け直す (取り出す前だけ・コスト無し)。自動で取った曲名が
      * 間違っていた時の手直し用 (2026-10-10 本人要望)。空の名前は無視する。
+     *
+     * @param expectedTitle 画面が見ていた元の曲名。出力枠の盤の曲名と違えば (盤が入れ替わった) 何もしない
      */
-    public void renameOutput(String title) {
+    public void renameOutput(String expectedTitle, String title) {
         final ItemStack output = items.get(SLOT_OUTPUT);
         if (!output.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
             return;
@@ -344,7 +346,7 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         //?} else {
         /*final CustomTrackData track = CustomMusicDiscItem.getTrack(output);
         *///?}
-        if (track == null || track.isEmpty() || track.title().equals(name)) {
+        if (track == null || track.isEmpty() || !track.title().equals(expectedTitle) || track.title().equals(name)) {
             return;
         }
         final ItemStack renamed = output.copy();

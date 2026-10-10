@@ -13,7 +13,7 @@ Music Disc Maker turns a Blank Disc and a URL or imported audio file into a Cust
 - Import an MP3 from your computer; the server stores the audio so players on the server can listen to the shared disc
 - A portable or placeable Boombox with play/pause, previous/next, shuffle, repeat, seek, and volume controls
 - Optional Curios slot for an equipped Boombox on supported NeoForge and Forge versions
-- A Golden Jukebox with 16–256 block range, 0–200% volume, positional or flat audio, Album controls, and resource-pack support for its sliders, playback bar, and selected device model parts
+- A Golden Jukebox with 4–256 block range, 0–200% volume, positional or flat audio, Album controls, and resource-pack support for its sliders, playback bar, and selected device model parts
 - A Minecart with Golden Jukebox for playing and controlling music on rails
 - Speakers that link to a Golden Jukebox, mount on floors, walls, ceilings, or fence posts, and have individual volume and redstone mute
 - A Disc Dyeing Table for separate surface and accent colors

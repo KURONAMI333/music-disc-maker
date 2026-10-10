@@ -108,7 +108,7 @@ public class NetworkProtocolGameTests {
 
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
         を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18、ブームボックスの再生に
-        バニラ・他 MOD の盤の曲を足して 19 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
     private static final String PROTOCOL_VERSION = "20";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
@@ -118,10 +118,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "12677c5d219dac5b80a61c753280b479674ac6e762f36ec29c2894b24d599d8f";
+            "b54f4aa5eb4ad476d7b0a7756fef39755d7baf1f040059be92400d16be5ff481";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "9bf7d0f7b2ac64d39db5ea2ae08bbd8e927dd62e6e5f99163443447b51446819";
+            "90c8fbe12d07fb18aeba76326c44f8b1402171c94de4347fa31296b7d1f51aca";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -402,7 +402,7 @@ public class NetworkProtocolGameTests {
         encoded.put("resolve_url", encode(mdmCodec(ResolveUrlPayload::read),
                 new ResolveUrlPayload(SAMPLE_POS, SAMPLE_TRACK.url())));
         encoded.put("rename_disc", encode(mdmCodec(com.kuronami.musicdiscmaker.network.RenameDiscPayload::read),
-                new com.kuronami.musicdiscmaker.network.RenameDiscPayload(SAMPLE_POS, SAMPLE_TRACK.title())));
+                new com.kuronami.musicdiscmaker.network.RenameDiscPayload(SAMPLE_POS, SAMPLE_TRACK.title(), SAMPLE_TRACK.author())));
         encoded.put("speaker_set", encode(mdmCodec(com.kuronami.musicdiscmaker.network.SpeakerSetPayload::read),
                 new com.kuronami.musicdiscmaker.network.SpeakerSetPayload(SAMPLE_POS, 96, 173, false,
                         java.util.List.of(new com.kuronami.musicdiscmaker.network.SpeakerEntry(

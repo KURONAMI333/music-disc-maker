@@ -14,6 +14,8 @@ public final class VanillaSpeakerPlayback {
     private record Playing(PlayVanillaDiscPayload payload, long receivedPlaybackMs, PlaybackVoice voice) {}
     private static final Map<BlockPos, MultiSpeakerAnchor> ANCHORS = new HashMap<>();
     private static final Map<BlockPos, Playing> VOICES = new HashMap<>();
+    /** 座標ごとに最後に「Now Playing」を出した曲。リピート・同じ盤の差し直しで出し直さない。 */
+    private static final Map<BlockPos, String> ANNOUNCED = new HashMap<>();
     static { PlaybackConcurrency.client().registerCounter(VanillaSpeakerPlayback::sweep); }
     private VanillaSpeakerPlayback() {}
 
@@ -72,7 +74,8 @@ public final class VanillaSpeakerPlayback {
             // 管理再生の通常盤にはバニラの再生 event が来ないので、頭からの再生だけ曲名を出す
             // (一時停止からの再開・シークは途中からなので出さない)。client の BlockEntity は再生の
             // payload より遅れて同期されるので、曲名は届いた音の識別子から引く。
-            if (payload.startOffsetMs() == 0L) {
+            if (payload.startOffsetMs() == 0L
+                    && !payload.track().soundEventId().equals(ANNOUNCED.put(pos, payload.track().soundEventId()))) {
                 com.kuronami.musicdiscmaker.client.NowPlaying.show(
                         com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOfSound(
                                 payload.track().soundEventId(), mc.level));
@@ -127,6 +130,7 @@ public final class VanillaSpeakerPlayback {
         }
         VOICES.clear();
         ANCHORS.clear();
+        ANNOUNCED.clear();
     }
 
     /** SoundEngine 再読み込み後の stale channel を無効化し、再開処理を返す。 */

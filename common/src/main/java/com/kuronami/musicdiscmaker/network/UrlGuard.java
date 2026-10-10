@@ -123,7 +123,8 @@ public final class UrlGuard {
     }
 
     /** scheme が {@code *search} (ytsearch, ytmsearch, scsearch, spsearch...) か。 */
-    private static boolean isSearchQuery(String s) {
+    /** ytsearch: / scsearch: 等の検索クエリか。製作機の欄が URL と曲名を見分けるのにも使う。 */
+    public static boolean isSearchQuery(String s) {
         final int colon = s.indexOf(':');
         if (colon <= 0) {
             return false;

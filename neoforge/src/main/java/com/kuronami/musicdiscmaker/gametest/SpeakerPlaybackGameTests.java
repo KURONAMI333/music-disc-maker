@@ -618,20 +618,24 @@ public final class SpeakerPlaybackGameTests {
         player.teleportTo(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5);
         try {
             com.kuronami.musicdiscmaker.network.ModNetwork.handleRenameDisc(
-                    new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "Wrong"), player);
+                    new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "Speaker Playback", "Wrong"), player);
             helper.assertValueEqual(trackOf(maker.getItem(output)).title(), "Speaker Playback",
                     "製作機の画面を開いていない player の付け直しを通した");
             // その製作機の画面を開いている player の付け直しは通す。
             player.containerMenu = new com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu(1, player.getInventory(), maker);
             com.kuronami.musicdiscmaker.network.ModNetwork.handleRenameDisc(
-                    new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "  Fixed Title  "), player);
+                    new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "Old Title", "Stale"), player);
+            helper.assertValueEqual(trackOf(maker.getItem(output)).title(), "Speaker Playback",
+                    "画面が見ていた曲名と違う盤 (入れ替わった盤) を付け直した");
+            com.kuronami.musicdiscmaker.network.ModNetwork.handleRenameDisc(
+                    new com.kuronami.musicdiscmaker.network.RenameDiscPayload(pos, "Speaker Playback", "  Fixed Title  "), player);
             player.containerMenu = player.inventoryMenu;
             final CustomTrackData renamed = trackOf(maker.getItem(output));
             helper.assertValueEqual(renamed.title(), "Fixed Title", "付け直した曲名");
             helper.assertValueEqual(renamed.author(), "tester", "付け直しでアーティストが変わった");
             helper.assertValueEqual(renamed.url(), "https://example.invalid/speaker-playback", "付け直しで URL が変わった");
             helper.assertValueEqual(renamed.durationMs(), 120_000L, "付け直しで尺が変わった");
-            maker.renameOutput("   ");
+            maker.renameOutput("Fixed Title", "   ");
             helper.assertValueEqual(trackOf(maker.getItem(output)).title(), "Fixed Title", "空の名前で曲名を消した");
         } finally {
             maker.setItem(output, ItemStack.EMPTY);

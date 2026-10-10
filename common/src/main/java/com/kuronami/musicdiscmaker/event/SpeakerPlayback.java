@@ -90,7 +90,7 @@ public final class SpeakerPlayback {
      * SoundEngine が取りこぼし、どの経路からも止められない音が残る (2026-10-10 Mac 開発クライアントで
      * 再現: 範囲を変えて一時停止→再開すると頭からの cat が残り、壊しても鳴り続けた)。管理再生になる
      * 再生ではバニラの音を最初から鳴らさない。途中からの再生 (再開・シーク) はバニラの再生では頭からに
-     * なるので常に管理再生にする。
+     * なるので常に管理再生にする。リピート中も管理再生にする。
      */
     public static boolean managesVanilla(GoldenJukeboxBlockEntity source, long offsetMs) {
         final ServerLevel level = serverLevel(source);
@@ -98,7 +98,10 @@ public final class SpeakerPlayback {
             return false;
         }
         final State state = STATES.get(source);
+        // リピートの2周目以降はバニラの再生 event だと毎周「Now Playing」を出し直すので、管理再生にして
+        // 同じ曲の出し直しを止める (VanillaSpeakerPlayback)。
         return offsetMs > 0L
+                || source.isRepeat()
                 || requiresManagedVanilla(source, level)
                 || !snapshot(level, source).speakers().isEmpty()
                 || !SourcePlaybackAudienceRegistry.viewers(source).isEmpty()
