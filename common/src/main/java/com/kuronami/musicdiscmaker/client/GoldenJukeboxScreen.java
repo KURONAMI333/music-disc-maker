@@ -141,6 +141,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     private static final String SPRITE_SHUFFLE_ON = "shuffle_on.png";
     private static final String SPRITE_SHUFFLE_OFF = "shuffle_off.png";
     private static final int LOOP_SPRITE = 16;
+    /** 持ち物の1段目のスロットの y (GoldenJukeboxMenu の addSlot と同じ。全版共通)。 */
+    private static final int INVENTORY_FIRST_SLOT_Y = 160;
     // 指向性トグル (16x16, v=24 の段)。OFF = 枠の中心にある点 (どの壁からも等距離)、
     // ON = 同じ点が隅に寄る。形そのものが state を表すので無彩色・枠なし。
     private static final int ICON_DIR_ON_U = 176;
@@ -412,8 +414,11 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     //? if >=26.1 {
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
+        // 持ち物の枠は他の MDM の画面と同じくバニラの画像から描く (2026-10-10 本人「その方が好都合」)。
+        // GUI を作り替えるリソースパックがバニラの画像を変えれば、ここも一緒に変わる。
         graphics.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
-                0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+                0.0F, 0.0F, imageWidth, INVENTORY_FIRST_SLOT_Y - 14, 256, 256);
+        VanillaPlayerInventoryBackground.draw(graphics, leftPos, topPos + INVENTORY_FIRST_SLOT_Y);
     //?} elif >=1.21.11 {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
@@ -423,10 +428,12 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
     @Override
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         g.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, leftPos, topPos,
-                0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+                0.0F, 0.0F, imageWidth, INVENTORY_FIRST_SLOT_Y - 14, 256, 256);
+        VanillaPlayerInventoryBackground.draw(g, leftPos, topPos + INVENTORY_FIRST_SLOT_Y);
     *///?} else {
     /*protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
-        GuiTextureBlit.blit(g, TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, imageHeight, 256, 256);
+        GuiTextureBlit.blit(g, TEXTURE, leftPos, topPos, 0.0F, 0.0F, imageWidth, INVENTORY_FIRST_SLOT_Y - 14, 256, 256);
+        VanillaPlayerInventoryBackground.draw(g, leftPos, topPos + INVENTORY_FIRST_SLOT_Y);
     *///?}
     }
 
