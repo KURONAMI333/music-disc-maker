@@ -13,6 +13,14 @@
 - Custom music discs can be placed on BiblioCraft Legacy disc racks.
 - Custom music discs play in the [Let's Do] Furniture Gramophone on Minecraft 1.20.1 (Forge and Fabric), as they already do on 1.21.1.
 - Custom music discs play in the Create: Steam 'n' Rails Minecart with Jukebox on Minecraft 1.20.1 (Forge and Fabric) and NeoForge 1.21.1.
+- Rename a new disc in the Music Disc Maker before taking it out: the URL field shows the song title and can be edited at no cost.
+- Song titles and artists read from video titles are cleaner: headings in 【】, anime and drama tie-ins, and labels such as "Official Music Video" are left out, and the song is read from the video description when the title does not name it.
+- Album art keeps its shape: square covers no longer show the bars of a 16:9 thumbnail, and the art in tooltips is larger.
+- Vanilla discs can be seeked on the Golden Jukebox, the Minecart with Golden Jukebox and the Boombox, and their screens show the song and the artist on separate lines.
+- The Golden Jukebox range now starts at 4 blocks instead of 16.
+- New client setting "Show Now Playing", off by default. While it is off, no "Now Playing" message appears for any disc, including vanilla discs and discs from other mods.
+- The Music Disc Maker screen is narrower, the same width as a furnace.
+- The Curios Boombox slot shows a Boombox outline when empty.
 
 ### Fixes
 
@@ -23,7 +31,10 @@
 - Fixed [Let's Do] Furniture Gramophone and Additional Additions Album playback restarting from the beginning for everyone when another player came near.
 - Fixed players outside a Golden Jukebox's range hearing about a second of each track start, and of each repeat, when directional audio was off.
 - Fixed the last seconds of a track being cut off on Golden Jukeboxes and Speakers when the track took a while to load.
-- "Now Playing" now appears only for players who can hear the music, and only once while the same track repeats.
+- With "Show Now Playing" on, the message appears only for players who can hear the music, and only once while the same track repeats or resumes from a pause.
+- Fixed a vanilla disc on a Golden Jukebox starting over from the beginning after a pause.
+- Fixed a vanilla disc that kept playing after its Golden Jukebox was broken, until leaving the world.
+- Fixed album art in disc tooltips appearing between the lines of a long song title.
 
 Use the same Music Disc Maker version on the server and all clients.
 
