@@ -95,7 +95,8 @@ public final class ModNetwork {
                 && player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu menu
                 && menu.stillValid(player)
                 && menu.getBlockEntity().getBlockPos().equals(pos)
-                && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
+                && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker
+                && maker == menu.getBlockEntity()) {
             maker.renameOutput(payload.expectedTitle(), payload.title());
         }
     }
@@ -110,8 +111,9 @@ public final class ModNetwork {
                 && player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu menu
                 && menu.stillValid(player)
                 && menu.getBlockEntity().getBlockPos().equals(pos)
-                && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
-            maker.cancelOutput(payload.expectedTitle());
+                && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker
+                && maker == menu.getBlockEntity()) {
+            maker.cancelOutput(payload.expectedTitle(), player);
         }
     }
 

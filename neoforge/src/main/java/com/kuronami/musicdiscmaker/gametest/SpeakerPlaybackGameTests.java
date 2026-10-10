@@ -675,8 +675,11 @@ public final class SpeakerPlaybackGameTests {
         player.teleportTo(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5);
         try {
             player.containerMenu = new com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu(1, player.getInventory(), maker);
-            // 入力枠が空: 空のディスク1枚が戻る。
-            maker.setItem(output, customDisc(helper));
+            // 実際に作った盤を取りやめると、使った空のディスクがちょうど1枚戻る。
+            maker.setItem(input, new ItemStack(ModItems.BLANK_DISC.get()));
+            maker.setResolvedTrack(trackOf(customDisc(helper)), "https://example.invalid/speaker-playback");
+            helper.assertTrue(maker.createDisc() && maker.getItem(input).isEmpty() && !maker.getItem(output).isEmpty(),
+                    "空のディスク1枚から盤を作れていない");
             com.kuronami.musicdiscmaker.network.ModNetwork.handleCancelDisc(
                     new com.kuronami.musicdiscmaker.network.CancelDiscPayload(pos, "Speaker Playback"), player);
             helper.assertTrue(maker.getItem(output).isEmpty(), "取りやめた盤が出力枠に残っている");
@@ -692,11 +695,19 @@ public final class SpeakerPlaybackGameTests {
                     new com.kuronami.musicdiscmaker.network.CancelDiscPayload(pos, "Speaker Playback"), player);
             helper.assertTrue(maker.getItem(output).isEmpty() && maker.getItem(input).getCount() == 2,
                     "入力枠の空のディスクに1枚足していない: " + maker.getItem(input));
-            // 入力枠が満杯なら何もしない (盤を消さない)。
+            // 入力枠が満杯なら、空のディスクは player の持ち物へ返る。
             maker.setItem(input, new ItemStack(ModItems.BLANK_DISC.get(), 16));
             maker.setItem(output, customDisc(helper));
-            helper.assertTrue(!maker.cancelOutput("Speaker Playback") && !maker.getItem(output).isEmpty(),
-                    "入力枠が満杯なのに盤を取りやめた");
+            player.getInventory().clearContent();
+            helper.assertTrue(maker.cancelOutput("Speaker Playback", player) && maker.getItem(output).isEmpty()
+                            && player.getInventory().countItem(ModItems.BLANK_DISC.get()) == 1,
+                    "入力枠が満杯の時に空のディスクを player へ返していない");
+            // 出力枠の空きを待っている別の URL は、取りやめで消さない。
+            maker.setItem(input, ItemStack.EMPTY);
+            maker.setItem(output, customDisc(helper));
+            maker.setCurrentUrl("https://example.invalid/queued");
+            maker.cancelOutput("Speaker Playback", player);
+            helper.assertValueEqual(maker.getCurrentUrl(), "https://example.invalid/queued", "待っていた URL を消した");
         } finally {
             player.containerMenu = player.inventoryMenu;
             maker.setItem(output, ItemStack.EMPTY);

@@ -361,12 +361,15 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
 
     /**
      * 出力枠にある作ったばかりの盤を取りやめ、空のディスクに戻して入力枠へ返す (2026-10-10 本人要望)。
-     * URL と解決済みの曲も消すので、戻した空のディスクから同じ盤は作り直されない。入力枠が満杯なら何もしない。
+     * 盤を作った時に URL は消えているので、戻した空のディスクから同じ盤は作り直されない。その後に別の
+     * URL が入っていれば (他の player が入れて出力枠の空きを待っていた) 消さずに残す。入力枠が満杯なら
+     * 空のディスクは取りやめた player の持ち物へ返す。
      *
      * @param expectedTitle 画面が見ていた曲名。出力枠の盤の曲名と違えば (盤が入れ替わった) 何もしない
+     * @param player        入力枠が満杯の時に空のディスクを受け取る player
      * @return 取りやめたか
      */
-    public boolean cancelOutput(String expectedTitle) {
+    public boolean cancelOutput(String expectedTitle, Player player) {
         final ItemStack output = items.get(SLOT_OUTPUT);
         if (!output.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
             return false;
@@ -386,11 +389,24 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         } else if (isBlankDisc(input) && input.getCount() < Math.min(input.getMaxStackSize(), getMaxStackSize())) {
             returned = input.copyWithCount(input.getCount() + 1);
         } else {
-            return false;
+            returned = null; // 入力枠が満杯: player へ返す
         }
-        resetToNeutral();
+        if (currentUrl.isEmpty()) {
+            resetToNeutral();
+        }
         setItem(SLOT_OUTPUT, ItemStack.EMPTY);
-        setItem(SLOT_INPUT, returned);
+        if (returned != null) {
+            setItem(SLOT_INPUT, returned);
+        } else if (player != null) {
+            final ItemStack blank = new ItemStack(ModItems.BLANK_DISC.get());
+            if (!player.getInventory().add(blank)) {
+                //? if >=26.3 {
+                /*player.drop(blank, false, net.minecraft.util.Prediction.SERVER_ONLY);
+                *///?} else {
+                player.drop(blank, false);
+                //?}
+            }
+        }
         sync();
         return true;
     }

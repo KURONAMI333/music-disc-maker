@@ -200,8 +200,9 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             // 取り出す前の盤がある時の × は、その盤を取りやめて空のディスクに戻す (2026-10-10 本人要望)。
             urlField.setValue(shownTitle);
             if (!com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
+                // 出力枠の盤の今の曲名 (付け直しの反映待ちでも、反映されるまでは元の曲名のまま)。
                 Services.NETWORK.sendToServer(new com.kuronami.musicdiscmaker.network.CancelDiscPayload(
-                        menu.getBlockEntity().getBlockPos(), pendingName != null ? pendingName : shownTitle));
+                        menu.getBlockEntity().getBlockPos(), rawOutputTitle() != null ? rawOutputTitle() : shownTitle));
             }
             return;
         }
