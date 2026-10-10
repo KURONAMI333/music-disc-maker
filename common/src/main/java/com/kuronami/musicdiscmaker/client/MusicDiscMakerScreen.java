@@ -101,7 +101,10 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private long awaitingUntilMs;
     private static final long CONFIRM_WAIT_MS = 3_000L;
     private static final java.util.regex.Pattern BARE_URL =
-            java.util.regex.Pattern.compile("(?i)^[a-z0-9-]+(\\.[a-z0-9-]+)+(:\\d+)?/\\S*$");
+            java.util.regex.Pattern.compile("^([a-z0-9-]+\\.)+[a-z]{2,}(:\\d+)?/\\S*$");
+    /** ytsearch: / scsearch: などの検索。「Research: X」のような曲名は拾わない。 */
+    private static final java.util.regex.Pattern SEARCH =
+            java.util.regex.Pattern.compile("^[a-z]{2,5}search:\\S");
 
     public MusicDiscMakerScreen(MusicDiscMakerMenu menu, Inventory playerInventory, Component title) {
         //? if >=26.1 {
@@ -257,7 +260,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         if (!com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
             // 元の曲名を添え、その間に盤が入れ替わっていたらサーバーは付け直さない。
             Services.NETWORK.sendToServer(new com.kuronami.musicdiscmaker.network.RenameDiscPayload(
-                    menu.getBlockEntity().getBlockPos(), shownTitle, name));
+                    menu.getBlockEntity().getBlockPos(), pendingName != null ? pendingName : shownTitle, name));
             urlField.setValue(name);
             pendingName = name;
             pendingUntilMs = System.currentTimeMillis() + CONFIRM_WAIT_MS;
@@ -266,12 +269,12 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     /**
      * 曲名ではなく URL として扱う入力か。スキーム付き・www. 始まり・検索 (ytsearch: 等) と、
-     * スキームを省いた「ホスト名/パス」(youtu.be/… など、UrlGuard が https とみなす形)。
-     * 「Mr.Children」のように / の無い名前は曲名のまま。
+     * スキームを省いた小文字の「ホスト名.tld/パス」(youtu.be/… など、UrlGuard が https とみなす形)。
+     * 「Mr.Children/HANABI」「Vol.2/3」のような曲名は曲名のまま。
      */
     private static boolean looksLikeUrl(String value) {
-        return value.contains("://") || value.regionMatches(true, 0, "www.", 0, 4)
-                || com.kuronami.musicdiscmaker.network.UrlGuard.isSearchQuery(value)
+        return value.contains("://") || value.startsWith("www.")
+                || SEARCH.matcher(value).find()
                 || BARE_URL.matcher(value).matches();
     }
 

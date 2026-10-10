@@ -74,8 +74,9 @@ public final class VanillaSpeakerPlayback {
             // 管理再生の通常盤にはバニラの再生 event が来ないので、頭からの再生だけ曲名を出す
             // (一時停止からの再開・シークは途中からなので出さない)。client の BlockEntity は再生の
             // payload より遅れて同期されるので、曲名は届いた音の識別子から引く。
-            if (payload.startOffsetMs() == 0L
-                    && !payload.track().soundEventId().equals(ANNOUNCED.put(pos, payload.track().soundEventId()))) {
+            // 途中から管理再生へ移った曲も記録する (後でリピートを入れた時の2周目で出し直さない)。
+            final String previous = ANNOUNCED.put(pos, payload.track().soundEventId());
+            if (payload.startOffsetMs() == 0L && !payload.track().soundEventId().equals(previous)) {
                 com.kuronami.musicdiscmaker.client.NowPlaying.show(
                         com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOfSound(
                                 payload.track().soundEventId(), mc.level));

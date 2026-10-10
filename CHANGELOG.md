@@ -31,7 +31,7 @@
 - Fixed [Let's Do] Furniture Gramophone and Additional Additions Album playback restarting from the beginning for everyone when another player came near.
 - Fixed players outside a Golden Jukebox's range hearing about a second of each track start, and of each repeat, when directional audio was off.
 - Fixed the last seconds of a track being cut off on Golden Jukeboxes and Speakers when the track took a while to load.
-- With "Show Now Playing" on, the message appears only for players who can hear the music, and only once while the same track repeats or resumes from a pause on a Golden Jukebox.
+- With "Show Now Playing" on, the message appears only for players who can hear the music, and only once while the same track repeats or resumes from a pause.
 - Fixed a vanilla disc on a Golden Jukebox starting over from the beginning after a pause.
 - Fixed a vanilla disc that kept playing after its Golden Jukebox was broken, until leaving the world.
 - Fixed album art in disc tooltips appearing between the lines of a long song title.
