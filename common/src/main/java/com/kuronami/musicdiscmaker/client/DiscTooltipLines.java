@@ -10,6 +10,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
+import net.minecraft.util.FormattedCharSequence;
 
 /**
  * custom music disc のツールチップの折り返し。
@@ -40,20 +41,52 @@ public final class DiscTooltipLines {
     }
 
     /**
-     * 2 行目に差し込まれたジャケット画像を、折り返された盤の名前の後ろへ移す。
-     * ジャケットの無いツールチップ、名前が 1 行に収まるツールチップはそのまま返す。
+     * 名前の 1 行目の後ろに差し込まれたジャケット画像を、折り返された盤の名前の全行の後ろへ移す。
+     *
+     * <p>名前の行は文字で数える。NeoForge は画面に収まらない時にツールチップを自分でさらに折り返すので、
+     * こちらの折り返し幅 ({@link #MAX_WIDTH}) で数えると行数がずれ、画像が名前の途中に残っていた
+     * (2026-10-10 修理)。ジャケットの無いツールチップ、名前が 1 行に収まるツールチップはそのまま返す。
      */
     public static List<ClientTooltipComponent> jacketAfterName(List<ClientTooltipComponent> components) {
-        if (components.size() < 3 || !(components.get(1) instanceof JacketClientTooltip jacket)) {
+        int at = -1;
+        for (int i = 1; i < components.size() && i <= 8; i++) {
+            if (components.get(i) instanceof JacketClientTooltip) {
+                at = i;
+                break;
+            }
+        }
+        if (at < 0) {
             return components;
         }
-        final int nameLines = wrap(jacket.name(), Minecraft.getInstance().font).size();
-        if (nameLines <= 1) {
-            return components;
-        }
+        final JacketClientTooltip jacket = (JacketClientTooltip) components.get(at);
+        final int name = letters(jacket.name().getString());
         final List<ClientTooltipComponent> out = new ArrayList<>(components);
-        out.remove(1);
-        out.add(Math.min(nameLines, out.size()), jacket);
+        out.remove(at);
+        int seen = 0;
+        int after = 0;
+        while (after < out.size() && seen < name
+                && out.get(after) instanceof com.kuronami.musicdiscmaker.mixin.ClientTextTooltipAccessor line) {
+            seen += letters(text(line.mdm$text()));
+            after++;
+        }
+        if (after == at) {
+            return components;
+        }
+        out.add(Math.max(1, after), jacket);
         return out;
+    }
+
+    /** 空白を除いた文字数 (折り返しで行末の空白が落ちても数が合うように)。 */
+    private static int letters(String s) {
+        return (int) s.codePoints().filter(cp -> !Character.isWhitespace(cp)).count();
+    }
+
+    private static String text(FormattedCharSequence sequence) {
+        final StringBuilder out = new StringBuilder();
+        sequence.accept((index, style, codePoint) -> {
+            out.appendCodePoint(codePoint);
+            return true;
+        });
+        return out.toString();
     }
 }

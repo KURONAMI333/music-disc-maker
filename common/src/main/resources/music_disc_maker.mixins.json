@@ -12,6 +12,7 @@
     "MixinVanillaJukeboxAudio",
     "MixinNowPlayingPlaceholder",
     "MixinTooltipJacketOrder",
+    "ClientTextTooltipAccessor",
     "MixinClientLevelAudioBridge",
     "IntegratedServerPlaybackClockMixin",
     "MixinChannelPlayback",
