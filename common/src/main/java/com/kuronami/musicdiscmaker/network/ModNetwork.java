@@ -58,7 +58,8 @@ public final class ModNetwork {
     // golden_cart_state を廃止し golden_cart_sync を追加、golden_cart_stop に曲の終わりの印を追加)。
     // 19: boombox_play にバニラ・他 MOD の盤の曲を追加 (ブームボックスでどの盤でも鳴る)。
     // 20: rename_disc (製作機で作った盤の曲名の付け直し) を追加。
-    public static final String PROTOCOL_VERSION = "20";
+    // 21: cancel_disc (製作機で作った盤の取りやめ) を追加。
+    public static final String PROTOCOL_VERSION = "21";
 
     private static final double MAX_REACH_SQR = 64.0;
 
@@ -96,6 +97,21 @@ public final class ModNetwork {
                 && menu.getBlockEntity().getBlockPos().equals(pos)
                 && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
             maker.renameOutput(payload.expectedTitle(), payload.title());
+        }
+    }
+
+    /** 製作機の出力枠にある盤を取りやめて空のディスクに戻す。その製作機の画面を開いている player だけ。 */
+    public static void handleCancelDisc(CancelDiscPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (!player.isSpectator()
+                && player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu menu
+                && menu.stillValid(player)
+                && menu.getBlockEntity().getBlockPos().equals(pos)
+                && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
+            maker.cancelOutput(payload.expectedTitle());
         }
     }
 

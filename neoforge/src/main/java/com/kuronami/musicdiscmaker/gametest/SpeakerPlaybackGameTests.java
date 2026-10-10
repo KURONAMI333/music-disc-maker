@@ -658,6 +658,54 @@ public final class SpeakerPlaybackGameTests {
         helper.succeed();
     }
 
+    /** 製作機の × で、取り出す前の盤を空のディスクに戻して入力枠へ返す (2026-10-10 本人要望)。 */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerPlayback")
+    *///?}
+    public static void makerCancelsItsFreshOutput(GameTestHelper helper) {
+        final var relative = new BlockPos(1, 1, 1);
+        helper.setBlock(relative, ModBlocks.MUSIC_DISC_MAKER.get());
+        final var maker = (com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity)
+                helper.getLevel().getBlockEntity(helper.absolutePos(relative));
+        final int input = com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_INPUT;
+        final int output = com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_OUTPUT;
+        final var player = helper.makeMockServerPlayerInLevel();
+        final var pos = maker.getBlockPos();
+        player.teleportTo(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5);
+        try {
+            player.containerMenu = new com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu(1, player.getInventory(), maker);
+            // 入力枠が空: 空のディスク1枚が戻る。
+            maker.setItem(output, customDisc(helper));
+            com.kuronami.musicdiscmaker.network.ModNetwork.handleCancelDisc(
+                    new com.kuronami.musicdiscmaker.network.CancelDiscPayload(pos, "Speaker Playback"), player);
+            helper.assertTrue(maker.getItem(output).isEmpty(), "取りやめた盤が出力枠に残っている");
+            helper.assertTrue(maker.getItem(input).is(ModItems.BLANK_DISC.get()) && maker.getItem(input).getCount() == 1,
+                    "空のディスクが入力枠に戻っていない: " + maker.getItem(input));
+            helper.assertValueEqual(maker.getCurrentUrl(), "", "取りやめた後に URL が残っている");
+            // 入力枠に空のディスクがある: 1枚増える。曲名が違う (入れ替わった盤) なら何もしない。
+            maker.setItem(output, customDisc(helper));
+            com.kuronami.musicdiscmaker.network.ModNetwork.handleCancelDisc(
+                    new com.kuronami.musicdiscmaker.network.CancelDiscPayload(pos, "Other Title"), player);
+            helper.assertTrue(!maker.getItem(output).isEmpty(), "見ていた曲名と違う盤を取りやめた");
+            com.kuronami.musicdiscmaker.network.ModNetwork.handleCancelDisc(
+                    new com.kuronami.musicdiscmaker.network.CancelDiscPayload(pos, "Speaker Playback"), player);
+            helper.assertTrue(maker.getItem(output).isEmpty() && maker.getItem(input).getCount() == 2,
+                    "入力枠の空のディスクに1枚足していない: " + maker.getItem(input));
+            // 入力枠が満杯なら何もしない (盤を消さない)。
+            maker.setItem(input, new ItemStack(ModItems.BLANK_DISC.get(), 16));
+            maker.setItem(output, customDisc(helper));
+            helper.assertTrue(!maker.cancelOutput("Speaker Playback") && !maker.getItem(output).isEmpty(),
+                    "入力枠が満杯なのに盤を取りやめた");
+        } finally {
+            player.containerMenu = player.inventoryMenu;
+            maker.setItem(output, ItemStack.EMPTY);
+            maker.setItem(input, ItemStack.EMPTY);
+            player.discard();
+        }
+        helper.succeed();
+    }
+
     private static CustomTrackData trackOf(ItemStack disc) {
         return com.kuronami.musicdiscmaker.item.CustomMusicDiscItem.getTrack(disc);
     }

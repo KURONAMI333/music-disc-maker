@@ -72,6 +72,18 @@ public final class ForgeNetwork {
                 })
                 .add();
 
+        // client → server: 製作機で作った盤の取りやめ。
+        CHANNEL.messageBuilder(CancelDiscPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(CancelDiscPayload::write)
+                .decoder(CancelDiscPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    final ServerPlayer sender = ctx.get().getSender();
+                    if (sender != null) {
+                        ModNetwork.handleCancelDisc(msg, sender);
+                    }
+                })
+                .add();
+
         // server → client: 再生制御。
         CHANNEL.messageBuilder(PlayDiscPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(PlayDiscPayload::write)

@@ -195,8 +195,14 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     private void clearUrl() {
         urlField.setFocused(false);
+        urlWasFocused = false; // 書きかけの曲名を確定しない
         if (shownTitle != null) {
-            urlField.setValue(shownTitle); // 付け直し中の × は書きかけを捨てて今の曲名へ戻す
+            // 取り出す前の盤がある時の × は、その盤を取りやめて空のディスクに戻す (2026-10-10 本人要望)。
+            urlField.setValue(shownTitle);
+            if (!com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
+                Services.NETWORK.sendToServer(new com.kuronami.musicdiscmaker.network.CancelDiscPayload(
+                        menu.getBlockEntity().getBlockPos(), pendingName != null ? pendingName : shownTitle));
+            }
             return;
         }
         urlField.setValue("");
@@ -372,15 +378,21 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         final List<FormattedCharSequence> statusLines = statusLines();
         final int statusY = statusLines.size() > 1
                 ? MusicDiscMakerLayout.STATUS_TWO_LINE_Y : MusicDiscMakerLayout.STATUS_Y;
+        // URL の取得中は矢印の下に中央揃え (2026-10-10 本人指示)。回る記号で幅が変わって揺れないよう、
+        // 記号を除いた文の幅で位置を決める。ローカル取込の状態は従来どおり左寄せ。
+        final int statusX = !LocalAudioClient.hasStatus() && menu.getBlockEntity().isResolving()
+                ? MusicDiscMakerLayout.ARROW_CENTER_X
+                        - font.width(Component.translatable("gui.music_disc_maker.fetching")) / 2
+                : MusicDiscMakerLayout.STATUS_X;
         for (int i = 0; i < statusLines.size(); i++) {
             //? if >=26.1 {
-            graphics.text(font, statusLines.get(i), MusicDiscMakerLayout.STATUS_X, statusY + i * font.lineHeight,
+            graphics.text(font, statusLines.get(i), statusX, statusY + i * font.lineHeight,
                     TEXT, false);
             //?} elif >=1.21.11 {
-            /*graphics.drawString(font, statusLines.get(i), MusicDiscMakerLayout.STATUS_X,
+            /*graphics.drawString(font, statusLines.get(i), statusX,
                     statusY + i * font.lineHeight, TEXT, false);
             *///?} else {
-            /*g.drawString(font, statusLines.get(i), MusicDiscMakerLayout.STATUS_X,
+            /*g.drawString(font, statusLines.get(i), statusX,
                     statusY + i * font.lineHeight, TEXT, false);
             *///?}
         }
@@ -568,7 +580,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     *///?}
         // × は進行中だけ「取消」、それ以外は「消去」。状態に合わせてツールチップを替える。
         clearButton.setTooltip(Tooltip.create(Component.translatable(
-                LocalAudioClient.uploading()
+                LocalAudioClient.uploading() || shownTitle != null
                         ? "gui.music_disc_maker.local.cancel" : "gui.music_disc_maker.clear")));
         final boolean focused = urlField.isFocused();
         if (urlWasFocused && !focused) {

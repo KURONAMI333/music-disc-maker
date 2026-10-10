@@ -16,6 +16,8 @@ public final class MusicDiscMakerLayout {
     public static final int INPUT_Y = 47;
     public static final int OUTPUT_X = 102;
     public static final int OUTPUT_Y = 47;
+    /** 入口と出口の間の矢印の中心 (入口の右端と出口の左端の中点)。取得中の表示をここに中央揃えする。 */
+    public static final int ARROW_CENTER_X = (INPUT_X + 16 + OUTPUT_X) / 2;
 
     public static final int INVENTORY_X = 8;
     public static final int INVENTORY_Y = 98;

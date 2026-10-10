@@ -108,8 +108,8 @@ public class NetworkProtocolGameTests {
 
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
         を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18、ブームボックスの再生に
-        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "20";
+        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20、取りやめ (cancel_disc) を足して 21 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "21";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -118,10 +118,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "b54f4aa5eb4ad476d7b0a7756fef39755d7baf1f040059be92400d16be5ff481";
+            "39dbf026eb592d4a4464c49118c3661726a2ee09e5a3c06e14480d8bfd926961";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "90c8fbe12d07fb18aeba76326c44f8b1402171c94de4347fa31296b7d1f51aca";
+            "75fc01768971dc601003a9d848ff951311de1157508b1b47d190938bb2127179";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -403,6 +403,8 @@ public class NetworkProtocolGameTests {
                 new ResolveUrlPayload(SAMPLE_POS, SAMPLE_TRACK.url())));
         encoded.put("rename_disc", encode(mdmCodec(com.kuronami.musicdiscmaker.network.RenameDiscPayload::read),
                 new com.kuronami.musicdiscmaker.network.RenameDiscPayload(SAMPLE_POS, SAMPLE_TRACK.title(), SAMPLE_TRACK.author())));
+        encoded.put("cancel_disc", encode(mdmCodec(com.kuronami.musicdiscmaker.network.CancelDiscPayload::read),
+                new com.kuronami.musicdiscmaker.network.CancelDiscPayload(SAMPLE_POS, SAMPLE_TRACK.title())));
         encoded.put("speaker_set", encode(mdmCodec(com.kuronami.musicdiscmaker.network.SpeakerSetPayload::read),
                 new com.kuronami.musicdiscmaker.network.SpeakerSetPayload(SAMPLE_POS, 96, 173, false,
                         java.util.List.of(new com.kuronami.musicdiscmaker.network.SpeakerEntry(

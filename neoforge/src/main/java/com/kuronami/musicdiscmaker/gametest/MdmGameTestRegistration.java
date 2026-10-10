@@ -56,6 +56,7 @@ public final class MdmGameTestRegistration {
         register(event, "moving_vanilla_without_speakers", SpeakerPlaybackGameTests::movingVanillaWithoutSpeakersUsesManagedRoute, empty, 100);
         register(event, "fixed_vanilla_seek_resume_managed", SpeakerPlaybackGameTests::fixedVanillaSeekAndResumeUseManagedRoute, empty, 100);
         register(event, "maker_renames_fresh_output", SpeakerPlaybackGameTests::makerRenamesItsFreshOutputOnly, empty, 100);
+        register(event, "maker_cancels_fresh_output", SpeakerPlaybackGameTests::makerCancelsItsFreshOutput, empty, 100);
         register(event, "new_blocks_have_recipe_unlocks", RecipeDiscoveryGameTests::newBlocksHaveLoadedRecipeUnlocks, empty, 100);
         register(event, "vanilla_flat_range_fade", com.kuronami.musicdiscmaker.client.audio.GoldenEmitterAnchorGameTests::flatVanillaRangeFadesAndRecovers, empty, 100);
         register(event, "golden_emitter_fixed_source_live_settings", com.kuronami.musicdiscmaker.client.audio.GoldenEmitterAnchorGameTests::fixedGoldenWithoutSpeakersUsesLiveSettings, empty, 100);

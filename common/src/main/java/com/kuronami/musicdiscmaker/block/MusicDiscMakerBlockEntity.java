@@ -359,6 +359,42 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         sync();
     }
 
+    /**
+     * 出力枠にある作ったばかりの盤を取りやめ、空のディスクに戻して入力枠へ返す (2026-10-10 本人要望)。
+     * URL と解決済みの曲も消すので、戻した空のディスクから同じ盤は作り直されない。入力枠が満杯なら何もしない。
+     *
+     * @param expectedTitle 画面が見ていた曲名。出力枠の盤の曲名と違えば (盤が入れ替わった) 何もしない
+     * @return 取りやめたか
+     */
+    public boolean cancelOutput(String expectedTitle) {
+        final ItemStack output = items.get(SLOT_OUTPUT);
+        if (!output.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
+            return false;
+        }
+        //? if >=1.21 {
+        final CustomTrackData track = output.get(ModDataComponents.CUSTOM_TRACK.get());
+        //?} else {
+        /*final CustomTrackData track = CustomMusicDiscItem.getTrack(output);
+        *///?}
+        if (track == null || track.isEmpty() || !track.title().equals(expectedTitle)) {
+            return false;
+        }
+        final ItemStack input = items.get(SLOT_INPUT);
+        final ItemStack returned;
+        if (input.isEmpty()) {
+            returned = new ItemStack(ModItems.BLANK_DISC.get());
+        } else if (isBlankDisc(input) && input.getCount() < Math.min(input.getMaxStackSize(), getMaxStackSize())) {
+            returned = input.copyWithCount(input.getCount() + 1);
+        } else {
+            return false;
+        }
+        resetToNeutral();
+        setItem(SLOT_OUTPUT, ItemStack.EMPTY);
+        setItem(SLOT_INPUT, returned);
+        sync();
+        return true;
+    }
+
     /** Saves the verified fabrication input beside the resolved track without changing audio metadata. */
     private void saveOriginalSourceUrl(ItemStack disc) {
         if (resolvedTrack == null || resolvedTrack.isEmpty() || resolvedTrack.isLocal()
