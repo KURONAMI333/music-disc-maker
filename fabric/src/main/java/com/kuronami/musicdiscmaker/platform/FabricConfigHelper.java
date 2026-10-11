@@ -99,11 +99,18 @@ public class FabricConfigHelper implements IConfigHelper {
         properties.setProperty(SHOW_NOW_PLAYING, "false");
         properties.setProperty(SHOW_ALBUM_ART, "true");
         try {
+            boolean missingKey = true;
             if (Files.exists(file)) {
+                final Properties stored = new Properties();
                 try (Reader reader = Files.newBufferedReader(file)) {
-                    properties.load(reader);
+                    stored.load(reader);
                 }
-            } else {
+                missingKey = !stored.containsKey(SHOW_NOW_PLAYING) || !stored.containsKey(SHOW_ALBUM_ART);
+                properties.putAll(stored);
+            }
+            // 無い時と、後の版で足した設定の行が無い時は書き出す (書き換えた値は残す)。設定画面が無いので、
+            // ファイルに行が無いと利用者は設定があることに気づけない。
+            if (missingKey) {
                 Files.createDirectories(file.getParent());
                 try (Writer writer = Files.newBufferedWriter(file)) {
                     properties.store(writer, "Music Disc Maker client settings. "
