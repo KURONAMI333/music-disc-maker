@@ -4,6 +4,7 @@
 
 ### New features
 
+- Added Fabric builds for Minecraft 26.1.2.
 - Albums now hold up to 18 discs in two rows.
 - Add the Golden Album: surround an Album with 8 gold ingots to get 54 slots in six rows, like a large chest. Its discs, their order, its color and its name carry over, and it plays in the Boombox, the Golden Jukebox and the Minecart with Golden Jukebox like an Album.
 - Boomboxes and Albums accept any music disc that plays in a jukebox, including vanilla discs and discs from other mods.
