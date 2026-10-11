@@ -10,6 +10,7 @@ Music Disc Maker turns a Blank Disc and a URL or imported audio file into a Cust
 
 - Custom discs with track title, artist, length, source, and cover art in the tooltip
 - Albums that hold up to 18 discs (custom, vanilla, or from other mods) in two rows, list their contents, and keep their contents and order when dyed
+- A Golden Album with 54 slots in six rows, made by surrounding an Album with gold ingots without losing its discs
 - Import an MP3 from your computer; the server stores the audio so players on the server can listen to the shared disc
 - A portable or placeable Boombox with play/pause, previous/next, shuffle, repeat, seek, and volume controls
 - Optional Curios slot for an equipped Boombox on supported NeoForge and Forge versions

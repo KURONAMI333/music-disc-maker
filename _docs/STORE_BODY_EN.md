@@ -11,6 +11,7 @@ Use links from **YouTube, Spotify, SoundCloud, Bandcamp**, or a direct audio URL
 ## Build your collection
 
 - **Album:** Keep up to 18 discs together in two rows, whether they are custom discs, vanilla discs, or music discs from other mods. Right-click to arrange them, check the contents in its tooltip, and dye the cover to tell your collections apart. Dyeing preserves the discs, their order, and the Album's name.
+- **Golden Album:** Surround an Album with 8 gold ingots for 54 slots in six rows, the size of a large chest. The discs, their order, the color, and the name carry over.
 - **Disc Dyeing Table:** Recolor a custom disc's surface and accent separately. Change either color or both.
 - **Disc Pedestal:** Put a favorite disc on display with its track title and artist. Swap the displayed disc in one interaction.
 

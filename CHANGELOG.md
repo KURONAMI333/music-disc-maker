@@ -5,6 +5,7 @@
 ### New features
 
 - Albums now hold up to 18 discs in two rows.
+- Add the Golden Album: surround an Album with 8 gold ingots to get 54 slots in six rows, like a large chest. Its discs, their order, its color and its name carry over, and it plays in the Boombox, the Golden Jukebox and the Minecart with Golden Jukebox like an Album.
 - Boomboxes and Albums accept any music disc that plays in a jukebox, including vanilla discs and discs from other mods.
 - Import an MP3 from the local computer and share its audio through the server for multiplayer playback.
 - Equip a Boombox through an optional Curios slot on NeoForge 1.21.1, 1.21.11, 26.1.2, and 26.2, and Forge 1.20.1.
