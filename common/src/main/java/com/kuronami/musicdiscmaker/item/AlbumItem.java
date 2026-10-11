@@ -139,8 +139,9 @@ public class AlbumItem extends Item {
     }
 
     /**
-     * 盤の表示名。バニラ・他 MOD の盤は名前がどれも「Music Disc」で見分けがつかないので、曲名
-     * (例「C418 - cat」) を出す。MDM の盤は名前 (曲名・金床での名前) のまま。
+     * 盤の表示名。バニラ・他 MOD の盤は名前がどれも「Music Disc」で見分けがつかないので、曲名を出す。
+     * バニラの盤は「C418 - cat」を分けて曲名 (cat) だけにし、MDM の盤の曲名だけの行と揃える。
+     * 他 MOD の盤は書式が決まっていないので曲の説明のまま。MDM の盤は名前 (曲名・金床での名前) のまま。
      */
     //? if >=1.21 {
     private static String discName(ItemStack disc, TooltipContext context) {
@@ -148,19 +149,23 @@ public class AlbumItem extends Item {
     /*private static String discName(ItemStack disc, @org.jetbrains.annotations.Nullable net.minecraft.world.level.Level context) {
     *///?}
         if (!disc.is(com.kuronami.musicdiscmaker.register.ModItems.CUSTOM_MUSIC_DISC.get())) {
+            String description = null;
             //? if >=26.1 {
             final var song = net.minecraft.world.item.JukeboxSong.fromStack(disc);
-            if (song.isPresent()) return song.get().value().description().getString();
+            if (song.isPresent()) description = song.get().value().description().getString();
             //?} elif >=1.21 {
             /*if (context.registries() != null) {
                 final var song = net.minecraft.world.item.JukeboxSong.fromStack(context.registries(), disc);
-                if (song.isPresent()) return song.get().value().description().getString();
+                if (song.isPresent()) description = song.get().value().description().getString();
             }
             *///?} else {
             /*if (disc.getItem() instanceof net.minecraft.world.item.RecordItem record) {
-                return record.getDisplayName().getString();
+                description = record.getDisplayName().getString();
             }
             *///?}
+            final String[] split = com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(disc, description);
+            if (split != null) return split[0];
+            if (description != null) return description;
         }
         return disc.getHoverName().getString();
     }

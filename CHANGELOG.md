@@ -17,7 +17,7 @@
 - Rename a new disc in the Music Disc Maker before taking it out: the URL field shows the song title and can be edited at no cost.
 - Song titles and artists read from video titles are cleaner: headings in 【】 and anime or drama tie-ins are left out, the song and the singer are separated, and the song is read from the video description when the title does not name it.
 - Album art keeps its shape: square covers no longer show the bars of a 16:9 thumbnail, and the art in tooltips is larger.
-- Vanilla discs can be seeked on the Golden Jukebox, the Minecart with Golden Jukebox and the Boombox, and their screens show the song and the artist on separate lines.
+- Vanilla discs can be seeked on the Golden Jukebox, the Minecart with Golden Jukebox and the Boombox, and their screens show the song and the artist on separate lines. Album tooltips list vanilla discs by song title, like custom discs.
 - The Golden Jukebox range now starts at 4 blocks instead of 16.
 - New client setting "Show Now Playing", off by default. While it is off, no "Now Playing" message appears for any disc, including vanilla discs and discs from other mods.
 - The Music Disc Maker screen is narrower, the same width as a furnace.
