@@ -478,7 +478,6 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         private final Runnable action;
         private String sprite = SPRITE_PLAY;
         private int spriteSize = 20;
-        private boolean mouseFocused;
 
         IconButton(int x, int y, Component narration, Runnable action) {
             super(x, y, GoldenJukeboxTransportLayout.BUTTON_SIZE, GoldenJukeboxTransportLayout.BUTTON_SIZE, narration);
@@ -500,29 +499,9 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         *///?}
         }
 
-        @Override
-        //? if >=1.21.11 {
-        public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-            final boolean handled = super.mouseClicked(event, doubleClick);
-            if (handled && event.button() == 0) mouseFocused = true;
-            return handled;
-        }
-        //?} else {
-        /*public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            final boolean handled = super.mouseClicked(mouseX, mouseY, button);
-            if (handled && button == 0) mouseFocused = true;
-            return handled;
-        }
-        *///?}
-
-        @Override
-        public void setFocused(boolean focused) {
-            super.setFocused(focused);
-            if (!focused) mouseFocused = false;
-        }
-
         private boolean hasVisibleKeyboardFocus() {
-            return isFocused() && !mouseFocused;
+            // マウスで押した後も focus は残る。枠はキーボードで選んだ時だけ出す（バニラの最後の入力で判定）。
+            return isFocused() && net.minecraft.client.Minecraft.getInstance().getLastInputType().isKeyboard();
         }
 
         @Override
