@@ -19,6 +19,8 @@
 - Album art keeps its shape: square covers no longer show the bars of a 16:9 thumbnail, and the art in tooltips is larger.
 - Vanilla discs can be seeked on the Golden Jukebox, the Minecart with Golden Jukebox and the Boombox, and their screens show the song and the artist on separate lines. Album tooltips list vanilla discs by song title, like custom discs.
 - The Golden Jukebox range now starts at 4 blocks instead of 16.
+- New client setting "Show album art", on by default. Each player can turn off the album art in custom disc tooltips; nothing needs to be set on the server.
+- Every client setting now has a translated name and description in all 14 languages (most were shown as their internal names before).
 - New client setting "Show Now Playing", off by default. While it is off, no "Now Playing" message appears for any disc, including vanilla discs and discs from other mods.
 - The Music Disc Maker screen is narrower, the same width as a furnace.
 - The Curios Boombox slot shows a Boombox outline when empty.
