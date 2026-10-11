@@ -210,8 +210,10 @@ public class BoomboxMenu extends AbstractContainerMenu {
         final MediaSequenceResolver.ResolvedSequence resolved = resolveMedium();
         if (resolved == null || resolved.kind() != MediaSequenceResolver.Kind.MDM_ALBUM) return null;
         final PlaybackCursor cursor = playbackState().cursor();
-        final int index = resolved.indexOf(new MediaSequence.Position(
-                Math.max(0, cursor.discIndex()), Math.max(0, cursor.trackIndex())));
+        // 位置が無い (止まっている) 時は、画面の曲名と同じく最初に鳴らせる曲を指す。
+        final int index = cursor.hasPosition()
+                ? resolved.indexOf(new MediaSequence.Position(cursor.discIndex(), cursor.trackIndex()))
+                : resolved.tracks().isEmpty() ? -1 : 0;
         return index < 0 ? null : new int[] {index + 1, resolved.tracks().size()};
     }
 

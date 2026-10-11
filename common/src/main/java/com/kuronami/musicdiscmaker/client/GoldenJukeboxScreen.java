@@ -490,21 +490,12 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             // アイテム表示名 (例 "ミュージックディスク") を 2 行目に。custom disc と同じ 2 行構造を汎用化する。
             // バニラの盤だけは "Artist - Title" を曲名 / アーティストに分ける (PlayableDiscs#splitVanillaDescription)。
             // 他 MOD の description は書式が API 契約でないので分けない。description が無ければアイテム名だけ。
-            //? if >=1.21 {
             // アルバムなら現在トラックのディスク。空アルバム等で解決できなければアルバム本体の名前に落とす。
-            final ItemStack shown = be.effectiveDisc().isEmpty() ? be.getDisc() : be.effectiveDisc();
-            //?} else {
-            //?}
+            final net.minecraft.world.item.ItemStack shown = be.effectiveDisc().isEmpty() ? be.getDisc() : be.effectiveDisc();
             final Component desc = be.discSongDescription();
-            //? if >=1.21 {
             final String[] split = com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(
                     shown, desc == null ? null : desc.getString());
             final String itemName = split != null ? split[1] : shown.getHoverName().getString();
-            //?} else {
-            /*final String[] split = com.kuronami.musicdiscmaker.component.PlayableDiscs.splitVanillaDescription(
-                    be.getDisc(), desc == null ? null : desc.getString());
-            final String itemName = split != null ? split[1] : be.getDisc().getHoverName().getString();
-            *///?}
             if (desc != null) {
                 final String songName = split != null ? split[0] : desc.getString();
                 //? if >=26.1 {
