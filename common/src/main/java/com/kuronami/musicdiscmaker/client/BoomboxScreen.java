@@ -341,10 +341,8 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     /*private void renderTrackLabels(GuiGraphics graphics) {
     *///?}
         final CustomTrackData track = currentTrack();
-        final int tracks = menu.navigableTrackCount();
-        final var state = menu.playbackState();
-        final String counter = state != null && tracks > 1 && state.cursor().trackIndex() >= 0
-                ? (state.cursor().trackIndex() + 1) + "/" + tracks : null;
+        final int[] albumCounter = menu.albumCounter();
+        final String counter = albumCounter == null ? null : albumCounter[0] + "/" + albumCounter[1];
         final int titleWidth = counter == null ? BoomboxScreenLayout.TRACK_TEXT_WIDTH
                 : BoomboxScreenLayout.TRACK_TEXT_WIDTH - font.width(counter) - 4;
         if (counter != null) {

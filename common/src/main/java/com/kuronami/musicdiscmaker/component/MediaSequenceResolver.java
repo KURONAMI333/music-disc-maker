@@ -66,6 +66,14 @@ public final class MediaSequenceResolver {
             return tracks.isEmpty() ? Optional.empty() : Optional.of(tracks.get(0));
         }
 
+        /** 再生順ではなく媒体の中の並びで、何番目 (0 起点) か。無ければ -1。 */
+        public int indexOf(MediaSequence.Position position) {
+            for (int i = 0; i < tracks.size(); i++) {
+                if (tracks.get(i).position().equals(position)) return i;
+            }
+            return -1;
+        }
+
         public Optional<ResolvedTrack> at(MediaSequence.Position position) {
             return tracks.stream().filter(candidate -> candidate.position().equals(position)).findFirst();
         }

@@ -84,6 +84,9 @@ public final class GoldenNavigationGameTests {
         final BlockPos pos = be.getBlockPos();
         player.setPos(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
         final long generation = be.playbackCursor().generation();
+        helper.assertTrue(be.albumCounter() != null && be.albumCounter()[0] == 1
+                        && be.albumCounter()[1] == be.navigableTrackCount(),
+                "MDM Album の「何曲目/曲数」が出ない: " + java.util.Arrays.toString(be.albumCounter()));
         final var request = new NavigateJukeboxPayload(pos, 42, generation, false);
         final FriendlyByteBuf wire = new FriendlyByteBuf(Unpooled.buffer());
         try {
@@ -106,6 +109,8 @@ public final class GoldenNavigationGameTests {
         player.setPos(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
         ModNetwork.handleNavigateJukebox(request, player);
         helper.assertTrue(be.playbackCursor().discIndex() == 1, "current open menu did not advance");
+        helper.assertTrue(be.albumCounter() != null && be.albumCounter()[0] == 2,
+                "曲送りしても「何曲目」が進まない: " + java.util.Arrays.toString(be.albumCounter()));
         final long advanced = be.playbackCursor().generation();
         ModNetwork.handleNavigateJukebox(request, player);
         helper.assertTrue(be.playbackCursor().generation() == advanced, "replayed operation was accepted twice");

@@ -454,35 +454,26 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
 
         final GoldenJukeboxBlockEntity be = menu.getBlockEntity();
         // ヘッダ: 曲名 (1 行目) / 作者名 (2 行目)。各行を個別に折り返してパネル幅超過を防ぐ。
-        //? if >=26.1 {
         // アルバムの時は 1 行目が現在トラック名になり、同じ行の右端に "3/8" を置く (行も widget も増やさない)。
-        final int albumCount = be.albumTrackCount();
-        final String counter = albumCount > 0 ? (be.getAlbumTrack() + 1) + "/" + albumCount : null;
+        final int[] albumCounter = be.albumCounter();
+        final String counter = albumCounter == null ? null : albumCounter[0] + "/" + albumCounter[1];
         final int titleW = counter == null ? TRACK_TEXT_W : TRACK_TEXT_W - font.width(counter) - 4;
         if (counter != null) {
+            //? if >=26.1 {
             g.text(font, counter, TRACK_TEXT_X + TRACK_TEXT_W - font.width(counter),
                     TITLE_Y, TIME_TEXT, false);
-        }
-        //?} elif >=1.21 {
-        /*// アルバムの時は 1 行目が現在トラック名になり、同じ行の右端に "3/8" を置く (行も widget も増やさない)。
-        final int albumCount = be.albumTrackCount();
-        final String counter = albumCount > 0 ? (be.getAlbumTrack() + 1) + "/" + albumCount : null;
-        final int titleW = counter == null ? TRACK_TEXT_W : TRACK_TEXT_W - font.width(counter) - 4;
-        if (counter != null) {
-            g.drawString(font, counter, TRACK_TEXT_X + TRACK_TEXT_W - font.width(counter),
+            //?} else {
+            /*g.drawString(font, counter, TRACK_TEXT_X + TRACK_TEXT_W - font.width(counter),
                     TITLE_Y, TIME_TEXT, false);
+            *///?}
         }
-        *///?} else {
-        //?}
         final CustomTrackData track = be.currentTrack();
         if (track != null) {
             final String title = track.title() == null ? "" : track.title();
             //? if >=26.1 {
             g.text(font, font.plainSubstrByWidth(title, titleW),
-            //?} elif >=1.21 {
+            //?} else {
             /*g.drawString(font, font.plainSubstrByWidth(title, titleW),
-            *///?} else {
-            /*g.drawString(font, font.plainSubstrByWidth(title, TRACK_TEXT_W),
             *///?}
                     TRACK_TEXT_X, TITLE_Y, TEXT, false);
             final String author = track.author();
@@ -518,10 +509,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
                 final String songName = split != null ? split[0] : desc.getString();
                 //? if >=26.1 {
                 g.text(font, font.plainSubstrByWidth(songName, titleW),
-                //?} elif >=1.21 {
+                //?} else {
                 /*g.drawString(font, font.plainSubstrByWidth(songName, titleW),
-                *///?} else {
-                /*g.drawString(font, font.plainSubstrByWidth(songName, TRACK_TEXT_W),
                 *///?}
                         TRACK_TEXT_X, TITLE_Y, TEXT, false);
                 //? if >=26.1 {
@@ -533,10 +522,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
             } else {
                 //? if >=26.1 {
                 g.text(font, font.plainSubstrByWidth(itemName, titleW),
-                //?} elif >=1.21 {
+                //?} else {
                 /*g.drawString(font, font.plainSubstrByWidth(itemName, titleW),
-                *///?} else {
-                /*g.drawString(font, font.plainSubstrByWidth(itemName, TRACK_TEXT_W),
                 *///?}
                         TRACK_TEXT_X, TITLE_Y, TEXT, false);
             }

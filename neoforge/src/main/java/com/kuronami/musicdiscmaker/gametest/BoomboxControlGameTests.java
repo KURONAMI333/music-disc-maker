@@ -120,6 +120,10 @@ public final class BoomboxControlGameTests {
             state = BoomboxPlayback.stateOf(box);
             helper.assertTrue(state.cursor().discIndex() == 1 && state.cursor().generation() > beforeInvalid,
                     "same URL second position was not selected");
+            menu.applyPlaybackState(state);
+            helper.assertTrue(menu.albumCounter() != null && menu.albumCounter()[0] == 2
+                            && menu.albumCounter()[1] == menu.navigableTrackCount(),
+                    "the track number did not follow NEXT: " + java.util.Arrays.toString(menu.albumCounter()));
             final ItemStack replacement = box.copy();
             player.setItemInHand(InteractionHand.OFF_HAND, replacement);
             ModNetwork.handleControlBoombox(new ControlBoomboxPayload(42, state.cursor().generation(), ControlBoomboxPayload.VOLUME, 0), player);

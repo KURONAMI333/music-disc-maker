@@ -27,6 +27,7 @@
 
 ### Fixes
 
+- Fixed the track number of an Album in the Boombox staying at 1 (for example 1/5) as the songs advanced. The Golden Jukebox and the Minecart with Golden Jukebox now show the same number for Albums.
 - Fixed Albums and Boomboxes rejecting every disc as too large on dedicated servers when a large item, such as a filled Shulker Box, was elsewhere in the inventory.
 - Fixed a carried Boombox stopping after about 10 seconds while the server was running slowly.
 - A stopped Boombox held in the hand now shows its handle in first person instead of disappearing from view.

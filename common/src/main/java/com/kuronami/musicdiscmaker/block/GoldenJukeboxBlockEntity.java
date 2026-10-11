@@ -595,6 +595,20 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         *///?}
     }
 
+    /**
+     * 画面の「3/8」。アルバム (MDM・Additional Additions) の時だけ {今の番号 (1 起点), 曲数}、それ以外は null。
+     * ブームボックスの画面と同じ数え方 (アルバムの中の並び順)。
+     */
+    public int[] albumCounter() {
+        if (getAlbumTrack() >= 0) {
+            final int count = albumTrackCount();
+            return count > 0 ? new int[] {getAlbumTrack() + 1, count} : null;
+        }
+        if (!isMdmAlbum()) return null;
+        final int index = mediaSequence.indexOf(mediaPosition());
+        return index < 0 ? null : new int[] {index + 1, mediaSequence.tracks().size()};
+    }
+
     public int albumTrackCount() {
         //? if >=1.21 {
         return getAlbumTrack() < 0 ? 0 : AdditionalAdditionsAlbumSupport.trackCount(getDisc());

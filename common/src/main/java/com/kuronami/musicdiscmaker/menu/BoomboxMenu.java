@@ -205,6 +205,16 @@ public class BoomboxMenu extends AbstractContainerMenu {
                 .map(MediaSequenceResolver.ResolvedTrack::disc).orElse(ItemStack.EMPTY);
     }
 
+    /** 画面の「3/8」。アルバムの時だけ {今の番号 (1 起点), 曲数}、それ以外は null。金のジュークボックスと同じ数え方。 */
+    public int[] albumCounter() {
+        final MediaSequenceResolver.ResolvedSequence resolved = resolveMedium();
+        if (resolved == null || resolved.kind() != MediaSequenceResolver.Kind.MDM_ALBUM) return null;
+        final PlaybackCursor cursor = playbackState().cursor();
+        final int index = resolved.indexOf(new MediaSequence.Position(
+                Math.max(0, cursor.discIndex()), Math.max(0, cursor.trackIndex())));
+        return index < 0 ? null : new int[] {index + 1, resolved.tracks().size()};
+    }
+
     public int navigableTrackCount() {
         final MediaSequenceResolver.ResolvedSequence resolved = resolveMedium();
         return resolved == null ? 0 : resolved.tracks().size();
