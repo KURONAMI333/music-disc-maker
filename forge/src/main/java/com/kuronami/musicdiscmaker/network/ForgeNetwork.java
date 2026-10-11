@@ -84,6 +84,18 @@ public final class ForgeNetwork {
                 })
                 .add();
 
+        // client → server: 曲が実際に鳴り始めた時の遅れ (金のジュークボックスが次の曲を待つ)。
+        CHANNEL.messageBuilder(com.kuronami.musicdiscmaker.network.AudioLagPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(com.kuronami.musicdiscmaker.network.AudioLagPayload::write)
+                .decoder(com.kuronami.musicdiscmaker.network.AudioLagPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    final ServerPlayer sender = ctx.get().getSender();
+                    if (sender != null) {
+                        ModNetwork.handleAudioLag(msg, sender);
+                    }
+                })
+                .add();
+
         // server → client: 再生制御。
         CHANNEL.messageBuilder(PlayDiscPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(PlayDiscPayload::write)

@@ -903,6 +903,7 @@ public final class ClientPlaybackManager {
             Minecraft.getInstance().execute(() -> {
             if (sessions.noteFirstAudio(key, token)) {
                 reanchorClientElapsed(key, startOffsetMs);
+                reportListenerLag(key, startOffsetMs);
                 sessions.engineAccepted(key);
                 failures.clear(key);
                 if (sessions.activeVoice(key) instanceof SpeakerVoiceGroup group) group.onFirstAudio();
@@ -926,6 +927,7 @@ public final class ClientPlaybackManager {
              Minecraft.getInstance().execute(() -> {
                  if (sessions.noteFirstAudio(key, token)) {
                      reanchorClientElapsed(key, startOffsetMs);
+                     reportListenerLag(key, startOffsetMs);
                  }
              });
          });
@@ -1038,6 +1040,7 @@ public final class ClientPlaybackManager {
         }
         // 実音の開始に合わせて進捗表示のアンカーを打ち直す (1 再生につき 1 回 = 上のガードの内側)。
         reanchorClientElapsed(key, startOffsetMs);
+        reportListenerLag(key, startOffsetMs);
         sessions.engineAccepted(key);
         failures.clear(key);
     */
@@ -1122,6 +1125,25 @@ public final class ClientPlaybackManager {
      * 呼び出し側が {@link PlaybackSessions#noteFirstAudio} を通った直後に限るので、
      * 1 再生につき 1 回になる。BE が金ジュークでなくなっていたら (撤去・差し替え等) 何もしない。
      */
+    /**
+     * 実音が鳴り始めた時、server の再生位置からどれだけ遅れていたかを金のジュークボックスへ知らせる。
+     * server はいちばん遅い client が鳴り終わるまで、アルバムの次の曲・1曲リピートの頭出しを待つ。
+     * 印の無い再生 (バニラのジュークボックス) とラジオ・尺の無い曲は送らない。
+     */
+    private void reportListenerLag(BlockPos key, long audioStartOffsetMs) {
+        final ReloadRequest request = reloadRequests.get(key);
+        if (request == null || request.identity() == null || request.identity().sourceId() == null
+                || request.track() == null || request.track().radio() || request.track().durationMs() <= 0L) {
+            return;
+        }
+        final long serverPosition = request.startOffsetMs() + (playbackClockMs() - request.receivedPlaybackMs());
+        final long lag = serverPosition - audioStartOffsetMs;
+        if (lag > 0L) {
+            com.kuronami.musicdiscmaker.platform.Services.NETWORK.sendToServer(
+                    new com.kuronami.musicdiscmaker.network.AudioLagPayload(key, -1, request.identity(), lag));
+        }
+    }
+
     private static void reanchorClientElapsed(BlockPos key, long startOffsetMs) {
         final ClientLevel level = Minecraft.getInstance().level;
         if (level == null) {

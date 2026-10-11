@@ -290,6 +290,37 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     // ── GUI / block 用アクセサ ──
 
+    /** client の「鳴り始めの遅れ」の上限 (ms)。曲の終わりの停止を client が待つ上限と同じ。 */
+    public static final long MAX_LISTENER_LAG_MS = 10_000L;
+
+    /**
+     * 聞いている client の中でいちばん大きい「鳴り始めの遅れ」(ms)。{@link #lagGeneration} の再生の分だけ数える。
+     * URL の曲は読み込みのぶん server の位置より遅れて鳴り始めるので、アルバムの次の曲・1曲リピートの頭出しを
+     * 曲の長さちょうどで行うと、前の曲の最後がこの長さだけ切れる (2026-10-12 実測: 1曲目約4.2秒、以後約2.5秒)。
+     * 保存しない (読み直した後は client がまた報告する)。
+     */
+    private long listenerLagMs;
+    private long lagGeneration = -1L;
+
+    /** client からの遅れの報告。今の再生の印と違う (曲が変わった後の) 報告は捨てる。 */
+    public void noteListenerLag(com.kuronami.musicdiscmaker.network.PlaybackSourceStamp identity, long lagMs) {
+        if (!isServer() || identity == null || !identity.equals(playbackIdentity())
+                || cursor.state() != PlaybackCursor.State.PLAYING) {
+            return;
+        }
+        final long clamped = Math.max(0L, Math.min(lagMs, MAX_LISTENER_LAG_MS));
+        if (lagGeneration != identity.generation()) {
+            lagGeneration = identity.generation();
+            listenerLagMs = 0L;
+        }
+        listenerLagMs = Math.max(listenerLagMs, clamped);
+    }
+
+    /** 曲の終わりで次の曲へ進む・頭へ戻る前に、いちばん遅い client が鳴り終わるまで待つ長さ。 */
+    public long naturalAdvanceGraceMs() {
+        return lagGeneration == cursor.generation() ? listenerLagMs : 0L;
+    }
+
     public com.kuronami.musicdiscmaker.network.PlaybackSourceStamp playbackIdentity() {
         return new com.kuronami.musicdiscmaker.network.PlaybackSourceStamp(sourceIdentity(), cursor.generation());
     }
@@ -1463,11 +1494,15 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         //?}
         if (startMillis > 0L && !isPaused()) {
             final CustomTrackData track = currentTrack();
-            if (getAlbumTrack() < 0) {
+            // MDM のアルバムは上の分岐が次の曲へ進める。いちばん遅い client を待っている間に、ここで
+            // 1曲の盤として止めない。
+            if (getAlbumTrack() < 0 && !isMdmAlbum()) {
                 final long baseDuration = trackDurationMs();
                 final long duration = baseDuration > 0L && mount != null && track == null
                         ? baseDuration + MOUNTED_VANILLA_END_GRACE_MS : baseDuration;
-                if (!isLiveStream() && duration > 0L && playbackTimeMs() - startMillis >= duration) {
+                // 1曲リピートは頭へ戻る前に、いちばん遅い client が鳴り終わるまで待つ。止める時は client が自分で待つ。
+                final long finishAt = duration + (repeat ? naturalAdvanceGraceMs() : 0L);
+                if (!isLiveStream() && duration > 0L && playbackTimeMs() - startMillis >= finishAt) {
                     if (repeat) {
                         startPlayback(0L);
                     } else {
@@ -1495,7 +1530,8 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     private boolean currentMdmTrackFinished() {
         final CustomTrackData track = currentTrack();
         if (track != null) {
-            return PlaylistPlayback.finished(playbackTimeMs() - startMillis, track.durationMs(), track.radio());
+            return PlaylistPlayback.finished(playbackTimeMs() - startMillis - naturalAdvanceGraceMs(),
+                    track.durationMs(), track.radio());
         }
         // アルバムの中のバニラ・他 MOD の盤は曲尺で次へ送る。下の単曲の終わりの判定 (同じ尺) より先に
         // ここで拾わないと、アルバムが次の盤へ進まずに止まる。
@@ -1512,7 +1548,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         }
         final long dur = track != null ? track.durationMs() : 0L;
         if (dur > 0L) {
-            return playbackTimeMs() - startMillis >= dur;
+            return playbackTimeMs() - startMillis >= dur + naturalAdvanceGraceMs();
         }
         if (mount != null) {
             final long vanillaDuration = trackDurationMs();

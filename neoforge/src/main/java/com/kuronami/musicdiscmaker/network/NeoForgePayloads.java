@@ -50,6 +50,8 @@ public final class NeoForgePayloads {
         // client → server: 製作機で作った盤の取りやめ
         registrar.playToServer(ModPayloadTypes.CancelDisc.TYPE, ModPayloadTypes.CancelDisc.STREAM_CODEC,
                 NeoForgePayloads::handleCancelDisc);
+        registrar.playToServer(ModPayloadTypes.AudioLag.TYPE, ModPayloadTypes.AudioLag.STREAM_CODEC,
+                NeoForgePayloads::handleAudioLag);
 
         // client → server: 強化版ジュークボックスの設定適用
         registrar.playToServer(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC,
@@ -126,6 +128,13 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleCancelDisc(msg.inner(), player));
+    }
+
+    private static void handleAudioLag(ModPayloadTypes.AudioLag msg, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleAudioLag(msg.inner(), player));
     }
 
     private static void handleConfigureJukebox(ModPayloadTypes.ConfigureJukebox msg, IPayloadContext context) {

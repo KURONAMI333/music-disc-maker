@@ -277,14 +277,14 @@ public final class GoldenCartClientPlayback {
             }
             Minecraft.getInstance().execute(() -> onLoaded(payload, source, track,
                     TrackAudioResolver.actualOffset(resolved, startOffsetMs), resolved,
-                    reported, token));
+                    reported, token, requestedAtMs));
         });
     }
 
     private static void onLoaded(GoldenCartPlayPayload payload, UUID source, CustomTrackData track,
-            long startOffsetMs, IAudioSource resolved, PlaybackFailure failure, int token) {
+            long startOffsetMs, IAudioSource resolved, PlaybackFailure failure, int token, long requestedAtMs) {
         final boolean applied = SESSIONS.completeIfLive(source, token,
-                () -> applyCurrentLoad(payload, source, track, startOffsetMs, resolved, failure, token));
+                () -> applyCurrentLoad(payload, source, track, startOffsetMs, resolved, failure, token, requestedAtMs));
         if (!applied && resolved != null) {
             resolved.close(); // ロード中に停止 / 同じ曲を含む後続世代が来た
         }
@@ -293,7 +293,7 @@ public final class GoldenCartClientPlayback {
     /** 現世代と確認できたロード完了だけを状態へ反映する (main thread)。 */
     private static void applyCurrentLoad(GoldenCartPlayPayload payload, UUID source,
             CustomTrackData track, long startOffsetMs, IAudioSource resolved,
-            PlaybackFailure failure, int token) {
+            PlaybackFailure failure, int token, long requestedAtMs) {
         // 後続の要求が別の曲で走り出していたら、その記録を消さない (2 引数版の remove)。
         PENDING.remove(source, track.sourceKey());
         if (resolved == null) {
@@ -331,6 +331,21 @@ public final class GoldenCartClientPlayback {
         instance.setDirectional(liveRequest.directional());
         instance.setFailureSink(
                 late -> Minecraft.getInstance().execute(() -> lateFailure(source, token, track, late)));
+        if (!track.radio() && track.durationMs() > 0L) {
+            // 実音が鳴り始めた時の server の位置からの遅れを知らせる。server はいちばん遅い client が
+            // 鳴り終わるまで、アルバムの次の曲・1曲リピートの頭出しを待つ (設置した金のジュークボックスと同じ)。
+            final long receivedOffsetMs = payload.startOffsetMs();
+            final int entityId = payload.entityId();
+            final PlaybackSourceStamp identity = payload.identity();
+            instance.setFirstAudioSink(() -> Minecraft.getInstance().execute(() -> {
+                final long lag = receivedOffsetMs + (TrackAudioResolver.playbackClockMs() - requestedAtMs) - startOffsetMs;
+                if (lag > 0L) {
+                    com.kuronami.musicdiscmaker.platform.Services.NETWORK.sendToServer(
+                            new com.kuronami.musicdiscmaker.network.AudioLagPayload(
+                                    net.minecraft.core.BlockPos.ZERO, entityId, identity, lag));
+                }
+            }));
+        }
         if (!SESSIONS.install(source, token, track.sourceKey(), startOffsetMs, instance)) {
             instance.requestStop();
             return;

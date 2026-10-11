@@ -43,6 +43,9 @@ public final class LegacyPayloadIds {
         if (payload instanceof CancelDiscPayload) {
             return CancelDiscPayload.PATH;
         }
+        if (payload instanceof AudioLagPayload) {
+            return AudioLagPayload.PATH;
+        }
         if (payload instanceof ConfigureJukeboxPayload) {
             return ConfigureJukeboxPayload.PATH;
         }

@@ -225,6 +225,61 @@ public final class GoldenMediaSequenceGameTests {
         }
     }
 
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void listenerLagHoldsNaturalAlbumAdvance(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        try {
+        be.setItem(0, album(helper,
+                disc(helper, "https://example.invalid/lag-a", "A", DURATION_MS, false),
+                disc(helper, "https://example.invalid/lag-b", "B", DURATION_MS, false)));
+        be.seekTo(DURATION_MS);
+        final var playing = be.playbackIdentity();
+        be.noteListenerLag(playing, 60_000L);
+        helper.assertTrue(be.naturalAdvanceGraceMs() == GoldenJukeboxBlockEntity.MAX_LISTENER_LAG_MS,
+                "listener lag was not capped: " + be.naturalAdvanceGraceMs());
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        assertPosition(helper, be, 0, 0, "Album moved on before the slowest listener finished");
+        be.noteListenerLag(new com.kuronami.musicdiscmaker.network.PlaybackSourceStamp(
+                playing.sourceId(), playing.generation() + 7L), 1_000L);
+        helper.assertTrue(be.naturalAdvanceGraceMs() == GoldenJukeboxBlockEntity.MAX_LISTENER_LAG_MS,
+                "a report for another playback changed the wait");
+        be.seekTo(DURATION_MS);
+        helper.assertTrue(be.naturalAdvanceGraceMs() == 0L, "the wait carried over to a new playback");
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        assertPosition(helper, be, 1, 0, "Album did not move on without a listener report");
+        helper.succeed();
+        } finally {
+            be.clearContent();
+        }
+    }
+
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void listenerLagHoldsSingleRepeat(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        try {
+        be.setItem(0, disc(helper, "https://example.invalid/lag-single", "Single", DURATION_MS, false));
+        be.setRepeat(true);
+        be.seekTo(DURATION_MS);
+        final var playing = be.playbackIdentity();
+        be.noteListenerLag(playing, 3_000L);
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        helper.assertTrue(be.playbackIdentity().equals(playing),
+                "repeat restarted before the slowest listener finished");
+        be.seekTo(DURATION_MS);
+        final var reseeked = be.playbackIdentity();
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        helper.assertTrue(!be.playbackIdentity().equals(reseeked) && be.currentElapsedMs() < 1_000L,
+                "repeat did not restart without a listener report");
+        helper.succeed();
+        } finally {
+            be.clearContent();
+        }
+    }
+
     private static GoldenJukeboxBlockEntity jukebox(GameTestHelper helper) {
         helper.setBlock(POS, ModBlocks.GOLDEN_JUKEBOX.get());
         //? if >=1.21.2 {

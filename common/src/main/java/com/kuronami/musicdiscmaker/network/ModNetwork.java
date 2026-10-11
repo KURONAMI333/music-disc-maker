@@ -59,7 +59,8 @@ public final class ModNetwork {
     // 19: boombox_play にバニラ・他 MOD の盤の曲を追加 (ブームボックスでどの盤でも鳴る)。
     // 20: rename_disc (製作機で作った盤の曲名の付け直し) を追加。
     // 21: cancel_disc (製作機で作った盤の取りやめ) を追加。
-    public static final String PROTOCOL_VERSION = "21";
+    // 22: audio_lag (曲が実際に鳴り始めた時の遅れ。金のジュークボックスが次の曲を待つ) を追加。
+    public static final String PROTOCOL_VERSION = "22";
 
     private static final double MAX_REACH_SQR = 64.0;
 
@@ -114,6 +115,25 @@ public final class ModNetwork {
                 && player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker
                 && maker == menu.getBlockEntity()) {
             maker.cancelOutput(payload.expectedTitle(), player);
+        }
+    }
+
+    /**
+     * client の音が鳴り始めた時の遅れを、鳴らしている金のジュークボックスへ渡す。曲が変わった後の古い報告は
+     * ジュークボックス側が印で捨て、遅れは上限で丸める。誰かが大きな値を送っても、次の曲が少し遅れるだけ。
+     */
+    public static void handleAudioLag(AudioLagPayload payload, ServerPlayer player) {
+        final GoldenJukeboxBlockEntity jukebox;
+        if (payload.entityId() >= 0) {
+            jukebox = player.level().getEntity(payload.entityId())
+                    instanceof com.kuronami.musicdiscmaker.entity.GoldenJukeboxMinecartEntity cart ? cart.jukebox() : null;
+        } else {
+            final BlockPos pos = payload.pos();
+            jukebox = player.level().isLoaded(pos) && player.level().getBlockEntity(pos) instanceof GoldenJukeboxBlockEntity be
+                    ? be : null;
+        }
+        if (jukebox != null) {
+            jukebox.noteListenerLag(payload.identity(), payload.lagMs());
         }
     }
 
