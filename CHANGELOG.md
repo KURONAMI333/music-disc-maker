@@ -2,15 +2,36 @@
 
 ## 3.1.0
 
+### Fixes
+
+- Fixed the track number of an Album in the Boombox staying at 1 (for example 1/5) as the songs advanced. The Golden Jukebox and the Minecart with Golden Jukebox now show the same number for Albums.
+- Fixed Albums and Boomboxes rejecting every disc as too large on dedicated servers when a large item, such as a filled Shulker Box, was elsewhere in the inventory.
+- Fixed a carried Boombox stopping after about 10 seconds while the server was running slowly.
+- A stopped Boombox held in the hand now shows its handle in first person instead of disappearing from view.
+- Fixed Forge 1.20.1 failing to start with older Sophisticated Core versions, such as the one in DeceasedCraft.
+- Fixed [Let's Do] Furniture Gramophone and Additional Additions Album playback restarting from the beginning for everyone when another player came near.
+- Fixed players outside a Golden Jukebox's range hearing about a second of each track start, and of each repeat, when directional audio was off.
+- Fixed the last seconds of a track being cut off on Golden Jukeboxes, Speakers and the Minecart with Golden Jukebox when the track took a while to load, including when an Album moves on to its next disc or a disc repeats.
+- Players who arrive while a vanilla disc is playing in a Golden Jukebox now hear it from the current position.
+- If a track's connection drops partway through, playback now picks up again from the same spot (up to twice).
+- Fixed song details with emoji or other rare characters making a disc count as too large on servers.
+- Fixed a Speaker staying silent after a sound channel became free again.
+- Each release file now loads only on the Minecraft version it is made for.
+- With "Show Now Playing" on, the message appears only for players who can hear the music, and only once while the same track repeats or resumes from a pause.
+- Fixed a vanilla disc on a Golden Jukebox starting over from the beginning after a pause.
+- Fixed a vanilla disc that kept playing after its Golden Jukebox was broken, until leaving the world.
+- Fixed album art in disc tooltips appearing between the lines of a long song title.
+- Dyed discs: each dye now gives the same edge colour on every disc face, so a chosen colour no longer turns black, salmon or swaps with a neighbouring colour (such as pink and magenta). Choosing the same dye for both parts gives a highlighted edge, and a pink face no longer shows white spots.
+
 ### New features
 
 - Added Fabric builds for Minecraft 26.1.2.
 - Albums now hold up to 18 discs in two rows.
 - Add the Golden Album: surround an Album with 8 gold ingots to get 54 slots in six rows, like a large chest. Its discs, their order, its color and its name carry over, and it plays in the Boombox, the Golden Jukebox and the Minecart with Golden Jukebox like an Album.
 - Boomboxes and Albums accept any music disc that plays in a jukebox, including vanilla discs and discs from other mods.
-- Import an MP3 from the local computer and share its audio through the server for multiplayer playback.
-- Equip a Boombox through an optional Curios slot on NeoForge 1.21.1, 1.21.11, 26.1.2, and 26.2, and Forge 1.20.1.
-- Replace the Speaker horn and Boombox handle models with resource-pack JSON and adjust their animation pivots. See the [resource-pack model guide](./_docs/RESOURCE_PACK_SHAPES_3.1.0.md).
+- Import an audio or video file from your computer (MP3, WAV, FLAC, OGG, M4A, MP4, WebM and more) and share its sound through the server for multiplayer playback. A file can be up to 32 MiB and 60 minutes long, and the server keeps imported audio in the world folder.
+- Equip a Boombox through an optional Curios slot on NeoForge 1.21.1, 1.21.11, 26.1.2, and 26.2, and Forge 1.20.1, and open it with a key (B by default, changeable in Controls).
+- Replace the Speaker horn and Boombox handle models with resource-pack JSON and adjust their animation pivots. See the [resource-pack model guide](https://github.com/KURONAMI333/music-disc-maker/blob/master/_docs/RESOURCE_PACK_SHAPES_3.1.0.md).
 - Add the Minecart with Golden Jukebox for music playback and controls on rails.
 - Custom music discs can be placed on BiblioCraft Legacy disc racks.
 - Custom music discs play in the [Let's Do] Furniture Gramophone on Minecraft 1.20.1 (Forge and Fabric), as they already do on 1.21.1.
@@ -22,28 +43,12 @@
 - The Golden Jukebox range now starts at 4 blocks instead of 16.
 - Redstone now switches the Golden Jukebox each time the signal turns on: it starts, pauses, or resumes the music. Turning the signal off does nothing, so buttons and pressure plates work as well as levers.
 - New client setting "Show album art", on by default. Each player can turn off the album art in custom disc tooltips; nothing needs to be set on the server.
-- Every client setting now has a translated name and description in all 14 languages (most were shown as their internal names before).
+- On NeoForge, every setting in the config screen now has a translated name and description in all 14 languages (most were shown as their internal names before). On Forge the client settings are in `config/music_disc_maker-client.toml`, and on Fabric in `config/music_disc_maker-client.properties`.
 - New client setting "Show Now Playing", off by default. While it is off, no "Now Playing" message appears for any disc, including vanilla discs and discs from other mods.
 - The Music Disc Maker screen is narrower, the same width as a furnace.
 - The Curios Boombox slot shows a Boombox outline when empty.
 - Clear button in the Music Disc Maker cancels a new disc that has not been taken out yet and returns the blank disc.
-- More of the look can be changed with resource packs: the Boombox screen's keys, volume slider and playback bar come from a texture, a placed Boombox has a `playing` block state for its model, and the Golden Jukebox's inventory area follows the vanilla container texture like the other screens.
-
-### Fixes
-
-- Fixed the track number of an Album in the Boombox staying at 1 (for example 1/5) as the songs advanced. The Golden Jukebox and the Minecart with Golden Jukebox now show the same number for Albums.
-- Fixed Albums and Boomboxes rejecting every disc as too large on dedicated servers when a large item, such as a filled Shulker Box, was elsewhere in the inventory.
-- Fixed a carried Boombox stopping after about 10 seconds while the server was running slowly.
-- A stopped Boombox held in the hand now shows its handle in first person instead of disappearing from view.
-- Fixed Forge 1.20.1 failing to start with older Sophisticated Core versions, such as the one in DeceasedCraft.
-- Fixed [Let's Do] Furniture Gramophone and Additional Additions Album playback restarting from the beginning for everyone when another player came near.
-- Fixed players outside a Golden Jukebox's range hearing about a second of each track start, and of each repeat, when directional audio was off.
-- Fixed the last seconds of a track being cut off on Golden Jukeboxes and Speakers when the track took a while to load.
-- With "Show Now Playing" on, the message appears only for players who can hear the music, and only once while the same track repeats or resumes from a pause.
-- Fixed a vanilla disc on a Golden Jukebox starting over from the beginning after a pause.
-- Fixed a vanilla disc that kept playing after its Golden Jukebox was broken, until leaving the world.
-- Fixed album art in disc tooltips appearing between the lines of a long song title.
-- Dyed discs: each dye now gives the same edge colour on every disc face, so a chosen colour no longer turns black, salmon or swaps with a neighbouring colour (such as pink and magenta). Choosing the same dye for both parts gives a highlighted edge, and a pink face no longer shows white spots.
+- More of the look can be changed with resource packs: the Boombox screen's keys, volume slider and playback bar come from a texture, a placed Boombox has a `playing` block state for its model, the Golden Jukebox's inventory area follows the vanilla container texture like the other screens, and the Speaker and Boombox screens, their play and pause marks and the Music Disc Maker buttons use textures.
 
 Use the same Music Disc Maker version on the server and all clients.
 

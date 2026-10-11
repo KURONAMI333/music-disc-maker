@@ -1,10 +1,10 @@
-Turn a music link into a disc for your jukebox, carry it in a Boombox, or play it across your build through linked Speakers. You can also import a local MP3 and share it through your server.
+Turn a music link into a disc for your jukebox, carry it in a Boombox, or play it across your build through linked Speakers. You can also import an audio or video file from your computer and share it through your server.
 
 <p><a href="https://www.patreon.com/KURONAMI333"><img src="https://raw.githubusercontent.com/KURONAMI333/music-disc-maker/master/_docs/support/patreon.png" width="440" height="156" alt="Support my mods on Patreon"></a> <a href="https://x.com/kuronami333"><img src="https://raw.githubusercontent.com/KURONAMI333/music-disc-maker/master/_docs/support/x.png" width="300" height="156" alt="Follow @kuronami333 on X"></a></p>
 
 ## Make a disc
 
-Craft a **Music Disc Maker**, then make a **Blank Disc** with lapis lazuli and iron. Open the maker, paste a track URL or choose a local MP3, and insert the blank disc. Confirm the displayed title, then take your finished **Custom Music Disc** and play it in an ordinary jukebox.
+Craft a **Music Disc Maker**, then make a **Blank Disc** with lapis lazuli and iron. Open the maker, paste a track URL or choose an audio or video file from your computer, and insert the blank disc. Confirm the displayed title, then take your finished **Custom Music Disc** and play it in an ordinary jukebox.
 
 Use links from **YouTube, Spotify, SoundCloud, Bandcamp**, or a direct audio URL. Discs show the track title, artist, duration, source, and cover art in their tooltip. You can also rename them on an anvil. Imported audio is stored by the server so other players on that server can hear the shared disc; the selected file path is not shared.
 
@@ -39,13 +39,16 @@ On servers, playback is synchronized so players joining an ongoing track hear th
 
 - **Additional Additions:** Custom discs work in Albums and the Pocket Jukebox.
 - **Sophisticated Backpacks** and **Traveler's Backpack:** Custom discs work with their jukebox upgrades.
+- **BiblioCraft Legacy:** Custom discs fit its disc racks on 1.21.1.
+- **[Let's Do] Furniture:** Custom discs play in the Gramophone on 1.20.1 and 1.21.1.
+- **Create: Steam 'n' Rails:** Custom discs play in the Minecart with Jukebox on 1.20.1 and NeoForge 1.21.1.
 - **Create:** Golden Jukebox audio follows moving contraptions on NeoForge 1.21.1 and Forge 1.20.1. Create Aeronautics airships are supported on NeoForge 1.21.1.
 - **Valkyrien Skies 2, Eureka!, and Clockwork:** Audio follows ships on 1.20.1.
 - **Curios:** Optional Boombox slot on NeoForge 1.21.1, 1.21.11, 26.1.2, and 26.2, and Forge 1.20.1. Not supported or required on Fabric.
 
 ## Before you play
 
-URL audio streams from their source rather than being stored inside the disc, so URL playback needs an internet connection. Imported MP3 audio is stored by the server for shared playback. Spotify links use the song and artist to find a matching track on YouTube. Some tracks may be unavailable, region-locked, or blocked by a login or bot check. Try a direct audio link, SoundCloud, or Bandcamp if that happens. Twitch is not supported.
+URL audio streams from their source rather than being stored inside the disc, so URL playback needs an internet connection. Imported audio is stored by the server for shared playback. Spotify links use the song and artist to find a matching track on YouTube. Some tracks may be unavailable, region-locked, or blocked by a login or bot check. Try a direct audio link, SoundCloud, or Bandcamp if that happens. Twitch is not supported.
 
 Use the same Music Disc Maker version on the server and every client.
 
