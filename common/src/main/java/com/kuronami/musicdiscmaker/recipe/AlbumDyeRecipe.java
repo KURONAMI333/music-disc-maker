@@ -92,7 +92,7 @@ public final class AlbumDyeRecipe extends CustomRecipe {
                 continue;
             }
             found++;
-            if (stack.is(ModItems.ALBUM.get())) {
+            if (AlbumItem.isAlbum(stack)) {
                 if (!album.isEmpty()) {
                     return ItemStack.EMPTY;
                 }
@@ -112,7 +112,7 @@ public final class AlbumDyeRecipe extends CustomRecipe {
                 continue;
             }
             found++;
-            if (stack.is(ModItems.ALBUM.get())) {
+            if (AlbumItem.isAlbum(stack)) {
                 album = stack;
             } else if (dyeColor(stack) != null && color == null) {
                 color = dyeColor(stack);
@@ -140,7 +140,7 @@ public final class AlbumDyeRecipe extends CustomRecipe {
                 continue;
             }
             found++;
-            if (stack.is(ModItems.ALBUM.get())) {
+            if (AlbumItem.isAlbum(stack)) {
                 if (!album.isEmpty()) {
                     return ItemStack.EMPTY;
                 }
@@ -160,7 +160,7 @@ public final class AlbumDyeRecipe extends CustomRecipe {
                 continue;
             }
             found++;
-            if (stack.is(ModItems.ALBUM.get())) {
+            if (AlbumItem.isAlbum(stack)) {
                 album = stack;
             } else if (dyeColor(stack) != null && color == null) {
                 color = dyeColor(stack);

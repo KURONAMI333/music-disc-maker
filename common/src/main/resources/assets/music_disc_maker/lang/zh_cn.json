@@ -1,5 +1,6 @@
 {
   "item.music_disc_maker.album": "唱片集",
+  "item.music_disc_maker.golden_album": "黄金唱片集",
   "block.music_disc_maker.music_disc_maker": "音乐唱片制作机",
   "item.music_disc_maker.blank_disc": "空白唱片",
   "item.music_disc_maker.custom_music_disc": "自定义音乐唱片",

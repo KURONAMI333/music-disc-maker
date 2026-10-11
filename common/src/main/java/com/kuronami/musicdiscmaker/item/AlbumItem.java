@@ -32,22 +32,53 @@ import net.minecraft.world.item.component.TooltipDisplay;
 //?} else {
 //?}
 
-/** 完成済みの MDM ディスクを順序付きで収める手持ち Album。 */
+/** 完成済みの MDM ディスクを順序付きで収める手持ち Album。Golden Album は段数だけが違う同じ型。 */
 public class AlbumItem extends Item {
 
     /**
-     * 製品GUI容量。保存値・通信の防御上限 ({@link AlbumContents}) とは意図的に別にする。
+     * Album の製品GUI容量。保存値・通信の防御上限 ({@link AlbumContents}) とは意図的に別にする。
+     * Golden Album の容量は {@link #capacity()}。
      */
     public static final int GUI_CAPACITY = AlbumMenuLayout.CAPACITY;
     private static final int TOOLTIP_NAME_CODEPOINT_LIMIT = 32;
+    /** 54 曲を全部並べると画面から溢れるので、ツールチップは Album と同じ行数で止める。 */
+    private static final int TOOLTIP_TRACK_LINES = AlbumMenuLayout.CAPACITY;
+
+    private final int rows;
 
     public AlbumItem(Properties properties) {
+        this(properties, AlbumMenuLayout.ROWS);
+    }
+
+    public AlbumItem(Properties properties, int rows) {
         super(properties);
+        this.rows = rows;
+        AlbumMenuLayout.capacity(rows);
+    }
+
+    /** 画面の段数。Album は 2、Golden Album は 6。 */
+    public int rows() {
+        return rows;
+    }
+
+    /** 画面に並ぶ枠の数。 */
+    public int capacity() {
+        return AlbumMenuLayout.capacity(rows);
+    }
+
+    /** Album と Golden Album のどちらか。 */
+    public static boolean isAlbum(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof AlbumItem;
+    }
+
+    /** Album でなければ 0。 */
+    public static int capacity(ItemStack stack) {
+        return isAlbum(stack) ? ((AlbumItem) stack.getItem()).capacity() : 0;
     }
 
     /**
      * Album を手に取った時、収納した盤を保存順で確認できるようにする。
-     * 最大GUI容量分だけを出し、旧データなどがそれを超える場合もツールチップを無制限に育てない。
+     * 先頭の {@link #TOOLTIP_TRACK_LINES} 枚だけを出し、残りは枚数で示す。ツールチップを無制限に育てない。
      */
     @Override
     //? if >=1.21.11 {
@@ -76,7 +107,7 @@ public class AlbumItem extends Item {
             */
             //?}
                     .withStyle(ChatFormatting.GRAY));
-            final int visible = Math.min(stored.size(), GUI_CAPACITY);
+            final int visible = Math.min(stored.size(), TOOLTIP_TRACK_LINES);
             for (int index = 0; index < visible; index++) {
                 final ItemStack disc = stored.discAt(index);
                 final Component line = Component.literal((index + 1) + ". ")
@@ -89,11 +120,12 @@ public class AlbumItem extends Item {
                 */
                 //?}
             }
-            if (stored.size() > GUI_CAPACITY) {
+            if (stored.size() > visible) {
+                final Component more = Component.literal("… +" + (stored.size() - visible)).withStyle(ChatFormatting.DARK_GRAY);
                 //? if >=1.21.11 {
-                tooltip.accept(Component.literal("…").withStyle(ChatFormatting.DARK_GRAY));
+                tooltip.accept(more);
                 //?} else {
-                /*tooltip.add(Component.literal("…").withStyle(ChatFormatting.DARK_GRAY));
+                /*tooltip.add(more);
                 */
                 //?}
             }

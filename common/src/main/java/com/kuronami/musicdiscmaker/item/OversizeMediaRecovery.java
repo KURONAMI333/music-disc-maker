@@ -182,7 +182,7 @@ public final class OversizeMediaRecovery {
     private static BoomboxPlan boomboxPlan(ItemStack boombox, BoomboxContents before, RegistryAccess registries) {
         final ItemStack medium = before.disc();
         if (medium.isEmpty()) return null;
-        if (!medium.is(ModItems.ALBUM.get())) {
+        if (!AlbumItem.isAlbum(medium)) {
             if (!fits(medium, registries)) return null;
             final ItemStack candidate = boombox.copy();
             storeContents(candidate, before.withDisc(ItemStack.EMPTY));
@@ -209,9 +209,10 @@ public final class OversizeMediaRecovery {
     }
 
     private static boolean albumCleanSyncFits(ItemStack album, RegistryAccess registries) {
-        final List<ItemStack> minimal = new ArrayList<>(AlbumItem.GUI_CAPACITY);
+        final int capacity = AlbumItem.capacity(album);
+        final List<ItemStack> minimal = new ArrayList<>(capacity);
         final List<ItemStack> discs = AlbumItem.contents(album).discs();
-        for (int i = 0; i < AlbumItem.GUI_CAPACITY; i++) minimal.add(i < discs.size() ? discs.get(i) : ItemStack.EMPTY);
+        for (int i = 0; i < capacity; i++) minimal.add(i < discs.size() ? discs.get(i) : ItemStack.EMPTY);
         return fitsInitial(minimal, registries);
     }
 

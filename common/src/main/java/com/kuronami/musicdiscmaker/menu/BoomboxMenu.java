@@ -365,7 +365,7 @@ public class BoomboxMenu extends AbstractContainerMenu {
     private static boolean isBoombox(ItemStack stack) { return !stack.isEmpty() && stack.is(ModItems.BOOMBOX.get()); }
     private static boolean isAcceptedMedium(ItemStack stack) {
         // どの盤でも (MDM・バニラ・他 MOD) と、アルバム (2026-10-09 本人裁定)。
-        return com.kuronami.musicdiscmaker.component.PlayableDiscs.isDisc(stack) || stack.is(ModItems.ALBUM.get());
+        return com.kuronami.musicdiscmaker.component.PlayableDiscs.isDisc(stack) || com.kuronami.musicdiscmaker.item.AlbumItem.isAlbum(stack);
     }
 
     private static BoomboxContents contentsOf(ItemStack stack) {

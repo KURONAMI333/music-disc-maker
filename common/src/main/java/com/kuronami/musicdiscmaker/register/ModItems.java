@@ -70,6 +70,16 @@ public final class ModItems {
             /*ITEMS.register("album", () -> new AlbumItem(new Item.Properties().stacksTo(1)));
             *///?}
 
+    /** Album の上位版。大きいチェストと同じ 6 段 54 枠。 */
+    public static final RegistryHolder<AlbumItem> GOLDEN_ALBUM =
+            //? if >=1.21.2 {
+            ITEMS.register("golden_album", () -> new AlbumItem(props("golden_album").stacksTo(1),
+                    com.kuronami.musicdiscmaker.menu.AlbumMenuLayout.GOLDEN_ROWS));
+            //?} else {
+            /*ITEMS.register("golden_album", () -> new AlbumItem(new Item.Properties().stacksTo(1),
+                    com.kuronami.musicdiscmaker.menu.AlbumMenuLayout.GOLDEN_ROWS));
+            *///?}
+
     /** Music Disc Maker ブロックの BlockItem。 */
     public static final RegistryHolder<BlockItem> MUSIC_DISC_MAKER =
             ITEMS.register("music_disc_maker",

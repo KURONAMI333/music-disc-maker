@@ -114,9 +114,11 @@ public class ForgeMenuHelper implements IMenuHelper {
 
     @Override public MenuType<AlbumMenu> createAlbumMenuType() { return IForgeMenuType.create(AlbumMenu::new); }
 
+    @Override public MenuType<AlbumMenu> createGoldenAlbumMenuType() { return IForgeMenuType.create(AlbumMenu::golden); }
+
     @Override public void openAlbumMenu(ServerPlayer player, BoomboxSource source) {
-        NetworkHooks.openScreen(player, new SimpleMenuProvider((id, inv, p) -> new AlbumMenu(id, inv, source),
-                Component.translatable("item.music_disc_maker.album")), source::write);
+        NetworkHooks.openScreen(player, new SimpleMenuProvider((id, inv, p) -> AlbumMenu.forHeld(id, inv, source),
+                AlbumMenu.title(player, source)), source::write);
     }
 
     @Override

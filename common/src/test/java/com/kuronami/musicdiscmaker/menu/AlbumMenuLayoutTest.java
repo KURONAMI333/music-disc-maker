@@ -9,7 +9,8 @@ public final class AlbumMenuLayoutTest {
         verifiesAllFramesFitTheContainerTopAndImage();
         verifiesPlayerInventoryRowsAndHotbarStayBelowAlbumSlots();
         rejectsIndicesOutsideTheVisibleMenu();
-        System.out.println("AlbumMenuLayoutTest: 4 scenarios passed");
+        goldenAlbumMatchesTheVanillaLargeChest();
+        System.out.println("AlbumMenuLayoutTest: 5 scenarios passed");
     }
 
     private static void verifiesNineSlotFirstRowAndTenToEighteenSlotCoordinates() {
@@ -70,6 +71,35 @@ public final class AlbumMenuLayoutTest {
         throwsIndexOutOfBounds(() -> AlbumMenuLayout.albumSlotY(18), "past-capacity slot y");
         throwsIndexOutOfBounds(() -> AlbumMenuLayout.playerInventoryY(-1), "negative inventory row");
         throwsIndexOutOfBounds(() -> AlbumMenuLayout.playerInventoryY(3), "past-last inventory row");
+    }
+
+    /** Values from vanilla ContainerScreen/ChestMenu for six rows. */
+    private static void goldenAlbumMatchesTheVanillaLargeChest() {
+        final int rows = AlbumMenuLayout.GOLDEN_ROWS;
+        equal(54, AlbumMenuLayout.GOLDEN_CAPACITY, "golden capacity");
+        equal(54, AlbumMenuLayout.capacity(rows), "golden capacity from rows");
+        equal(222, AlbumMenuLayout.imageHeight(rows), "golden image height");
+        equal(125, AlbumMenuLayout.containerTopHeight(rows), "golden top background height");
+        equal(128, AlbumMenuLayout.inventoryLabelY(rows), "golden inventory label");
+        equal(139, AlbumMenuLayout.playerInventoryY(rows, 0), "golden inventory top");
+        equal(197, AlbumMenuLayout.hotbarY(rows), "golden hotbar top");
+        equal(8, AlbumMenuLayout.albumSlotX(rows, 45), "golden last row x");
+        equal(108, AlbumMenuLayout.albumSlotY(rows, 45), "golden last row y");
+        equal(152, AlbumMenuLayout.albumSlotX(rows, 53), "golden last slot x");
+        int albumBottom = AlbumMenuLayout.albumSlotY(rows, 53) + SLOT_FRAME;
+        require(albumBottom <= AlbumMenuLayout.containerTopHeight(rows), "golden slots outside top background");
+        require(AlbumMenuLayout.inventoryLabelY(rows) >= albumBottom, "golden label overlaps album slots");
+        require(AlbumMenuLayout.containerTopHeight(rows) + AlbumMenuLayout.PLAYER_INVENTORY_HEIGHT
+                        <= AlbumMenuLayout.imageHeight(rows), "golden inventory background outside image");
+        require(AlbumMenuLayout.hotbarY(rows) + SLOT_FRAME <= AlbumMenuLayout.imageHeight(rows),
+                "golden hotbar outside image");
+        throwsIndexOutOfBounds(() -> AlbumMenuLayout.albumSlotY(rows, 54), "past golden capacity");
+        try {
+            AlbumMenuLayout.capacity(7);
+            throw new AssertionError("seven rows accepted");
+        } catch (IllegalArgumentException expected) {
+            // generic_54 has six rows.
+        }
     }
 
     private static void throwsIndexOutOfBounds(Runnable action, String message) {

@@ -60,6 +60,7 @@ public final class MusicDiscMakerForgeClient {
             MenuScreens.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
             MenuScreens.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
             MenuScreens.register(ModMenus.ALBUM.get(), AlbumScreen::new);
+            MenuScreens.register(ModMenus.GOLDEN_ALBUM.get(), AlbumScreen::new);
             MenuScreens.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
 
             // custom disc の texture variant を曲名+アーティストから決定的に選ぶ。
@@ -120,7 +121,7 @@ public final class MusicDiscMakerForgeClient {
     @SubscribeEvent
     public static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
         event.getItemColors().register(DiscDyeTint::color, ModItems.CUSTOM_MUSIC_DISC.get());
-        event.getItemColors().register(AlbumDyeTint::color, ModItems.ALBUM.get());
+        event.getItemColors().register(AlbumDyeTint::color, ModItems.ALBUM.get(), ModItems.GOLDEN_ALBUM.get());
     }
 
     /**

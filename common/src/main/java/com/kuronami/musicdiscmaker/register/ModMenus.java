@@ -36,6 +36,9 @@ public final class ModMenus {
     public static final RegistryHolder<MenuType<AlbumMenu>> ALBUM =
             MENUS.register("album", () -> Services.MENU.createAlbumMenuType());
 
+    public static final RegistryHolder<MenuType<AlbumMenu>> GOLDEN_ALBUM =
+            MENUS.register("golden_album", () -> Services.MENU.createGoldenAlbumMenuType());
+
     public static final RegistryHolder<MenuType<SpeakerMenu>> SPEAKER =
             MENUS.register("speaker", () -> Services.MENU.createSpeakerMenuType());
 

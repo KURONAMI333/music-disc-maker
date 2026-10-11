@@ -1,0 +1,575 @@
+{
+  "credit": "MDM Golden Album: thicker dyeable leather case, gold spine and corners, paper sleeves",
+  "ambientocclusion": false,
+  "gui_light": "front",
+  "textures": {
+    "cover": "music_disc_maker:item/album_leather",
+    "sleeve": "music_disc_maker:item/album_paper",
+    "trim": "music_disc_maker:item/golden_album_trim",
+    "particle": "music_disc_maker:item/golden_album_trim"
+  },
+  "display": {
+    "gui": {
+      "rotation": [
+        15,
+        155,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    "ground": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "fixed": {
+      "rotation": [
+        0,
+        180,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.75,
+        0.75,
+        0.75
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        -80,
+        0,
+        -8
+      ],
+      "translation": [
+        0,
+        2.0,
+        0
+      ],
+      "scale": [
+        0.42,
+        0.42,
+        0.42
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        -80,
+        0,
+        8
+      ],
+      "translation": [
+        0,
+        2.0,
+        0
+      ],
+      "scale": [
+        0.42,
+        0.42,
+        0.42
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        -90,
+        25
+      ],
+      "translation": [
+        0.5,
+        3.2,
+        0.5
+      ],
+      "scale": [
+        0.45,
+        0.45,
+        0.45
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        0,
+        90,
+        -25
+      ],
+      "translation": [
+        -0.5,
+        3.2,
+        0.5
+      ],
+      "scale": [
+        0.45,
+        0.45,
+        0.45
+      ]
+    }
+  },
+  "elements": [
+    {
+      "name": "front_cover",
+      "from": [
+        2,
+        2,
+        5
+      ],
+      "to": [
+        14,
+        14,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "south": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "east": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "west": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "up": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "down": {
+          "texture": "#cover",
+          "tintindex": 0
+        }
+      }
+    },
+    {
+      "name": "back_cover",
+      "from": [
+        2,
+        2,
+        10.5
+      ],
+      "to": [
+        14,
+        14,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "south": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "east": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "west": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "up": {
+          "texture": "#cover",
+          "tintindex": 0
+        },
+        "down": {
+          "texture": "#cover",
+          "tintindex": 0
+        }
+      }
+    },
+    {
+      "name": "spine",
+      "from": [
+        1.8,
+        1.8,
+        5
+      ],
+      "to": [
+        2.6,
+        14.2,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#trim"
+        },
+        "south": {
+          "texture": "#trim"
+        },
+        "east": {
+          "texture": "#trim"
+        },
+        "west": {
+          "texture": "#trim"
+        },
+        "up": {
+          "texture": "#trim"
+        },
+        "down": {
+          "texture": "#trim"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_0",
+      "from": [
+        2.65,
+        2.6,
+        5.65
+      ],
+      "to": [
+        13.4,
+        13.4,
+        6.15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_1",
+      "from": [
+        2.65,
+        2.6,
+        6.45
+      ],
+      "to": [
+        13.4,
+        13.4,
+        6.95
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_2",
+      "from": [
+        2.65,
+        2.6,
+        7.25
+      ],
+      "to": [
+        13.4,
+        13.4,
+        7.75
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_3",
+      "from": [
+        2.65,
+        2.6,
+        8.05
+      ],
+      "to": [
+        13.4,
+        13.4,
+        8.55
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_4",
+      "from": [
+        2.65,
+        2.6,
+        8.85
+      ],
+      "to": [
+        13.4,
+        13.4,
+        9.35
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "disc_sleeve_5",
+      "from": [
+        2.65,
+        2.6,
+        9.65
+      ],
+      "to": [
+        13.4,
+        13.4,
+        10.15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#sleeve"
+        },
+        "south": {
+          "texture": "#sleeve"
+        },
+        "east": {
+          "texture": "#sleeve"
+        },
+        "west": {
+          "texture": "#sleeve"
+        },
+        "up": {
+          "texture": "#sleeve"
+        },
+        "down": {
+          "texture": "#sleeve"
+        }
+      }
+    },
+    {
+      "name": "front_corner_top",
+      "from": [
+        12.4,
+        12.4,
+        4.85
+      ],
+      "to": [
+        14.2,
+        14.2,
+        5.65
+      ],
+      "faces": {
+        "north": {
+          "texture": "#trim"
+        },
+        "south": {
+          "texture": "#trim"
+        },
+        "east": {
+          "texture": "#trim"
+        },
+        "west": {
+          "texture": "#trim"
+        },
+        "up": {
+          "texture": "#trim"
+        },
+        "down": {
+          "texture": "#trim"
+        }
+      }
+    },
+    {
+      "name": "front_corner_bottom",
+      "from": [
+        12.4,
+        1.8,
+        4.85
+      ],
+      "to": [
+        14.2,
+        3.6,
+        5.65
+      ],
+      "faces": {
+        "north": {
+          "texture": "#trim"
+        },
+        "south": {
+          "texture": "#trim"
+        },
+        "east": {
+          "texture": "#trim"
+        },
+        "west": {
+          "texture": "#trim"
+        },
+        "up": {
+          "texture": "#trim"
+        },
+        "down": {
+          "texture": "#trim"
+        }
+      }
+    },
+    {
+      "name": "back_corner_top",
+      "from": [
+        12.4,
+        12.4,
+        10.35
+      ],
+      "to": [
+        14.2,
+        14.2,
+        11.15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#trim"
+        },
+        "south": {
+          "texture": "#trim"
+        },
+        "east": {
+          "texture": "#trim"
+        },
+        "west": {
+          "texture": "#trim"
+        },
+        "up": {
+          "texture": "#trim"
+        },
+        "down": {
+          "texture": "#trim"
+        }
+      }
+    },
+    {
+      "name": "back_corner_bottom",
+      "from": [
+        12.4,
+        1.8,
+        10.35
+      ],
+      "to": [
+        14.2,
+        3.6,
+        11.15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#trim"
+        },
+        "south": {
+          "texture": "#trim"
+        },
+        "east": {
+          "texture": "#trim"
+        },
+        "west": {
+          "texture": "#trim"
+        },
+        "up": {
+          "texture": "#trim"
+        },
+        "down": {
+          "texture": "#trim"
+        }
+      }
+    }
+  ]
+}

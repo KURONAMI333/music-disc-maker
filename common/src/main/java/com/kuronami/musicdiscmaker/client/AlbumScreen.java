@@ -22,8 +22,9 @@ import net.minecraft.resources.Identifier;
 *///?}
 
 /**
- * Albumの収納操作面。二段18枠の上側とバニラプレイヤーインベントリの下側を描画する。
- * Album自体の外形や最終容量を決めるものではなく、背景はリソースパックから差し替えられる。
+ * Album (2段18枠) と Golden Album (6段54枠) の収納操作面。バニラのチェスト画面と同じく
+ * generic_54 の上側を段数分だけ切り出し、下側にプレイヤーインベントリを描画する。
+ * 背景はリソースパックから差し替えられる。
  */
 public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     //? if >=1.21.11 {
@@ -39,13 +40,13 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
 
     public AlbumScreen(AlbumMenu menu, Inventory inventory, Component title) {
         //? if >=26.1 {
-        super(menu, inventory, title, AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.IMAGE_HEIGHT);
+        super(menu, inventory, title, AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.imageHeight(menu.rows()));
         //?} else {
         /*super(menu, inventory, title);
         this.imageWidth = AlbumMenuLayout.IMAGE_WIDTH;
-        this.imageHeight = AlbumMenuLayout.IMAGE_HEIGHT;
+        this.imageHeight = AlbumMenuLayout.imageHeight(menu.rows());
         *///?}
-        this.inventoryLabelY = AlbumMenuLayout.INVENTORY_LABEL_Y;
+        this.inventoryLabelY = AlbumMenuLayout.inventoryLabelY(menu.rows());
     }
 
     @Override
@@ -78,9 +79,9 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
         graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos, 0.0F, 0.0F,
-                AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 256, 256);
+                AlbumMenuLayout.IMAGE_WIDTH, topHeight(), 256, 256);
         graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos,
-                topPos + AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 0.0F,
+                topPos + topHeight(), 0.0F,
                 AlbumMenuLayout.PLAYER_INVENTORY_TEXTURE_Y, AlbumMenuLayout.IMAGE_WIDTH,
                 AlbumMenuLayout.PLAYER_INVENTORY_HEIGHT, 256, 256);
     }
@@ -94,9 +95,9 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     /*@Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos, topPos, 0.0F, 0.0F,
-                AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 256, 256);
+                AlbumMenuLayout.IMAGE_WIDTH, topHeight(), 256, 256);
         graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND, leftPos,
-                topPos + AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 0.0F,
+                topPos + topHeight(), 0.0F,
                 AlbumMenuLayout.PLAYER_INVENTORY_TEXTURE_Y, AlbumMenuLayout.IMAGE_WIDTH,
                 AlbumMenuLayout.PLAYER_INVENTORY_HEIGHT, 256, 256);
     }
@@ -104,8 +105,8 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
     /*@Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         GuiTextureBlit.blit(graphics, BACKGROUND, leftPos, topPos, 0.0F, 0.0F,
-                AlbumMenuLayout.IMAGE_WIDTH, AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 256, 256);
-        GuiTextureBlit.blit(graphics, BACKGROUND, leftPos, topPos + AlbumMenuLayout.CONTAINER_TOP_HEIGHT, 0.0F,
+                AlbumMenuLayout.IMAGE_WIDTH, topHeight(), 256, 256);
+        GuiTextureBlit.blit(graphics, BACKGROUND, leftPos, topPos + topHeight(), 0.0F,
                 AlbumMenuLayout.PLAYER_INVENTORY_TEXTURE_Y, AlbumMenuLayout.IMAGE_WIDTH,
                 AlbumMenuLayout.PLAYER_INVENTORY_HEIGHT, 256, 256);
     }
@@ -124,6 +125,10 @@ public class AlbumScreen extends AbstractContainerScreen<AlbumMenu> {
         graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, 0xFF404040, false);
     }
     *///?}
+
+    private int topHeight() {
+        return AlbumMenuLayout.containerTopHeight(menu.rows());
+    }
 
     private String visibleTitle() {
         final String text = title.getString();

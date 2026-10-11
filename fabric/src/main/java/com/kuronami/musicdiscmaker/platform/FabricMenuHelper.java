@@ -358,6 +358,15 @@ public class FabricMenuHelper implements IMenuHelper {
     }
 
     @Override
+    public MenuType<AlbumMenu> createGoldenAlbumMenuType() {
+        //? if >=26.1 {
+        return new ExtendedMenuType<>((id, inv, source) -> AlbumMenu.golden(id, inv, source), BoomboxSource.STREAM_CODEC);
+        //?} else {
+        /*return new ExtendedScreenHandlerType<>((id, inv, source) -> AlbumMenu.golden(id, inv, source), BoomboxSource.STREAM_CODEC);
+        *///?}
+    }
+
+    @Override
     public void openAlbumMenu(ServerPlayer player, BoomboxSource source) {
         //? if >=26.1 {
         player.openMenu(new ExtendedMenuProvider<BoomboxSource>() {
@@ -365,8 +374,8 @@ public class FabricMenuHelper implements IMenuHelper {
         /*player.openMenu(new ExtendedScreenHandlerFactory<BoomboxSource>() {
         *///?}
             @Override public BoomboxSource getScreenOpeningData(ServerPlayer p) { return source; }
-            @Override public Component getDisplayName() { return Component.translatable("item.music_disc_maker.album"); }
-            @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) { return new AlbumMenu(id, inv, source); }
+            @Override public Component getDisplayName() { return AlbumMenu.title(player, source); }
+            @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) { return AlbumMenu.forHeld(id, inv, source); }
         });
     }
 
@@ -452,11 +461,16 @@ public class FabricMenuHelper implements IMenuHelper {
     }
 
     @Override
+    public MenuType<AlbumMenu> createGoldenAlbumMenuType() {
+        return new ExtendedScreenHandlerType<>((id, inv, buf) -> AlbumMenu.golden(id, inv, buf));
+    }
+
+    @Override
     public void openAlbumMenu(ServerPlayer player, BoomboxSource source) {
         player.openMenu(new ExtendedScreenHandlerFactory() {
             @Override public void writeScreenOpeningData(ServerPlayer p, FriendlyByteBuf buf) { source.write(buf); }
-            @Override public Component getDisplayName() { return Component.translatable("item.music_disc_maker.album"); }
-            @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) { return new AlbumMenu(id, inv, source); }
+            @Override public Component getDisplayName() { return AlbumMenu.title(player, source); }
+            @Override public AbstractContainerMenu createMenu(int id, Inventory inv, Player p) { return AlbumMenu.forHeld(id, inv, source); }
         });
     }
 

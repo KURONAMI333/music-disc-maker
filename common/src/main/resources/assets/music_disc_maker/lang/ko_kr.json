@@ -1,5 +1,6 @@
 {
   "item.music_disc_maker.album": "앨범",
+  "item.music_disc_maker.golden_album": "황금 앨범",
   "block.music_disc_maker.music_disc_maker": "음반 제작기",
   "item.music_disc_maker.blank_disc": "빈 음반",
   "item.music_disc_maker.custom_music_disc": "커스텀 음반",

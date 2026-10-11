@@ -36,7 +36,7 @@ public final class PlayableDiscs {
         if (stack.is(ModItems.CUSTOM_MUSIC_DISC.get())) {
             return true;
         }
-        if (stack.is(ModItems.ALBUM.get()) || stack.is(ModItems.BOOMBOX.get())) {
+        if (com.kuronami.musicdiscmaker.item.AlbumItem.isAlbum(stack) || stack.is(ModItems.BOOMBOX.get())) {
             return false;
         }
         //? if >=1.21 {

@@ -534,7 +534,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     /** MDM Albumは、少なくとも1曲を解決できる時だけ音源スロットへ入る。 */
     private static boolean isPlayableMdmAlbum(ItemStack stack) {
-        return stack.is(ModItems.ALBUM.get()) && !MediaSequenceResolver.resolve(stack).tracks().isEmpty();
+        return AlbumItem.isAlbum(stack) && !MediaSequenceResolver.resolve(stack).tracks().isEmpty();
     }
 
     private boolean isMdmAlbum() {

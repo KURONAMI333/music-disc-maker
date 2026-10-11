@@ -1,0 +1,21 @@
+{
+  "type": "music_disc_maker:golden_album",
+  "category": "misc",
+  "pattern": [
+    "GGG",
+    "GAG",
+    "GGG"
+  ],
+  "key": {
+    "G": {
+      "item": "minecraft:gold_ingot"
+    },
+    "A": {
+      "item": "music_disc_maker:album"
+    }
+  },
+  "result": {
+    "item": "music_disc_maker:golden_album",
+    "count": 1
+  }
+}

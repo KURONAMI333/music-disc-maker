@@ -287,6 +287,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         MenuScreens.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         MenuScreens.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         MenuScreens.register(ModMenus.ALBUM.get(), AlbumScreen::new);
+        MenuScreens.register(ModMenus.GOLDEN_ALBUM.get(), AlbumScreen::new);
         MenuScreens.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
 
         // 設置されたブームボックスの取っ手を描く BER。登録し忘れると取っ手が消えるが、
@@ -377,7 +378,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 (stack, level, entity, seed) -> CustomMusicDiscItem.isDyed(stack) ? 1.0F : 0.0F);
         // 染色ディスクの tint。登録し忘れると色が出ないだけで、例外もログも出ない。
         ColorProviderRegistry.ITEM.register(DiscDyeTint::color, ModItems.CUSTOM_MUSIC_DISC.get());
-        ColorProviderRegistry.ITEM.register(AlbumDyeTint::color, ModItems.ALBUM.get());
+        ColorProviderRegistry.ITEM.register(AlbumDyeTint::color, ModItems.ALBUM.get(), ModItems.GOLDEN_ALBUM.get());
         */
         //?} else {
         /*        // custom disc の texture variant を曲名+アーティストから決定的に選ぶ。
@@ -399,7 +400,7 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
                 (stack, level, entity, seed) -> CustomMusicDiscItem.isDyed(stack) ? 1.0F : 0.0F);
         // 染色ディスクの tint。登録し忘れると色が出ないだけで、例外もログも出ない。
         ColorProviderRegistry.ITEM.register(DiscDyeTint::color, ModItems.CUSTOM_MUSIC_DISC.get());
-        ColorProviderRegistry.ITEM.register(AlbumDyeTint::color, ModItems.ALBUM.get());
+        ColorProviderRegistry.ITEM.register(AlbumDyeTint::color, ModItems.ALBUM.get(), ModItems.GOLDEN_ALBUM.get());
         */
         //?}
 

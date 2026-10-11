@@ -4,6 +4,7 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.platform.registry.RegistrationProvider;
 import com.kuronami.musicdiscmaker.platform.registry.RegistryHolder;
 import com.kuronami.musicdiscmaker.recipe.AlbumDyeRecipe;
+import com.kuronami.musicdiscmaker.recipe.GoldenAlbumRecipe;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.crafting.RecipeSerializer;
@@ -34,6 +35,15 @@ public final class ModRecipeSerializers {
             /*SERIALIZERS.register("album_dyeing", () -> new SimpleCraftingRecipeSerializer<>(AlbumDyeRecipe::new));
             *///?} else {
             /*SERIALIZERS.register("album_dyeing", () -> new net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer<>(AlbumDyeRecipe::new));
+            *///?}
+
+    /** Album を Golden Album にする、中身を引き継ぐ shaped レシピ。 */
+    public static final RegistryHolder<RecipeSerializer<GoldenAlbumRecipe>> GOLDEN_ALBUM =
+            //? if >=26.1 {
+            SERIALIZERS.register("golden_album",
+                    () -> new RecipeSerializer<>(GoldenAlbumRecipe.MAP_CODEC, GoldenAlbumRecipe.STREAM_CODEC));
+            //?} else {
+            /*SERIALIZERS.register("golden_album", GoldenAlbumRecipe.Serializer::new);
             *///?}
 
     private ModRecipeSerializers() {

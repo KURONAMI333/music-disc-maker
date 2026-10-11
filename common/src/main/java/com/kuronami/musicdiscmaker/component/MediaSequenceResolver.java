@@ -95,7 +95,7 @@ public final class MediaSequenceResolver {
         if (medium.isEmpty()) {
             return new ResolvedSequence(Kind.INVALID, List.of());
         }
-        if (medium.is(ModItems.ALBUM.get())) {
+        if (com.kuronami.musicdiscmaker.item.AlbumItem.isAlbum(medium)) {
             return resolveAlbum(medium);
         }
 

@@ -36,9 +36,13 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 /*import net.minecraft.network.FriendlyByteBuf;
 *///?}
 
-/** Album の2段収納 menu。永続値への反映は server 側 container の変更時だけに行う。 */
+/**
+ * Album (2段) と Golden Album (6段) の収納 menu。段数は menu type で決まり、client も server と同じ
+ * 枠数で組み立てる。永続値への反映は server 側 container の変更時だけに行う。
+ */
 public class AlbumMenu extends AbstractContainerMenu {
-    private static final int ALBUM_SLOTS = AlbumItem.GUI_CAPACITY;
+    private final int rows;
+    private final int albumSlots;
     private final BoomboxSource source;
     private final Player owner;
     private final ItemStack album;
@@ -56,14 +60,50 @@ public class AlbumMenu extends AbstractContainerMenu {
     public AlbumMenu(int id, Inventory inventory, RegistryFriendlyByteBuf buf) {
         this(id, inventory, BoomboxSource.STREAM_CODEC.decode(buf));
     }
+
+    public static AlbumMenu golden(int id, Inventory inventory, RegistryFriendlyByteBuf buf) {
+        return golden(id, inventory, BoomboxSource.STREAM_CODEC.decode(buf));
+    }
     //?} else {
     /*public AlbumMenu(int id, Inventory inventory, FriendlyByteBuf buf) {
         this(id, inventory, BoomboxSource.read(buf));
     }
+
+    public static AlbumMenu golden(int id, Inventory inventory, FriendlyByteBuf buf) {
+        return golden(id, inventory, BoomboxSource.read(buf));
+    }
     *///?}
 
     public AlbumMenu(int id, Inventory inventory, BoomboxSource source) {
-        super(ModMenus.ALBUM.get(), id);
+        this(ModMenus.ALBUM.get(), AlbumMenuLayout.ROWS, id, inventory, source);
+    }
+
+    public static AlbumMenu golden(int id, Inventory inventory, BoomboxSource source) {
+        return new AlbumMenu(ModMenus.GOLDEN_ALBUM.get(), AlbumMenuLayout.GOLDEN_ROWS, id, inventory, source);
+    }
+
+    /** server 側で開く時の入口。手に持っている Album の種類で menu type と段数を選ぶ。 */
+    public static AlbumMenu forHeld(int id, Inventory inventory, BoomboxSource source) {
+        return isGoldenHeld(inventory.player, source)
+                ? golden(id, inventory, source) : new AlbumMenu(id, inventory, source);
+    }
+
+    /** 画面の題。手に持っている Album の種類の名前。 */
+    public static Component title(Player player, BoomboxSource source) {
+        return Component.translatable(isGoldenHeld(player, source)
+                ? "item.music_disc_maker.golden_album" : "item.music_disc_maker.album");
+    }
+
+    private static boolean isGoldenHeld(Player player, BoomboxSource source) {
+        return source != null && source.isHeld()
+                && player.getItemInHand(source.heldHand()).is(ModItems.GOLDEN_ALBUM.get());
+    }
+
+    private AlbumMenu(net.minecraft.world.inventory.MenuType<?> type, int rows, int id, Inventory inventory,
+            BoomboxSource source) {
+        super(type, id);
+        this.rows = rows;
+        this.albumSlots = AlbumMenuLayout.capacity(rows);
         this.source = source;
         this.owner = inventory.player;
         // AlbumMenuを開けるのは手持ちのAlbumだけ。wire経由では設置・装備・任意intのsourceが
@@ -78,32 +118,32 @@ public class AlbumMenu extends AbstractContainerMenu {
                 && source.heldHand() == net.minecraft.world.InteractionHand.MAIN_HAND
                 ? findInventorySlot(inventory, album) : -1;
         this.overflow = new ArrayList<>();
-        this.contents = new SimpleContainer(ALBUM_SLOTS) {
+        this.contents = new SimpleContainer(albumSlots) {
             @Override public void setChanged() { super.setChanged(); save(); }
         };
-        if (authoritative && album.is(ModItems.ALBUM.get())) {
+        if (authoritative && AlbumItem.capacity(album) == albumSlots) {
             final List<ItemStack> saved = AlbumItem.contents(album).discs();
             loading = true;
-            for (int i = 0; i < Math.min(saved.size(), ALBUM_SLOTS); i++) contents.setItem(i, saved.get(i));
-            for (int i = ALBUM_SLOTS; i < saved.size(); i++) overflow.add(saved.get(i).copy());
+            for (int i = 0; i < Math.min(saved.size(), albumSlots); i++) contents.setItem(i, saved.get(i));
+            for (int i = albumSlots; i < saved.size(); i++) overflow.add(saved.get(i).copy());
             loading = false;
         }
-        for (int i = 0; i < ALBUM_SLOTS; i++) {
-            addSlot(new AlbumSlot(contents, i, AlbumMenuLayout.albumSlotX(i), AlbumMenuLayout.albumSlotY(i)));
+        for (int i = 0; i < albumSlots; i++) {
+            addSlot(new AlbumSlot(contents, i, AlbumMenuLayout.albumSlotX(rows, i), AlbumMenuLayout.albumSlotY(rows, i)));
         }
         for (int row = 0; row < 3; row++) for (int col = 0; col < AlbumMenuLayout.COLUMNS; col++) {
             addSlot(new DeferredInitialInventorySlot(inventory, col + row * AlbumMenuLayout.COLUMNS + 9,
-                    AlbumMenuLayout.albumSlotX(col), AlbumMenuLayout.playerInventoryY(row),
+                    AlbumMenuLayout.albumSlotX(rows, col), AlbumMenuLayout.playerInventoryY(rows, row),
                     () -> deferFullSyncValues));
         }
         for (int col = 0; col < AlbumMenuLayout.COLUMNS; col++) {
             addSlot(col == sourceInventorySlot
-                    ? new LockedSourceSlot(inventory, col, AlbumMenuLayout.albumSlotX(col),
-                            AlbumMenuLayout.HOTBAR_Y, () -> deferFullSyncValues)
-                    : new DeferredInitialInventorySlot(inventory, col, AlbumMenuLayout.albumSlotX(col),
-                            AlbumMenuLayout.HOTBAR_Y, () -> deferFullSyncValues));
+                    ? new LockedSourceSlot(inventory, col, AlbumMenuLayout.albumSlotX(rows, col),
+                            AlbumMenuLayout.hotbarY(rows), () -> deferFullSyncValues)
+                    : new DeferredInitialInventorySlot(inventory, col, AlbumMenuLayout.albumSlotX(rows, col),
+                            AlbumMenuLayout.hotbarY(rows), () -> deferFullSyncValues));
         }
-        for (int i = ALBUM_SLOTS; i < slots.size(); i++) {
+        for (int i = albumSlots; i < slots.size(); i++) {
             if (slots.get(i).container == inventory && slots.get(i).getContainerSlot() == sourceInventorySlot) {
                 sourceMenuSlot = i;
                 break;
@@ -122,10 +162,11 @@ public class AlbumMenu extends AbstractContainerMenu {
     public static AlbumStorageBudget.Result inspectInitialMenuSync(Inventory inventory, BoomboxSource source) {
         if (source == null || !source.isHeld()) return AlbumStorageBudget.invalidSource();
         final ItemStack heldAlbum = inventory.player.getItemInHand(source.heldHand());
-        if (!heldAlbum.is(ModItems.ALBUM.get())) return AlbumStorageBudget.invalidSource();
-        final List<ItemStack> initialSlots = new ArrayList<>(ALBUM_SLOTS);
+        final int capacity = AlbumItem.capacity(heldAlbum);
+        if (capacity == 0) return AlbumStorageBudget.invalidSource();
+        final List<ItemStack> initialSlots = new ArrayList<>(capacity);
         final List<ItemStack> saved = AlbumItem.contents(heldAlbum).discs();
-        for (int i = 0; i < ALBUM_SLOTS; i++) {
+        for (int i = 0; i < capacity; i++) {
             initialSlots.add(i < saved.size() ? saved.get(i).copy() : ItemStack.EMPTY);
         }
         for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) initialSlots.add(ItemStack.EMPTY);
@@ -163,7 +204,7 @@ public class AlbumMenu extends AbstractContainerMenu {
     private void save() {
         if (loading || !authoritative || !isOriginalAlbumHeld()) return;
         final List<ItemStack> saved = new ArrayList<>();
-        for (int i = 0; i < ALBUM_SLOTS; i++) if (!contents.getItem(i).isEmpty()) saved.add(contents.getItem(i));
+        for (int i = 0; i < albumSlots; i++) if (!contents.getItem(i).isEmpty()) saved.add(contents.getItem(i));
         for (ItemStack stack : overflow) saved.add(stack.copy());
         AlbumItem.setContents(album, saved.isEmpty() ? AlbumContents.EMPTY : new AlbumContents(saved));
     }
@@ -175,7 +216,7 @@ public class AlbumMenu extends AbstractContainerMenu {
     private void refillVisibleFromOverflow() {
         if (overflow.isEmpty()) return;
         boolean hasGap = false;
-        for (int i = 0; i < ALBUM_SLOTS; i++) {
+        for (int i = 0; i < albumSlots; i++) {
             if (contents.getItem(i).isEmpty()) {
                 hasGap = true;
                 break;
@@ -184,30 +225,30 @@ public class AlbumMenu extends AbstractContainerMenu {
         if (!hasGap) return;
 
         final List<ItemStack> ordered = new ArrayList<>();
-        for (int i = 0; i < ALBUM_SLOTS; i++) {
+        for (int i = 0; i < albumSlots; i++) {
             final ItemStack stack = contents.getItem(i);
             if (!stack.isEmpty()) ordered.add(stack.copy());
         }
         for (final ItemStack stack : overflow) ordered.add(stack.copy());
         loading = true;
-        for (int i = 0; i < ALBUM_SLOTS; i++) {
+        for (int i = 0; i < albumSlots; i++) {
             contents.setItem(i, i < ordered.size() ? ordered.get(i) : ItemStack.EMPTY);
         }
         overflow.clear();
-        for (int i = ALBUM_SLOTS; i < ordered.size(); i++) overflow.add(ordered.get(i));
+        for (int i = albumSlots; i < ordered.size(); i++) overflow.add(ordered.get(i));
         loading = false;
         save();
     }
 
     private boolean mayStore(ItemStack stack) {
         if (!AlbumContents.canInsert(stack, com.kuronami.musicdiscmaker.component.PlayableDiscs::isDisc,
-                candidate -> candidate.is(ModItems.ALBUM.get()) || candidate.is(ModItems.BOOMBOX.get()))) {
+                candidate -> AlbumItem.isAlbum(candidate) || candidate.is(ModItems.BOOMBOX.get()))) {
             return false;
         }
         // clientは予測だけ通し、serverの拒否後に通常のmenu slot同期で戻す。
         if (!authoritative) return true;
         final List<ItemStack> prospective = new ArrayList<>();
-        for (int i = 0; i < ALBUM_SLOTS; i++) {
+        for (int i = 0; i < albumSlots; i++) {
             final ItemStack saved = contents.getItem(i);
             if (!saved.isEmpty()) prospective.add(saved.copy());
         }
@@ -249,11 +290,16 @@ public class AlbumMenu extends AbstractContainerMenu {
      * 交換で外へ出る旧盤は内部枠に残し、入力元・cursor・更新後の元Albumも予算から落とさない。
      */
     private List<ItemStack> prospectiveMenuSlots(ItemStack inserted, ItemStack candidateAlbum) {
-        final List<ItemStack> prospective = new ArrayList<>(ALBUM_SLOTS + 2);
-        for (int i = 0; i < ALBUM_SLOTS; i++) prospective.add(contents.getItem(i).copy());
+        final List<ItemStack> prospective = new ArrayList<>(albumSlots + 2);
+        for (int i = 0; i < albumSlots; i++) prospective.add(contents.getItem(i).copy());
         prospective.add(candidateAlbum);
         prospective.add(inserted.copy());
         return prospective;
+    }
+
+    /** 画面の段数。 */
+    public int rows() {
+        return rows;
     }
 
     @Override public boolean stillValid(Player player) {
@@ -296,15 +342,15 @@ public class AlbumMenu extends AbstractContainerMenu {
         if (slot == null || !slot.hasItem()) return ItemStack.EMPTY;
         final ItemStack stack = slot.getItem();
         final ItemStack original = stack.copy();
-        if (index < ALBUM_SLOTS) {
-            if (!moveItemStackTo(stack, ALBUM_SLOTS, slots.size(), true)) return ItemStack.EMPTY;
+        if (index < albumSlots) {
+            if (!moveItemStackTo(stack, albumSlots, slots.size(), true)) return ItemStack.EMPTY;
         } else {
             storageFailure = null;
             if (!mayStore(stack)) {
                 notifyStorageRejected();
                 return ItemStack.EMPTY;
             }
-            if (!moveItemStackTo(stack, 0, ALBUM_SLOTS, false)) return ItemStack.EMPTY;
+            if (!moveItemStackTo(stack, 0, albumSlots, false)) return ItemStack.EMPTY;
         }
         if (stack.isEmpty()) slot.setByPlayer(ItemStack.EMPTY); else slot.setChanged();
         if (stack.getCount() == original.getCount()) return ItemStack.EMPTY;
@@ -340,7 +386,7 @@ public class AlbumMenu extends AbstractContainerMenu {
         if (source == null || !source.isHeld()) return false;
         final ItemStack held = owner.getItemInHand(source.heldHand());
         // Slot同期はclientのItemStack参照を差し替える。保存先の参照同一性はserverだけで検証する。
-        return !held.isEmpty() && held.is(ModItems.ALBUM.get()) && (!authoritative || album == held);
+        return AlbumItem.capacity(held) == albumSlots && (!authoritative || album == held);
     }
 
     private static int findInventorySlot(Inventory inventory, ItemStack stack) {

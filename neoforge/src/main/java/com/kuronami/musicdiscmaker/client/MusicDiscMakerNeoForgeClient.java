@@ -108,6 +108,7 @@ public class MusicDiscMakerNeoForgeClient {
         event.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         event.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         event.register(ModMenus.ALBUM.get(), AlbumScreen::new);
+        event.register(ModMenus.GOLDEN_ALBUM.get(), AlbumScreen::new);
         event.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
     }
 
@@ -172,7 +173,7 @@ public class MusicDiscMakerNeoForgeClient {
     @SubscribeEvent
     static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
         event.register(DiscDyeTint::color, ModItems.CUSTOM_MUSIC_DISC.get());
-        event.register(AlbumDyeTint::color, ModItems.ALBUM.get());
+        event.register(AlbumDyeTint::color, ModItems.ALBUM.get(), ModItems.GOLDEN_ALBUM.get());
     }
 
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {

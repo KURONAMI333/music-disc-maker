@@ -87,7 +87,7 @@ public final class RecipeAssemblyGameTests {
     *///?}
     public static void everyCraftingRecipeLoads(GameTestHelper helper) {
         for (final String path : List.of("album", "album_dyeing", "blank_disc", "blank_disc_from_disc", "boombox",
-                "disc_dyeing_table", "disc_pedestal", "golden_jukebox", "golden_jukebox_minecart",
+                "disc_dyeing_table", "disc_pedestal", "golden_album", "golden_jukebox", "golden_jukebox_minecart",
                 "music_disc_maker", "speaker")) {
             recipe(helper, path);
         }

@@ -135,9 +135,12 @@ public class NeoForgeMenuHelper implements IMenuHelper {
     public MenuType<AlbumMenu> createAlbumMenuType() { return IMenuTypeExtension.create(AlbumMenu::new); }
 
     @Override
+    public MenuType<AlbumMenu> createGoldenAlbumMenuType() { return IMenuTypeExtension.create(AlbumMenu::golden); }
+
+    @Override
     public void openAlbumMenu(ServerPlayer player, BoomboxSource source) {
-        player.openMenu(new SimpleMenuProvider((id, inv, p) -> new AlbumMenu(id, inv, source),
-                Component.translatable("item.music_disc_maker.album")),
+        player.openMenu(new SimpleMenuProvider((id, inv, p) -> AlbumMenu.forHeld(id, inv, source),
+                AlbumMenu.title(player, source)),
                 buf -> BoomboxSource.STREAM_CODEC.encode(buf, source));
     }
 

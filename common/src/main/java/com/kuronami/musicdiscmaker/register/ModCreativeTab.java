@@ -40,6 +40,7 @@ public final class ModCreativeTab {
                         output.accept(ModItems.DISC_PEDESTAL.get());
                         output.accept(ModItems.SPEAKER.get());
                         output.accept(ModItems.ALBUM.get());
+                        output.accept(ModItems.GOLDEN_ALBUM.get());
                         output.accept(ModItems.BOOMBOX.get());
                         output.accept(ModItems.GOLDEN_JUKEBOX_MINECART.get());
                     })
@@ -51,7 +52,7 @@ public final class ModCreativeTab {
     public static final java.util.List<RegistryHolder<? extends net.minecraft.world.item.Item>> TAB_ITEMS =
             java.util.List.of(ModItems.MUSIC_DISC_MAKER, ModItems.BLANK_DISC, ModItems.GOLDEN_JUKEBOX,
                     ModItems.DISC_DYEING_TABLE, ModItems.DISC_PEDESTAL, ModItems.SPEAKER, ModItems.ALBUM,
-                    ModItems.BOOMBOX, ModItems.GOLDEN_JUKEBOX_MINECART);
+                    ModItems.GOLDEN_ALBUM, ModItems.BOOMBOX, ModItems.GOLDEN_JUKEBOX_MINECART);
     //?}
 
     private ModCreativeTab() {

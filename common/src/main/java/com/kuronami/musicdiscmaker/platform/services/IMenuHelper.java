@@ -53,6 +53,10 @@ public interface IMenuHelper {
 
     MenuType<AlbumMenu> createAlbumMenuType();
 
+    /** Golden Album の6段 menu。運ぶ値は Album と同じ {@link BoomboxSource}。 */
+    MenuType<AlbumMenu> createGoldenAlbumMenuType();
+
+    /** 手に持っている Album の種類に合う menu を開く ({@link AlbumMenu#forHeld})。 */
     void openAlbumMenu(ServerPlayer player, BoomboxSource source);
 
     /**

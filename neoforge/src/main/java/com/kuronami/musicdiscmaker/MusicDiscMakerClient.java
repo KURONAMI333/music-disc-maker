@@ -145,6 +145,7 @@ public class MusicDiscMakerClient {
         event.register(ModMenus.DISC_DYEING_TABLE.get(), DiscDyeingTableScreen::new);
         event.register(ModMenus.BOOMBOX.get(), BoomboxScreen::new);
         event.register(ModMenus.ALBUM.get(), AlbumScreen::new);
+        event.register(ModMenus.GOLDEN_ALBUM.get(), AlbumScreen::new);
         event.register(ModMenus.SPEAKER.get(), SpeakerScreen::new);
     }
 

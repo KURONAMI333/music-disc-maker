@@ -216,6 +216,10 @@ public final class MdmGameTestRegistration {
         register(event, "album_menu_reverse_hotbar_swap_preserves_source", AlbumMenuGameTests::reverseHotbarSwapPreservesSourceAndMetadata, empty, 100);
         register(event, "album_menu_reverse_offhand_swap_preserves_all", AlbumMenuGameTests::reverseOffhandSwapAndInvalidClicksPreserveAll, empty, 100);
         register(event, "album_menu_non_held_sources_stay_invalid", AlbumMenuGameTests::nonHeldSourcesDisableMenuInsteadOfThrowing, empty, 100);
+        register(event, "golden_album_opens_fifty_four_slots", GoldenAlbumGameTests::goldenAlbumOpensFiftyFourSlots, empty, 100);
+        register(event, "golden_album_kinds_keep_own_menu", GoldenAlbumGameTests::albumKindsKeepTheirOwnMenuAndCannotNest, empty, 100);
+        register(event, "golden_album_plays_fifty_four_discs", GoldenAlbumGameTests::goldenAlbumPlaysAllFiftyFourDiscs, empty, 100);
+        register(event, "golden_album_recipe_keeps_discs_color_name", GoldenAlbumGameTests::goldenAlbumRecipeKeepsDiscsColorAndName, empty, 100);
         register(event, "active_disc_save_data_survives_the_nbt_round_trip",
                 ActiveDiscReleaseGameTests::activeDiscSaveDataSurvivesTheNbtRoundTrip, empty, 100);
         register(event, "repeat_restart_marker_forces_stop_then_play_resend",
