@@ -166,6 +166,10 @@ public class CustomMusicDiscItem extends Item {
         if (track == null || track.isEmpty()) {
             return Optional.empty();
         }
+        // ツールチップは client だけが組み立てる。画像を消す設定もプレイヤーごとの client 設定。
+        if (!com.kuronami.musicdiscmaker.Config.showAlbumArt()) {
+            return Optional.empty();
+        }
         final String jacketUrl = JacketUrls.effectiveUrl(track);
         if (jacketUrl.isBlank()) {
             return Optional.empty();

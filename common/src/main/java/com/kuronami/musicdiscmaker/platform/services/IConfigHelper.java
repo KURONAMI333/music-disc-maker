@@ -42,4 +42,10 @@ public interface IConfigHelper {
      * その題がそのまま出るので、見たい人だけ有効にする。
      */
     boolean showNowPlaying();
+
+    /**
+     * カスタム盤のツールチップにジャケット画像を出すか (client 設定・既定は出す)。
+     * 画像が邪魔な人がプレイヤーごとに消せる。サーバー側の設定は要らない。
+     */
+    boolean showAlbumArt();
 }

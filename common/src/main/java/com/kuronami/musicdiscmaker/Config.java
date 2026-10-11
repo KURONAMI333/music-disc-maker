@@ -58,4 +58,8 @@ public final class Config {
     public static boolean showNowPlaying() {
         return Services.CONFIG.showNowPlaying();
     }
+
+    public static boolean showAlbumArt() {
+        return Services.CONFIG.showAlbumArt();
+    }
 }

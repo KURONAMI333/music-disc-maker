@@ -47,6 +47,10 @@ public class NeoForgeConfigHelper implements IConfigHelper {
                     + "would show that title as it is.")
             .define("showNowPlaying", false);
 
+    public static final ModConfigSpec.BooleanValue SHOW_ALBUM_ART = BUILDER
+            .comment("Show the album art in custom disc tooltips.")
+            .define("showAlbumArt", true);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     @Override
@@ -75,6 +79,11 @@ public class NeoForgeConfigHelper implements IConfigHelper {
     @Override
     public boolean showNowPlaying() {
         return SHOW_NOW_PLAYING.get();
+    }
+
+    @Override
+    public boolean showAlbumArt() {
+        return SHOW_ALBUM_ART.get();
     }
 
     @Override
