@@ -3,6 +3,7 @@
 ## 3.1.1
 
 - Fixed the game crashing on startup with Music Disc Maker 3.1.0 on Minecraft 1.21.11, 26.1.2 and 26.2.
+- Added builds for Minecraft 26.3 (NeoForge and Fabric). Minecraft 1.21.4 (NeoForge and Fabric) is available as 3.1.0.
 
 Use the same Music Disc Maker version on the server and all clients.
 

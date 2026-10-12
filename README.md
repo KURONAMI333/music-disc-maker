@@ -52,12 +52,16 @@ Choose a release file matching both the Minecraft version and loader.
 | 1.20.1 | Fabric |
 | 1.21.1 | NeoForge |
 | 1.21.1 | Fabric |
+| 1.21.4 | NeoForge |
+| 1.21.4 | Fabric |
 | 1.21.11 | NeoForge |
 | 1.21.11 | Fabric |
 | 26.1.2 | NeoForge |
 | 26.1.2 | Fabric |
 | 26.2 | NeoForge |
 | 26.2 | Fabric |
+| 26.3 | NeoForge |
+| 26.3 | Fabric |
 
 ### Resource-pack models
 
