@@ -91,6 +91,10 @@ tasks.named<ProcessResources>("processResources") {
     filesMatching(listOf("pack.mcmeta", "META-INF/neoforge.mods.toml", "*.mixins.json")) {
         expand(expandProps)
     }
+    // NeoForge 26.3 は logoFile を非推奨にし、起動時に警告画面を出す。正方形のアイコンは iconFile で渡す。
+    filesMatching("META-INF/neoforge.mods.toml") {
+        filter { line -> line.replace("logoFile =", "iconFile =") }
+    }
     inputs.properties(expandProps)
 }
 
