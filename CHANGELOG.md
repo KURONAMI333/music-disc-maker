@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.1
+
+- Fixed the game crashing on startup with Music Disc Maker 3.1.0 on Minecraft 1.21.11, 26.1.2 and 26.2.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 ## 3.1.0
 
 ### Fixes

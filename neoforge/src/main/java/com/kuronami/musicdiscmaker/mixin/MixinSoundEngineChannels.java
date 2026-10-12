@@ -37,7 +37,12 @@ public abstract class MixinSoundEngineChannels implements SoundEngineChannelAcce
     @Shadow
     private Library library;
 
-    @Inject(method = "tickNonPaused", at = @At("TAIL"))
+    // 1.21.11 までに tickNonPaused は tickInGameSound に改名された (tick(false) から毎 tick 呼ばれる同じ処理)。
+    //? if >=1.21.11 {
+    @Inject(method = "tickInGameSound", at = @At("TAIL"))
+    //?} else {
+    /*@Inject(method = "tickNonPaused", at = @At("TAIL"))
+    *///?}
     private void mdm$sampleExtensionPlaybackCursors(CallbackInfo ci) {
         if (!PlaybackSessionRegistry.hasActiveSessions()) return;
         this.instanceToChannel.forEach((instance, handle) -> {
