@@ -241,6 +241,10 @@ public final class GoldenMediaSequenceGameTests {
                 "listener lag was not capped: " + be.naturalAdvanceGraceMs());
         GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
         assertPosition(helper, be, 0, 0, "Album moved on before the slowest listener finished");
+        be.setShuffle(true);
+        be.noteListenerLag(playing, 2_000L);
+        helper.assertTrue(be.naturalAdvanceGraceMs() == GoldenJukeboxBlockEntity.MAX_LISTENER_LAG_MS,
+                "turning shuffle on mid-song dropped the wait for the song that is still playing");
         be.noteListenerLag(new com.kuronami.musicdiscmaker.network.PlaybackSourceStamp(
                 playing.sourceId(), playing.generation() + 7L), 1_000L);
         helper.assertTrue(be.naturalAdvanceGraceMs() == GoldenJukeboxBlockEntity.MAX_LISTENER_LAG_MS,

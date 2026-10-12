@@ -1121,11 +1121,6 @@ public final class ClientPlaybackManager {
     }
 
     /**
-     * 実音の開始に合わせて、その jukebox の進捗表示アンカーを打ち直す (main thread から呼ぶこと)。
-     * 呼び出し側が {@link PlaybackSessions#noteFirstAudio} を通った直後に限るので、
-     * 1 再生につき 1 回になる。BE が金ジュークでなくなっていたら (撤去・差し替え等) 何もしない。
-     */
-    /**
      * 実音が鳴り始めた時、server の再生位置からどれだけ遅れていたかを金のジュークボックスへ知らせる。
      * server はいちばん遅い client が鳴り終わるまで、アルバムの次の曲・1曲リピートの頭出しを待つ。
      * 印の無い再生 (バニラのジュークボックス) とラジオ・尺の無い曲は送らない。
@@ -1144,6 +1139,11 @@ public final class ClientPlaybackManager {
         }
     }
 
+    /**
+     * 実音の開始に合わせて、その jukebox の進捗表示アンカーを打ち直す (main thread から呼ぶこと)。
+     * 呼び出し側が {@link PlaybackSessions#noteFirstAudio} を通った直後に限るので、
+     * 1 再生につき 1 回になる。BE が金ジュークでなくなっていたら (撤去・差し替え等) 何もしない。
+     */
     private static void reanchorClientElapsed(BlockPos key, long startOffsetMs) {
         final ClientLevel level = Minecraft.getInstance().level;
         if (level == null) {

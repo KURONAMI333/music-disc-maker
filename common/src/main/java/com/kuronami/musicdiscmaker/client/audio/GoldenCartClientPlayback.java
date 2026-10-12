@@ -181,8 +181,9 @@ public final class GoldenCartClientPlayback {
             return false;
         }
         final long played = Math.max(0L, TrackAudioResolver.playbackClockMs() - current.startedAtMs());
+        // server はいちばん遅い client が鳴り終わるまで曲末 (曲の長さちょうど) で待ち、その間も位置を送り直す。
         return current.startOffsetMs() + played >= track.durationMs() - NATURAL_END_WINDOW_MS
-                && serverOffsetMs < track.durationMs();
+                && serverOffsetMs <= track.durationMs();
     }
 
     /** vanilla / 他 MOD のレコード。同期で鳴らせるのでロード経路は持たない。 */

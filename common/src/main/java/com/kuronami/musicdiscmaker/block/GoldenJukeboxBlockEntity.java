@@ -301,10 +301,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
      */
     private long listenerLagMs;
     private long lagGeneration = -1L;
+    /**
+     * 今鳴っている音を鳴らし始めた時 ({@link #startPlayback}) の世代。client が持っている印はこれ。
+     * シャッフルの切り替えは音を鳴らし直さずに世代だけ進めるので、{@link #playbackIdentity()} とは比べない。
+     */
+    private long audioGeneration = -1L;
 
-    /** client からの遅れの報告。今の再生の印と違う (曲が変わった後の) 報告は捨てる。 */
+    /** client からの遅れの報告。今鳴っている音と違う (曲が変わった後の) 報告は捨てる。 */
     public void noteListenerLag(com.kuronami.musicdiscmaker.network.PlaybackSourceStamp identity, long lagMs) {
-        if (!isServer() || identity == null || !identity.equals(playbackIdentity())
+        if (!isServer() || identity == null || identity.generation() != audioGeneration
+                || !java.util.Objects.equals(identity.sourceId(), playbackIdentity().sourceId())
                 || cursor.state() != PlaybackCursor.State.PLAYING) {
             return;
         }
@@ -318,7 +324,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     /** 曲の終わりで次の曲へ進む・頭へ戻る前に、いちばん遅い client が鳴り終わるまで待つ長さ。 */
     public long naturalAdvanceGraceMs() {
-        return lagGeneration == cursor.generation() ? listenerLagMs : 0L;
+        return lagGeneration == audioGeneration ? listenerLagMs : 0L;
     }
 
     public com.kuronami.musicdiscmaker.network.PlaybackSourceStamp playbackIdentity() {
@@ -1183,6 +1189,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         */
         //?}
         cursor = cursor.startAt(Math.max(0, cursor.discIndex()), Math.max(0, cursor.trackIndex()));
+        audioGeneration = cursor.generation();
         startMillis = playbackTimeMs() - offsetMs;
         playbackStartGameTime = level.getGameTime() - offsetMs / 50L;
         final CustomTrackData track = currentTrack();
@@ -1430,6 +1437,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         final boolean loopsWithinTrack = repeat && !isMdmAlbum() && getAlbumTrack() < 0;
         if (dur > 0L && elapsed >= dur && !loopsWithinTrack) {
             return;
+        }
+        if (loopsWithinTrack && dur > 0L && elapsed >= dur && elapsed < dur + naturalAdvanceGraceMs()) {
+            return; // 1曲リピートの頭出しを待っている間。すぐ全員へ頭からの再生が届く。
         }
         final long offset = dur > 0L && loopsWithinTrack ? elapsed % dur : elapsed;
         if (customTrack != null && SpeakerPlayback.resendTo(this, player, customTrack, offset)) {
