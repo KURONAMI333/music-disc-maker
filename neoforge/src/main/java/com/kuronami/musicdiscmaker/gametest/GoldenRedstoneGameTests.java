@@ -158,7 +158,7 @@ public final class GoldenRedstoneGameTests {
 
     //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
-    @GameTest(template = TEMPLATE, timeoutTicks = 600, batch = "goldenRedstoneTop")
+    @GameTest(template = TEMPLATE, timeoutTicks = 12000, batch = "goldenRedstoneTop")
     *///?}
     public static void topInputMovesAToChestWhileBPlays(GameTestHelper helper) {
         twoDiscAutomation(helper, true);
@@ -166,7 +166,7 @@ public final class GoldenRedstoneGameTests {
 
     //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
-    @GameTest(template = TEMPLATE, timeoutTicks = 600, batch = "goldenRedstoneSide")
+    @GameTest(template = TEMPLATE, timeoutTicks = 12000, batch = "goldenRedstoneSide")
     *///?}
     public static void sideInputMovesAToChestWhileBPlays(GameTestHelper helper) {
         twoDiscAutomation(helper, false);

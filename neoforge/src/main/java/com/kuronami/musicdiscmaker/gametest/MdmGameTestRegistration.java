@@ -24,6 +24,12 @@ import net.neoforged.neoforge.event.RegisterGameTestsEvent;
  * ({@code Identifier} の path は [a-z0-9/._-] に制限されるため)。
  */
 public final class MdmGameTestRegistration {
+    /**
+     * 実時間で曲の終わりを待つテストの tick 上限。GameTest サーバーは tick を全速で回すので、
+     * 数百 tick では数十 ms しか経たず、短い曲でも終わる前に時間切れになる。
+     */
+    private static final int REAL_TIME_TIMEOUT_TICKS = 12_000;
+
 
     private MdmGameTestRegistration() {
     }
@@ -285,7 +291,7 @@ public final class MdmGameTestRegistration {
         register(event, "hopper_extracts_after_playback_stops",
                 GoldenJukeboxHopperGameTests::hopperExtractsAfterPlaybackStops, empty, 200);
         register(event, "hopper_extracts_after_real_track_ends",
-                GoldenJukeboxHopperGameTests::hopperExtractsAfterRealTrackEnds, empty, 600);
+                GoldenJukeboxHopperGameTests::hopperExtractsAfterRealTrackEnds, empty, REAL_TIME_TIMEOUT_TICKS);
         register(event, "periodic_resend_applies_the_current_settings_live",
                 LivePlaybackRegistryGameTests::periodicResendAppliesTheCurrentSettingsLive, empty, 100);
         register(event, "every_resend_keeps_applying_the_latest_settings",
@@ -540,9 +546,9 @@ public final class MdmGameTestRegistration {
         register(event, "golden_redstone_rising_edge_toggles_and_release_does_not_stop",
                 GoldenRedstoneGameTests::risingEdgeTogglesPlaybackAndReleaseDoesNotStop, empty, 400);
         register(event, "golden_redstone_top_input_moves_a_to_chest_while_b_plays",
-                GoldenRedstoneGameTests::topInputMovesAToChestWhileBPlays, empty, 400);
+                GoldenRedstoneGameTests::topInputMovesAToChestWhileBPlays, empty, REAL_TIME_TIMEOUT_TICKS);
         register(event, "golden_redstone_side_input_moves_a_to_chest_while_b_plays",
-                GoldenRedstoneGameTests::sideInputMovesAToChestWhileBPlays, empty, 400);
+                GoldenRedstoneGameTests::sideInputMovesAToChestWhileBPlays, empty, REAL_TIME_TIMEOUT_TICKS);
         register(event, "golden_redstone_pause_stays_in_real_output_hopper",
                 GoldenRedstoneGameTests::pauseStaysInRealOutputHopper, empty, 400);
         register(event, "golden_redstone_repeat_radio_and_unknown_stay_inserted",

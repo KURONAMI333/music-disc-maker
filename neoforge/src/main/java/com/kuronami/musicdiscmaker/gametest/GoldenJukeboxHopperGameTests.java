@@ -240,7 +240,7 @@ public class GoldenJukeboxHopperGameTests {
      */
     //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
-    @GameTest(template = TEMPLATE, timeoutTicks = 600)
+    @GameTest(template = TEMPLATE, timeoutTicks = 12000)
     *///?}
     public static void hopperExtractsAfterRealTrackEnds(GameTestHelper helper) {
         final BlockPos jukeboxRel = new BlockPos(1, 1, 1);
