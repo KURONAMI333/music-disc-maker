@@ -47,8 +47,9 @@ import net.minecraft.world.item.ItemStack;
  */
 public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
 
-    // 再生記号は共通。筐体とキーの描画はBoombox専用。
-    private static final String SPRITE_ROOT = "textures/gui/golden_jukebox/transport/";
+    // 再生記号も筐体もBoombox専用。金ジュークと同じ画像を読むと、リソースパックで片方だけ変えられない
+    // (2026-10-13 HappyMeek の「boombox buttons are tied to golden jukebox buttons」)。
+    private static final String SPRITE_ROOT = "textures/gui/boombox/transport/";
     private static final String SPRITE_PLAY = "play.png";
     private static final String SPRITE_PAUSE = "pause.png";
     private static final String SPRITE_PREVIOUS = "prev.png";
@@ -59,7 +60,6 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     private static final String SPRITE_REPEAT_OFF = "repeat_off.png";
     private static final String SPRITE_SHUFFLE_ON = "shuffle_on.png";
     private static final String SPRITE_SHUFFLE_OFF = "shuffle_off.png";
-    private static final String BOOMBOX_SPRITE_ROOT = "textures/gui/boombox/transport/";
 
     //? if >=1.21.11 {
     private static final Identifier RADIO_PANEL_TEXTURE =
@@ -515,26 +515,22 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             controls(graphics, getX() - 1, getY() - 1, keyU, 0, width + 2, height + 3);
             // Center the mark on the lit key face; the bottom two pixels are its shadow.
             final int faceHeight = height - 2;
-            // Boombox の再生/停止キーは金色/灰色の専用スプライト (active で切替)。
-            String spriteRoot = SPRITE_ROOT;
+            // 再生/停止キーは押せない時に灰色の _off を描く (他のキーは呼び出し側が _off を渡す)。
             String spriteFile = sprite;
-            if (SPRITE_PLAY.equals(sprite) || SPRITE_PAUSE.equals(sprite)) {
-                spriteRoot = BOOMBOX_SPRITE_ROOT;
-                if (!active) {
-                    spriteFile = sprite.substring(0, sprite.length() - ".png".length()) + "_off.png";
-                }
+            if ((SPRITE_PLAY.equals(sprite) || SPRITE_PAUSE.equals(sprite)) && !active) {
+                spriteFile = sprite.substring(0, sprite.length() - ".png".length()) + "_off.png";
             }
             final int iconX = getX() + (width - spriteSize) / 2;
             final int iconY = getY() + (faceHeight - spriteSize) / 2;
             //? if >=1.21.11 {
-            final Identifier texture = Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, spriteRoot + spriteFile);
+            final Identifier texture = Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, SPRITE_ROOT + spriteFile);
             graphics.blit(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY,
                     0.0F, 0.0F, spriteSize, spriteSize, spriteSize, spriteSize);
             //?} elif >=1.21 {
-            /*final ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, spriteRoot + spriteFile);
+            /*final ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, SPRITE_ROOT + spriteFile);
             GuiTextureBlit.blit(graphics, texture, iconX, iconY, 0.0F, 0.0F, spriteSize, spriteSize, spriteSize, spriteSize);
             *///?} else {
-            /*final ResourceLocation texture = new ResourceLocation(MusicDiscMaker.MODID, spriteRoot + spriteFile);
+            /*final ResourceLocation texture = new ResourceLocation(MusicDiscMaker.MODID, SPRITE_ROOT + spriteFile);
             GuiTextureBlit.blit(graphics, texture, iconX, iconY, 0.0F, 0.0F, spriteSize, spriteSize, spriteSize, spriteSize);
             *///?}
         }
