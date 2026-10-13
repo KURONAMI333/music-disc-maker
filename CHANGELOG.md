@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.2
+
+- Speakers no longer darken the blocks around them.
+- The Boombox's previous, next, repeat and shuffle buttons have their own textures, so a resource pack can change them separately from the Golden Jukebox.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 ## 3.1.1
 
 - Fixed the game crashing on startup with Music Disc Maker 3.1.0 on Minecraft 1.21.11, 26.1.2 and 26.2.
