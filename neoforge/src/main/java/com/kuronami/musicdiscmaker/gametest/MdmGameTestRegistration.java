@@ -480,6 +480,8 @@ public final class MdmGameTestRegistration {
                 SpeakerMenuGameTests::buttonsAndDataSlotsKeepFullVolumeRange, empty, 100);
         register(event, "speaker_menu_rejects_stale_remote_and_cross_dimension",
                 SpeakerMenuGameTests::rejectsWrongMenuDistanceReplacementAndDimension, empty, 100);
+        register(event, "speaker_casts_no_ambient_occlusion_shadow",
+                SpeakerMenuGameTests::castsNoAmbientOcclusionShadow, empty, 100);
         register(event, "disc_dyeing_preview_uses_result",
                 DiscDyeingPreviewGameTests::previewUsesDyedResultWithoutChangingInputMetadata, empty, 100);
         register(event, "disc_dyeing_either_side_and_consumption",

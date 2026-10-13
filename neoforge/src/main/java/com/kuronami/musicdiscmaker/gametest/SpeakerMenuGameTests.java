@@ -108,6 +108,26 @@ public final class SpeakerMenuGameTests {
                 "button ID " + buttonId + " が期待volume " + expectedVolume + " を設定しない");
     }
 
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100, batch = "speakerShade")
+    *///?}
+    public static void castsNoAmbientOcclusionShadow(GameTestHelper helper) {
+        // 立方体の形のままだと vanilla の既定は 0.2 で、隣の面が暗くなる。
+        final BlockPos rel = new BlockPos(2, 1, 2);
+        helper.setBlock(rel.below(), Blocks.STONE.defaultBlockState());
+        for (AttachFace face : AttachFace.values()) {
+            for (SpeakerBlock.HornTurn turn : SpeakerBlock.HornTurn.values()) {
+                final net.minecraft.world.level.block.state.BlockState state = ModBlocks.SPEAKER.get().defaultBlockState()
+                        .setValue(SpeakerBlock.FACE, face).setValue(SpeakerBlock.HORN_TURN, turn);
+                final float shade = state.getShadeBrightness(helper.getLevel(), helper.absolutePos(rel));
+                helper.assertTrue(shade == 1.0F, "Speaker " + face + "/" + turn + " の影の明るさが " + shade);
+            }
+        }
+        helper.setBlock(rel.below(), Blocks.AIR.defaultBlockState());
+        helper.succeed();
+    }
+
     private static Fixture fixture(GameTestHelper helper, String playerName) {
         final BlockPos supportRel = new BlockPos(2, 0, 2);
         final BlockPos relativePos = supportRel.above();

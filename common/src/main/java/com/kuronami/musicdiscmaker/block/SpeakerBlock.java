@@ -12,6 +12,7 @@ import net.minecraft.core.Direction;
 import com.mojang.serialization.MapCodec;
 //?} else {
 //?}
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.server.level.ServerPlayer;
@@ -82,6 +83,21 @@ public class SpeakerBlock extends FaceAttachedHorizontalDirectionalBlock impleme
                 .setValue(FACE, AttachFace.WALL)
                 .setValue(FACING, Direction.NORTH)
                 .setValue(HORN_TURN, HornTurn.CENTER));
+    }
+
+    /**
+     * 形は当たり判定用に立方体のままにしているので、vanilla はこれを詰まったブロックとみなして周りの面に
+     * 0.2 の影 (ambient occlusion) を落とす。実際のホーンは隙間だらけなので、ガラスと同じく影を落とさない
+     * (2026-10-13 HappyMeek のパック説明「Speakers darken their environment」)。
+     */
+    @Override
+    //? if >=1.21 {
+    protected float getShadeBrightness(BlockState state, BlockGetter level, BlockPos pos) {
+    //?} else {
+    /*// 1.20.1 の BlockBehaviour はこの一群が public。protected へ絞ると可視性の縮小で落ちる。
+    public float getShadeBrightness(BlockState state, BlockGetter level, BlockPos pos) {
+    *///?}
+        return 1.0F;
     }
 
     @Override
