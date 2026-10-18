@@ -33,14 +33,30 @@ public final class LocalAudioServer {
     /** サーバーが実際に再生通知する対象だけに、短命の取得権限を与える。 */
     public static void allow(ServerPlayer player, CustomTrackData track) {
         if (track == null || !track.isLocal()) return;
-        State s = state(player.level().getServer());
+        grant(state(player.level().getServer()), player, track.localHash());
+    }
+    private static void grant(State s, ServerPlayer player, String hash) {
         // 送出経路の thread を継承する呼び出しがありうるので、grants の更新は s で直列化する。
         synchronized (s) {
             Map<String, Long> grants = s.grants.computeIfAbsent(player.getUUID(), key -> new LinkedHashMap<>());
             grants.values().removeIf(expiry -> expiry < now());
             if (grants.size() >= 64) grants.remove(grants.keySet().iterator().next());
-            grants.put(track.localHash(), now() + 120_000);
+            grants.put(hash, now() + 120_000);
         }
+    }
+    /**
+     * FETCH/CHECK を受けてよいか。server が再生を通知した相手 (grant) か、本人が今 server 上で見ている実物に
+     * その盤がある時だけ許可する。後者は同じ短命の grant を取り直す。client だけで鳴らす携帯機器 (Traveler's
+     * Backpack 等) は、busy で待って取り直す間 (最大120秒) に画面が閉じられるので、画面を開いた時の確認を
+     * その間だけ持たせる。根拠は server が見た実物だけなので、見ていない hash は引き続き取れない。
+     */
+    private static boolean authorized(State s, ServerPlayer player, String hash) {
+        Long expires;
+        synchronized (s) { expires = s.grants.getOrDefault(player.getUUID(), Map.of()).get(hash); }
+        if (expires != null && expires >= now()) return true;
+        if (!canView(player, hash)) return false;
+        grant(s, player, hash);
+        return true;
     }
     public static void observe(ServerPlayer player, ModPayload payload) {
         if (payload instanceof PlayDiscPayload p) allow(player, p.track());
@@ -205,8 +221,10 @@ public final class LocalAudioServer {
         if (track.isLocal() && track.localHash().equals(hash)) return true;
         for (var disc : com.kuronami.musicdiscmaker.item.AlbumItem.contents(stack).discs())
             if (contains(disc, hash, depth + 1, budget)) return true;
-        for (var disc : com.kuronami.musicdiscmaker.compat.additionaladditions.AdditionalAdditionsAlbumSupport.contents(stack))
-            if (contains(disc, hash, depth + 1, budget)) return true;
+        // アルバムでない stack には null が返る (AA が無い時は常に null)。
+        var albumDiscs = com.kuronami.musicdiscmaker.compat.additionaladditions.AdditionalAdditionsAlbumSupport.contents(stack);
+        if (albumDiscs != null)
+            for (var disc : albumDiscs) if (contains(disc, hash, depth + 1, budget)) return true;
         //? if >=1.21 {
         var contents = stack.get(net.minecraft.core.component.DataComponents.CONTAINER);
         if (contents != null) {
@@ -222,9 +240,7 @@ public final class LocalAudioServer {
         return false;
     }
     private static void fetch(State s, LocalAudioPayload p, ServerPlayer player) {
-        Long expires;
-        synchronized (s) { expires = s.grants.getOrDefault(player.getUUID(), Map.of()).get(p.hash()); }
-        if ((expires == null || expires < now()) && !canView(player, p.hash())) { error(player, p, "missing"); return; }
+        if (!authorized(s, player, p.hash())) { error(player, p, "missing"); return; }
         if (s.downloads.size() >= 4 || s.downloads.values().stream().anyMatch(d -> d.player == player && d.hash.equals(p.hash()))) {
             error(player, p, "busy"); return;
         }
@@ -242,9 +258,7 @@ public final class LocalAudioServer {
     }
     /** A cache hit is usable only while this world's verified original still exists. */
     private static void checkCachedCopy(State s, LocalAudioPayload p, ServerPlayer player) {
-        Long expires;
-        synchronized (s) { expires = s.grants.getOrDefault(player.getUUID(), Map.of()).get(p.hash()); }
-        if ((expires == null || expires < now()) && !canView(player, p.hash())) { error(player, p, "missing"); return; }
+        if (!authorized(s, player, p.hash())) { error(player, p, "missing"); return; }
         if (s.downloads.size() >= 4 || s.downloads.values().stream().anyMatch(d -> d.player == player && d.hash.equals(p.hash()))) {
             error(player, p, "busy"); return;
         }

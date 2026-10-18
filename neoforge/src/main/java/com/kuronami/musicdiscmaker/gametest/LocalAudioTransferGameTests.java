@@ -20,16 +20,20 @@ import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioServer;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioStore;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
+import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
+import com.kuronami.musicdiscmaker.item.AlbumItem;
 import com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu;
 import com.kuronami.musicdiscmaker.network.LocalAudioPayload;
 import com.kuronami.musicdiscmaker.network.ModPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 import com.kuronami.musicdiscmaker.platform.services.INetworkHelper;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
+import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.GameTestInfo;
 import net.minecraft.gametest.framework.GameTestListener;
@@ -38,7 +42,11 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.players.PlayerList;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.storage.LevelResource;
 import net.neoforged.neoforge.common.util.FakePlayer;
@@ -368,6 +376,167 @@ public final class LocalAudioTransferGameTests {
     }
 
     /** READY が捕獲されるまで待つ。READY = begin→prepare→server.execute 経路の完走を示す。 */
+    /**
+     * The positive side of the "what the player can see on the server" permission. Players who play a
+     * local disc in a client-only player (Traveler's Backpack, Pocket Jukebox) get no play notice, so the
+     * server allows the transfer when the disc is in their inventory, in a container item or Album there,
+     * or in a slot of the screen they have open. A player without the disc is refused.
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", batch = "localAudioView", timeoutTicks = 200)
+    */
+    //?}
+    public static void viewableLocalDiscsAreAllowed(GameTestHelper helper) {
+        final List<String> hashes = audioFixtures(helper, "view", 5);
+        final FakePlayer holder = FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "local-audio-view"));
+        final FakePlayer stranger = FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "local-audio-stranger"));
+        final CapturingNetwork network = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(network);
+        // Grants and transfers of a player who is not in the player list are dropped on the next tick.
+        connectUntilFinished(helper, previous, holder, stranger);
+        final UUID inInventory = UUID.randomUUID();
+        final UUID inContainerItem = UUID.randomUUID();
+        final UUID inAlbum = UUID.randomUUID();
+        final UUID inOpenScreen = UUID.randomUUID();
+        final UUID notHeld = UUID.randomUUID();
+        {
+            holder.getInventory().setItem(0, localDisc(hashes.get(0)));
+            final ItemStack box = new ItemStack(Items.SHULKER_BOX);
+            box.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(localDisc(hashes.get(1)))));
+            holder.getInventory().setItem(1, box);
+            final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+            AlbumItem.setContents(album, new AlbumContents(List.of(localDisc(hashes.get(2)))));
+            holder.getInventory().setItem(2, album);
+            final SimpleContainer backpack = new SimpleContainer(27);
+            backpack.setItem(0, localDisc(hashes.get(3)));
+            holder.containerMenu = ChestMenu.threeRows(71, holder.getInventory(), backpack);
+
+            LocalAudioServer.receive(check(inInventory, hashes.get(0)), holder);
+            LocalAudioServer.receive(check(inContainerItem, hashes.get(1)), holder);
+            LocalAudioServer.receive(check(inAlbum, hashes.get(2)), holder);
+            LocalAudioServer.receive(check(inOpenScreen, hashes.get(3)), holder);
+            LocalAudioServer.receive(check(notHeld, hashes.get(4)), stranger);
+        }
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    for (final UUID request : List.of(inInventory, inContainerItem, inAlbum, inOpenScreen)) {
+                        helper.assertTrue(reply(network, request) != null, "no reply yet");
+                    }
+                })
+                .thenExecute(() -> {
+                    assertAvailable(helper, network, inInventory, "a disc in the inventory");
+                    assertAvailable(helper, network, inContainerItem, "a disc inside a container item");
+                    assertAvailable(helper, network, inAlbum, "a disc inside an Album");
+                    assertAvailable(helper, network, inOpenScreen, "a disc in the open screen");
+                    final LocalAudioPayload refused = reply(network, notHeld);
+                    helper.assertTrue(refused != null && refused.operation() == LocalAudioPayload.ERROR
+                                    && "missing".equals(refused.name()),
+                            "a player without the disc was not refused");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A transfer allowed because the disc was in the open screen keeps working for a while after the
+     * screen closes. The client retries a busy transfer for up to 120 s, and the backpack screen is often
+     * closed by then; before, that retry was refused and the song stayed silent.
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", batch = "localAudioViewClosed", timeoutTicks = 200)
+    */
+    //?}
+    public static void viewedLocalDiscStaysAllowedAfterTheScreenCloses(GameTestHelper helper) {
+        final String hash = audioFixtures(helper, "closed", 1).get(0);
+        final FakePlayer viewer = FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "local-audio-closed"));
+        final FakePlayer other = FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "local-audio-other"));
+        final CapturingNetwork network = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(network);
+        connectUntilFinished(helper, previous, viewer, other);
+        final UUID whileOpen = UUID.randomUUID();
+        final UUID afterClose = UUID.randomUUID();
+        final UUID otherPlayer = UUID.randomUUID();
+        final SimpleContainer backpack = new SimpleContainer(27);
+        backpack.setItem(0, localDisc(hash));
+        viewer.containerMenu = ChestMenu.threeRows(72, viewer.getInventory(), backpack);
+        LocalAudioServer.receive(check(whileOpen, hash), viewer);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(reply(network, whileOpen) != null, "no reply yet"))
+                .thenExecute(() -> {
+                    assertAvailable(helper, network, whileOpen, "a disc in the open screen");
+                    viewer.containerMenu = viewer.inventoryMenu;
+                    LocalAudioServer.receive(check(afterClose, hash), viewer);
+                    LocalAudioServer.receive(check(otherPlayer, hash), other);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(reply(network, afterClose) != null
+                        && reply(network, otherPlayer) != null, "no reply yet"))
+                .thenExecute(() -> {
+                    assertAvailable(helper, network, afterClose, "the same disc right after the screen closed");
+                    final LocalAudioPayload refused = reply(network, otherPlayer);
+                    helper.assertTrue(refused != null && refused.operation() == LocalAudioPayload.ERROR
+                                    && "missing".equals(refused.name()),
+                            "another player was allowed by someone else's open screen");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * Puts the fake players in the player list (the transfer server drops anyone who is not) and, once
+     * the test passes or fails, takes them out again and restores the network.
+     */
+    private static void connectUntilFinished(GameTestHelper helper, INetworkHelper previous,
+            ServerPlayer... players) {
+        final PlayerList list = helper.getLevel().getServer().getPlayerList();
+        final AtomicBoolean done = new AtomicBoolean();
+        final Runnable cleanup = () -> {
+            if (!done.compareAndSet(false, true)) return;
+            Services.swapNetwork(previous);
+            for (final ServerPlayer player : players) {
+                unregisterConnectedFakePlayer(list, player);
+                player.discard();
+            }
+        };
+        for (final ServerPlayer player : players) registerConnectedFakePlayer(list, player);
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override public void testStructureLoaded(GameTestInfo info) { }
+            @Override public void testPassed(GameTestInfo info, GameTestRunner runner) { cleanup.run(); }
+            @Override public void testFailed(GameTestInfo info, GameTestRunner runner) { cleanup.run(); }
+            @Override public void testAddedForRerun(GameTestInfo oldInfo, GameTestInfo newInfo,
+                    GameTestRunner runner) { cleanup.run(); }
+        });
+    }
+
+    private static ItemStack localDisc(String hash) {
+        final ItemStack disc = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
+        disc.set(ModDataComponents.CUSTOM_TRACK.get(), CustomTrackData.local(hash, "view", "fixture", 60_000));
+        return disc;
+    }
+
+    private static LocalAudioPayload check(UUID request, String hash) {
+        return LocalAudioPayload.control(LocalAudioPayload.CHECK, request, 0, 0, hash, 0, 0, "");
+    }
+
+    /** The first AVAILABLE or ERROR answer to {@code request}, or null while none has arrived. */
+    private static LocalAudioPayload reply(CapturingNetwork network, UUID request) {
+        return network.of(LocalAudioPayload.class).stream()
+                .map(CapturingNetwork.Sent::payload).map(LocalAudioPayload.class::cast)
+                .filter(p -> request.equals(p.id()) && (p.operation() == LocalAudioPayload.AVAILABLE
+                        || p.operation() == LocalAudioPayload.ERROR))
+                .findFirst().orElse(null);
+    }
+
+    private static void assertAvailable(GameTestHelper helper, CapturingNetwork network, UUID request,
+            String what) {
+        final LocalAudioPayload answer = reply(network, request);
+        helper.assertTrue(answer != null && answer.operation() == LocalAudioPayload.AVAILABLE,
+                what + " was not allowed: " + (answer == null ? "no answer" : answer.name()));
+    }
+
     private static void assertReady(GameTestHelper helper, CapturingNetwork network,
             ServerPlayer player, long generation) {
         final List<CapturingNetwork.Sent> sent = network.of(LocalAudioPayload.class);
@@ -644,13 +813,17 @@ public final class LocalAudioTransferGameTests {
 
     /** 内容が hash と一致する原本だけを、ワールドの audio store 領域へ直接置く。 */
     private static List<String> audioFixtures(GameTestHelper helper, int count) {
+        return audioFixtures(helper, "", count);
+    }
+
+    private static List<String> audioFixtures(GameTestHelper helper, String salt, int count) {
         final Path audioDir = helper.getLevel().getServer().getWorldPath(LevelResource.ROOT)
                 .resolve("music_disc_maker").resolve("audio");
         final List<String> hashes = new ArrayList<>();
         try {
             Files.createDirectories(audioDir);
             for (int i = 0; i < count; i++) {
-                final byte[] bytes = ("mdm-gametest-local-audio-" + i).getBytes(StandardCharsets.UTF_8);
+                final byte[] bytes = ("mdm-gametest-local-audio-" + salt + i).getBytes(StandardCharsets.UTF_8);
                 final String hash = hashOf(new String(bytes, StandardCharsets.UTF_8));
                 Files.write(audioDir.resolve(hash + ".mp3"), bytes);
                 hashes.add(hash);

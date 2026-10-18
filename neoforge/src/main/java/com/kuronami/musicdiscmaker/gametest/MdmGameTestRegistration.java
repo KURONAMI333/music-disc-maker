@@ -598,6 +598,12 @@ public final class MdmGameTestRegistration {
         register(event, "local_audio_download_timeout_and_read_failure_keep_request_generation",
                 LocalAudioTransferGameTests::downloadTimeoutAndReadFailureKeepRequestGeneration,
                 env(event, "local_audio_download"), 700);
+        register(event, "local_audio_viewable_discs_are_allowed",
+                LocalAudioTransferGameTests::viewableLocalDiscsAreAllowed,
+                env(event, "local_audio_view"), 200);
+        register(event, "local_audio_viewed_disc_stays_allowed_after_the_screen_closes",
+                LocalAudioTransferGameTests::viewedLocalDiscStaysAllowedAfterTheScreenCloses,
+                env(event, "local_audio_view_closed"), 200);
     }
 
     //? if >=26.1 {
