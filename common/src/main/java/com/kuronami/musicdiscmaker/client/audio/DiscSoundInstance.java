@@ -404,6 +404,20 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
 
     /**
+     * フラットモードで範囲外の間は、音量 0 のままでもバニラにチャンネルを作らせる。
+     *
+     * <p>{@link #setDirectional} は範囲外の player に全開の音が漏れないよう、再生前に音量を 0 にする。
+     * バニラの {@code SoundEngine#play} は「音量 0 かつ {@code canStartSilent()} が偽」の音を始めない
+     * (再生もされず、後から範囲に入っても始まり直さない)。ここで真を返すと無音のまま始まり、
+     * 範囲に入った時に {@link #advanceFlatGate} が音量を上げる。範囲内・指向性オンでは従来どおり偽
+     * (本物の音量 0 は「始まらない」と報告する)。
+     */
+    @Override
+    public boolean canStartSilent() {
+        return !directional && !flatAudible;
+    }
+
+    /**
      * OpenAL へ渡すゲイン。{@code SoundEngine#calculateVolume} が [0,1] にクランプするので 1.0 で
      * 頭打ちにし、超過分は {@link #computePcmGain()} が PCM サンプル側で担う。
      * min/max に割り振るので両者の積は常に {@link #totalGain()} に一致する。
