@@ -375,7 +375,6 @@ public final class LocalAudioTransferGameTests {
                 .thenSucceed();
     }
 
-    /** READY が捕獲されるまで待つ。READY = begin→prepare→server.execute 経路の完走を示す。 */
     /**
      * The positive side of the "what the player can see on the server" permission. Players who play a
      * local disc in a client-only player (Traveler's Backpack, Pocket Jukebox) get no play notice, so the
@@ -537,6 +536,7 @@ public final class LocalAudioTransferGameTests {
                 what + " was not allowed: " + (answer == null ? "no answer" : answer.name()));
     }
 
+    /** READY が捕獲されるまで待つ。READY = begin→prepare→server.execute 経路の完走を示す。 */
     private static void assertReady(GameTestHelper helper, CapturingNetwork network,
             ServerPlayer player, long generation) {
         final List<CapturingNetwork.Sent> sent = network.of(LocalAudioPayload.class);
