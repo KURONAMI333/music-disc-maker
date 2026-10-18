@@ -46,6 +46,9 @@ public final class LegacyPayloadIds {
         if (payload instanceof AudioLagPayload) {
             return AudioLagPayload.PATH;
         }
+        if (payload instanceof BoomboxAudioLagPayload) {
+            return BoomboxAudioLagPayload.PATH;
+        }
         if (payload instanceof ConfigureJukeboxPayload) {
             return ConfigureJukeboxPayload.PATH;
         }

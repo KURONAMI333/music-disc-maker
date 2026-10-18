@@ -39,7 +39,8 @@ public final class BoomboxAnchor implements DiscAnchor {
      * 一時的な遅延で鳴っているものを勝手に止めてしまう。
      *
      * <p><b>末尾の猶予帯は別扱い</b> ({@link BoomboxLiveness})。server は尺を使い切ったあと
-     * {@code BoomboxPlayback.TAIL_GRACE_MS} (8 秒) のあいだ意図的に payload を撃たないので、
+     * いちばん遅い client の遅れ＋余白 (最長 {@code BoomboxPlayback.TAIL_GRACE_MS} = 11 秒) のあいだ意図的に
+     * payload を撃たないので、
      * この値だけで判定すると猶予の 3 秒目で音が切れる。曲の想定終端の前後は
      * {@link #armTailSilence} の窓がこの判定を延ばす。
      */

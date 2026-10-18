@@ -52,6 +52,8 @@ public final class NeoForgePayloads {
                 NeoForgePayloads::handleCancelDisc);
         registrar.playToServer(ModPayloadTypes.AudioLag.TYPE, ModPayloadTypes.AudioLag.STREAM_CODEC,
                 NeoForgePayloads::handleAudioLag);
+        registrar.playToServer(ModPayloadTypes.BoomboxAudioLag.TYPE, ModPayloadTypes.BoomboxAudioLag.STREAM_CODEC,
+                NeoForgePayloads::handleBoomboxAudioLag);
 
         // client → server: 強化版ジュークボックスの設定適用
         registrar.playToServer(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC,
@@ -135,6 +137,13 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleAudioLag(msg.inner(), player));
+    }
+
+    private static void handleBoomboxAudioLag(ModPayloadTypes.BoomboxAudioLag msg, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleBoomboxAudioLag(msg.inner(), player));
     }
 
     private static void handleConfigureJukebox(ModPayloadTypes.ConfigureJukebox msg, IPayloadContext context) {

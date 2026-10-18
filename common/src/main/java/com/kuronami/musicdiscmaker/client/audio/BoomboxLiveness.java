@@ -4,12 +4,13 @@ package com.kuronami.musicdiscmaker.client.audio;
  * ブームボックスで「server がまだ居るか」の判定 (MC 非依存)。
  *
  * <h2>なぜ末尾だけ別扱いが要るか</h2>
- * server は尺を使い切ったあと {@code BoomboxPlayback.TAIL_GRACE_MS} (8 秒) のあいだ<b>意図的に
- * payload を撃たない</b> ({@code BoomboxHeartbeat.decide} の猶予帯)。撃つと「尺を過ぎた offset で
+ * server は尺を使い切ったあと、いちばん遅い client の遅れ＋余白 (最長
+ * {@code BoomboxPlayback.TAIL_GRACE_MS} = 11 秒) のあいだ<b>意図的に payload を撃たない</b> ({@code BoomboxHeartbeat.decide} の猶予帯)。撃つと「尺を過ぎた offset で
  * 開く → 即 EOF → 次の心拍で START」を 1 Hz で繰り返す client が出るため。
  *
  * <p>一方 client の生存判定は {@link BoomboxAnchor#TIMEOUT_MS} (3 秒) の途絶で切れる。ここが揃って
- * いないと <b>猶予 8 秒のうち 3 秒で音が止まり、毎曲の末尾が切れる</b>。かといって無条件に
+ * いないと <b>猶予のうち 3 秒で音が止まり、毎曲の末尾が切れる</b>。client は自分以外の遅れを知らないので、
+ * 窓は最長の待ちに合わせる。かといって無条件に
  * 伸ばすと、機械を外した時・持ち主がログアウトした時に余韻が長く残る。
  *
  * <p>そこで<b>曲の想定終端の前後だけ</b>沈黙を許す窓を置く。窓の内側では何秒黙っていても生存、

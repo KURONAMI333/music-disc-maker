@@ -60,7 +60,8 @@ public final class ModNetwork {
     // 20: rename_disc (製作機で作った盤の曲名の付け直し) を追加。
     // 21: cancel_disc (製作機で作った盤の取りやめ) を追加。
     // 22: audio_lag (曲が実際に鳴り始めた時の遅れ。金のジュークボックスが次の曲を待つ) を追加。
-    public static final String PROTOCOL_VERSION = "22";
+    // 23: boombox_audio_lag (ブームボックスも同じ遅れを報告し、固定 8 秒の待ちをやめる) を追加。
+    public static final String PROTOCOL_VERSION = "23";
 
     private static final double MAX_REACH_SQR = 64.0;
 
@@ -135,6 +136,12 @@ public final class ModNetwork {
         if (jukebox != null) {
             jukebox.noteListenerLag(payload.identity(), payload.lagMs());
         }
+    }
+
+    /** ブームボックスの曲が鳴り始めた時の遅れ。印の合わない (曲が変わった後の) 報告と別の次元からの報告は捨てる。 */
+    public static void handleBoomboxAudioLag(BoomboxAudioLagPayload payload, ServerPlayer player) {
+        com.kuronami.musicdiscmaker.event.BoomboxPlayback.noteListenerLag(player, payload.boomboxId(),
+                payload.audioGeneration(), payload.lagMs());
     }
 
     public static void handleConfigureJukebox(ConfigureJukeboxPayload payload, ServerPlayer player) {

@@ -196,15 +196,15 @@ public final class BoomboxClientPlayback {
                                 PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
             }
             Minecraft.getInstance().execute(() -> onLoaded(payload, track, TrackAudioResolver.actualOffset(resolved, startOffsetMs), resolved,
-                    reported, token));
+                    reported, token, requestedAtMs));
         });
     }
 
     private static void onLoaded(BoomboxPlayPayload payload, CustomTrackData track, long startOffsetMs,
-            IAudioSource resolved, PlaybackFailure failure, int token) {
+            IAudioSource resolved, PlaybackFailure failure, int token, long requestedAtMs) {
         final long id = payload.boomboxId();
         final boolean applied = SESSIONS.completeIfLive(id, token,
-                () -> applyCurrentLoad(payload, track, startOffsetMs, resolved, failure, token));
+                () -> applyCurrentLoad(payload, track, startOffsetMs, resolved, failure, token, requestedAtMs));
         if (!applied && resolved != null) {
             resolved.close(); // ロード中に停止 / 同じ URL を含む後続世代が来た
         }
@@ -212,7 +212,7 @@ public final class BoomboxClientPlayback {
 
     /** 現世代と確認できたロード完了だけを状態へ反映する (main thread)。 */
     private static void applyCurrentLoad(BoomboxPlayPayload payload, CustomTrackData track,
-            long startOffsetMs, IAudioSource resolved, PlaybackFailure failure, int token) {
+            long startOffsetMs, IAudioSource resolved, PlaybackFailure failure, int token, long requestedAtMs) {
         final long id = payload.boomboxId();
         // 後続の要求が別の曲で走り出していたら、その記録を消さない (2 引数版の remove)。
         PENDING.remove(id, track.sourceKey());
@@ -256,6 +256,21 @@ public final class BoomboxClientPlayback {
         instance.setDirectional(false);
         instance.setFailureSink(
                 late -> Minecraft.getInstance().execute(() -> lateFailure(id, token, track, late)));
+        if (automaticDuration > 0L) {
+            // 実音が鳴り始めた時の server の位置からの遅れを知らせる。server はいちばん遅い client が鳴り終わるまで
+            // 次の曲・頭出し・停止を待つ (金のジュークボックスと同じ)。
+            final long receivedOffsetMs = payload.startOffsetMs();
+            final long audioGeneration = liveRequest.audioGeneration();
+            final long audioStartOffsetMs = startOffsetMs;
+            instance.setFirstAudioSink(() -> Minecraft.getInstance().execute(() -> {
+                final long lag = receivedOffsetMs + (TrackAudioResolver.playbackClockMs() - requestedAtMs)
+                        - audioStartOffsetMs;
+                if (lag > 0L) {
+                    com.kuronami.musicdiscmaker.platform.Services.NETWORK.sendToServer(
+                            new com.kuronami.musicdiscmaker.network.BoomboxAudioLagPayload(id, audioGeneration, lag));
+                }
+            }));
+        }
         if (!SESSIONS.install(id, token, track.sourceKey(), startOffsetMs, instance)) {
             instance.requestStop();
             return;

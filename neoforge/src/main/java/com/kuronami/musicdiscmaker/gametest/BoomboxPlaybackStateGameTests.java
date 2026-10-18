@@ -608,6 +608,92 @@ public final class BoomboxPlaybackStateGameTests {
         }
     }
 
+    /**
+     * Without a listener report, the next song starts about one second after the last one ends instead
+     * of after a fixed 8 seconds (the gap that used to sit between Boombox songs).
+     */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void tailWaitWithoutReportIsShort(GameTestHelper helper) {
+        final ItemStack box = shortAlbumBox();
+        final var player = net.neoforged.neoforge.common.util.FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "boombox-short-tail"));
+        final BlockPos playerPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        player.setPos(playerPos.getX() + 0.5, playerPos.getY() + 0.5, playerPos.getZ() + 0.5);
+        player.setItemInHand(InteractionHand.MAIN_HAND, box);
+        final long id = box.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+        try {
+            helper.assertTrue(BoomboxPlayback.startCarried(player, box), "short sequence start failed");
+            final long now = System.currentTimeMillis();
+            BoomboxPlayback.scan(List.of(player), now + 100L + BoomboxPlayback.TAIL_MARGIN_MS + 1L);
+            helper.assertTrue(BoomboxPlayback.stateOf(box).cursor().discIndex() == 1,
+                    "without a listener report the next song waited longer than the short margin");
+            helper.succeed();
+        } finally {
+            BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), id);
+            player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        }
+    }
+
+    /**
+     * The Boombox waits for the slowest listener's reported start delay before the next song: reports for
+     * another playback are ignored, a huge report is capped, and the wait does not carry over to the next song.
+     */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void tailWaitFollowsReportedListenerLag(GameTestHelper helper) {
+        final ItemStack box = shortAlbumBox();
+        final var player = net.neoforged.neoforge.common.util.FakePlayerFactory.get(helper.getLevel(),
+                new GameProfile(UUID.randomUUID(), "boombox-lag-tail"));
+        final BlockPos playerPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        player.setPos(playerPos.getX() + 0.5, playerPos.getY() + 0.5, playerPos.getZ() + 0.5);
+        player.setItemInHand(InteractionHand.MAIN_HAND, box);
+        final long id = box.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+        try {
+            helper.assertTrue(BoomboxPlayback.startCarried(player, box), "short sequence start failed");
+            final long now = System.currentTimeMillis();
+            final long generation = BoomboxPlayback.audioGeneration(id);
+            BoomboxPlayback.noteListenerLag(player, id, generation + 99L, 9_000L);
+            helper.assertTrue(BoomboxPlayback.listenerLagMs(id) == 0L, "a report for another playback was kept");
+            BoomboxPlayback.noteListenerLag(player, id, generation, 3_000L);
+            BoomboxPlayback.noteListenerLag(player, id, generation, 1_000L);
+            helper.assertTrue(BoomboxPlayback.listenerLagMs(id) == 3_000L,
+                    "the slowest listener's delay was not kept: " + BoomboxPlayback.listenerLagMs(id));
+            BoomboxPlayback.scan(List.of(player), now + 100L + BoomboxPlayback.TAIL_MARGIN_MS + 1L);
+            helper.assertTrue(BoomboxPlayback.stateOf(box).cursor().discIndex() == 0,
+                    "the next song started before the slowest listener heard the end");
+            BoomboxPlayback.scan(List.of(player), now + 100L + 3_000L + BoomboxPlayback.TAIL_MARGIN_MS + 1L);
+            helper.assertTrue(BoomboxPlayback.stateOf(box).cursor().discIndex() == 1,
+                    "the next song did not start after the slowest listener heard the end");
+            helper.assertTrue(BoomboxPlayback.listenerLagMs(id) == 0L,
+                    "the wait carried over to the next song: " + BoomboxPlayback.listenerLagMs(id));
+            BoomboxPlayback.noteListenerLag(player, id, BoomboxPlayback.audioGeneration(id), 60_000L);
+            helper.assertTrue(BoomboxPlayback.listenerLagMs(id) == BoomboxPlayback.MAX_LISTENER_LAG_MS,
+                    "a huge report was not capped: " + BoomboxPlayback.listenerLagMs(id));
+            helper.succeed();
+        } finally {
+            BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), id);
+            player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        }
+    }
+
+    /** Two 100 ms songs in an Album, in a Boombox. */
+    private static ItemStack shortAlbumBox() {
+        final ItemStack first = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
+        first.set(ModDataComponents.CUSTOM_TRACK.get(), new CustomTrackData("https://example.invalid/tail-a",
+                "first", "test", 100L, "", false));
+        final ItemStack second = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());
+        second.set(ModDataComponents.CUSTOM_TRACK.get(), new CustomTrackData("https://example.invalid/tail-b",
+                "second", "test", 100L, "", false));
+        final ItemStack album = new ItemStack(ModItems.ALBUM.get());
+        AlbumItem.setContents(album, new AlbumContents(List.of(first, second)));
+        final ItemStack box = new ItemStack(ModItems.BOOMBOX.get());
+        box.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(album, BoomboxContents.mintId()));
+        return box;
+    }
+
     //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
     *///?}

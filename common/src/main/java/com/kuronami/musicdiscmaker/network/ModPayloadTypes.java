@@ -65,6 +65,9 @@ public final class ModPayloadTypes {
         if (payload instanceof AudioLagPayload p) {
             return new AudioLag(p);
         }
+        if (payload instanceof BoomboxAudioLagPayload p) {
+            return new BoomboxAudioLag(p);
+        }
         if (payload instanceof ConfigureJukeboxPayload p) {
             return new ConfigureJukebox(p);
         }
@@ -195,6 +198,17 @@ public final class ModPayloadTypes {
         public static final Type<AudioLag> TYPE = new Type<>(id(AudioLagPayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, AudioLag> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new AudioLag(AudioLagPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record BoomboxAudioLag(BoomboxAudioLagPayload inner) implements CustomPacketPayload {
+        public static final Type<BoomboxAudioLag> TYPE = new Type<>(id(BoomboxAudioLagPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, BoomboxAudioLag> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new BoomboxAudioLag(BoomboxAudioLagPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -402,6 +416,9 @@ public final class ModPayloadTypes {
         if (payload instanceof AudioLagPayload p) {
             return new AudioLag(p);
         }
+        if (payload instanceof BoomboxAudioLagPayload p) {
+            return new BoomboxAudioLag(p);
+        }
         if (payload instanceof ConfigureJukeboxPayload p) {
             return new ConfigureJukebox(p);
         }
@@ -532,6 +549,17 @@ public final class ModPayloadTypes {
         public static final Type<AudioLag> TYPE = new Type<>(id(AudioLagPayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, AudioLag> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new AudioLag(AudioLagPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record BoomboxAudioLag(BoomboxAudioLagPayload inner) implements CustomPacketPayload {
+        public static final Type<BoomboxAudioLag> TYPE = new Type<>(id(BoomboxAudioLagPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, BoomboxAudioLag> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf), buf -> new BoomboxAudioLag(BoomboxAudioLagPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

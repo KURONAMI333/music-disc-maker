@@ -76,17 +76,25 @@ public final class BoomboxPlayback {
     public static final long HEARTBEAT_MS = 1_000L;
 
     /**
-     * 終端判定を待たせる猶予 (ms)。
+     * client の「鳴り始めの遅れ」の上限 (ms)。金のジュークボックスと同じ値。
      *
      * <p>server が持つ経過は<b>payload を撃った時刻</b>基準だが、client の音は「S2C レイテンシ +
-     * URL 解決 + プリバッファ」ぶん遅れて立つ。猶予無しだと停止が可聴位置 {@code 尺 - 遅れ} で
-     * 走り、<b>毎曲の末尾が切れる</b>。
-     *
-     * <p>🔸 これは校正ではなく近似。金ジュークは client からの報告で実測した値を使うが、
-     * ブームボックスにはその報告経路が無い。v2 系譜の {@code AudioLag.UNCALIBRATED_MS} と
-     * 同じ 8 秒を置いた (実測帯 5〜10 秒の中央)。報告経路を通せた時点でここは卒業する。
+     * URL 解決 + プリバッファ」ぶん遅れて立つ。待たないと次の曲・停止が可聴位置 {@code 尺 - 遅れ} で
+     * 走り、<b>毎曲の末尾が切れる</b>。そこで各 client が実音の開始時に遅れを報告し
+     * ({@code BoomboxAudioLagPayload})、server はいちばん遅い人が鳴り終わるまで待つ。
+     * 3.1.1 までは報告経路が無く、固定の 8 秒を待っていた (曲と曲の間に約 8 秒の無音ができた)。
      */
-    public static final long TAIL_GRACE_MS = 8_000L;
+    public static final long MAX_LISTENER_LAG_MS = com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity.MAX_LISTENER_LAG_MS;
+
+    /**
+     * 報告された遅れに足す余白 (ms)。報告は「再生要求が client に届いた時刻」から数えるので、server から
+     * client への片道と、最初の PCM が耳に届くまでの出力の遅れは入っていない。バニラの盤の猶予
+     * ({@link #VANILLA_TAIL_GRACE_MS}) と同じ 1 秒にした。
+     */
+    public static final long TAIL_MARGIN_MS = 1_000L;
+
+    /** 曲の終わりで server が黙って待つ最長 (ms)。client はこの間 server が黙っても止めない。 */
+    public static final long TAIL_GRACE_MS = MAX_LISTENER_LAG_MS + TAIL_MARGIN_MS;
 
     /**
      * 持ち歩きの走査間隔 (tick)。keep-alive 間隔より短くしておかないと、送信判定の粒度が走査に
@@ -116,6 +124,8 @@ public final class BoomboxPlayback {
         private final long audioGeneration;
         private long lastSentMillis;
         private long lastSeenMillis;
+        /** 聞いている client の中でいちばん大きい鳴り始めの遅れ (ms)。この再生 ({@link #audioGeneration}) の分だけ。 */
+        private long listenerLagMs;
         private final LongSupplier clock;
         private ResourceKey<Level> levelKey;
         private ChunkPos chunk;
@@ -176,8 +186,10 @@ public final class BoomboxPlayback {
             return vanilla.durationMs();
         }
 
-        long tailGraceMs() {
-            return track != null ? TAIL_GRACE_MS : VANILLA_TAIL_GRACE_MS;
+        /** @param listenerLagMs この再生で報告された、いちばん大きい遅れ */
+        long tailGraceMs(long listenerLagMs) {
+            return track != null ? Math.min(listenerLagMs, MAX_LISTENER_LAG_MS) + TAIL_MARGIN_MS
+                    : VANILLA_TAIL_GRACE_MS;
         }
     }
 
@@ -269,6 +281,36 @@ public final class BoomboxPlayback {
      */
     public static boolean isPlaying(long boomboxId) {
         return boomboxId != BoomboxContents.UNASSIGNED && SESSIONS.containsKey(boomboxId);
+    }
+
+    /**
+     * client からの遅れの報告。今鳴っている音と違う (曲が変わった後の) 報告と、別の次元の player からの
+     * 報告は捨てる。誰かが大きな値を送っても、上限で丸めるので次の曲が少し遅れるだけ (金のジュークボックスと同じ)。
+     *
+     * @param player          報告した player
+     * @param boomboxId       機体の識別子
+     * @param audioGeneration 報告した client が鳴らしている再生の印
+     * @param lagMs           遅れ (ms)
+     */
+    public static void noteListenerLag(ServerPlayer player, long boomboxId, long audioGeneration, long lagMs) {
+        final Session session = SESSIONS.get(boomboxId);
+        if (session == null || session.audioGeneration != audioGeneration
+                || !player.level().dimension().equals(session.levelKey)) {
+            return;
+        }
+        session.listenerLagMs = Math.max(session.listenerLagMs, Math.max(0L, Math.min(lagMs, MAX_LISTENER_LAG_MS)));
+    }
+
+    /** テスト用: その機体で今待っている曲の終わりの遅れ (ms)。鳴っていなければ -1。 */
+    public static long listenerLagMs(long boomboxId) {
+        final Session session = SESSIONS.get(boomboxId);
+        return session == null ? -1L : session.listenerLagMs;
+    }
+
+    /** テスト用: その機体の今の再生の印。鳴っていなければ -1。 */
+    public static long audioGeneration(long boomboxId) {
+        final Session session = SESSIONS.get(boomboxId);
+        return session == null ? -1L : session.audioGeneration;
     }
 
     /** テスト用: 生きているセッション数。 */
@@ -665,9 +707,12 @@ public final class BoomboxPlayback {
         context.changed().run();
         final Session session = SESSIONS.get(updated.id());
         if (session != null) {
-            SESSIONS.put(updated.id(), new Session(updated.disc(), resolved, playbackSequence(updated, resolved),
+            final Session reordered = new Session(updated.disc(), resolved, playbackSequence(updated, resolved),
                     session.startMillis, session.audioGeneration, session.levelKey, session.chunk,
-                    session.clock.getAsLong(), session.clock, session.placedOwner));
+                    session.clock.getAsLong(), session.clock, session.placedOwner);
+            // 鳴っている音はそのまま (同じ印) なので、その曲の終わりの待ちも引き継ぐ。
+            reordered.listenerLagMs = session.listenerLagMs;
+            SESSIONS.put(updated.id(), reordered);
         }
         return true;
     }
@@ -870,7 +915,8 @@ public final class BoomboxPlayback {
         }
         final long elapsed = Math.max(0L, now - session.startMillis);
         final BoomboxHeartbeat.Action action = BoomboxHeartbeat.decide(true, false, elapsed,
-                sound.automaticDurationMs(), now - session.lastSentMillis, HEARTBEAT_MS, sound.tailGraceMs());
+                sound.automaticDurationMs(), now - session.lastSentMillis, HEARTBEAT_MS,
+                sound.tailGraceMs(session.listenerLagMs));
         switch (action) {
             case END -> {
                 final MediaSequence.Position next = session.playbackSequence.next(position, contents.repeat())

@@ -108,8 +108,8 @@ public class NetworkProtocolGameTests {
 
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
         を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18、ブームボックスの再生に
-        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20、取りやめ (cancel_disc) を足して 21、曲が鳴り始めた時の遅れ (audio_lag) を足して 22 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "22";
+        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20、取りやめ (cancel_disc) を足して 21、曲が鳴り始めた時の遅れ (audio_lag) を足して 22、ブームボックスの同じ遅れ (boombox_audio_lag) を足して 23 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "23";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -118,10 +118,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "f6fe64dab76c91236fc2ac0113a907c7b8de9ebf0065d93d9a60972eb2158e7f";
+            "79a0ff18557e970e99924deda0186ac38f2d2e354d65715eb141564fe6487aac";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "c06698f48c20a61c0dded92cac29adfcc1528cf8b72eb9d211a430df8ec17d05";
+            "f8810fff0d12f4205d592d5a2122e1c95e2bdd2120f4a91b6a9266dd5a0a6629";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -408,6 +408,8 @@ public class NetworkProtocolGameTests {
         encoded.put("audio_lag", encode(mdmCodec(com.kuronami.musicdiscmaker.network.AudioLagPayload::read),
                 new com.kuronami.musicdiscmaker.network.AudioLagPayload(SAMPLE_POS, 42,
                         new com.kuronami.musicdiscmaker.network.PlaybackSourceStamp(new java.util.UUID(7L, 9L), 3L), 2_640L)));
+        encoded.put("boombox_audio_lag", encode(mdmCodec(com.kuronami.musicdiscmaker.network.BoomboxAudioLagPayload::read),
+                new com.kuronami.musicdiscmaker.network.BoomboxAudioLagPayload(0x1234_5678_9ABCL, 5L, 2_640L)));
         encoded.put("speaker_set", encode(mdmCodec(com.kuronami.musicdiscmaker.network.SpeakerSetPayload::read),
                 new com.kuronami.musicdiscmaker.network.SpeakerSetPayload(SAMPLE_POS, 96, 173, false,
                         java.util.List.of(new com.kuronami.musicdiscmaker.network.SpeakerEntry(
