@@ -4,6 +4,11 @@
 
 - Speakers no longer darken the blocks around them.
 - The Boombox's previous, next, repeat and shuffle buttons have their own textures, so a resource pack can change them separately from the Golden Jukebox.
+- Fixed players who were out of range when a song started hearing nothing after walking closer, when directional audio was off. This also affected the Boombox and the Minecart with Golden Jukebox.
+- Fixed [Let's Do] Furniture Gramophones staying silent with Furniture 1.1.7 and later.
+- Fixed the end of a song being cut off when a hopper swaps the disc in a Golden Jukebox.
+- Fixed discs made from local audio files sometimes failing to load when played from a disc the player carries or has open in a container.
+- The Boombox no longer leaves about 8 seconds of silence between songs.
 
 Use the same Music Disc Maker version on the server and all clients.
 
