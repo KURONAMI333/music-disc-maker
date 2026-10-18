@@ -179,6 +179,14 @@ neoForge {
             systemProperty("musicdiscmaker.dev", lavaDevPath)
             systemProperty("neoforge.enabledGameTestNamespaces", "mdm_aa_integration")
         }
+        // Runs MDM's Furniture gramophone mixin against a real [Let's Do] Furniture build. The jars come from
+        // -Pmdm.furnitureTestMods=<dir> (Furniture plus Architectury), so old and new Furniture can be checked.
+        create("furnitureGameTestServer") {
+            gameDirectory.set(layout.projectDirectory.dir("run-gametest-furniture"))
+            type.set("gameTestServer")
+            systemProperty("musicdiscmaker.dev", lavaDevPath)
+            systemProperty("neoforge.enabledGameTestNamespaces", "mdm_furniture_integration")
+        }
         // production の依存ロード経路を踏む唯一の run。musicdiscmaker.dev を立てない。
         create("clientProd") {
             client()
@@ -187,7 +195,7 @@ neoForge {
 }
 
 tasks.matching {
-    it.name in listOf("runClient", "runClientPeer2", "runServer", "runGameTestServer", "runCreateGameTestServer", "runAdditionalAdditionsGameTestServer", "runClientProd")
+    it.name in listOf("runClient", "runClientPeer2", "runServer", "runGameTestServer", "runCreateGameTestServer", "runAdditionalAdditionsGameTestServer", "runFurnitureGameTestServer", "runClientProd")
 }.configureEach {
     dependsOn(project(":lavaplayer").tasks.named("assemble"))
 }
@@ -205,6 +213,9 @@ tasks.named<ProcessResources>("processResources") {
     }
     from(rootProject.file("neoforge/src/main/resources/data/music_disc_maker/structure/empty8x3x8.nbt")) {
         into("data/mdm_aa_integration/structure")
+    }
+    from(rootProject.file("neoforge/src/main/resources/data/music_disc_maker/structure/empty8x3x8.nbt")) {
+        into("data/mdm_furniture_integration/structure")
     }
 }
 tasks.matching { it.name == "runCreateGameTestServer" }.configureEach {
@@ -224,4 +235,21 @@ val prepareAdditionalAdditionsGameTestMods by tasks.registering(Copy::class) {
 
 tasks.matching { it.name == "runAdditionalAdditionsGameTestServer" }.configureEach {
     dependsOn(prepareAdditionalAdditionsGameTestMods)
+}
+
+val prepareFurnitureGameTestMods by tasks.registering(Sync::class) {
+    val furnitureMods = providers.gradleProperty("mdm.furnitureTestMods").orNull?.let { file(it) }
+    doFirst {
+        check(furnitureMods != null && furnitureMods.isDirectory) {
+            "Furniture integration tests require -Pmdm.furnitureTestMods=<dir with Furniture and Architectury jars>"
+        }
+    }
+    if (furnitureMods != null) {
+        from(furnitureMods) { include("*.jar") }
+    }
+    into(layout.projectDirectory.dir("run-gametest-furniture/mods"))
+}
+
+tasks.matching { it.name == "runFurnitureGameTestServer" }.configureEach {
+    dependsOn(prepareFurnitureGameTestMods)
 }

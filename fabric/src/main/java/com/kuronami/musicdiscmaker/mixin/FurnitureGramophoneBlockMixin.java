@@ -40,10 +40,17 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
  * 失敗を握りつぶす。@Shadow は使わない (state/level/pos は inject の引数からそのまま読める)。
  ^/
 @Pseudo
-@Mixin(targets = "com.berksire.furniture.core.block.GramophoneBlock", remap = false)
+// Furniture 1.1.7 moved its classes from com.berksire.furniture to net.satisfy.furniture; both names are
+// listed (onRemove has the same signature in 1.1.6 and 1.1.7/1.1.10).
+@Mixin(targets = {
+        "com.berksire.furniture.core.block.GramophoneBlock",
+        "net.satisfy.furniture.core.block.GramophoneBlock"
+}, remap = false)
 public abstract class FurnitureGramophoneBlockMixin {
 
-    @Inject(method = "onRemove", at = @At("HEAD"), require = 0, remap = false)
+    // remap = false keeps the name as written, and a Fabric production runtime names this Block override
+    // by its intermediary name (method_9536 = onRemove in 1.21.1). List both so dev and production match.
+    @Inject(method = {"onRemove", "method_9536"}, at = @At("HEAD"), require = 0, remap = false)
     private void musicdiscmaker$stopOnRemove(BlockState state, Level level, BlockPos pos, BlockState newState,
             boolean isMoving, CallbackInfo ci) {
         try {

@@ -48,7 +48,13 @@ import net.minecraft.world.level.block.state.BlockState;
  * {@code UpgradeWrapperBaseAccessor} が警告する継承フィールド @Shadow のクラッシュ実績には該当しない。
  ^/
 @Pseudo
-@Mixin(targets = "com.berksire.furniture.core.block.entity.GramophoneBlockEntity", remap = false)
+// Furniture 1.1.7 moved its classes from com.berksire.furniture to net.satisfy.furniture. Both names
+// are listed so older and newer Furniture builds are hooked; the four fields and tick(Level, BlockState)
+// are the same in both (javap of 1.1.6 and 1.1.7/1.1.10).
+@Mixin(targets = {
+        "com.berksire.furniture.core.block.entity.GramophoneBlockEntity",
+        "net.satisfy.furniture.core.block.entity.GramophoneBlockEntity"
+}, remap = false)
 public abstract class FurnitureGramophoneMixin {
 
     @Shadow(remap = false)

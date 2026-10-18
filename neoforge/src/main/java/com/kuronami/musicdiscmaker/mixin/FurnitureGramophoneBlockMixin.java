@@ -40,7 +40,12 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
  * 失敗を握りつぶす。@Shadow は使わない (state/level/pos は inject の引数からそのまま読める)。
  ^/
 @Pseudo
-@Mixin(targets = "com.berksire.furniture.core.block.GramophoneBlock", remap = false)
+// Furniture 1.1.7 moved its classes from com.berksire.furniture to net.satisfy.furniture; both names are
+// listed (onRemove has the same signature in 1.1.6 and 1.1.7/1.1.10).
+@Mixin(targets = {
+        "com.berksire.furniture.core.block.GramophoneBlock",
+        "net.satisfy.furniture.core.block.GramophoneBlock"
+}, remap = false)
 public abstract class FurnitureGramophoneBlockMixin {
 
     @Inject(method = "onRemove", at = @At("HEAD"), require = 0, remap = false)
