@@ -166,11 +166,13 @@ public final class GoldenCartClientPlayback {
     private static final long NATURAL_END_WINDOW_MS = 2_000L;
 
     /**
-     * client の音が曲末まで鳴り切ったが、server の tick 基準の位置 (MDM_DECISIONS D4) がまだ終端の
-     * 手前にいる状態か。TPS が 20 を割ると server は実時間より遅れるので、そのまま共通の判定
-     * ({@link PlaybackRequestGate}: 止まった再生は鳴らし直す) に任せると末尾を2回鳴らす。
-     * server が次の曲へ進めるか止めるまで待つ。鳴り切ったかは client 自身の時計で判定するので、
-     * server の遅れの大きさに依らない。曲の途中での停止 (channel の喪失) は従来どおり鳴らし直す。
+     * client の音が曲末まで鳴り切ったが、server がまだその曲を終えていない状態か。トロッコは設置した
+     * 金のジュークボックスと同じ BlockEntity の時計 (再生中は一時停止を考慮した実時間、保存・復元だけ
+     * ゲーム時刻) で進み、曲の終わりではいちばん遅い client が鳴り終わるまで待つ (上限10秒)。判定も
+     * server の tick ごとなので、その間に先に鳴り終えた client を共通の判定 ({@link PlaybackRequestGate}:
+     * 止まった再生は鳴らし直す) に任せると末尾を2回鳴らす。server が次の曲へ進めるか止めるまで待つ。
+     * 鳴り切ったかは client 自身の時計で判定するので、server の待ちの長さに依らない。曲の途中での停止
+     * (channel の喪失) は従来どおり鳴らし直す。
      */
     private static boolean finishedAheadOfServer(Playing current, Long previousGeneration,
             long generation, String sourceKey, CustomTrackData track, long serverOffsetMs) {

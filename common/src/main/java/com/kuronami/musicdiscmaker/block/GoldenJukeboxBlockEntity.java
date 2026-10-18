@@ -1510,8 +1510,10 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
                 final long baseDuration = trackDurationMs();
                 final long duration = baseDuration > 0L && mount != null && track == null
                         ? baseDuration + MOUNTED_VANILLA_END_GRACE_MS : baseDuration;
-                // 1曲リピートは頭へ戻る前に、いちばん遅い client が鳴り終わるまで待つ。止める時は client が自分で待つ。
-                final long finishAt = duration + (repeat ? naturalAdvanceGraceMs() : 0L);
+                // 1曲リピートで頭へ戻る時も、止める時も、いちばん遅い client が鳴り終わるまで待つ。止めた直後に
+                // 下のホッパーが盤を抜く・上から次の盤が入ると、client が待っていた曲の残りがすぐ止められるため。
+                // 比較器・ホッパー・STOPPED の時刻もこの分だけ後ろへずれる (報告が無ければ 0)。
+                final long finishAt = duration + naturalAdvanceGraceMs();
                 if (!isLiveStream() && duration > 0L && playbackTimeMs() - startMillis >= finishAt) {
                     if (repeat) {
                         startPlayback(0L);

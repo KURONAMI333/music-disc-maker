@@ -80,6 +80,29 @@ public final class GoldenLegacyPlaybackGameTests {
         helper.succeed();
     }
 
+    /** A single disc without repeat waits for the slowest listener before it stops (same as repeat and Albums). */
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void listenerLagHoldsSingleTerminalStop(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        try {
+            be.setItem(0, customDisc());
+            be.seekTo(TRACK_MS);
+            final var playing = be.playbackIdentity();
+            be.noteListenerLag(playing, 3_000L);
+            GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+            helper.assertTrue(!be.isStopped() && be.playbackIdentity().equals(playing),
+                    "a single disc stopped before the slowest listener heard its end");
+            helper.assertTrue(!be.isAutomationExtractionReady() && be.getComparatorOutput() == 15,
+                    "the hopper or comparator saw the end before the slowest listener heard it");
+            finishCurrentTrack(helper, be);
+            helper.assertTrue(be.isStopped() && be.isAutomationExtractionReady() && be.getComparatorOutput() == 1,
+                    "a single disc did not stop at its end without a listener report");
+            helper.succeed();
+        } finally {
+            be.clearContent();
+        }
+    }
+
     private static void finishCurrentTrack(GameTestHelper helper, GoldenJukeboxBlockEntity be) {
         be.seekTo(TRACK_MS);
         GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);

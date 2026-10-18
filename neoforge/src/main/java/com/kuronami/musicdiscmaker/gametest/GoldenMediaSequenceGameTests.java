@@ -8,17 +8,20 @@ import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
 import com.kuronami.musicdiscmaker.component.SilentSongs;
 import com.kuronami.musicdiscmaker.item.AlbumItem;
+import com.kuronami.musicdiscmaker.network.StopDiscPayload;
 import com.kuronami.musicdiscmaker.register.ModBlocks;
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 import com.kuronami.musicdiscmaker.register.ModItems;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.JukeboxPlayable;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 //? if <26.1 {
 /*import net.minecraft.world.item.EitherHolder;
@@ -282,6 +285,93 @@ public final class GoldenMediaSequenceGameTests {
         } finally {
             be.clearContent();
         }
+    }
+
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void listenerLagHoldsSingleTerminalStop(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        try {
+        final ItemStack single = disc(helper, "https://example.invalid/lag-terminal", "Single", DURATION_MS, false);
+        be.setItem(0, single);
+        be.seekTo(DURATION_MS);
+        final var playing = be.playbackIdentity();
+        be.noteListenerLag(playing, 3_000L);
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        helper.assertTrue(!be.isStopped() && be.playbackIdentity().equals(playing),
+                "a single disc stopped before the slowest listener heard its end");
+        helper.assertTrue(!be.isAutomationExtractionReady()
+                        && !be.canTakeItemThroughFace(GoldenJukeboxBlockEntity.SLOT_DISC, be.getItem(0), Direction.DOWN),
+                "the hopper below could take the disc before the slowest listener heard its end");
+        helper.assertTrue(be.getComparatorOutput() == 15,
+                "the comparator dropped before the slowest listener heard the end: " + be.getComparatorOutput());
+        be.seekTo(DURATION_MS);
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        helper.assertTrue(be.isStopped() && be.isAutomationExtractionReady(),
+                "a single disc did not stop at its end without a listener report");
+        helper.assertTrue(be.getComparatorOutput() == 1,
+                "the comparator did not show a stopped disc: " + be.getComparatorOutput());
+        helper.succeed();
+        } finally {
+            be.clearContent();
+        }
+    }
+
+    /**
+     * While the slowest listener is still hearing the end of a single disc, nothing tells clients to
+     * stop at once; the only stop is the natural-end one after the wait (clients let their audio finish).
+     */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void listenerLagSendsOnlyNaturalStopForSingleDisc(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        final var captured = new CapturingNetwork();
+        final var previous = com.kuronami.musicdiscmaker.platform.Services.swapNetwork(captured);
+        try {
+        be.setItem(0, disc(helper, "https://example.invalid/lag-stop", "Single", DURATION_MS, false));
+        be.seekTo(DURATION_MS);
+        be.noteListenerLag(be.playbackIdentity(), 3_000L);
+        captured.clear();
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        helper.assertTrue(captured.of(StopDiscPayload.class).isEmpty(),
+                "a stop was sent while the slowest listener was still hearing the end");
+        // Re-seeking starts a new playback without the report, so the next tick ends the disc naturally.
+        be.seekTo(DURATION_MS);
+        captured.clear();
+        GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+        final var stops = captured.of(StopDiscPayload.class);
+        helper.assertTrue(!stops.isEmpty() && stops.stream()
+                        .allMatch(sent -> sent.payload() instanceof StopDiscPayload stop && stop.naturalEnd()),
+                "the end of a single disc was not sent as a natural end: " + stops.size());
+        helper.succeed();
+        } finally {
+            com.kuronami.musicdiscmaker.platform.Services.swapNetwork(previous);
+            be.clearContent();
+        }
+    }
+
+    /** A real hopper under the jukebox waits for the slowest listener before pulling a finished disc. */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 200)
+    *///?}
+    public static void hopperWaitsForSlowestListener(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        helper.setBlock(POS.below(), Blocks.HOPPER.defaultBlockState());
+        be.setItem(0, disc(helper, "https://example.invalid/lag-hopper", "Single", DURATION_MS, false));
+        be.seekTo(DURATION_MS);
+        be.noteListenerLag(be.playbackIdentity(), GoldenJukeboxBlockEntity.MAX_LISTENER_LAG_MS);
+        // A hopper tries every 8 ticks; 40 ticks are far shorter than the 10 s wait even on a slow server.
+        helper.runAfterDelay(40, () -> {
+            try {
+                helper.assertTrue(be.hasDisc() && !be.isStopped(),
+                        "the hopper pulled the disc while the slowest listener was still hearing the end");
+                helper.succeed();
+            } finally {
+                be.clearContent();
+            }
+        });
     }
 
     private static GoldenJukeboxBlockEntity jukebox(GameTestHelper helper) {
