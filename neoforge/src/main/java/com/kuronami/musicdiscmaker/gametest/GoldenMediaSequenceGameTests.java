@@ -352,6 +352,107 @@ public final class GoldenMediaSequenceGameTests {
         }
     }
 
+    /**
+     * Every natural move to the next song (Album next, single-disc repeat) first sends a natural-end stop, so a
+     * client that fell behind mid-song can finish the previous song before it starts the next one. A manual
+     * next does not mark its stop as natural.
+     */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void naturalAdvanceSendsNaturalStopBeforeTheNextSong(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        final var captured = new CapturingNetwork();
+        final var previous = com.kuronami.musicdiscmaker.platform.Services.swapNetwork(captured);
+        try {
+            be.setItem(0, album(helper,
+                    disc(helper, "https://example.invalid/natural-a", "A", DURATION_MS, false),
+                    disc(helper, "https://example.invalid/natural-b", "B", DURATION_MS, false),
+                    disc(helper, "https://example.invalid/natural-c", "C", DURATION_MS, false)));
+            be.seekTo(DURATION_MS);
+            captured.clear();
+            GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+            assertPosition(helper, be, 1, 0, "natural next");
+            assertNaturalStopThenPlay(helper, captured, "Album next");
+
+            captured.clear();
+            be.nextTrack();
+            assertPosition(helper, be, 2, 0, "manual next");
+            helper.assertTrue(captured.of(StopDiscPayload.class).stream()
+                            .noneMatch(sent -> ((StopDiscPayload) sent.payload()).naturalEnd()),
+                    "a manual next was marked as a natural end");
+            helper.assertTrue(!captured.of(com.kuronami.musicdiscmaker.network.PlayDiscPayload.class).isEmpty(),
+                    "a manual next did not start the next song");
+
+            be.setItem(0, ItemStack.EMPTY);
+            be.setItem(0, disc(helper, "https://example.invalid/natural-repeat", "Repeat", DURATION_MS, false));
+            be.setRepeat(true);
+            be.seekTo(DURATION_MS);
+            captured.clear();
+            GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+            helper.assertTrue(!be.isStopped(), "single-disc repeat stopped instead of starting again");
+            assertNaturalStopThenPlay(helper, captured, "single-disc repeat");
+            helper.succeed();
+        } finally {
+            com.kuronami.musicdiscmaker.platform.Services.swapNetwork(previous);
+            be.clearContent();
+        }
+    }
+
+    /**
+     * Pulling a disc that already played to its end (what a hopper does) keeps the stop natural: clients still
+     * finishing the song are not cut. Taking a disc out while it plays still stops at once.
+     */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void removingAFinishedDiscKeepsTheNaturalStop(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        final var captured = new CapturingNetwork();
+        final var previous = com.kuronami.musicdiscmaker.platform.Services.swapNetwork(captured);
+        try {
+            be.setItem(0, disc(helper, "https://example.invalid/finished-removal", "Single", DURATION_MS, false));
+            be.seekTo(DURATION_MS);
+            GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+            helper.assertTrue(be.isAutomationExtractionReady(), "the disc did not finish");
+            captured.clear();
+            helper.assertTrue(!be.removeItem(0, 1).isEmpty(), "the finished disc could not be taken out");
+            final var stops = captured.of(StopDiscPayload.class);
+            helper.assertTrue(!stops.isEmpty() && stops.stream()
+                            .allMatch(sent -> ((StopDiscPayload) sent.payload()).naturalEnd()),
+                    "taking out a finished disc cut the clients still finishing it: " + stops.size());
+
+            be.setItem(0, disc(helper, "https://example.invalid/playing-removal", "Playing", DURATION_MS, false));
+            helper.assertTrue(!be.isStopped(), "the next disc did not start");
+            captured.clear();
+            helper.assertTrue(!be.removeItem(0, 1).isEmpty(), "the playing disc could not be taken out");
+            final var manual = captured.of(StopDiscPayload.class);
+            helper.assertTrue(!manual.isEmpty() && manual.stream()
+                            .noneMatch(sent -> ((StopDiscPayload) sent.payload()).naturalEnd()),
+                    "taking out a playing disc was marked as a natural end");
+            helper.succeed();
+        } finally {
+            com.kuronami.musicdiscmaker.platform.Services.swapNetwork(previous);
+            be.clearContent();
+        }
+    }
+
+    private static void assertNaturalStopThenPlay(GameTestHelper helper, CapturingNetwork captured, String label) {
+        final var sent = captured.sent();
+        int firstStop = -1;
+        int firstPlay = -1;
+        for (int i = 0; i < sent.size(); i++) {
+            final var payload = sent.get(i).payload();
+            if (firstStop < 0 && payload instanceof StopDiscPayload) firstStop = i;
+            if (firstPlay < 0 && payload instanceof com.kuronami.musicdiscmaker.network.PlayDiscPayload) firstPlay = i;
+        }
+        helper.assertTrue(firstStop >= 0 && firstPlay > firstStop,
+                label + ": no natural-end stop before the next song (stop=" + firstStop + ", play=" + firstPlay + ")");
+        helper.assertTrue(captured.of(StopDiscPayload.class).stream()
+                        .allMatch(entry -> ((StopDiscPayload) entry.payload()).naturalEnd()),
+                label + ": the stop before the next song was not marked as a natural end");
+    }
+
     /** A real hopper under the jukebox waits for the slowest listener before pulling a finished disc. */
     //? if <1.21.11 {
     /*@GameTest(template = "empty8x3x8", timeoutTicks = 200)

@@ -635,22 +635,36 @@ public final class ClientPlaybackManager {
 
     /** server の時計で曲末からこの範囲に届いた停止を、曲の終わりによる停止とみなす。 */
     private static final long NATURAL_END_WINDOW_MS = 2_000L;
-    /** 曲の終わりの停止を待つ上限。これより遅れている client は、待った後に残りを切る。 */
-    private static final long NATURAL_END_MAX_WAIT_MS = 10_000L;
+
+    /** 曲の終わりの停止を待っている位置。待っている間に届いた次の曲もここで預かる。 */
+    private record NaturalEndWait(ReloadRequest request, Runnable stop, NaturalEndHandoff handoff) {}
+    private final Map<BlockPos, NaturalEndWait> naturalEndWaits = new HashMap<>();
 
     /**
-     * server が曲尺で送ってきた停止を、この client の音が鳴り終わるまで遅らせる。
+     * server が曲の終わりで送ってきた停止を、この client の音が鳴り終わるまで遅らせる。
      *
-     * <p>server は曲の再生を要求した時刻から数えて曲尺で止めるが、URL 音源の client は解決と読み込み
-     * (実測で初回約2秒・2回目以降0.2〜0.3秒) の後に、要求された位置から鳴り始める。そのまま止めると
-     * 曲の最後の数秒が毎回切れる。呼ぶのは server が「曲の終わりによる停止」と印を付けた停止だけで
-     * ({@code StopDiscPayload#naturalEnd})、取り出し・一時停止はすぐ止まる。待っている間に同じ位置で
-     * 次の再生が始まったら、遅らせた停止は撃たない (次の再生が前の音を畳む)。
+     * <p>server は曲の再生を要求した時刻から数えて、いちばん遅い client の鳴り始めの遅れを足した時刻で止める。
+     * ただし遅れは最初の実音の時に1回だけ報告されるので、曲の途中で読み込みが詰まって後ろへずれた分
+     * (詰まりは 1 秒単位の無音になる) は入らない。そのまま止めると、その分だけ曲の最後が切れる。そこで
+     * この client の音が自然に止まるまで待つ (最長 {@link NaturalEndHandoff#MAX_WAIT_MS})。呼ぶのは server が
+     * 「曲の終わりによる停止」と印を付けた停止だけで ({@code StopDiscPayload#naturalEnd})、取り出し・一時停止は
+     * すぐ止まる。
      *
+     * <p>待っている間に届いた次の再生 (アルバムの次の曲・頭出し・ホッパーが入れた次の盤) は
+     * {@link #holdUntilNaturalEnd} で預かり、前の音が止まってから始める。server は待たないので、この client
+     * だけが他より遅れて次の曲を始める。
+     *
+     * <p>以前は「曲尺 − 実音の開始からの経過」だけ待っていた。経過は壁時計なので、途中の詰まりで入った
+     * 無音も鳴らした扱いになり、詰まった分が切れていた。
+     *
+     * @param endedGeneration 停止の世代 (これ以下の世代の payload は待ちと関係ない)
      * @return 遅らせたら {@code true} (呼び出し側は今は止めない)
      */
-    public boolean deferNaturalEndStop(BlockPos pos, Runnable stop) {
+    public boolean deferNaturalEndStop(BlockPos pos, long endedGeneration, Runnable stop) {
         final BlockPos key = pos.immutable();
+        if (naturalEndWaits.containsKey(key)) {
+            return true; // 同じ停止が複数の経路で届いた。待ちは1つ
+        }
         final ReloadRequest request = reloadRequests.get(key);
         if (request == null || request.track() == null || request.track().radio()
                 || request.track().durationMs() <= 0L) {
@@ -661,20 +675,87 @@ public final class ClientPlaybackManager {
         if (serverPosition < duration - NATURAL_END_WINDOW_MS) {
             return false;
         }
-        final long audioPosition = sessions.audioPositionMs(key);
-        if (audioPosition < 0L) {
+        if (sessions.audioPositionMs(key) < 0L) {
+            return false; // まだ一度も鳴っていない
+        }
+        final PlaybackVoice voice = sessions.activeVoice(key);
+        if (voice == null || voice.isVoiceStopped()) {
             return false;
         }
-        final long tail = Math.min(duration - audioPosition, NATURAL_END_MAX_WAIT_MS);
-        if (tail <= 0L) {
-            return false;
-        }
-        CompletableFuture.delayedExecutor(tail, TimeUnit.MILLISECONDS).execute(() -> Minecraft.getInstance().execute(() -> {
-            if (reloadRequests.get(key) == request) {
-                stop.run();
-            }
-        }));
+        final long generation = Math.max(endedGeneration,
+                request.identity() == null ? 0L : request.identity().generation());
+        final NaturalEndWait wait = new NaturalEndWait(request, stop,
+                new NaturalEndHandoff(generation, playbackClockMs()));
+        naturalEndWaits.put(key, wait);
+        pollNaturalEnd(key, wait);
         return true;
+    }
+
+    private void pollNaturalEnd(BlockPos key, NaturalEndWait wait) {
+        CompletableFuture.delayedExecutor(NaturalEndHandoff.POLL_MS, TimeUnit.MILLISECONDS)
+                .execute(() -> Minecraft.getInstance().execute(() -> {
+            if (naturalEndWaits.get(key) != wait) {
+                return;
+            }
+            final PlaybackVoice voice = sessions.activeVoice(key);
+            final boolean stillPlaying = reloadRequests.get(key) == wait.request()
+                    && voice != null && !voice.isVoiceStopped();
+            if (wait.handoff().keepWaiting(stillPlaying, playbackClockMs())) {
+                pollNaturalEnd(key, wait);
+                return;
+            }
+            finishNaturalEndWait(key, wait, true);
+        }));
+    }
+
+    /** 待ちを終える。前の音を止め、{@code runHeld} なら預かった次の曲を届いた順に処理する。 */
+    private void finishNaturalEndWait(BlockPos key, NaturalEndWait wait, boolean runHeld) {
+        naturalEndWaits.remove(key, wait);
+        if (reloadRequests.get(key) == wait.request()) {
+            wait.stop().run();
+        }
+        final java.util.List<Runnable> held = wait.handoff().drainHeld();
+        if (runHeld) {
+            held.forEach(Runnable::run);
+        }
+    }
+
+    /**
+     * 曲の終わりを待っている位置に届いた payload を、次の曲として預かるか。
+     *
+     * @param generation その payload の世代
+     * @param action     預かった時に、前の音が止まってから実行する処理
+     * @return 預かったら {@code true}。待っていない・待ちと関係ない・手動の操作 (預かった曲と別の世代。
+     *         この時は前の音をすぐ止めて待ちを畳む) なら {@code false} で、呼び出し側が今すぐ処理する
+     */
+    public boolean holdUntilNaturalEnd(BlockPos pos, long generation, Runnable action) {
+        final BlockPos key = pos.immutable();
+        final NaturalEndWait wait = naturalEndWaits.get(key);
+        if (wait == null) {
+            return false;
+        }
+        return switch (wait.handoff().arrive(generation, playbackClockMs(), action)) {
+            case HOLD -> true;
+            case SUPERSEDE -> {
+                finishNaturalEndWait(key, wait, false);
+                yield false;
+            }
+            case PASS -> false;
+        };
+    }
+
+    /** その位置で曲の終わりの停止を待っているか。 */
+    public boolean waitingForNaturalEnd(BlockPos pos) {
+        return naturalEndWaits.containsKey(pos.immutable());
+    }
+
+    /** 手動の停止が届いた。前の音をすぐ止め、預かった次の曲は捨てる。 */
+    public void cancelNaturalEndWait(BlockPos pos) {
+        final BlockPos key = pos.immutable();
+        final NaturalEndWait wait = naturalEndWaits.get(key);
+        if (wait != null) {
+            finishNaturalEndWait(key, wait, false);
+        }
     }
 
     /**
@@ -1313,6 +1394,7 @@ public final class ClientPlaybackManager {
         final long departingEpoch = WorldEpochs.captureAndAdvance(worldEpoch);
         pendingCoreActions.clear();
         pendingSourceCoreActions.clear();
+        naturalEndWaits.clear();
         final Map<BlockPos, PlaybackSessionId> active = ExtensionSessionRetirement.captureAndClear(extensionIds);
         for (Map.Entry<BlockPos, PlaybackSessionId> entry : active.entrySet())
             beginCloseBarrier(entry.getKey(), entry.getValue(), departingEpoch);

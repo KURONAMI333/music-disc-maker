@@ -103,6 +103,77 @@ public final class GoldenLegacyPlaybackGameTests {
         }
     }
 
+    /**
+     * Single-disc repeat sends a natural-end stop before it starts again, and taking out a disc that already
+     * played to its end (a hopper) keeps the stop natural, so clients still finishing the song are not cut.
+     * Taking out a playing disc still stops at once.
+     */
+    @GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    public static void naturalEndStopsStayNaturalThroughRepeatAndRemoval(GameTestHelper helper) {
+        final GoldenJukeboxBlockEntity be = jukebox(helper);
+        final List<com.kuronami.musicdiscmaker.network.ModPayload> sent = new java.util.ArrayList<>();
+        final com.kuronami.musicdiscmaker.platform.services.INetworkHelper capture =
+                new com.kuronami.musicdiscmaker.platform.services.INetworkHelper() {
+                    @Override
+                    public void sendToServer(com.kuronami.musicdiscmaker.network.ModPayload payload) {
+                        sent.add(payload);
+                    }
+
+                    @Override
+                    public void sendToPlayer(net.minecraft.server.level.ServerPlayer player,
+                            com.kuronami.musicdiscmaker.network.ModPayload payload) {
+                        sent.add(payload);
+                    }
+
+                    @Override
+                    public void sendToPlayersTrackingChunk(net.minecraft.server.level.ServerLevel level,
+                            net.minecraft.world.level.ChunkPos chunk, com.kuronami.musicdiscmaker.network.ModPayload payload) {
+                        sent.add(payload);
+                    }
+                };
+        final var previous = com.kuronami.musicdiscmaker.platform.Services.swapNetwork(capture);
+        try {
+            be.setItem(0, customDisc());
+            be.setRepeat(true);
+            be.seekTo(TRACK_MS);
+            sent.clear();
+            GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+            int stop = -1;
+            int play = -1;
+            for (int i = 0; i < sent.size(); i++) {
+                if (stop < 0 && sent.get(i) instanceof com.kuronami.musicdiscmaker.network.StopDiscPayload s
+                        && s.naturalEnd()) stop = i;
+                if (play < 0 && sent.get(i) instanceof com.kuronami.musicdiscmaker.network.PlayDiscPayload) play = i;
+            }
+            helper.assertTrue(!be.isStopped() && stop >= 0 && play > stop,
+                    "single-disc repeat did not send a natural-end stop before starting again (stop=" + stop
+                            + ", play=" + play + ")");
+
+            be.setRepeat(false);
+            be.seekTo(TRACK_MS);
+            GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);
+            helper.assertTrue(be.isAutomationExtractionReady(), "the disc did not finish");
+            sent.clear();
+            helper.assertTrue(!be.removeItem(0, 1).isEmpty(), "the finished disc could not be taken out");
+            helper.assertTrue(sent.stream().anyMatch(com.kuronami.musicdiscmaker.network.StopDiscPayload.class::isInstance)
+                            && sent.stream().filter(com.kuronami.musicdiscmaker.network.StopDiscPayload.class::isInstance)
+                            .allMatch(p -> ((com.kuronami.musicdiscmaker.network.StopDiscPayload) p).naturalEnd()),
+                    "taking out a finished disc cut the clients still finishing it");
+
+            be.setItem(0, customDisc());
+            sent.clear();
+            helper.assertTrue(!be.removeItem(0, 1).isEmpty(), "the playing disc could not be taken out");
+            helper.assertTrue(sent.stream().anyMatch(com.kuronami.musicdiscmaker.network.StopDiscPayload.class::isInstance)
+                            && sent.stream().filter(com.kuronami.musicdiscmaker.network.StopDiscPayload.class::isInstance)
+                            .noneMatch(p -> ((com.kuronami.musicdiscmaker.network.StopDiscPayload) p).naturalEnd()),
+                    "taking out a playing disc was marked as a natural end");
+            helper.succeed();
+        } finally {
+            com.kuronami.musicdiscmaker.platform.Services.swapNetwork(previous);
+            be.clearContent();
+        }
+    }
+
     private static void finishCurrentTrack(GameTestHelper helper, GoldenJukeboxBlockEntity be) {
         be.seekTo(TRACK_MS);
         GoldenJukeboxBlockEntity.serverTick(helper.getLevel(), be.getBlockPos(), be.getBlockState(), be);

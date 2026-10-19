@@ -37,6 +37,8 @@ public final class ClientPlaybackHandler {
 
     public static void vanillaPlay(com.kuronami.musicdiscmaker.network.PlayVanillaDiscPayload payload) {
         if (protocolMismatch) return;
+        if (ClientPlaybackManager.get().holdUntilNaturalEnd(payload.jukeboxPos(), payload.identity().generation(),
+                () -> vanillaPlay(payload))) return;
         if (!claimWorld(payload.jukeboxPos(), payload.identity())) return;
         ClientPlaybackManager.get().stopPlaybackBeforeNative(payload.identity(), payload.jukeboxPos(),
                 () -> VanillaSpeakerPlayback.play(payload));
@@ -46,6 +48,9 @@ public final class ClientPlaybackHandler {
         if (protocolMismatch) {
             return; // 版不一致: 再生を始めない (黙って進ませない)
         }
+        // 曲の終わりの停止を待っている間に届いた次の曲は、前の音が鳴り終わってから始める (NaturalEndHandoff)。
+        if (ClientPlaybackManager.get().holdUntilNaturalEnd(payload.jukeboxPos(), payload.identity().generation(),
+                () -> play(payload))) return;
         if (!claimWorld(payload.jukeboxPos(), payload.identity())) return;
         VanillaSpeakerPlayback.stop(payload.jukeboxPos());
         ClientPlaybackManager.get().startPlaybackWithIdentity(payload.jukeboxPos(), payload.track(), payload.startOffsetMs(),
@@ -53,9 +58,16 @@ public final class ClientPlaybackHandler {
     }
 
     public static void stop(StopDiscPayload payload) {
-        // 曲の終わりによる停止は、この client の音が鳴り終わるまで待つ (読み込みの遅れで最後が切れないように)。
-        if (payload.naturalEnd()
-                && ClientPlaybackManager.get().deferNaturalEndStop(payload.jukeboxPos(), () -> stopNow(payload))) {
+        final ClientPlaybackManager manager = ClientPlaybackManager.get();
+        if (manager.waitingForNaturalEnd(payload.jukeboxPos())) {
+            if (payload.naturalEnd()) {
+                return; // 同じ曲の終わりが別の経路でも届いた / 鳴らし切った盤が抜かれた。待ちがまとめて止める
+            }
+            manager.cancelNaturalEndWait(payload.jukeboxPos()); // 手動の停止: 前の音もすぐ止める
+        } else if (payload.naturalEnd() && manager.deferNaturalEndStop(payload.jukeboxPos(),
+                payload.identity().generation(), () -> stopNow(payload))) {
+            // 曲の終わりによる停止は、この client の音が鳴り終わるまで待つ (読み込みの遅れ・途中の詰まりで
+            // 最後が切れないように)。
             return;
         }
         stopNow(payload);
@@ -88,6 +100,8 @@ public final class ClientPlaybackHandler {
     /** client受信: 固定speaker集合のライブ更新。音源は読み直さない。 */
     public static void speakerSet(SpeakerSetPayload payload) {
         if (!protocolMismatch) {
+            if (ClientPlaybackManager.get().holdUntilNaturalEnd(payload.sourcePos(), payload.identity().generation(),
+                    () -> speakerSet(payload))) return;
             if (!claimWorld(payload.sourcePos(), payload.identity())) return;
             ClientPlaybackManager.get().updateSpeakerSet(payload);
             VanillaSpeakerPlayback.update(payload);

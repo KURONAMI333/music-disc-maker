@@ -1041,17 +1041,22 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             stopPlayback(naturalEnd);
             return;
         }
-        selectPosition(selected.get().position());
+        selectPosition(selected.get().position(), naturalEnd);
     }
 
     private void selectPosition(MediaSequence.Position position) {
+        selectPosition(position, false);
+    }
+
+    /** @param naturalEnd 前の曲を鳴らし切ったことによる切り替わりか (アルバムの次の曲・頭へ戻る) */
+    private void selectPosition(MediaSequence.Position position, boolean naturalEnd) {
         final CustomTrackData previous = currentTrack();
         final int previousDiscIndex = cursor.discIndex();
         final int previousTrackIndex = cursor.trackIndex();
         cursor = cursor.moveTo(position.discIndex(), position.trackIndex());
         pausedOffsetMs = 0L;
         if (cursor.state() == PlaybackCursor.State.PLAYING) {
-            stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex);
+            stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex, naturalEnd);
             startPlayback(0L);
         } else {
             sync();
@@ -1114,12 +1119,21 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
      * offset しか運ばない。送り直しが開始直後なら client は offset 差をシークと認識せず、同じ URL
      * のまま前の曲を鳴らし続ける。その場合だけ {@link StopDiscPayload} を先に broadcast し、次の
      * {@code PlayDiscPayload} を新しいロードにする。
+     *
+     * <p>前の曲を鳴らし切ったことによる切り替わり ({@code naturalEnd}) では、URL に関係なく
+     * 「曲の終わりによる停止」を先に送る。client は自分の音が途中の読み込みの詰まりで server より後ろに
+     * いる時、前の曲を鳴らし切ってから次の曲を始める ({@code NaturalEndHandoff})。server は待たない。
      */
     private void stopAudioBeforeSameUrlPositionRestart(CustomTrackData previous,
-            int previousDiscIndex, int previousTrackIndex) {
-        if (cursor.state() != PlaybackCursor.State.PLAYING
-                || (cursor.discIndex() == previousDiscIndex && cursor.trackIndex() == previousTrackIndex)
-                || previous == null) {
+            int previousDiscIndex, int previousTrackIndex, boolean naturalEnd) {
+        if (cursor.state() != PlaybackCursor.State.PLAYING || previous == null) {
+            return;
+        }
+        if (naturalEnd) {
+            stopAudio(true);
+            return;
+        }
+        if (cursor.discIndex() == previousDiscIndex && cursor.trackIndex() == previousTrackIndex) {
             return;
         }
         final CustomTrackData selected = currentTrack();
@@ -1310,6 +1324,9 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
     /** ディスクスロットが変わった時 (挿入/取り出し・ホッパー・コマンド・GUI)。再生を起動/停止する。 */
     private void onDiscChanged() {
         final boolean hasDisc = hasDisc();
+        // 盤を鳴らし切った後 (ホッパーが抜ける状態) に抜かれたか。曲の終わりの停止はもう送ってあり、まだ
+        // 鳴らし切っていない client はそれを待っている。ここで「すぐ止める」停止を送ると、その曲末を切る。
+        final boolean finishedBeforeRemoval = automationFinished && !hasDisc;
         automationFinished = false;
         rebuildMediaSequence();
         if (isServer()) {
@@ -1349,7 +1366,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
                 && (!isMdmAlbum() || !mediaSequence.tracks().isEmpty())) {
             startPlayback(0L);
         } else if (!hasDisc || (isMdmAlbum() && mediaSequence.tracks().isEmpty())) {
-            stopPlayback();
+            stopPlayback(finishedBeforeRemoval);
         }
         //? if >=1.21 {
         //?} else {
@@ -1516,6 +1533,11 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
                 final long finishAt = duration + naturalAdvanceGraceMs();
                 if (!isLiveStream() && duration > 0L && playbackTimeMs() - startMillis >= finishAt) {
                     if (repeat) {
+                        // 頭へ戻る前に「曲の終わりによる停止」を送る。途中で読み込みが詰まって後ろにいる client は
+                        // 前の音を鳴らし切ってから頭から鳴らす (NaturalEndHandoff)。
+                        if (track != null) {
+                            stopAudio(true);
+                        }
                         startPlayback(0L);
                     } else {
                         stopPlayback(true);
@@ -1588,7 +1610,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (count <= 0 || next >= count) {
             if (repeat && count > 0) {
                 cursor = cursor.moveTo(0, 0);
-                stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex);
+                stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex, true);
                 startPlayback(0L);
             } else {
                 cursor = cursor.moveTo(0, 0);
@@ -1598,7 +1620,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             return;
         }
         cursor = cursor.moveTo(next, 0);
-        stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex);
+        stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex, true);
         startPlayback(0L);
     }
 
@@ -1620,7 +1642,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (count <= 0 || next >= count) {
             if (repeat && count > 0) {
                 cursor = cursor.moveTo(0, 0);
-                stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex);
+                stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex, true);
                 startPlayback(0L);
             } else {
                 cursor = cursor.moveTo(0, 0);
@@ -1630,7 +1652,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
             return;
         }
         cursor = cursor.moveTo(next, 0);
-        stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex);
+        stopAudioBeforeSameUrlPositionRestart(previous, previousDiscIndex, previousTrackIndex, true);
         startPlayback(0L);
     }
 

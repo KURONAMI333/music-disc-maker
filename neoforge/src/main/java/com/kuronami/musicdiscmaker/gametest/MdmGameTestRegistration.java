@@ -105,6 +105,8 @@ public final class MdmGameTestRegistration {
         register(event, "golden_media_listener_lag_terminal_stop", GoldenMediaSequenceGameTests::listenerLagHoldsSingleTerminalStop, empty, 400);
         register(event, "golden_media_listener_lag_natural_stop_only", GoldenMediaSequenceGameTests::listenerLagSendsOnlyNaturalStopForSingleDisc, empty, 400);
         register(event, "golden_media_listener_lag_hopper_waits", GoldenMediaSequenceGameTests::hopperWaitsForSlowestListener, empty, 400);
+        register(event, "golden_media_natural_stop_before_next", GoldenMediaSequenceGameTests::naturalAdvanceSendsNaturalStopBeforeTheNextSong, empty, 400);
+        register(event, "golden_media_finished_removal_natural", GoldenMediaSequenceGameTests::removingAFinishedDiscKeepsTheNaturalStop, empty, 400);
         register(event, "pedestal_survival_swap", com.kuronami.musicdiscmaker.block.DiscPedestalInteractionGameTests::survivalSwapConsumesOneAndReturnsPrevious, empty, 100);
         register(event, "pedestal_full_inventory_swap", com.kuronami.musicdiscmaker.block.DiscPedestalInteractionGameTests::fullInventoryDropsPreviousExactlyOnce, empty, 100);
         register(event, "pedestal_empty_hand_creative", com.kuronami.musicdiscmaker.block.DiscPedestalInteractionGameTests::emptyHandAndCreativeKeepExistingSemantics, empty, 100);
