@@ -165,7 +165,7 @@ public final class SableServerAudio {
         if (com.kuronami.musicdiscmaker.event.SpeakerPlayback.play(jukebox, track, elapsedMs)) return;
         final SubLevelPlayDiscPayload payload = new SubLevelPlayDiscPayload(
                 jukebox.getBlockPos(), track, elapsedMs,
-                jukebox.getRangeBlocks(), jukebox.getVolumePercent(), jukebox.isDirectional(), jukebox.playbackIdentity());
+                jukebox.getRangeBlocks(), jukebox.getVolumePercent(), jukebox.isDirectional(), jukebox.audioIdentity());
         for (final UUID uuid : trackers) {
             final ServerPlayer player = server.getPlayerList().getPlayer(uuid);
             if (player != null) {

@@ -1475,7 +1475,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         if (customTrack != null) {
             Services.NETWORK.sendToPlayer(player,
                     new PlayDiscPayload(getBlockPos(), customTrack, offset,
-                            rangeBlocks, volumePercent, directional, playbackIdentity()));
+                            rangeBlocks, volumePercent, directional, audioIdentity()));
         } else {
             // 通常盤も管理再生なので、後から範囲に入った player へ現在位置から送る。
             SpeakerPlayback.resendTo(this, player, vanillaTrack, offset);

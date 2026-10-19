@@ -473,6 +473,8 @@ public final class SpeakerPlaybackGameTests {
         source.setRangeBlocks(16);
         final ServerPlayer player = helper.makeMockServerPlayerInLevel();
         player.teleportTo(speakerPos.getX() + 0.5D, speakerPos.getY() + 0.5D, speakerPos.getZ() + 0.5D);
+        final ServerPlayer lateJoiner = helper.makeMockServerPlayerInLevel();
+        lateJoiner.teleportTo(sourcePos.getX() + 2.5D, sourcePos.getY() + 0.5D, sourcePos.getZ() + 0.5D);
         final CapturingNetwork net = new CapturingNetwork();
         final INetworkHelper previous = Services.swapNetwork(net);
         try {
@@ -498,10 +500,34 @@ public final class SpeakerPlaybackGameTests {
             helper.assertTrue(after.stream().noneMatch(sent -> sent.payload() instanceof PlayDiscPayload p
                             && p.identity().generation() != playing),
                     "toggling shuffle restarted the song");
+
+            // The only Speaker goes away after the toggle: the empty Speaker update must keep the playing generation.
+            net.clear();
+            level.setBlock(speakerPos, Blocks.AIR.defaultBlockState(), 3);
+            tick(level, source);
+            final List<CapturingNetwork.Sent> removed = forPlayer(net, player);
+            helper.assertTrue(removed.stream().anyMatch(sent -> sent.payload() instanceof SpeakerSetPayload),
+                    "removing the last Speaker sent no Speaker update");
+            helper.assertTrue(removed.stream().noneMatch(sent -> sent.payload() instanceof SpeakerSetPayload set
+                            && set.identity().generation() != playing),
+                    "removing the last Speaker after a shuffle toggle sent another generation, which stops the song: "
+                            + removed);
+
+            // A player who arrives after the toggle gets the playing generation too. A newer one would make the
+            // client reject the Speaker updates that follow until the next song.
+            net.clear();
+            source.resendTo(lateJoiner);
+            final List<CapturingNetwork.Sent> resent = forPlayer(net, lateJoiner);
+            helper.assertTrue(resent.stream().anyMatch(sent -> sent.payload() instanceof PlayDiscPayload),
+                    "the late joiner did not get the song");
+            helper.assertTrue(resent.stream().noneMatch(sent -> sent.payload() instanceof PlayDiscPayload p
+                            && p.identity().generation() != playing),
+                    "the late joiner got a generation ahead of the playing sound: " + resent);
         } finally {
             source.clearContent();
             speaker.clearLink();
             player.discard();
+            lateJoiner.discard();
             level.setBlock(speakerPos, Blocks.AIR.defaultBlockState(), 3);
             level.setBlock(speakerPos.south(), Blocks.AIR.defaultBlockState(), 3);
             tick(level, source);

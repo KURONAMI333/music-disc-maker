@@ -412,7 +412,7 @@ public final class SpeakerPlayback {
             return;
         }
         final Snapshot empty = new Snapshot(source.getRangeBlocks(), source.getVolumePercent(),
-                source.isDirectional(), List.of(), source.playbackIdentity());
+                source.isDirectional(), List.of(), source.audioIdentity());
         for (UUID listener : state.listeners) {
             ServerPlayer player = level.getServer().getPlayerList().getPlayer(listener);
             if (player != null && player.level() == level) {
