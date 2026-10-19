@@ -7,6 +7,8 @@
 - Fixed players who were out of range when a song started hearing nothing after walking closer, when directional audio was off. This also affected the Boombox and the Minecart with Golden Jukebox.
 - Fixed [Let's Do] Furniture Gramophones staying silent with Furniture 1.1.7 and later.
 - Fixed the end of a song being cut off when a hopper swaps the disc in a Golden Jukebox.
+- Fixed the end of a song being cut off for a player whose loading paused partway through, in the Golden Jukebox and the Boombox. That player hears the next song a few seconds after everyone else.
+- Fixed a Golden Jukebox with Speakers stopping its song when shuffle was turned on or off.
 - Fixed discs made from local audio files sometimes failing to load when played from a disc the player carries or has open in a container.
 - The Boombox no longer leaves about 8 seconds of silence between songs.
 
