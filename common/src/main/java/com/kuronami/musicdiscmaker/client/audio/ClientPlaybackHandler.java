@@ -74,6 +74,15 @@ public final class ClientPlaybackHandler {
     }
 
     private static void stopNow(StopDiscPayload payload) {
+        if (payload.naturalEnd()) {
+            // 曲の終わりの停止の直後には次の曲が来る。温めた先読み (1.21〜1.21.1) を捨てない。
+            ClientPlaybackManager.get().runKeepingPrefetch(payload.jukeboxPos(), () -> stopNowInner(payload));
+            return;
+        }
+        stopNowInner(payload);
+    }
+
+    private static void stopNowInner(StopDiscPayload payload) {
         if (payload.identity().sourceId() != null) {
             // Native record sound starts through the vanilla level event without an ownership lease.
             // Preserve its stamped stop independently; managed AV cleanup remains route/generation guarded.

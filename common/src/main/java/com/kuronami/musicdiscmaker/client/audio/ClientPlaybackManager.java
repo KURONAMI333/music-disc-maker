@@ -641,6 +641,23 @@ public final class ClientPlaybackManager {
     private final Map<BlockPos, NaturalEndWait> naturalEndWaits = new HashMap<>();
 
     /**
+     * 曲の終わりの停止を処理している間だけ入る位置。{@link #stopPlayback} はここにある位置の先読みを捨てない
+     * (1.21〜1.21.1 帯。曲の終わりの停止の直後に来る次の曲が、温めた先読みを使えるように)。
+     */
+    private final java.util.Set<BlockPos> keepPrefetchOnStop = new java.util.HashSet<>();
+
+    /** {@code stop} の間、その位置の先読みを {@link #stopPlayback} で捨てない。 */
+    public void runKeepingPrefetch(BlockPos pos, Runnable stop) {
+        final BlockPos key = pos.immutable();
+        final boolean added = keepPrefetchOnStop.add(key);
+        try {
+            stop.run();
+        } finally {
+            if (added) keepPrefetchOnStop.remove(key);
+        }
+    }
+
+    /**
      * server が曲の終わりで送ってきた停止を、この client の音が鳴り終わるまで遅らせる。
      *
      * <p>server は曲の再生を要求した時刻から数えて、いちばん遅い client の鳴り始めの遅れを足した時刻で止める。
@@ -1358,7 +1375,7 @@ public final class ClientPlaybackManager {
         final BlockPos key = pos.immutable();
         //? if >=1.21.2 {
         //?} elif >=1.21 {
-/*        prefetch.drop(key, "stopPlayback: server-stop-or-disc-change");
+/*        if (!keepPrefetchOnStop.contains(key)) prefetch.drop(key, "stopPlayback: server-stop-or-disc-change");
         */
         //?} else {
         //?}
