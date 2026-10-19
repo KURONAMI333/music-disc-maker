@@ -447,6 +447,69 @@ public final class SpeakerPlaybackGameTests {
         helper.succeed();
     }
 
+    /**
+     * Toggling shuffle on a Golden Jukebox with a Speaker keeps the song playing. The cursor generation moves on,
+     * but the sound does not restart, so the Speaker update must keep the generation of the sound already playing.
+     * A newer generation in the update makes clients treat it as another song and stop the one they hear.
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty64x3x8", timeoutTicks = 200, batch = "speakerPlayback")
+    *///?}
+    public static void shuffleToggleKeepsTheSpeakerPlaybackGeneration(GameTestHelper helper) {
+        final ServerLevel level = helper.getLevel();
+        final BlockPos sourceRel = new BlockPos(1, 1, 1);
+        helper.setBlock(sourceRel, ModBlocks.GOLDEN_JUKEBOX.get());
+        //? if <1.21.11 {
+        /*final GoldenJukeboxBlockEntity source = helper.getBlockEntity(sourceRel);
+        *///?} else {
+        final GoldenJukeboxBlockEntity source = GameTestBlockEntities.get(helper, sourceRel, GoldenJukeboxBlockEntity.class);
+        //?}
+        final BlockPos sourcePos = source.getBlockPos();
+        final BlockPos speakerPos = sourcePos.offset(40, 0, 0);
+        level.setBlock(speakerPos.south(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(speakerPos, ModBlocks.SPEAKER.get().defaultBlockState(), 3);
+        final SpeakerBlockEntity speaker = (SpeakerBlockEntity) level.getBlockEntity(speakerPos);
+        source.setRangeBlocks(16);
+        final ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.teleportTo(speakerPos.getX() + 0.5D, speakerPos.getY() + 0.5D, speakerPos.getZ() + 0.5D);
+        final CapturingNetwork net = new CapturingNetwork();
+        final INetworkHelper previous = Services.swapNetwork(net);
+        try {
+            source.setItem(GoldenJukeboxBlockEntity.SLOT_DISC, customDisc(helper));
+            speaker.linkTo(level, sourcePos);
+            tick(level, source);
+            final PlayDiscPayload play = forPlayer(net, player).stream()
+                    .filter(sent -> sent.payload() instanceof PlayDiscPayload)
+                    .map(sent -> (PlayDiscPayload) sent.payload()).findFirst().orElse(null);
+            helper.assertTrue(play != null, "the Speaker did not deliver the song");
+            final long playing = play.identity().generation();
+            net.clear();
+            source.setShuffle(true);
+            tick(level, source);
+            tick(level, source);
+            final List<CapturingNetwork.Sent> after = forPlayer(net, player);
+            helper.assertTrue(after.stream().noneMatch(sent -> sent.payload() instanceof StopDiscPayload),
+                    "toggling shuffle stopped the Speaker listener");
+            helper.assertTrue(after.stream().noneMatch(sent -> sent.payload() instanceof SpeakerSetPayload set
+                            && set.identity().generation() != playing),
+                    "toggling shuffle sent a Speaker update for another generation, which stops the song on the client: "
+                            + after);
+            helper.assertTrue(after.stream().noneMatch(sent -> sent.payload() instanceof PlayDiscPayload p
+                            && p.identity().generation() != playing),
+                    "toggling shuffle restarted the song");
+        } finally {
+            source.clearContent();
+            speaker.clearLink();
+            player.discard();
+            level.setBlock(speakerPos, Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(speakerPos.south(), Blocks.AIR.defaultBlockState(), 3);
+            tick(level, source);
+            Services.swapNetwork(previous);
+        }
+        helper.succeed();
+    }
+
     private static void tick(ServerLevel level, GoldenJukeboxBlockEntity source) {
         GoldenJukeboxBlockEntity.serverTick(level, source.getBlockPos(), source.getBlockState(), source);
     }

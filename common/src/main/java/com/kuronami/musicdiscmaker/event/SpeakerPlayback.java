@@ -448,7 +448,7 @@ public final class SpeakerPlayback {
         }
         speakers.sort((left, right) -> Long.compare(left.pos().asLong(), right.pos().asLong()));
         return new Snapshot(source.getRangeBlocks(), source.getVolumePercent(), source.isDirectional(),
-                List.copyOf(speakers), source.playbackIdentity());
+                List.copyOf(speakers), source.audioIdentity());
     }
 
     /**

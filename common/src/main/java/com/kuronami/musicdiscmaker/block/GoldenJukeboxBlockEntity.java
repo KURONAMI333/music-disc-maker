@@ -331,6 +331,16 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         return new com.kuronami.musicdiscmaker.network.PlaybackSourceStamp(sourceIdentity(), cursor.generation());
     }
 
+    /**
+     * 今鳴っている音の印 ({@link #audioGeneration})。シャッフルの切り替えは cursor の世代だけを進めて音を
+     * 鳴らし直さないので、鳴っている音について送る更新 (Speaker の集合) はこちらを使う。cursor の世代を載せると、
+     * client は別の曲が来たと見て、鳴っている曲を止める ({@code SourcePlaybackOwnership#claim})。
+     */
+    public com.kuronami.musicdiscmaker.network.PlaybackSourceStamp audioIdentity() {
+        return audioGeneration < 0L ? playbackIdentity()
+                : new com.kuronami.musicdiscmaker.network.PlaybackSourceStamp(sourceIdentity(), audioGeneration);
+    }
+
     public int getRangeBlocks() {
         return rangeBlocks;
     }

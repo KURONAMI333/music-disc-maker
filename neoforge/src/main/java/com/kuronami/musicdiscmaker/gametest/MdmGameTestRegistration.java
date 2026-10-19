@@ -506,6 +506,12 @@ public final class MdmGameTestRegistration {
                                 Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "empty64x3x8"),
                                 200, 0, true)));
         event.registerTest(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID,
+                        "speaker_playback_shuffle_keeps_generation"),
+                new MethodGameTestInstance(SpeakerPlaybackGameTests::shuffleToggleKeepsTheSpeakerPlaybackGeneration,
+                        new TestData<>(speakerPlaybackEnv,
+                                Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "empty64x3x8"),
+                                200, 0, true)));
+        event.registerTest(Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID,
                         "speaker_vanilla_migration_resend_switch"),
                 new MethodGameTestInstance(SpeakerPlaybackGameTests::vanillaUsesSharedListenersForMigrationResendAndTrackSwitch,
                         new TestData<>(speakerPlaybackEnv,
