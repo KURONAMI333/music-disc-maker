@@ -112,7 +112,7 @@ public final class ClientPlaybackHandler {
      * @param payload 停止要求
      */
     public static void boomboxStop(com.kuronami.musicdiscmaker.network.BoomboxStopPayload payload) {
-        BoomboxClientPlayback.stop(payload.boomboxId());
+        BoomboxClientPlayback.stop(payload.boomboxId(), payload.naturalEnd());
     }
 
     /**

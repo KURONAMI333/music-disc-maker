@@ -83,6 +83,10 @@ public final class BoomboxPlayback {
      * 走り、<b>毎曲の末尾が切れる</b>。そこで各 client が実音の開始時に遅れを報告し
      * ({@code BoomboxAudioLagPayload})、server はいちばん遅い人が鳴り終わるまで待つ。
      * 3.1.1 までは報告経路が無く、固定の 8 秒を待っていた (曲と曲の間に約 8 秒の無音ができた)。
+     *
+     * <p>報告は最初の実音の時の 1 回だけなので、曲の途中で読み込みが詰まって後ろへずれた分は入らない。
+     * その分は、曲の終わりの停止 ({@link BoomboxStopPayload#naturalEnd()}) を受けた client が前の曲を
+     * 自分の再生位置で鳴らし切ってから次の曲を始めて吸収する ({@code NaturalEndHandoff})。server は待たない。
      */
     public static final long MAX_LISTENER_LAG_MS = com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity.MAX_LISTENER_LAG_MS;
 
@@ -775,6 +779,16 @@ public final class BoomboxPlayback {
     }
 
     /**
+     * 曲の並びを鳴らし切って止める。client は自分の音が鳴り終わるまで止めるのを待つ
+     * ({@link BoomboxStopPayload#naturalEnd()})。
+     */
+    private static void stopNaturally(ServerLevel level, ChunkPos chunk, long boomboxId) {
+        if (SESSIONS.remove(boomboxId) != null) {
+            send(level, chunk, new BoomboxStopPayload(boomboxId, true));
+        }
+    }
+
+    /**
      * 設置機を撤去する直前に、その座標が所有するセッションだけを止める。
      * 旧保存の同一 ID 複製なら先に別機体へ分離し、別座標で鳴る元機体を止めない。
      */
@@ -925,7 +939,7 @@ public final class BoomboxPlayback {
                     final MediaSequence.Position first = session.playbackSequence.first().orElse(position);
                     storeContents(stack, contents.withPlayback(contents.cursor().moveTo(first.discIndex(),
                             first.trackIndex()).stop(), 0L));
-                    stop(level, chunk, id);
+                    stopNaturally(level, chunk, id);
                 } else {
                     restartAt(level, chunk, id, stack, contents, session, next, payload);
                 }
@@ -956,6 +970,9 @@ public final class BoomboxPlayback {
                 now, mintAudioGeneration(), level.dimension(), chunk, now, () -> playbackTimeMs(level),
                 previous.placedOwner);
         SESSIONS.put(id, restarted);
+        // 曲の終わりによる切り替わりの印。読み込みが途中で詰まって後ろへずれた client は、この印を見て前の曲を
+        // 自分の再生位置で鳴らし切ってから次の曲を始める (NaturalEndHandoff)。server は待たない。
+        send(level, chunk, new BoomboxStopPayload(id, true));
         send(level, chunk, payload.create(sound, 0L, restarted.audioGeneration, updated.volumePercent()));
     }
 

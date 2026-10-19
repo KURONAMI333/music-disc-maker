@@ -108,7 +108,7 @@ public class NetworkProtocolGameTests {
 
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
         を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18、ブームボックスの再生に
-        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20、取りやめ (cancel_disc) を足して 21、曲が鳴り始めた時の遅れ (audio_lag) を足して 22、ブームボックスの同じ遅れ (boombox_audio_lag) を足して 23 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20、取りやめ (cancel_disc) を足して 21、曲が鳴り始めた時の遅れ (audio_lag) を足して 22、ブームボックスの同じ遅れ (boombox_audio_lag) を足して 23 にした。23 は公開前なので、ブームボックスの停止の曲の終わりの印 (boombox_stop の naturalEnd) は 23 のまま足した。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
     private static final String PROTOCOL_VERSION = "23";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
@@ -118,10 +118,10 @@ public class NetworkProtocolGameTests {
         他 cell の形式変更もここで検出できる。 */
     //? if <1.21.2 {
     /*private static final String WIRE_FINGERPRINT =
-            "79a0ff18557e970e99924deda0186ac38f2d2e354d65715eb141564fe6487aac";
+            "43fb33513ba756e466eff759f115436a5080b83e58b61615c16f5d0f759e071b";
     *///?} else {
     private static final String WIRE_FINGERPRINT =
-            "f8810fff0d12f4205d592d5a2122e1c95e2bdd2120f4a91b6a9266dd5a0a6629";
+            "1746befa62d6de78036a20de3b0caf1f69a7c4a1bbbce25bb10562a40aea19a3";
     //?}
 
     /** 指紋の材料になる見本。<b>値を変えると指紋も変わる</b>ので、無闇に増減させないこと。
@@ -394,7 +394,7 @@ public class NetworkProtocolGameTests {
                         new PlaybackCursor(2, 3, PlaybackCursor.State.PAUSED, 123L), 5_000L, true, false, 70))));
         encoded.put("boombox_play", encode(mdmCodec(BoomboxPlayPayload::read),
                 BoomboxPlayPayload.placed(42L, SAMPLE_POS, SAMPLE_TRACK, 1_000L, 123L, 70)));
-        encoded.put("boombox_stop", encode(mdmCodec(BoomboxStopPayload::read), new BoomboxStopPayload(42L)));
+        encoded.put("boombox_stop", encode(mdmCodec(BoomboxStopPayload::read), new BoomboxStopPayload(42L, true)));
         encoded.put("boombox_play_vanilla", encode(mdmCodec(BoomboxPlayPayload::read),
                 BoomboxPlayPayload.carried(42L, 7, null,
                         new com.kuronami.musicdiscmaker.component.VanillaTrackData("minecraft:music_disc.cat", 185_000L),

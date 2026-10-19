@@ -112,8 +112,19 @@ public final class BoomboxAnchor implements DiscAnchor {
      * @param tailGraceMillis server が終端後も黙って待つ長さ
      */
     public void armTailSilence(long remainingMillis, long tailGraceMillis) {
+        armTailSilence(remainingMillis, tailGraceMillis, 0L);
+    }
+
+    /**
+     * {@link #armTailSilence(long, long)} の、server より後ろで鳴り始めた曲の版。前の曲を鳴らし切ってから
+     * 始めた曲 ({@code NaturalEndHandoff}) は server の位置より {@code behindServerMillis} 遅れているので、
+     * server が送り直しをやめる (server の時計での曲の終わり) のもその分早い。窓をその分早く開く。
+     *
+     * @param behindServerMillis この client が server の位置より遅れて始めた長さ
+     */
+    public void armTailSilence(long remainingMillis, long tailGraceMillis, long behindServerMillis) {
         this.tailSilence = BoomboxLiveness.tailSilence(playbackTimeMs() + Math.max(0L, remainingMillis),
-                tailGraceMillis);
+                tailGraceMillis, behindServerMillis);
     }
 
     /**

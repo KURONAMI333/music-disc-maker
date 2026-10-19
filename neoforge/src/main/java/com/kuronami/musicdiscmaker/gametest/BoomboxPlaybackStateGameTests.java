@@ -679,6 +679,60 @@ public final class BoomboxPlaybackStateGameTests {
         }
     }
 
+    /**
+     * The end of a song is sent as a natural-end stop, also right before the next song starts, so a client that
+     * fell behind mid-song can finish it first. Manual next and pause are not marked natural.
+     */
+    //? if <1.21.11 {
+    /*@GameTest(template = "empty8x3x8", timeoutTicks = 100)
+    *///?}
+    public static void naturalEndMarksTheStopBeforeTheNextSong(GameTestHelper helper) {
+        final ItemStack box = shortAlbumBox();
+        final ServerPlayer player = networkedPlayer(helper);
+        final long id = box.get(ModDataComponents.BOOMBOX_CONTENTS.get()).id();
+        withCapturedNetwork(net -> {
+            player.setItemInHand(InteractionHand.MAIN_HAND, box);
+            helper.assertTrue(BoomboxPlayback.startCarried(player, box), "natural-end fixture did not start");
+            final long first = BoomboxPlayback.audioGeneration(id);
+            net.clear();
+            BoomboxPlayback.scan(List.of(player), playbackNow(helper) + 100L + BoomboxPlayback.TAIL_MARGIN_MS + 50L);
+            helper.assertTrue(BoomboxPlayback.stateOf(box).cursor().discIndex() == 1,
+                    "the second song did not start at the end of the first");
+            final List<CapturingNetwork.Sent> sent = net.sent().stream()
+                    .filter(entry -> entry.payload() instanceof BoomboxStopPayload stop && stop.boomboxId() == id
+                            || entry.payload() instanceof BoomboxPlayPayload play && play.boomboxId() == id)
+                    .toList();
+            helper.assertTrue(sent.size() >= 2 && sent.get(0).payload() instanceof BoomboxStopPayload stop
+                            && stop.naturalEnd(),
+                    "the next song was not preceded by a natural-end stop: " + sent.size());
+            helper.assertTrue(sent.get(1).payload() instanceof BoomboxPlayPayload play
+                            && play.audioGeneration() != first && play.startOffsetMs() == 0L,
+                    "the next song did not follow the natural-end stop");
+
+            net.clear();
+            BoomboxPlayback.scan(List.of(player), playbackNow(helper) + 100L + BoomboxPlayback.TAIL_MARGIN_MS + 50L);
+            helper.assertTrue(!BoomboxPlayback.isPlaying(id), "the Album did not stop after its last song");
+            helper.assertTrue(!net.of(BoomboxStopPayload.class).isEmpty() && net.of(BoomboxStopPayload.class).stream()
+                            .allMatch(entry -> ((BoomboxStopPayload) entry.payload()).naturalEnd()),
+                    "the end of the last song was not a natural-end stop");
+
+            helper.assertTrue(BoomboxPlayback.startCarried(player, box), "natural-end fixture did not restart");
+            net.clear();
+            helper.assertTrue(BoomboxPlayback.nextCarried(player, box, BoomboxPlayback.stateOf(box).cursor().generation()),
+                    "manual next was rejected");
+            helper.assertTrue(net.of(BoomboxStopPayload.class).stream()
+                            .noneMatch(entry -> ((BoomboxStopPayload) entry.payload()).naturalEnd()),
+                    "a manual next was marked as a natural end");
+            net.clear();
+            helper.assertTrue(BoomboxPlayback.pauseCarried(player, box, BoomboxPlayback.stateOf(box).cursor().generation()),
+                    "pause was rejected");
+            helper.assertTrue(!net.of(BoomboxStopPayload.class).isEmpty() && net.of(BoomboxStopPayload.class).stream()
+                            .noneMatch(entry -> ((BoomboxStopPayload) entry.payload()).naturalEnd()),
+                    "pause was not an immediate stop");
+        }, () -> cleanupPlayer(helper, player, id));
+        helper.succeed();
+    }
+
     /** Two 100 ms songs in an Album, in a Boombox. */
     private static ItemStack shortAlbumBox() {
         final ItemStack first = new ItemStack(ModItems.CUSTOM_MUSIC_DISC.get());

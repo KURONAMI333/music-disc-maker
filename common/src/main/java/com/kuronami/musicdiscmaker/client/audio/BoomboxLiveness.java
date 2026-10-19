@@ -53,11 +53,23 @@ public final class BoomboxLiveness {
      * @return 窓 (終端が無ければ {@link TailSilence#NONE})
      */
     public static TailSilence tailSilence(long playbackEndsAtMillis, long tailGraceMillis) {
+        return tailSilence(playbackEndsAtMillis, tailGraceMillis, 0L);
+    }
+
+    /**
+     * server の位置より後ろで鳴り始めた曲の窓。server は自分の時計の曲の終わりで送り直しをやめるので、
+     * その分だけ窓を早く開く (閉じる時刻は変えない)。
+     *
+     * @param behindServerMillis この client が server の位置より遅れて始めた長さ (前の曲を鳴らし切って
+     *                           から始めた分)
+     */
+    public static TailSilence tailSilence(long playbackEndsAtMillis, long tailGraceMillis,
+            long behindServerMillis) {
         if (playbackEndsAtMillis <= 0L) {
             return TailSilence.NONE;
         }
         final long grace = Math.max(0L, tailGraceMillis);
-        return new TailSilence(playbackEndsAtMillis - TAIL_MARGIN_MS,
+        return new TailSilence(playbackEndsAtMillis - Math.max(0L, behindServerMillis) - TAIL_MARGIN_MS,
                 playbackEndsAtMillis + grace + TAIL_MARGIN_MS);
     }
 

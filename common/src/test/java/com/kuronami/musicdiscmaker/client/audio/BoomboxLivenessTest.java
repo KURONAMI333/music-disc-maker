@@ -71,6 +71,20 @@ class BoomboxLivenessTest {
     }
 
     @Test
+    void aSongStartedBehindTheServerOpensTheWindowEarlier() {
+        // 前の曲を鳴らし切ってから 6 秒遅れて始めた曲。server は自分の時計の終端 (この client の終端の 6 秒前)
+        // で送り直しをやめるので、窓を同じだけ早く開かないと、窓が開く前の沈黙で途中で止まる。
+        final long behind = 6_000L;
+        final long lastSeen = END - behind - 1_000L;
+        assertFalse(BoomboxLiveness.isAlive(END - 2_500L, lastSeen, TIMEOUT, tail()),
+                "without the lead the silence before the window stops the song");
+        final BoomboxLiveness.TailSilence early = BoomboxLiveness.tailSilence(END, GRACE, behind);
+        assertEquals(new BoomboxLiveness.TailSilence(END - behind - MARGIN, END + GRACE + MARGIN), early);
+        assertTrue(BoomboxLiveness.isAlive(END - 2_500L, lastSeen, TIMEOUT, early));
+        assertTrue(BoomboxLiveness.isAlive(END, lastSeen, TIMEOUT, early));
+    }
+
+    @Test
     void radioHasNoWindow() {
         assertFalse(BoomboxLiveness.isAlive(30_000L, 20_000L, TIMEOUT, BoomboxLiveness.TailSilence.NONE));
     }
