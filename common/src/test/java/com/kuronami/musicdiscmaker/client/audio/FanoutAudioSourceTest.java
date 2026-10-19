@@ -207,6 +207,19 @@ class FanoutAudioSourceTest {
     }
 
     @Test
+    void underrunSilenceIsCountedSoTheNaturalEndCanWaitForIt() {
+        // 金ジュークの音は fanout から読む。読み込みの詰まりは fanout が無音で埋めるので、LavaPlayerAudioStream
+        // の数え (paddedSilenceMs) には出ない。曲の終わりの待ちの上限 (NaturalEndHandoff.tailCapMs) はこちらを足す。
+        final FanoutAudioSource fanout = new FanoutAudioSource(new OneChunkThenEmptySource());
+        final IAudioSource master = fanout.openMasterBranch();
+        assertArrayEquals(new byte[] {1, 2, 3, 4}, readExactly(master, 4));
+        assertEquals(0L, fanout.underrunSilenceMs(), "nothing is padded before the sound starts");
+        fanout.markPcmStarted();
+        readExactly(master, 96_000); // 48 kHz mono 16 bit = 1 秒
+        assertEquals(1_000L, fanout.underrunSilenceMs());
+    }
+
+    @Test
     void sharedUnderrunKeepsTheFollowingRealPcmAligned() {
         final FanoutAudioSource fanout = new FanoutAudioSource(
                 new ScriptedSource(new byte[] {1, 2, 3, 4, 5, 6, 7, 8}, 4, 0, 4));

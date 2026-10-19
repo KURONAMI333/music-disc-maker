@@ -683,6 +683,11 @@ public class LavaPlayerAudioStream implements AudioStream {
                 () -> PlaybackFailureReport.report((String) null, null, failure));
     }
 
+    /** 読み込みが間に合わずに無音で埋めた長さ (ms)。 */
+    public long paddedSilenceMs() {
+        return playedMs(silenceBytes.get());
+    }
+
     /** 渡した PCM のバイト数を再生時間 (ms) に直す。 */
     private long playedMs(long bytes) {
         final int bytesPerFrame = format.getChannels() * (format.getSampleSizeInBits() / 8);

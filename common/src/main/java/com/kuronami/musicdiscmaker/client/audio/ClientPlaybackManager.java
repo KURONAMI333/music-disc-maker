@@ -692,17 +692,22 @@ public final class ClientPlaybackManager {
         if (serverPosition < duration - NATURAL_END_WINDOW_MS) {
             return false;
         }
-        if (sessions.audioPositionMs(key) < 0L) {
+        final long audioPosition = sessions.audioPositionMs(key);
+        if (audioPosition < 0L) {
             return false; // まだ一度も鳴っていない
         }
         final PlaybackVoice voice = sessions.activeVoice(key);
         if (voice == null || voice.isVoiceStopped()) {
             return false;
         }
+        // 詰まっていなければ、実音が曲の長さの位置へ来たところで切る (3.1.1 までと同じ)。詰まった分だけ後ろまで待つ。
+        if (NaturalEndHandoff.tailCapMs(duration, audioPosition, voice.paddedSilenceMs()) <= 0L) {
+            return false;
+        }
         final long generation = Math.max(endedGeneration,
                 request.identity() == null ? 0L : request.identity().generation());
         final NaturalEndWait wait = new NaturalEndWait(request, stop,
-                new NaturalEndHandoff(generation, playbackClockMs()));
+                new NaturalEndHandoff(generation, playbackClockMs(), Minecraft.getInstance().level));
         naturalEndWaits.put(key, wait);
         pollNaturalEnd(key, wait);
         return true;
@@ -714,10 +719,18 @@ public final class ClientPlaybackManager {
             if (naturalEndWaits.get(key) != wait) {
                 return;
             }
+            if (!wait.handoff().sameScope(Minecraft.getInstance().level)) {
+                // 次元を移った。バニラは世界の切り替えで音を全部止める (Minecraft#updateScreenAndTick の
+                // soundManager.stop())。預かった次の曲は前の世界のものなので鳴らさない。
+                finishNaturalEndWait(key, wait, false);
+                return;
+            }
             final PlaybackVoice voice = sessions.activeVoice(key);
             final boolean stillPlaying = reloadRequests.get(key) == wait.request()
                     && voice != null && !voice.isVoiceStopped();
-            if (wait.handoff().keepWaiting(stillPlaying, playbackClockMs())) {
+            final long tail = voice == null ? 0L : NaturalEndHandoff.tailCapMs(wait.request().track().durationMs(),
+                    sessions.audioPositionMs(key), voice.paddedSilenceMs());
+            if (wait.handoff().keepWaiting(stillPlaying, playbackClockMs(), tail)) {
                 pollNaturalEnd(key, wait);
                 return;
             }
@@ -745,20 +758,32 @@ public final class ClientPlaybackManager {
      * @return 預かったら {@code true}。待っていない・待ちと関係ない・手動の操作 (預かった曲と別の世代。
      *         この時は前の音をすぐ止めて待ちを畳む) なら {@code false} で、呼び出し側が今すぐ処理する
      */
-    public boolean holdUntilNaturalEnd(BlockPos pos, long generation, Runnable action) {
+    public boolean holdUntilNaturalEnd(BlockPos pos, long generation, String slot, boolean keepLatest,
+            Runnable action) {
         final BlockPos key = pos.immutable();
         final NaturalEndWait wait = naturalEndWaits.get(key);
         if (wait == null) {
             return false;
         }
-        return switch (wait.handoff().arrive(generation, playbackClockMs(), action)) {
-            case HOLD -> true;
+        return switch (wait.handoff().arrive(generation, playbackClockMs(), slot, keepLatest, action)) {
+            case HOLD, DROP -> true;
             case SUPERSEDE -> {
                 finishNaturalEndWait(key, wait, false);
                 yield false;
             }
             case PASS -> false;
         };
+    }
+
+    /**
+     * 待っている間に、預かった次の曲の「曲の終わりの停止」が届いた (次の曲が待ちより短い)。server では
+     * その曲はもう終わっているので、預かったものを捨てる。前の音は鳴らし切り、続く曲があればそれを預かる。
+     */
+    public void naturalEndArrivedWhileWaiting(BlockPos pos, long generation) {
+        final NaturalEndWait wait = naturalEndWaits.get(pos.immutable());
+        if (wait != null) {
+            wait.handoff().dropHeldEndedBy(generation);
+        }
     }
 
     /** その位置で曲の終わりの停止を待っているか。 */
@@ -1441,6 +1466,10 @@ public final class ClientPlaybackManager {
      * world の再生自体は止まっていないため、Speaker anchor と音源所有権は保持する。
      */
     Runnable prepareSoundReloadResume() {
+        // 曲の終わりを待っていた前の音は読み直しで消える。預かった次の曲は読み直しの後に流す。
+        final java.util.List<Runnable> heldNext = new java.util.ArrayList<>();
+        naturalEndWaits.values().forEach(wait -> heldNext.addAll(wait.handoff().drainHeld()));
+        naturalEndWaits.clear();
         final Map<BlockPos, ReloadRequest> snapshot = Map.copyOf(reloadRequests);
         reloadRequests.clear();
         for (Map.Entry<BlockPos, PlaybackSessionId> active : Map.copyOf(extensionIds).entrySet())
@@ -1459,6 +1488,7 @@ public final class ClientPlaybackManager {
                     if (!queueBehindClose(pos, request.identity(), resume)) resume.run();
                 }
             });
+            heldNext.forEach(Runnable::run);
         };
     }
 

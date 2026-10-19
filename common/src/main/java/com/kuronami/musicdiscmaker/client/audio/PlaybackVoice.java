@@ -16,6 +16,14 @@ public interface PlaybackVoice {
     }
 
     /**
+     * 読み込みが間に合わずに無音で埋めた長さ (ms)。曲の途中の詰まりで、この client の音が曲の長さより
+     * どれだけ後ろへずれたか。曲の終わりの停止を待つ上限に使う ({@code NaturalEndHandoff})。
+     */
+    default long paddedSilenceMs() {
+        return 0L;
+    }
+
+    /**
      * もう鳴っていないか (自然終了・撤去済み)。
      *
      * <p><b>名前を {@code isStopped} にしてはいけない。</b> 実装の {@link DiscSoundInstance} は

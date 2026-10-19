@@ -33,6 +33,8 @@ final class FanoutAudioSource {
     /** Oldest absolute cursor still available from {@link #ring}. */
     private long floorCursor;
     private boolean pcmStarted;
+    /** 上流 (読み込み) が間に合わずに共有の時間軸へ無音を書いた量 (byte)。曲の途中の詰まりの長さ。 */
+    private long underrunSilenceBytes;
 
     FanoutAudioSource(IAudioSource upstream) {
         this.upstream = Objects.requireNonNull(upstream, "upstream");
@@ -57,6 +59,13 @@ final class FanoutAudioSource {
 
     /** PCM 供給開始の印。出音位置ではなく、共有 underrun padding の開始条件だけに使う。 */
     synchronized void markPcmStarted() { pcmStarted = true; }
+
+    /** 読み込みが間に合わずに共有の時間軸へ書いた無音の長さ (ms)。 */
+    synchronized long underrunSilenceMs() {
+        final long bytesPerSecond = (long) upstream.sampleRate() * upstream.channels()
+                * Math.max(1, upstream.bitsPerSample() / 8);
+        return bytesPerSecond <= 0L ? 0L : underrunSilenceBytes * 1000L / bytesPerSecond;
+    }
 
     /**
      * Golden の {@link LavaPlayerAudioStream} が出力 queue を無音で埋めた分を共有時間軸へ足す。
@@ -109,6 +118,7 @@ final class FanoutAudioSource {
                 // voice advances over identical silence instead of inventing different local gaps.
                 if (filled == 0 && pcmStarted) {
                     appendSilence(requested);
+                    underrunSilenceBytes += requested;
                 } else if (filled <= 0) {
                     break;
                 }

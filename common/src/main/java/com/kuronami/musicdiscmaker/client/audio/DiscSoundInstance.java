@@ -435,6 +435,13 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         return (float) Math.max(totalGain(), 1.0);
     }
 
+    /** 読み込みが間に合わずに無音で埋めた長さ (ms)。未開栓なら 0。 */
+    @Override
+    public long paddedSilenceMs() {
+        final LavaPlayerAudioStream s = this.stream;
+        return s == null ? 0L : s.paddedSilenceMs();
+    }
+
     /** 現在の PCM ゲインを再生中のストリームへ反映する。未開栓なら何もしない。 */
     private void pushPcmGain() {
         final LavaPlayerAudioStream s = this.stream;

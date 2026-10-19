@@ -106,11 +106,11 @@ public final class BoomboxClientPlayback {
      */
     private static final Map<Long, BoomboxPlayPayload> HELD_START = new ConcurrentHashMap<>();
 
-    /**
-     * 預かった次の曲の「曲の終わりの停止」も、待っている間に届いた機体 (前の曲が上限近くまで遅れた時だけ起きる)。
-     * 次の曲は頭から鳴らし、鳴り終わったら止める。
-     */
-    private static final Map<Long, Long> ENDED_WHILE_HELD = new ConcurrentHashMap<>();
+    /** 最初の実音が鳴った時 (音声世代、再生時計、開いた位置)。曲の終わりの待ちの上限を出すのに使う。 */
+    private record FirstAudio(long audioGeneration, long atMs, long startOffsetMs) {
+    }
+
+    private static final Map<Long, FirstAudio> FIRST_AUDIO = new ConcurrentHashMap<>();
 
     /** 前の曲を鳴らし切ってから始めた曲が server の位置より遅れた長さ (音声世代 → ms)。 */
     private record StartedBehind(long audioGeneration, long behindMs) {
@@ -292,6 +292,7 @@ public final class BoomboxClientPlayback {
             final long audioGeneration = liveRequest.audioGeneration();
             final long audioStartOffsetMs = startOffsetMs;
             instance.setFirstAudioSink(() -> Minecraft.getInstance().execute(() -> {
+                FIRST_AUDIO.put(id, new FirstAudio(audioGeneration, playbackClockMs(), audioStartOffsetMs));
                 final long lag = receivedOffsetMs + (TrackAudioResolver.playbackClockMs() - requestedAtMs)
                         - audioStartOffsetMs;
                 if (lag > 0L) {
@@ -483,8 +484,10 @@ public final class BoomboxClientPlayback {
         if (naturalEnd) {
             final NaturalEndHandoff waiting = HANDOFFS.get(boomboxId);
             if (waiting != null) {
-                if (waiting.holding()) {
-                    ENDED_WHILE_HELD.put(boomboxId, waiting.heldGeneration());
+                // 預かった次の曲も待っている間に server で終わった (次の曲が待ちより短い)。その曲は飛ばし、
+                // 前の音を鳴らし切ってから、続く曲があればそれを鳴らす。
+                if (waiting.dropHeldEndedBy(waiting.heldGeneration())) {
+                    HELD_START.remove(boomboxId);
                 }
                 return;
             }
@@ -493,7 +496,6 @@ public final class BoomboxClientPlayback {
             }
         } else if (HANDOFFS.remove(boomboxId) != null) {
             HELD_START.remove(boomboxId);
-            ENDED_WHILE_HELD.remove(boomboxId);
             STARTED_BEHIND.remove(boomboxId);
             com.kuronami.musicdiscmaker.network.BoomboxTrace.stop("client-natural-end-cancelled", boomboxId);
         }
@@ -507,22 +509,46 @@ public final class BoomboxClientPlayback {
         if (current == null || request == null || current.instance().isVoiceStopped()) {
             return false;
         }
-        final NaturalEndHandoff handoff = new NaturalEndHandoff(request.audioGeneration(), playbackClockMs());
+        // 詰まっていなければ、実音が曲の長さの位置へ来たところで切る。詰まった分だけ後ろまで待つ。
+        if (tailMs(boomboxId, current, request) <= 0L) {
+            return false;
+        }
+        final NaturalEndHandoff handoff = new NaturalEndHandoff(request.audioGeneration(), playbackClockMs(),
+                Minecraft.getInstance().level);
         HANDOFFS.put(boomboxId, handoff);
         com.kuronami.musicdiscmaker.network.BoomboxTrace.stop("client-natural-end-deferred", boomboxId);
-        pollNaturalEnd(boomboxId, handoff, current);
+        pollNaturalEnd(boomboxId, handoff, current, request);
         return true;
     }
 
-    private static void pollNaturalEnd(long boomboxId, NaturalEndHandoff handoff, Playing previous) {
+    /** 前の音の残り ({@link NaturalEndHandoff#tailCapMs})。最初の実音を知らなければ上限まで待つ。 */
+    private static long tailMs(long boomboxId, Playing previous, BoomboxPlayPayload request) {
+        final long duration = request.isVanilla() ? request.vanilla().durationMs()
+                : request.track() == null ? 0L : request.track().durationMs();
+        final FirstAudio first = FIRST_AUDIO.get(boomboxId);
+        final long audioPosition = first == null || first.audioGeneration() != request.audioGeneration() ? -1L
+                : first.startOffsetMs() + Math.max(0L, playbackClockMs() - first.atMs());
+        return NaturalEndHandoff.tailCapMs(duration, audioPosition, previous.instance().paddedSilenceMs());
+    }
+
+    private static void pollNaturalEnd(long boomboxId, NaturalEndHandoff handoff, Playing previous,
+            BoomboxPlayPayload request) {
         java.util.concurrent.CompletableFuture.delayedExecutor(NaturalEndHandoff.POLL_MS,
                 java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> Minecraft.getInstance().execute(() -> {
             if (HANDOFFS.get(boomboxId) != handoff) {
                 return; // 手動の操作で畳まれた
             }
+            if (!handoff.sameScope(Minecraft.getInstance().level)) {
+                // 次元を移った (バニラは世界の切り替えで音を全部止める)。預かった次の曲は鳴らさない。持ち歩きなら
+                // 次の送り直しが server の位置から鳴らし直す。
+                HANDOFFS.remove(boomboxId, handoff);
+                HELD_START.remove(boomboxId);
+                stopNow(boomboxId);
+                return;
+            }
             final boolean stillPlaying = ACTIVE.get(boomboxId) == previous && !previous.instance().isVoiceStopped();
-            if (handoff.keepWaiting(stillPlaying, playbackClockMs())) {
-                pollNaturalEnd(boomboxId, handoff, previous);
+            if (handoff.keepWaiting(stillPlaying, playbackClockMs(), tailMs(boomboxId, previous, request))) {
+                pollNaturalEnd(boomboxId, handoff, previous, request);
                 return;
             }
             HANDOFFS.remove(boomboxId, handoff);
@@ -533,7 +559,6 @@ public final class BoomboxClientPlayback {
     /** 前の音が鳴り終わった (または待ちの上限)。止めて、預かった次の曲があれば鳴らす。 */
     private static void finishNaturalEnd(long boomboxId, NaturalEndHandoff handoff) {
         final BoomboxPlayPayload first = HELD_START.remove(boomboxId);
-        final Long endedWhileHeld = ENDED_WHILE_HELD.remove(boomboxId);
         final BoomboxPlayPayload latest = handoff.holding() ? LATEST_REQUESTS.get(boomboxId) : null;
         final long behindMs = handoff.heldForMs(playbackClockMs());
         com.kuronami.musicdiscmaker.network.BoomboxTrace.stop("client-natural-end-finished", boomboxId);
@@ -545,27 +570,7 @@ public final class BoomboxClientPlayback {
                     latest.volumePercent(), first.vanilla());
             STARTED_BEHIND.put(boomboxId, new StartedBehind(next.audioGeneration(), behindMs));
             play(next);
-            if (endedWhileHeld != null && endedWhileHeld == next.audioGeneration()) {
-                stopWhenEnded(boomboxId, next.audioGeneration());
-            }
         }
-    }
-
-    /** server がもう止めた曲を、この client で鳴り終わった (読み込みに失敗した) 時に畳む。 */
-    private static void stopWhenEnded(long boomboxId, long audioGeneration) {
-        java.util.concurrent.CompletableFuture.delayedExecutor(250L, java.util.concurrent.TimeUnit.MILLISECONDS)
-                .execute(() -> Minecraft.getInstance().execute(() -> {
-            final BoomboxPlayPayload request = LATEST_REQUESTS.get(boomboxId);
-            if (request == null || request.audioGeneration() != audioGeneration || HANDOFFS.containsKey(boomboxId)) {
-                return; // 別の操作が来た
-            }
-            final Playing playing = ACTIVE.get(boomboxId);
-            if (playing == null ? !PENDING.containsKey(boomboxId) : playing.instance().isVoiceStopped()) {
-                stopNow(boomboxId);
-                return;
-            }
-            stopWhenEnded(boomboxId, audioGeneration);
-        }));
     }
 
     /**
@@ -589,10 +594,12 @@ public final class BoomboxClientPlayback {
                 }
                 return true;
             }
+            case DROP -> {
+                return true; // server では待っている間に終わった曲の送り直し
+            }
             case SUPERSEDE -> {
                 HANDOFFS.remove(id, handoff);
                 HELD_START.remove(id);
-                ENDED_WHILE_HELD.remove(id);
                 STARTED_BEHIND.remove(id);
                 com.kuronami.musicdiscmaker.network.BoomboxTrace.stop("client-natural-end-cancelled", id);
                 return false;
@@ -674,7 +681,7 @@ public final class BoomboxClientPlayback {
     public static void stopAll() {
         HANDOFFS.clear();
         HELD_START.clear();
-        ENDED_WHILE_HELD.clear();
+        FIRST_AUDIO.clear();
         STARTED_BEHIND.clear();
         ANNOUNCED.clear();
         SESSIONS.stopAll();
@@ -692,7 +699,7 @@ public final class BoomboxClientPlayback {
         // 鳴らし切りを待っていた前の音は読み直しで消える。預かった次の曲は LATEST_REQUESTS から開き直す。
         HANDOFFS.clear();
         HELD_START.clear();
-        ENDED_WHILE_HELD.clear();
+        FIRST_AUDIO.clear();
         STARTED_BEHIND.clear();
         final Set<Long> live = new HashSet<>(ACTIVE.keySet());
         live.addAll(PENDING.keySet());

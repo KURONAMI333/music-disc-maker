@@ -1,7 +1,8 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -28,6 +29,9 @@ import org.jetbrains.annotations.Nullable;
  *   <li>預かった世代と違う、さらに新しい世代が来たら、それは手動の操作 (次へ・前へ等) なので待ちを畳む
  *       ({@link Arrival#SUPERSEDE})。手動の停止も呼び出し側が待ちを畳む。</li>
  *   <li>前の音と同じ世代か古い世代の payload は待ちと関係ない ({@link Arrival#PASS})。</li>
+ *   <li>待つのは前の音の残り ({@link #tailCapMs}、曲の長さから詰まりの無音を除いた実音の位置を引いた長さ)
+ *       がある間だけ。詰まっていない client は 3.1.1 までと同じく曲の長さの位置で切る。</li>
+ *   <li>待っている間に世界が変わったら (次元の移動) 待ちを捨てる ({@link #sameScope})。</li>
  * </ul>
  */
 public final class NaturalEndHandoff {
@@ -38,6 +42,12 @@ public final class NaturalEndHandoff {
     /** 前の音が止まったかを見に行く間隔 (ms)。1 tick。 */
     public static final long POLL_MS = 50L;
 
+    /**
+     * 曲の長さで切る時の余白 (ms)。実音の位置は「最初の PCM を渡してからの経過」で数えるので、出力の
+     * バッファぶん耳に届くのが遅い。その分だけ待ってから切る。
+     */
+    public static final long END_MARGIN_MS = 500L;
+
     private static final long NONE = Long.MIN_VALUE;
 
     /** 届いた payload の扱い。 */
@@ -46,36 +56,76 @@ public final class NaturalEndHandoff {
         PASS,
         /** 次の曲として預かった。前の音が止まってから処理する。 */
         HOLD,
+        /** server では待っている間に終わった次の曲の送り直し。捨てる。 */
+        DROP,
         /** 預かった次の曲とは別の再生 = 手動の操作。待ちを畳んで今すぐ処理する。 */
         SUPERSEDE
     }
 
     private final long endedGeneration;
     private final long startedAtMs;
+    @Nullable
+    private final Object scope;
     private long heldGeneration = NONE;
     private long heldSinceMs = NONE;
-    private final List<Runnable> held = new ArrayList<>();
+    private long droppedUpTo = NONE;
+    private final Map<String, Runnable> held = new LinkedHashMap<>();
 
     /**
      * @param endedGeneration 曲の終わりで止まる前の音の世代
      * @param startedAtMs     待ちを始めた時刻 (再生時計)
      */
     public NaturalEndHandoff(long endedGeneration, long startedAtMs) {
-        this.endedGeneration = endedGeneration;
-        this.startedAtMs = startedAtMs;
+        this(endedGeneration, startedAtMs, null);
     }
 
     /**
-     * 待っている間に payload が届いた。
+     * @param scope 待ちを始めた時の世界 (client の level)。違う世界になったら待ちを捨てる
+     */
+    public NaturalEndHandoff(long endedGeneration, long startedAtMs, @Nullable Object scope) {
+        this.endedGeneration = endedGeneration;
+        this.startedAtMs = startedAtMs;
+        this.scope = scope;
+    }
+
+    /**
+     * この client の前の音の残り (ms)。曲の長さから、詰まりの無音を除いた実音の位置を引く。待っている間も
+     * 毎回計り直す (詰まりが続いている間は残りが減らない)。
+     *
+     * <p>詰まっていない client は、実音が曲の長さの位置へ来たところで切る (盤に書かれた長さが実際の音声
+     * より短い場合に、全員が最長 10 秒余分に鳴らさないため。3.1.1 までと同じ切り方)。詰まった client は
+     * 詰まった分だけ後ろまで待つ。
+     *
+     * @param durationMs       盤に書かれた曲の長さ
+     * @param audioPositionMs  最初の実音からの経過で数えた位置 (詰まりの無音を含む)。不明なら負
+     * @param paddedSilenceMs  読み込みが間に合わずに無音で埋めた長さ
+     * @return 残り。0 以下ならもう待たずに止めてよい
+     */
+    public static long tailCapMs(long durationMs, long audioPositionMs, long paddedSilenceMs) {
+        if (durationMs <= 0L || audioPositionMs < 0L) {
+            return MAX_WAIT_MS;
+        }
+        final long tail = durationMs - (audioPositionMs - Math.max(0L, paddedSilenceMs)) + END_MARGIN_MS;
+        return Math.min(MAX_WAIT_MS, tail);
+    }
+
+    /**
+     * 待っている間に payload が届いた。最初の新しい世代を次の曲として預かる。同じ世代は最初の1本
+     * ({@code keepLatest=false}) か最新の1本 ({@code keepLatest=true}) を {@code slot} ごとに残す。
      *
      * @param generation その payload の世代
      * @param nowMs      現在 (再生時計)
+     * @param slot       payload の種類 (同じ種類の送り直しを畳む鍵)
+     * @param keepLatest 同じ種類の送り直しで最新を残すか (偽なら最初を残す)
      * @param action     預かった時に後で実行する処理 (null なら何も積まない)
      * @return 扱い
      */
-    public Arrival arrive(long generation, long nowMs, @Nullable Runnable action) {
+    public Arrival arrive(long generation, long nowMs, String slot, boolean keepLatest, @Nullable Runnable action) {
         if (generation <= endedGeneration) {
             return Arrival.PASS;
+        }
+        if (droppedUpTo != NONE && generation <= droppedUpTo) {
+            return Arrival.DROP;
         }
         if (heldGeneration == NONE) {
             heldGeneration = generation;
@@ -85,9 +135,37 @@ public final class NaturalEndHandoff {
             return Arrival.SUPERSEDE;
         }
         if (action != null) {
-            held.add(action);
+            if (keepLatest) {
+                held.put(slot, action);
+            } else {
+                held.putIfAbsent(slot, action);
+            }
         }
         return Arrival.HOLD;
+    }
+
+    /** {@link #arrive(long, long, String, boolean, Runnable)} の、種類を分けない版 (最初の1本を残す)。 */
+    public Arrival arrive(long generation, long nowMs, @Nullable Runnable action) {
+        return arrive(generation, nowMs, "", false, action);
+    }
+
+    /**
+     * 預かった次の曲が、待っている間に server ではもう終わった (その曲の「曲の終わりの停止」が届いた)。
+     * 預かったものを捨て、その世代までの送り直しも以後は捨てる。前の音は鳴らし切り、続く曲があれば
+     * それを新しく預かる。この client はその曲を飛ばす (一人だけで鳴らすと、さらに遅れるため)。
+     *
+     * @param generation 届いた停止の世代 (世代を運ばない停止なら {@link #heldGeneration()})
+     * @return 捨てたなら {@code true}
+     */
+    public boolean dropHeldEndedBy(long generation) {
+        if (heldGeneration == NONE || generation < heldGeneration) {
+            return false;
+        }
+        droppedUpTo = heldGeneration;
+        heldGeneration = NONE;
+        heldSinceMs = NONE;
+        held.clear();
+        return true;
     }
 
     /**
@@ -96,7 +174,19 @@ public final class NaturalEndHandoff {
      * @return まだ待つなら {@code true}
      */
     public boolean keepWaiting(boolean previousStillPlaying, long nowMs) {
-        return previousStillPlaying && nowMs - startedAtMs < MAX_WAIT_MS;
+        return keepWaiting(previousStillPlaying, nowMs, MAX_WAIT_MS);
+    }
+
+    /**
+     * @param tailMs 前の音の残り ({@link #tailCapMs})。0 以下になったら、音がまだ鳴っていても止める
+     */
+    public boolean keepWaiting(boolean previousStillPlaying, long nowMs, long tailMs) {
+        return previousStillPlaying && tailMs > 0L && nowMs - startedAtMs < MAX_WAIT_MS;
+    }
+
+    /** 待ちを始めた時と同じ世界か (次元を移った・ワールドを出たら偽)。 */
+    public boolean sameScope(@Nullable Object current) {
+        return scope == current;
     }
 
     /** 次の曲を預かっているか。 */
@@ -119,9 +209,9 @@ public final class NaturalEndHandoff {
         return heldSinceMs == NONE ? 0L : Math.max(0L, nowMs - heldSinceMs);
     }
 
-    /** 預かった処理を取り出す (届いた順)。 */
+    /** 預かった処理を取り出す (最初に届いた順)。 */
     public List<Runnable> drainHeld() {
-        final List<Runnable> out = List.copyOf(held);
+        final List<Runnable> out = List.copyOf(held.values());
         held.clear();
         return out;
     }

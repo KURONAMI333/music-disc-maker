@@ -137,6 +137,11 @@ final class SpeakerVoiceGroup implements PlaybackVoice {
         if (branch != null) branch.close();
     }
 
+    @Override public long paddedSilenceMs() {
+        // Golden の音は共有の時間軸 (fanout) から読む。読み込みの詰まりは fanout が無音で埋めるので、そちらも足す。
+        return source.paddedSilenceMs() + pcm.underrunSilenceMs();
+    }
+
     @Override public boolean isVoiceStopped() {
         if (stopped || source.isVoiceStopped()) {
             stopAndRelease();
