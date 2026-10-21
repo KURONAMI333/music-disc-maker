@@ -1194,7 +1194,9 @@ public final class ClientPlaybackManager {
         }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
         failures.record(key, show);
-        PlaybackFailureReport.report(track, show);
+        if (sessions.firstAudioDeadlineFailure(key, token, show) != null) {
+            PlaybackFailureReport.report(track, show);
+        }
     }
 
     static boolean releaseOnFirstAudioDeadline(PlaybackSessions sessions,
@@ -1229,7 +1231,9 @@ public final class ClientPlaybackManager {
         }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
         failures.record(key, show);
-        PlaybackFailureReport.report(track, show);
+        if (sessions.firstAudioDeadlineFailure(key, token, show) != null) {
+            PlaybackFailureReport.report(track, show);
+        }
         sessions.stop(key); // 同じ曲の再送を dedup せず、次の再生要求で開き直せるようにする
     }
     //?} else {

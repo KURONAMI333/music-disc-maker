@@ -528,6 +528,30 @@ public final class PlaybackSessions<K> {
     }
 
     /**
+     * {@link #FIRST_AUDIO_DEADLINE_MS} 以内に実音が届かなかった ({@link #firstAudioOverdue})。
+     * 利用者に出すべきかどうかを答える。
+     *
+     * <p>リンク切れや非対応サイトのように<b>何度開き直しても同じ理由で鳴らない</b>音源は、
+     * アルバムが曲を送るたびに同じ失敗を積む。engine の拒否と同じ頻度の問題なので、抑止は
+     * {@link #startNotices} を共有する — 同じ座標では実際に鳴り始めるまで 1 回だけ。
+     *
+     * <p>ログ ({@code ClientPlaybackManager} の "No audio reached..." 行) はここでは抑止しない。
+     * 切り分けには毎回の記録が要るので、黙らせるのはチャット向けの報告だけ。
+     *
+     * @param key     再生の鍵 (金ジューク = jukebox の位置)
+     * @param token   この再生の世代
+     * @param failure 分類済みの失敗
+     * @return 出すべき失敗。黙るなら {@code null}
+     */
+    @Nullable
+    public PlaybackFailure firstAudioDeadlineFailure(K key, int token, PlaybackFailure failure) {
+        if (!isLive(key, token)) {
+            return null; // 停止済み / 差し替え済みの再生の期限切れは出さない
+        }
+        return startNotices.shouldReport(key, failure) ? failure : null;
+    }
+
+    /**
      * sound engine が再生を受理した = 実際に鳴り始めた。受理されなかった理由の記憶を捨てる。
      *
      * <p>ここが唯一の忘れる点。{@link #stop} で忘れないのは、停止と再生を挟んで繰り返される
