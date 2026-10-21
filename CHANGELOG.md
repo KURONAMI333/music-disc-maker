@@ -11,6 +11,7 @@
 - Fixed a Golden Jukebox with Speakers stopping its song when shuffle was turned on or off.
 - Fixed discs made from local audio files sometimes failing to load when played from a disc the player carries or has open in a container.
 - The Boombox no longer leaves about 8 seconds of silence between songs.
+- Fixed the "could not be opened" message appearing for every song when an Album's discs cannot be played. The same music source now shows it once, until a song actually starts.
 
 Use the same Music Disc Maker version on the server and all clients.
 
