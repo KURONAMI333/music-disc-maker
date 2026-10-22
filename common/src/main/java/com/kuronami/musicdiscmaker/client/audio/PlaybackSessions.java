@@ -266,11 +266,25 @@ public final class PlaybackSessions<K> {
      * 新しい世代を起こすので、あちらに乗せると<b>何も抑えられない</b> — 音量 0 のように
      * 「鳴らそうとするたびに同じ理由で弾かれる」失敗は、chunk 再入のたびに同じ行を積む。
      *
-     * <p>だからこちらが忘れるのは<b>実際に鳴り始めた時</b>だけにする ({@link #engineAccepted})。
+     * <p>だからこちらが忘れるのは sound engine が受理した時 ({@link #engineAccepted}) だけにする。
      * 意図してミュートしている人は最初の 1 回だけ見て以降は黙り、誤って 0 にしている人は
      * 気づける。理由が変われば (音量 0 → チャンネル枯渇) 別の情報なので通る。
+     *
+     * <p><b>受理は「鳴り始めた」ではない。</b> {@code SoundManager#play} を通っただけの音源が
+     * 実 PCM を出さずに期限切れになることはある。実音の確認は {@link #noteFirstAudio} が行う。
      */
     private final PlaybackFailureNotices startNotices = new PlaybackFailureNotices();
+    /**
+     * {@link #FIRST_AUDIO_DEADLINE_MS} の期限切れ報告の重複抑止。{@link #startNotices} とは
+     * <b>別に持つ</b>。
+     *
+     * <p>engine の受理 ({@link #engineAccepted}) は音が出た証明ではないので、ここでは忘れない。
+     * 同じ座標でストリームが黙ったまま曲だけ進むと、エンジン受理 → 期限切れが曲ごとに繰り返され、
+     * 共有すると毎回報告されてしまう。忘れるのは<b>実 PCM が届いた時</b> ({@link #noteFirstAudio}
+     * が {@code true} を返した時) と、{@link #stopAll} (ワールド離脱) だけ。
+     * {@link #stop} でも忘れない — 停止と次の再生を挟んで繰り返される失敗こそ抑えたい相手。
+     */
+    private final PlaybackFailureNotices deadlineNotices = new PlaybackFailureNotices();
 
     private final LongSupplier clockMs;
     private final LongSupplier monotonicMs;
@@ -533,7 +547,8 @@ public final class PlaybackSessions<K> {
      *
      * <p>リンク切れや非対応サイトのように<b>何度開き直しても同じ理由で鳴らない</b>音源は、
      * アルバムが曲を送るたびに同じ失敗を積む。engine の拒否と同じ頻度の問題なので、抑止は
-     * {@link #startNotices} を共有する — 同じ座標では実際に鳴り始めるまで 1 回だけ。
+     * {@link #deadlineNotices} で行う — 同じ座標では実際に鳴るまで 1 回だけ。
+     * 受理や停止では忘れない ({@link #engineAccepted} / {@link #stop} はこの記憶を触らない)。
      *
      * <p>ログ ({@code ClientPlaybackManager} の "No audio reached..." 行) はここでは抑止しない。
      * 切り分けには毎回の記録が要るので、黙らせるのはチャット向けの報告だけ。
@@ -548,14 +563,18 @@ public final class PlaybackSessions<K> {
         if (!isLive(key, token)) {
             return null; // 停止済み / 差し替え済みの再生の期限切れは出さない
         }
-        return startNotices.shouldReport(key, failure) ? failure : null;
+        return deadlineNotices.shouldReport(key, failure) ? failure : null;
     }
 
     /**
-     * sound engine が再生を受理した = 実際に鳴り始めた。受理されなかった理由の記憶を捨てる。
+     * sound engine が再生を受理した。受理されなかった理由の記憶を捨てる。
      *
-     * <p>ここが唯一の忘れる点。{@link #stop} で忘れないのは、停止と再生を挟んで繰り返される
-     * 失敗こそが抑えたい相手だから ({@link #startNotices})。
+     * <p><b>受理は音が出始めたことではない。</b> {@code SoundManager#play} が通っても、ストリームが
+     * 実 PCM を出さないまま期限切れになる経路がある ({@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE})。
+     * 実音の確認は {@link #noteFirstAudio} で、そちらは {@link #deadlineNotices} も忘れる。
+     *
+     * <p>ここが {@link #startNotices} の唯一の忘れる点。{@link #stop} で忘れないのは、停止と再生を
+     * 挟んで繰り返される失敗こそが抑えたい相手だから。
      *
      * @param key 再生の鍵 (金ジューク = jukebox の位置)
      */
@@ -585,6 +604,8 @@ public final class PlaybackSessions<K> {
         final boolean first = firstAudioMonotonicMs.putIfAbsent(key, monotonicMs.getAsLong()) == null;
         if (first) {
             firstAudioPositionMs.put(key, positionClockMs.getAsLong());
+            // 実音が届いた = この座標の「鳴らない」記憶はもう正しくない。次の音源でまた報告する。
+            deadlineNotices.forget(key);
         }
         return first;
     }
@@ -819,6 +840,7 @@ public final class PlaybackSessions<K> {
         pendingFailure.clear();
         notices.forgetAll();
         startNotices.forgetAll();
+        deadlineNotices.forgetAll();
         active.values().forEach(PlaybackVoice::stopAndRelease);
         active.clear();
     }

@@ -1188,13 +1188,18 @@ public final class ClientPlaybackManager {
         }
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
                 PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
-        if (releaseOnFirstAudioDeadline(sessions, prefetch, key, track.radio())) {
+        if (track.radio()) {
+            releaseOnFirstAudioDeadline(sessions, prefetch, key, true);
             onRadioStreamEnded(key, token);
             return;
         }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
         failures.record(key, show);
-        if (sessions.firstAudioDeadlineFailure(key, token, show) != null) {
+        // 報告の可否は stop より先に決める。releaseOnFirstAudioDeadline は stop(key) で世代を進めるので、
+        // その後に firstAudioDeadlineFailure を呼ぶと isLive が偽になり、必ず null になる。
+        final boolean report = sessions.firstAudioDeadlineFailure(key, token, show) != null;
+        releaseOnFirstAudioDeadline(sessions, prefetch, key, false);
+        if (report) {
             PlaybackFailureReport.report(track, show);
         }
     }
