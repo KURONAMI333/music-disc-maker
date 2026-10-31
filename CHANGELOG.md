@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.1.3
+
+- Choosing a local audio file now starts the import right after the file check, without pressing the same button a second time.
+- Fixed a disc that was out of range, or playing with directional audio off, showing [MUTED] when no volume setting was actually muted.
+- Playback failures no longer appear in chat. The Golden Jukebox and Boombox screens show the reason where available, and the details stay in the log.
+- The Music Disc Maker recipe now appears in the recipe book once you have iron ingots or lapis lazuli, not only a Note Block.
+- On Linux without a graphical file dialog, choosing a local file now says that the file picker could not open instead of doing nothing.
+- With Sound Physics Remastered installed, custom discs playing at a position now go through its reverb and occlusion. The Records volume slider is unchanged.
+- Custom discs displayed on shelves no longer recalculate their color every frame, fixing FPS drops when many discs are in view.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 ## 3.1.2
 
 - Speakers no longer darken the blocks around them.

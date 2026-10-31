@@ -84,8 +84,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     *///?}
 
     private EditBox urlField;
+    private IconButton pasteButton;
+    private IconButton folderButton;
     private IconButton clearButton;
     private boolean urlWasFocused;
+    /** 取込中のファイル名を URL 欄へ出している間は、欄の文字を URL として送らない。 */
+    private boolean localNameShown;
+    private String localName = "";
     private String lastSentUrl = "";
     /**
      * URL 欄に出している出力の盤の曲名。{@code null} なら URL 欄として使っている。作った盤を取り出す前は
@@ -141,32 +146,32 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         /*this.urlField.setHint(Component.translatable("gui.music_disc_maker.url_placeholder"));
         *///?}
         this.urlField.setValue(menu.getBlockEntity().getCurrentUrl());
+        this.urlField.setEditable(!LocalAudioClient.uploading());
         this.lastSentUrl = this.urlField.getValue();
         this.shownTitle = null; // 画面サイズの変更で欄を作り直した時も、次の tick で曲名を入れ直す
+        this.localNameShown = false; // 取込中なら次の tick で新しい欄へファイル名を入れ直す
+        this.localName = "";
         // 1 文字ごとに自動コミットすると部分 URL の解決失敗が GUI で点滅するので行わない。
         // コミット契機 = Enter / フォーカス喪失 / PASTE / CLEAR / GUI を閉じる時。
         addRenderableWidget(this.urlField);
-        // URL 欄の右上に小さな3ボタン。左から 貼り付け / ファイル選択(取込の確認も兼ねる) / 消去+転送取消。
-        final IconButton paste = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_PASTE_X,
+        // URL 欄の右上に小さな3ボタン。左から 貼り付け / ファイル選択 / 消去+転送取消。
+        this.pasteButton = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_PASTE_X,
                 topPos + MusicDiscMakerLayout.TOOL_Y,
                 Component.translatable("gui.music_disc_maker.paste"),
                 "textures/gui/music_disc_maker/paste.png", () -> pasteFromClipboard());
-        paste.setTooltip(Tooltip.create(Component.translatable("gui.music_disc_maker.paste")));
-        addRenderableWidget(paste);
-        final IconButton folder = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_FOLDER_X,
+        this.pasteButton.setTooltip(Tooltip.create(Component.translatable("gui.music_disc_maker.paste")));
+        addRenderableWidget(this.pasteButton);
+        this.folderButton = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_FOLDER_X,
                 topPos + MusicDiscMakerLayout.TOOL_Y,
                 Component.translatable("gui.music_disc_maker.local.select"),
                 "textures/gui/music_disc_maker/folder.png", () -> {
-                    if (LocalAudioClient.uploading()) {
-                        LocalAudioClient.confirm();
-                    } else {
-                        leaveRename();
-                        urlField.setValue(""); commitUrl();
-                        LocalAudioClient.select(menu);
-                    }
+                    if (LocalAudioClient.uploading()) return;
+                    leaveRename();
+                    urlField.setValue(""); commitUrl();
+                    LocalAudioClient.select(menu);
                 });
-        folder.setTooltip(Tooltip.create(Component.translatable("gui.music_disc_maker.local.select")));
-        addRenderableWidget(folder);
+        this.folderButton.setTooltip(Tooltip.create(Component.translatable("gui.music_disc_maker.local.select")));
+        addRenderableWidget(this.folderButton);
         this.clearButton = new IconButton(leftPos + MusicDiscMakerLayout.TOOL_CLEAR_X,
                 topPos + MusicDiscMakerLayout.TOOL_Y,
                 Component.translatable("gui.music_disc_maker.clear"),
@@ -183,6 +188,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     private void pasteFromClipboard() {
+        if (LocalAudioClient.uploading()) return;
         final String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
         if (clip == null || clip.isBlank()) {
             return;
@@ -242,6 +248,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     /** 欄の内容を確定する。付け直し中は曲名の変更、それ以外は URL のコミット。 */
     private void commitField() {
+        if (LocalAudioClient.uploading()) {
+            // 取込中は欄がファイル名の表示専用。URL として送らない。
+            urlField.setFocused(false);
+            return;
+        }
         if (shownTitle == null) {
             commitUrl();
             return;
@@ -287,6 +298,9 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
 
     /** URL をサーバへコミット (URL + 空ディスクが揃えば server が自動生成)。同じ URL は再送しない。 */
     private void commitUrl() {
+        if (LocalAudioClient.uploading()) {
+            return; // 取込中の欄はファイル名の表示専用
+        }
         if (com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.isProtocolMismatch()) {
             return; // B5/C12: 版不一致で client 機能を無効化中
         }
@@ -579,9 +593,36 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     //?} else {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     *///?}
+        final String serverUrl = menu.getBlockEntity().getCurrentUrl();
+        final boolean localUpload = LocalAudioClient.uploading();
+        // 取込中はファイル選択・貼り付けを止め、左上の欄はファイル名の表示専用にする。
+        pasteButton.active = !localUpload;
+        folderButton.active = !localUpload;
+        if (localUpload) {
+            final String name = LocalAudioClient.currentName();
+            // 名前が空でも「取込中に欄を表示専用にした」ことを覚え、終了時に必ず編集可へ戻す。
+            localNameShown = true;
+            urlField.setEditable(false);
+            if (urlField.isFocused()) urlField.setFocused(false);
+            if (!name.isEmpty() && !name.equals(localName)) {
+                localName = name;
+                urlField.setValue(name);
+                urlField.setCursorPosition(0);
+                urlField.setHighlightPos(0);
+            }
+        } else if (localNameShown) {
+            localNameShown = false;
+            localName = "";
+            urlField.setEditable(true);
+            // 盤ができていなければ、表示専用にしていたファイル名を消して URL 欄へ戻す。
+            if (outputTitle() == null && shownTitle == null) {
+                urlField.setValue(serverUrl);
+                lastSentUrl = serverUrl;
+            }
+        }
         // × は進行中だけ「取消」、それ以外は「消去」。状態に合わせてツールチップを替える。
         clearButton.setTooltip(Tooltip.create(Component.translatable(
-                LocalAudioClient.uploading() || shownTitle != null
+                localUpload || shownTitle != null
                         ? "gui.music_disc_maker.local.cancel" : "gui.music_disc_maker.clear")));
         final boolean focused = urlField.isFocused();
         if (urlWasFocused && !focused) {
@@ -589,7 +630,6 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         }
         urlWasFocused = focused;
 
-        final String serverUrl = menu.getBlockEntity().getCurrentUrl();
         final long now = System.currentTimeMillis();
         if (awaitingUrl != null && (serverUrl.equals(awaitingUrl) || now > awaitingUntilMs
                 || !java.util.Objects.equals(rawOutputTitle(), awaitingOutput))) {
@@ -600,7 +640,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             pendingName = null;
             if (!focused && shownTitle != null) urlField.setValue(shownTitle);
         }
-        if (!focused && awaitingUrl == null) {
+        if (!focused && !localNameShown && awaitingUrl == null) {
             // サーバーが URL をクリアした (ディスク生成後のニュートラル化) ら、欄も空に戻す。
             // 盤の生成と URL のクリアは同じ同期で届くので、曲名を出す判断より先に済ませる。
             if (!serverUrl.equals(lastSentUrl)) {

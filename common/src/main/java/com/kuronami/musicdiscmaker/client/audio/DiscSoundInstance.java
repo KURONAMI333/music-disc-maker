@@ -112,6 +112,12 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     private int rangeBlocks;
     /** 強化版ジュークボックス由来の音量 (%)。100 = 通常 (config volumeMultiplier のみ)。 */
     private int volumePercent;
+    /**
+     * 利用者が設定した音量 (%)。空間ゲートやアンカー遷移で 0 にならない。
+     * {@link #volumePercent} は選択点の実効音量 (範囲外・未選択で 0)、こちらはスライダー値。
+     * {@link #mutedOut()} はこちらだけを見る。
+     */
+    private int configuredVolumePercent;
     /** anchor切替中だけ使う追加gain。音量設定そのものは書き換えない。 */
     private double liveGainMultiplier = 1.0D;
     /** ストリーム終端 (read=-1) 時に一度だけ呼ばれるコールバック (ラジオ再接続用)。null=無効。 */
@@ -172,6 +178,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         this.anchor = new StaticAnchor(pos);
         this.rangeBlocks = rangeBlocks;
         this.volumePercent = volumePercent;
+        this.configuredVolumePercent = volumePercent;
         this.onStreamEnded = onStreamEnded;
         this.x = pos.getX() + 0.5;
         this.y = pos.getY() + 0.5;
@@ -185,6 +192,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         this.anchor = new EntityAnchor(entity);
         this.rangeBlocks = 0;
         this.volumePercent = 100;
+        this.configuredVolumePercent = 100;
         this.onStreamEnded = null;
         this.x = entity.getX();
         this.y = entity.getY();
@@ -203,7 +211,9 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         this.anchor = anchor;
         this.rangeBlocks = rangeBlocks;
         this.volumePercent = volumePercent;
+        this.configuredVolumePercent = volumePercent;
         if (anchor instanceof LiveAudioConfig audioConfig) {
+            this.configuredVolumePercent = audioConfig.configuredVolumePercent();
             this.liveGainMultiplier = audioConfig.gainMultiplier();
         }
         this.onStreamEnded = onStreamEnded;
@@ -222,7 +232,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     void useSpeakerAnchor(MultiSpeakerAnchor speakerAnchor) {
         speakerAnchor.useSourceAnchor(anchor);
         anchor = speakerAnchor;
-        setVolumePercent(speakerAnchor.volumePercent());
+        setLiveVolumePercent(speakerAnchor.volumePercent());
+        setConfiguredVolumePercent(speakerAnchor.configuredVolumePercent());
         setLiveGainMultiplier(speakerAnchor.gainMultiplier());
         //? if >=1.21 {
         setRangeBlocks(speakerAnchor.rangeBlocks());
@@ -344,7 +355,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     //? if >=1.21.2 {
     @Override
     public void setVolumePercent(int value) {
-        this.volumePercent = Math.max(0, value);
+        setLiveVolumePercent(value);
+        setConfiguredVolumePercent(value);
     }
 
     @Override
@@ -356,7 +368,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
     //?} elif >=1.21 {
 /*    public void setVolumePercent(int value) {
-        this.volumePercent = Math.max(0, value);
+        setLiveVolumePercent(value);
+        setConfiguredVolumePercent(value);
     }
 
     public void setRangeBlocks(int value) {
@@ -369,7 +382,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     */
     //?} else {
     /*public void setVolumePercent(int value) {
-        this.volumePercent = Math.max(0, value);
+        setLiveVolumePercent(value);
+        setConfiguredVolumePercent(value);
     }
     public void setRangeBlocks(int value) {
         if (this.rangeBlocks != value) {
@@ -378,9 +392,32 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         }
     }
     *///?}
+
+    /** アンカーが選んだ聴取点の実効音量。利用者設定 ({@link #configuredVolumePercent}) は動かさない。 */
+    void setLiveVolumePercent(int value) {
+        this.volumePercent = Math.max(0, value);
+    }
+
+    /** 利用者が設定した音量。{@link #mutedOut()} の判定にだけ使う。 */
+    void setConfiguredVolumePercent(int value) {
+        this.configuredVolumePercent = Math.max(0, value);
+    }
+
+    /**
+     * 利用者が設定した音量だけのゲイン。空間ゲート ({@link #flatGate}) とアンカー切替中の補正
+     * ({@link #liveGainMultiplier}) を含めない。{@link #mutedOut()} の判定に使う。
+     */
+    private double configuredVolume() {
+        return volumePercentOf(configuredVolumePercent);
+    }
+
+    /** 実効ゲイン。アンカーの選択点 ({@link #volumePercent}) と空間ゲートを掛ける。 */
     private double totalGain() {
-        return volumePercent / 100.0 * Config.volumeMultiplier() * MATERIAL_GAIN * flatGate
-                * liveGainMultiplier;
+        return volumePercentOf(volumePercent) * flatGate * liveGainMultiplier;
+    }
+
+    private static double volumePercentOf(int percent) {
+        return percent / 100.0 * Config.volumeMultiplier() * MATERIAL_GAIN;
     }
 
     private void setLiveGainMultiplier(double value) {
@@ -538,7 +575,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         final Vec3 p = anchor.worldPos(1.0F);
         //? if >=1.21.2 {
         if (anchor instanceof LiveAudioConfig audioConfig) {
-            setVolumePercent(audioConfig.volumePercent());
+            setLiveVolumePercent(audioConfig.volumePercent());
+            setConfiguredVolumePercent(audioConfig.configuredVolumePercent());
             setLiveGainMultiplier(audioConfig.gainMultiplier());
             setDirectional(audioConfig.directional());
             setRangeBlocks(audioConfig.rangeBlocks());
@@ -546,7 +584,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             final BlockPos configPos = lc.configPos();
         //?} elif >=1.21 {
 /*        if (anchor instanceof LiveAudioConfig audioConfig) {
-            setVolumePercent(audioConfig.volumePercent());
+            setLiveVolumePercent(audioConfig.volumePercent());
+            setConfiguredVolumePercent(audioConfig.configuredVolumePercent());
             setLiveGainMultiplier(audioConfig.gainMultiplier());
             setDirectional(audioConfig.directional());
             setRangeBlocks(audioConfig.rangeBlocks());
@@ -554,7 +593,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         */
         //?} else {
 /*        if (anchor instanceof LiveAudioConfig audioConfig) {
-            this.volumePercent = audioConfig.volumePercent();
+            setLiveVolumePercent(audioConfig.volumePercent());
+            setConfiguredVolumePercent(audioConfig.configuredVolumePercent());
             setLiveGainMultiplier(audioConfig.gainMultiplier());
             setDirectional(audioConfig.directional());
             final int nextRange = audioConfig.rangeBlocks();
@@ -579,7 +619,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             //?} else {
 /*            if (mc.level != null && mc.level.isLoaded(configPos)
                     && mc.level.getBlockEntity(configPos) instanceof GoldenJukeboxBlockEntity be) {
-                this.volumePercent = be.getVolumePercent();
+                setVolumePercent(be.getVolumePercent());
             */
             //?}
                 setDirectional(be.isDirectional());
@@ -719,9 +759,9 @@ public WeighedSoundEvents resolve(SoundManager handler) {
     @Override
     public boolean mutedOut() {
         final Options options = Minecraft.getInstance().options;
-        return getVolume() <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.MASTER) <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.RECORDS) <= 0.0F;
+        return SoundEngineAcceptance.isUserMuted(configuredVolume(),
+                options.getSoundSourceVolume(SoundSource.MASTER),
+                options.getSoundSourceVolume(SoundSource.RECORDS));
     }
     //?} elif >=1.21 {
 /*    public void setTiming(@Nullable PlaybackTiming value) {
@@ -742,9 +782,9 @@ public WeighedSoundEvents resolve(SoundManager handler) {
     @Override
     public boolean mutedOut() {
         final Options options = Minecraft.getInstance().options;
-        return getVolume() <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.MASTER) <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.RECORDS) <= 0.0F;
+        return SoundEngineAcceptance.isUserMuted(configuredVolume(),
+                options.getSoundSourceVolume(SoundSource.MASTER),
+                options.getSoundSourceVolume(SoundSource.RECORDS));
     }
     */
     //?} else {
@@ -759,9 +799,9 @@ public WeighedSoundEvents resolve(SoundManager handler) {
     @Override
     public boolean mutedOut() {
         final var options = Minecraft.getInstance().options;
-        return getVolume() <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.MASTER) <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.RECORDS) <= 0.0F;
+        return SoundEngineAcceptance.isUserMuted(configuredVolume(),
+                options.getSoundSourceVolume(SoundSource.MASTER),
+                options.getSoundSourceVolume(SoundSource.RECORDS));
     }
 
     // 最初の実 PCM が渡った時の届け先 (1.21 帯は上の帯別腕が持つ)。

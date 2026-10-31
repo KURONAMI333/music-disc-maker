@@ -29,6 +29,7 @@ import com.kuronami.musicdiscmaker.component.VanillaTrackData;
 *///?}
 import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
 import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
+import com.kuronami.musicdiscmaker.network.BoomboxTrace;
 import com.kuronami.musicdiscmaker.network.ModPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 //? if >=1.21 {
@@ -412,6 +413,7 @@ public final class BoomboxPlayback {
             @Nullable BlockPos placedPos) {
         BoomboxContents contents = contentsOf(stack);
         if (!contents.hasDisc()) {
+            BoomboxTrace.beginNull("no-disc");
             return null;
         }
         final MediaSequenceResolver.ResolvedSequence resolved = MediaSequenceResolver.resolve(contents.disc());
@@ -421,10 +423,12 @@ public final class BoomboxPlayback {
         final MediaSequence.Position selected = sequence.positions().contains(current)
                 ? current : sequence.first().orElse(null);
         if (selected == null) {
+            BoomboxTrace.beginNull("no-position");
             return null;
         }
         final Sound sound = resolved.at(selected).map(track -> soundOf(track, level)).orElse(null);
         if (sound == null) {
+            BoomboxTrace.beginNull("no-sound");
             return null;
         }
         final long id = identify(stack);

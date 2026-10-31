@@ -1068,13 +1068,15 @@ public final class ClientPlaybackManager {
         // directionalを入れるため、ここで最新集合の値を上書きしないと最初の一瞬だけ旧設定になる。
         //? if >=1.21 {
         if (anchor instanceof LiveAudioConfig audioConfig) {
-            instance.setVolumePercent(audioConfig.volumePercent());
+            instance.setLiveVolumePercent(audioConfig.volumePercent());
+            instance.setConfiguredVolumePercent(audioConfig.configuredVolumePercent());
             instance.setRangeBlocks(audioConfig.rangeBlocks());
             instance.setDirectional(audioConfig.directional());
         }
         //?} else {
 /*        if (anchor instanceof LiveAudioConfig audioConfig) {
-            instance.setVolumePercent(audioConfig.volumePercent());
+            instance.setLiveVolumePercent(audioConfig.volumePercent());
+            instance.setConfiguredVolumePercent(audioConfig.configuredVolumePercent());
             instance.setDirectional(audioConfig.directional());
         }
 */
@@ -1380,7 +1382,7 @@ public final class ClientPlaybackManager {
     //?}
 
     /** アクションバーに一行表示する (main thread から呼ぶこと)。 */
-    private static void notifyActionBar(Component message) {
+    static void notifyActionBar(Component message) {
         //? if >=26.2 {
         Minecraft.getInstance().gui.hud.setOverlayMessage(message, false);
         //?} elif >=1.21.2 {

@@ -74,6 +74,13 @@ public final class GoldenCartClientPlayback {
     /** 同時再生上限の報告の重複抑止 (1 Hz の keep-alive でチャットを埋めない)。 */
     private static final PlaybackFailureNotices LIMIT_NOTICES = new PlaybackFailureNotices();
 
+    /**
+     * アクションバーに出す失敗の重複抑止。トロッコに載せた BE の座標は機体を指さない
+     * ({@code BlockPos.ZERO} のまま) ので、設置物の画面ラベル ({@link GoldenJukeboxFailures})
+     * からは理由を引けない。代わりに、失敗したその client のアクションバーへ 1 回だけ出す。
+     */
+    private static final PlaybackFailureNotices SCREEN_NOTICES = new PlaybackFailureNotices();
+
     private static final ExecutorService POOL = Executors.newCachedThreadPool(runnable -> {
         final Thread thread = new Thread(runnable, "music_disc_maker-cart-playback");
         thread.setDaemon(true);
@@ -121,6 +128,7 @@ public final class GoldenCartClientPlayback {
                 && previousGeneration.longValue() != identity.generation()) {
             BACKOFF.reset(source);
             LIMIT_NOTICES.forget(source);
+            SCREEN_NOTICES.forget(source);
         }
         // 旧経路 (拾い直し前の entity / 別 actor) の再生を畳み、この要求を新しい lease として掴む。
         // 同じ経路の keep-alive は同じ lease を返すので毎回畳み直しにはならない。
@@ -205,6 +213,7 @@ public final class GoldenCartClientPlayback {
             if (LIMIT_NOTICES.shouldReport(source, overLimit)) {
                 PlaybackFailureReport.report((CustomTrackData) null, overLimit);
             }
+            notifyFailureOnce(source, overLimit);
             return;
         }
         final VanillaSpeakerSoundInstance instance = new VanillaSpeakerSoundInstance(
@@ -215,6 +224,7 @@ public final class GoldenCartClientPlayback {
                     if (LIMIT_NOTICES.shouldReport(source, failure)) {
                         PlaybackFailureReport.report((CustomTrackData) null, failure);
                     }
+                    notifyFailureOnce(source, failure);
                 },
                 () -> ACTIVE.put(source, new Playing("vanilla:" + vanilla.soundEventId(), anchor, instance, true)))) {
             return;
@@ -232,6 +242,21 @@ public final class GoldenCartClientPlayback {
         }
         onAccepted.run();
         return true;
+    }
+
+    /**
+     * トロッコの再生失敗を、その client のアクションバーへ同じ失敗につき 1 回だけ出す。
+     *
+     * <p>設置した金ジュークは GUI のラベル
+     * ({@link com.kuronami.musicdiscmaker.client.GoldenJukeboxScreen}) が受けるが、
+     * トロッコの BE は動く機体の座標を持たないのでその経路に乗らない。文は設置物と同じ
+     * {@link PlaybackFailure.Kind#guiKey()} を使う (新しい翻訳キーを増やさない)。
+     */
+    private static void notifyFailureOnce(UUID source, PlaybackFailure failure) {
+        if (!SCREEN_NOTICES.shouldReport(source, failure)) {
+            return;
+        }
+        ClientPlaybackManager.notifyActionBar(Component.translatable(failure.kind().guiKey()));
     }
 
     /** vanilla cart だけを数える。custom cart は SESSIONS 側ですでに数えている。 */
@@ -302,8 +327,10 @@ public final class GoldenCartClientPlayback {
         if (resolved == null) {
             SESSIONS.abandon(source, token);
             if (BACKOFF.recordFailure(source, track.sourceKey())) {
-                PlaybackFailureReport.report(track,
-                        failure == null ? PlaybackFailure.streamUnavailable() : failure);
+                final PlaybackFailure show =
+                        failure == null ? PlaybackFailure.streamUnavailable() : failure;
+                PlaybackFailureReport.report(track, show);
+                notifyFailureOnce(source, show);
             }
             return;
         }
@@ -366,6 +393,7 @@ public final class GoldenCartClientPlayback {
             cart.jukebox().clientReanchorElapsedToAudioStart(startOffsetMs);
         }
         LIMIT_NOTICES.forget(source); // 鳴り始めた = 次に上限へ当たったらまた出してよい
+        SCREEN_NOTICES.forget(source);
         final String desc = (track.author() != null && !track.author().isBlank())
                 ? track.author() + " - " + track.title()
                 : track.title();
@@ -388,6 +416,7 @@ public final class GoldenCartClientPlayback {
         if (LIMIT_NOTICES.shouldReport(source, overLimit)) {
             PlaybackFailureReport.report(track, overLimit);
         }
+        notifyFailureOnce(source, overLimit);
         return true;
     }
 
@@ -397,6 +426,7 @@ public final class GoldenCartClientPlayback {
         final PlaybackFailure show = SESSIONS.lateFailure(source, token, track, late);
         if (show != null) {
             PlaybackFailureReport.report(track, show);
+            notifyFailureOnce(source, show);
         }
     }
 
@@ -473,6 +503,7 @@ public final class GoldenCartClientPlayback {
         LATEST_REQUESTS.remove(source);
         BACKOFF.reset(source);
         LIMIT_NOTICES.forget(source);
+        SCREEN_NOTICES.forget(source);
         // ANNOUNCED は残す: 一時停止から同じ曲を再開しても Now Playing を出し直さない (2026-10-09 本人裁定)。
     }
 
@@ -503,6 +534,7 @@ public final class GoldenCartClientPlayback {
         LATEST_REQUESTS.clear();
         BACKOFF.clear();
         LIMIT_NOTICES.forgetAll();
+        SCREEN_NOTICES.forgetAll();
         ACTIVE.values().forEach(playing -> playing.instance().stopAndRelease());
         ACTIVE.clear();
         ANNOUNCED.clear();
