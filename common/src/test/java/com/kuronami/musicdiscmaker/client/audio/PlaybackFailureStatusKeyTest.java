@@ -68,7 +68,7 @@ class PlaybackFailureStatusKeyTest {
         for (final Kind kind : Kind.values()) {
             distinct.add(kind.statusKey());
         }
-        assertEquals(13, distinct.size(), "共有していない分類が増減している: " + distinct);
+        assertEquals(14, distinct.size(), "共有していない分類が増減している: " + distinct);
     }
 
     private static Map<String, String> load(String file) throws IOException {

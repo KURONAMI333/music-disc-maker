@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.io.DataInput;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +12,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,7 +47,6 @@ import com.sedmelluq.discord.lavaplayer.source.local.LocalAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.local.LocalAudioTrack;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataLoader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataReader;
-import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudFormatHandler;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudPlaylistLoader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudDataLoader;
@@ -55,11 +56,15 @@ import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudPlaylistLoad
 import com.sedmelluq.discord.lavaplayer.source.twitch.TwitchStreamAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
+import com.sedmelluq.discord.lavaplayer.tools.JsonBrowser;
+import com.sedmelluq.discord.lavaplayer.tools.io.HttpClientTools;
+import com.sedmelluq.discord.lavaplayer.tools.io.HttpInterfaceManager;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioReference;
 import com.sedmelluq.discord.lavaplayer.track.AudioItem;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
+import com.sedmelluq.discord.lavaplayer.track.BasicAudioPlaylist;
 
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
 
@@ -1072,6 +1077,15 @@ public class MusicLoaderImpl implements IMusicLoader {
      */
     static final class PreviewAwareSoundCloud extends SoundCloudAudioSourceManager {
 
+        /**
+         * 署名付き CDN 用の HTTP。<b>SoundCloud のフィルタを通さない</b> — 素の
+         * {@code SoundCloudHttpContextFilter} は {@code sndcdn.com} 以外の host に
+         * {@code client_id} を足し、それが SoundCloud の署名付き URL
+         * ({@code playback.media-streaming.soundcloud.cloud}) を 403 にする。
+         */
+        private final HttpInterfaceManager mediaHttp =
+                HttpClientTools.createDefaultThreadLocalManager();
+
         private PreviewAwareSoundCloud(SoundCloudDataReader dataReader,
                 SoundCloudDataLoader dataLoader, SoundCloudFormatHandler formatHandler,
                 SoundCloudPlaylistLoader playlistLoader) {
@@ -1079,13 +1093,24 @@ public class MusicLoaderImpl implements IMusicLoader {
             super(true, dataReader, dataLoader, formatHandler, playlistLoader, true);
         }
 
-        /** {@code createDefault} と同じ部品で組む (あちらは戻り値の型が固定なので使えない)。 */
+        /**
+         * {@code createDefault} と同じ部品で組む (あちらは戻り値の型が固定なので使えない)。
+         *
+         * <p>format handler だけは AAC (fMP4) の HLS を足した {@link SoundCloudAacFormatHandler}。
+         * プレイリスト (set) の曲は manager を通らずに組み立てられるので、そちらも
+         * {@link AacAwarePlaylistLoader} で同じ差し替えを通す。
+         */
         static PreviewAwareSoundCloud create() {
             final SoundCloudDataReader dataReader = new DefaultSoundCloudDataReader();
             final SoundCloudDataLoader dataLoader = new DefaultSoundCloudDataLoader();
-            final SoundCloudFormatHandler formatHandler = new DefaultSoundCloudFormatHandler();
-            return new PreviewAwareSoundCloud(dataReader, dataLoader, formatHandler,
+            final SoundCloudAacFormatHandler formatHandler = new SoundCloudAacFormatHandler();
+            final AacAwarePlaylistLoader playlistLoader = new AacAwarePlaylistLoader(
                     new DefaultSoundCloudPlaylistLoader(dataLoader, dataReader, formatHandler));
+            final PreviewAwareSoundCloud manager = new PreviewAwareSoundCloud(dataReader,
+                    dataLoader, formatHandler, playlistLoader);
+            // 曲の組み立ては manager 側の口 (adapt) を借りる。生成順の都合でここで挿す。
+            playlistLoader.attach(manager);
+            return manager;
         }
 
         @Override
@@ -1095,8 +1120,94 @@ public class MusicLoaderImpl implements IMusicLoader {
                 throw new FriendlyException(FailureClassifier.PREVIEW_MARKER,
                         FriendlyException.Severity.COMMON, null);
             }
-            return track;
+            return adapt(track);
+        }
+
+        /**
+         * プレイリスト・検索・liked のすべてが通る組み立て口。AAC の曲だけ自前の track へ
+         * 差し替える (素の {@code SoundCloudAudioTrack} は {@code getM3uInfo} から素の m3u track を
+         * 作り、初期化セグメントを繋がないので鳴らない)。
+         */
+        @Override
+        protected AudioTrack loadFromTrackData(JsonBrowser trackData) {
+            return adapt(super.loadFromTrackData(trackData));
+        }
+
+        /**
+         * エンコード済み track の復元経路。ここだけ素の {@code SoundCloudAudioTrack} が
+         * 生き残ると、AAC の曲が「読み込みは成功・再生で失敗」になる。
+         */
+        @Override
+        public AudioTrack decodeTrack(AudioTrackInfo trackInfo, DataInput input) {
+            return adapt(super.decodeTrack(trackInfo, input));
+        }
+
+        @Override
+        public void shutdown() {
+            super.shutdown();
+            try {
+                mediaHttp.close();
+            } catch (IOException e) {
+                LOGGER.debug("Failed to close the SoundCloud media HTTP client", e);
+            }
+        }
+
+        /**
+         * AAC の HLS を指す曲を {@link SoundCloudAacHlsAudioTrack} に差し替える。それ以外は
+         * そのまま返す (YouTube・直リンク・SoundCloud の他形式の挙動を変えない)。
+         *
+         * @param track 差し替え前の track ({@code null} 可)
+         * @return 差し替え後の track
+         */
+        AudioTrack adapt(AudioTrack track) {
+            if (track == null) {
+                return null;
+            }
+            final String identifier = track.getInfo().identifier;
+            if (identifier == null || !identifier.startsWith(SoundCloudAacFormatHandler.AAC_PREFIX)
+                    || track instanceof SoundCloudAacHlsAudioTrack) {
+                return track;
+            }
+            return new SoundCloudAacHlsAudioTrack(track.getInfo(), this, mediaHttp,
+                    identifier.substring(SoundCloudAacFormatHandler.AAC_PREFIX.length()));
         }
     }
 
+    /**
+     * SoundCloud の set (プレイリスト) を読み、AAC の曲だけ自前の track へ差し替える薄い包み。
+     *
+     * <p>set の曲は {@code DefaultSoundCloudPlaylistLoader} が manager を通さずに
+     * {@code SoundCloudAudioTrack} として組み立てるので、{@code loadFromTrackData} の差し替えでは
+     * 届かない。ここを通さないと、set の URL を貼った時だけ「解決は成功・再生で無音」になる。
+     */
+    static final class AacAwarePlaylistLoader implements SoundCloudPlaylistLoader {
+
+        private final SoundCloudPlaylistLoader delegate;
+        /** 曲の差し替えを借りる相手。生成順の都合で構築後に挿す ({@code null} の間は素通し)。 */
+        private PreviewAwareSoundCloud owner;
+
+        AacAwarePlaylistLoader(SoundCloudPlaylistLoader delegate) {
+            this.delegate = delegate;
+        }
+
+        void attach(PreviewAwareSoundCloud owner) {
+            this.owner = owner;
+        }
+
+        @Override
+        public AudioPlaylist load(String identifier, HttpInterfaceManager httpInterfaceManager,
+                Function<AudioTrackInfo, AudioTrack> trackFactory) {
+            final AudioPlaylist playlist =
+                    delegate.load(identifier, httpInterfaceManager, trackFactory);
+            if (playlist == null || owner == null) {
+                return playlist;
+            }
+            final List<AudioTrack> tracks = new ArrayList<>(playlist.getTracks().size());
+            for (final AudioTrack track : playlist.getTracks()) {
+                tracks.add(owner.adapt(track));
+            }
+            return new BasicAudioPlaylist(playlist.getName(), tracks,
+                    owner.adapt(playlist.getSelectedTrack()), playlist.isSearchResult());
+        }
+    }
 }

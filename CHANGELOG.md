@@ -10,6 +10,7 @@
 - On Linux without a graphical file dialog, choosing a local file now says that the file picker could not open instead of doing nothing.
 - With Sound Physics Remastered installed, custom discs playing at a position now go through its reverb and occlusion. The Records volume slider is unchanged.
 - Custom discs displayed on shelves no longer recalculate their color every frame, fixing FPS drops when many discs are in view.
+- SoundCloud links, and the search for another copy when YouTube blocks the server, play again. Tracks that SoundCloud only serves with DRM now say so.
 
 Use the same Music Disc Maker version on the server and all clients.
 

@@ -74,6 +74,11 @@ public record PlaybackFailure(Kind kind, String detail) {
          */
         PREVIEW_ONLY("preview"),
         /**
+         * 音源が DRM で保護されていて復号できない ({@link FailureReason#DRM_PROTECTED} の再生側)。
+         * 制作機と同じ文面を出したいので GUI キーを共有する。
+         */
+        DRM_PROTECTED("drm"),
+        /**
          * 代替ソースを探したが同じ録音とみなせる候補が無かった
          * ({@link FailureReason#NO_ALTERNATIVE_FOUND} の再生側。再接続の再解決でここへ来る)。
          * 制作機側と同じ概念・同じ文面なので GUI キーを共有する。
@@ -132,6 +137,7 @@ public record PlaybackFailure(Kind kind, String detail) {
                 case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
                 case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
                 case PREVIEW_ONLY -> "gui.music_disc_maker.failed.preview";
+                case DRM_PROTECTED -> "gui.music_disc_maker.failed.drm";
                 case NO_ALTERNATIVE_FOUND -> "gui.music_disc_maker.failed.noalt";
                 // 再生時にしか起きないもの (制作機は URL を解決するだけなので相当する語が無い)。
                 case LOCAL_AUDIO -> "gui.music_disc_maker.failed.local_audio";
@@ -169,6 +175,7 @@ public record PlaybackFailure(Kind kind, String detail) {
                 case REFUSED -> "gui.music_disc_maker.status.refused";
                 case BOT_CHECK -> "gui.music_disc_maker.status.bot_check";
                 case PREVIEW_ONLY -> "gui.music_disc_maker.status.preview";
+                case DRM_PROTECTED -> "gui.music_disc_maker.status.drm";
                 case NO_ALTERNATIVE_FOUND -> "gui.music_disc_maker.status.no_alternative";
                 case LOCAL_AUDIO -> "gui.music_disc_maker.status.local_audio";
                 case MUTED -> "gui.music_disc_maker.status.muted";
@@ -246,6 +253,7 @@ public record PlaybackFailure(Kind kind, String detail) {
             // 制作機で弾いた曲でも、既に作られたディスクは再生時にここへ来る (再生も同じ
             // 解決経路を通るため。MusicLoaderImpl#openStreamDetailed)。
             case PREVIEW_ONLY -> Kind.PREVIEW_ONLY;
+            case DRM_PROTECTED -> Kind.DRM_PROTECTED;
             case NO_ALTERNATIVE_FOUND -> Kind.NO_ALTERNATIVE_FOUND;
             // 行動が既存の分類と同じものは寄せる (ガード拒否・回線)。
             case BLOCKED_URL -> Kind.BLOCKED_URL;
