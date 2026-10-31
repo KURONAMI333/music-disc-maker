@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
-import com.sedmelluq.discord.lavaplayer.format.StandardAudioDataFormats;
+import com.sedmelluq.discord.lavaplayer.format.Pcm16AudioDataFormat;
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
@@ -72,7 +72,9 @@ class SoundCloudAacPlaybackTest {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         base = "http://127.0.0.1:" + server.getAddress().getPort();
         playerManager = new DefaultAudioPlayerManager();
-        playerManager.getConfiguration().setOutputFormat(StandardAudioDataFormats.COMMON_PCM_S16_BE);
+        // 製品 (MusicLoaderImpl) と同じ 48 kHz・2ch。この fork の StandardAudioDataFormats.COMMON_PCM_S16_BE は
+        // 44.1 kHz なので、それを使うと 48 kHz 前提の換算で尺が約 92% に見える (2026-11-01 に取り違えた)。
+        playerManager.getConfiguration().setOutputFormat(new Pcm16AudioDataFormat(2, 48_000, 960, true));
     }
 
     @AfterEach
@@ -121,20 +123,20 @@ class SoundCloudAacPlaybackTest {
         return new SoundCloudAacHlsAudioTrack(info, manager, mediaHttp, base + "/lookup");
     }
 
-    /** 再生が終わるまでに取り出せた PCM のバイト数から、decode できた長さ (ms) を返す。 */
-    private long decodedMs(AudioTrack track, long seekToMs) throws Exception {
+    /** 再生が終わるまでに取り出せた PCM (48 kHz・2ch・16bit BE)。 */
+    private byte[] decodePcm(AudioTrack track, long seekToMs) throws Exception {
         final AudioPlayer player = playerManager.createPlayer();
         try {
             if (seekToMs > 0L) {
                 track.setPosition(seekToMs);
             }
             player.playTrack(track);
-            long bytes = 0L;
+            final java.io.ByteArrayOutputStream pcm = new java.io.ByteArrayOutputStream();
             int idle = 0;
             while (idle < 60) {
                 final AudioFrame frame = player.provide(100, TimeUnit.MILLISECONDS);
                 if (frame != null) {
-                    bytes += frame.getDataLength();
+                    pcm.write(frame.getData());
                     idle = 0;
                 } else if (player.getPlayingTrack() == null) {
                     break;
@@ -142,21 +144,48 @@ class SoundCloudAacPlaybackTest {
                     idle++;
                 }
             }
-            // COMMON_PCM_S16_BE = 48 kHz・2ch・16bit = 192 バイト/ms。
-            return bytes / 192L;
+            return pcm.toByteArray();
         } finally {
             player.destroy();
         }
     }
 
+    /** 48 kHz・2ch・16bit = 192 バイト/ms。 */
+    private long decodedMs(AudioTrack track, long seekToMs) throws Exception {
+        return decodePcm(track, seekToMs).length / 192L;
+    }
+
+    /** 左チャンネルの上向きゼロ交差から求めた周波数 (Hz)。 */
+    private static double toneHz(byte[] pcm) {
+        final java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(pcm);
+        int crossings = 0;
+        int first = -1;
+        int last = -1;
+        short prev = 0;
+        for (int i = 0; i < pcm.length / 4; i++) {
+            final short left = buf.getShort(i * 4);
+            if (prev < 0 && left >= 0) {
+                crossings++;
+                if (first < 0) {
+                    first = i;
+                }
+                last = i;
+            }
+            prev = left;
+        }
+        return (crossings - 1) * 48_000.0 / (last - first);
+    }
+
     @Test
     void initPlusSegmentsDecodeEndToEndWithRelativeUrls() throws Exception {
-        final long ms = decodedMs(serveFixtureTrack(), 0L);
-        // 取りこぼし (init の欠落・セグメントの脱落) は尺の大幅な不足として出る。この fixture は
-        // ffmpeg 製で、LavaPlayer の AAC 経路では実尺の約 92% で出てくる (実際の SoundCloud 3 曲は
-        // 実尺と一致 = link-probe-20261101 の記録。差の原因は未特定) ので、下限は 85% に置く。
-        assertTrue(ms > FIXTURE_MS * 85L / 100L && ms < FIXTURE_MS * 105L / 100L,
+        final byte[] pcm = decodePcm(serveFixtureTrack(), 0L);
+        final long ms = pcm.length / 192L;
+        // 取りこぼし (init の欠落・セグメントの脱落) は尺の不足として出る。
+        assertTrue(ms > FIXTURE_MS * 95L / 100L && ms < FIXTURE_MS * 105L / 100L,
                 "decoded " + ms + " ms of " + FIXTURE_MS);
+        // 44.1 kHz の音源が 48 kHz へ正しく変換されていれば 440 Hz のまま (取り違えると約 479 Hz)。
+        final double hz = toneHz(pcm);
+        assertTrue(Math.abs(hz - 440.0) < 5.0, "tone " + hz + " Hz");
     }
 
     @Test
