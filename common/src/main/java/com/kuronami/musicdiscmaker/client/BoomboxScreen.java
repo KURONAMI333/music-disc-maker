@@ -470,10 +470,11 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         }
         final String sentence = font.plainSubstrByWidth(
                 Component.translatable(failure.kind().statusKey()).getString(), FAIL_W);
+        final int x = FAIL_X + (FAIL_W - font.width(sentence)) / 2;
         //? if >=26.1 {
-        graphics.text(font, sentence, FAIL_X, FAIL_Y, ERROR, false);
+        graphics.text(font, sentence, x, FAIL_Y, ERROR, false);
         //?} else {
-        /*graphics.drawString(font, sentence, FAIL_X, FAIL_Y, ERROR, false);
+        /*graphics.drawString(font, sentence, x, FAIL_Y, ERROR, false);
         *///?}
     }
 
