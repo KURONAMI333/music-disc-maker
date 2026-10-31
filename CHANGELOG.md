@@ -3,6 +3,7 @@
 ## 3.1.3
 
 - Choosing a local audio file now starts the import right after the file check, without pressing the same button a second time.
+- A disc made in a different world, such as one carried over from a single-player world to a server, now plays from the client's verified audio cache instead of staying silent.
 - Fixed a disc that was out of range, or playing with directional audio off, showing [MUTED] when no volume setting was actually muted.
 - Playback failures no longer appear in chat. The Golden Jukebox and Boombox screens show the reason where available, and the details stay in the log.
 - The Music Disc Maker recipe now appears in the recipe book once you have iron ingots or lapis lazuli, not only a Note Block.
