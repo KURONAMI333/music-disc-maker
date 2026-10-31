@@ -94,6 +94,15 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfig {
         return current == null ? 0 : current.volumePercent();
     }
 
+    /**
+     * 選択点に依存しない、利用者設定の音量。frame 未選択でも 0 にしない。
+     * {@link #volumePercent()} の 0 は「範囲外・遷移待ち」であり、スライダーでは直せない。
+     */
+    @Override
+    public int configuredVolumePercent() {
+        return currentConfig().volumePercent();
+    }
+
     @Override
     public double gainMultiplier() {
         refreshSelection();
@@ -112,7 +121,7 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfig {
             return;
         }
         final Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
+        if (minecraft == null || minecraft.player == null) {
             frame = null;
             return;
         }
@@ -189,7 +198,7 @@ public final class MultiSpeakerAnchor implements DiscAnchor, LiveAudioConfig {
         }
         final BlockPos configPos = sourceAnchor instanceof LiveConfigAnchor live ? live.configPos() : null;
         final Minecraft minecraft = Minecraft.getInstance();
-        if (configPos != null && minecraft.level != null && minecraft.level.isLoaded(configPos)
+        if (configPos != null && minecraft != null && minecraft.level != null && minecraft.level.isLoaded(configPos)
                 && minecraft.level.getBlockEntity(configPos) instanceof GoldenJukeboxBlockEntity golden) {
             return new AudioConfig(golden.getRangeBlocks(), golden.getVolumePercent(), golden.isDirectional());
         }
