@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioStore;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioServer;
@@ -48,6 +49,13 @@ public final class LocalAudioClient {
     private static LocalAudioStore cache;
     private static volatile String status = "select";
     private static volatile int percent;
+    /** Linux の TinyFileDialogs backend 判定。null = 未判定。 */
+    private static volatile Boolean pickerUsable;
+    /** picker の警告は 1 セッション 1 回 (押すたびに同じ行を出さない)。 */
+    private static final java.util.concurrent.atomic.AtomicBoolean pickerUnavailableWarned =
+            new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.atomic.AtomicBoolean pickerNullWarned =
+            new java.util.concurrent.atomic.AtomicBoolean();
     private LocalAudioClient() {}
     public static Component status() {
         Upload u = SESSION.upload;
@@ -55,6 +63,11 @@ public final class LocalAudioClient {
                 "confirm".equals(status) && u != null ? u.name : percent);
     }
     public static boolean uploading() { return SESSION.upload != null; }
+    /** 取込中の表示名 (画面の左上に出す。曲名が読めたらファイル名から置き換わる)。取込中でなければ空。 */
+    public static String currentName() {
+        Upload u = SESSION.upload;
+        return u == null ? "" : u.name;
+    }
     /** 待機中以外の案内文がある時だけ画面へ出す (idle の "select" は行を空ける)。 */
     public static boolean hasStatus() { return SESSION.upload != null || !"select".equals(status); }
     /** OS選択は画面スレッド、ファイル検査・変換は専用ワーカー。選択後の共有曲名を確認してから開始する。 */
@@ -163,6 +176,11 @@ public final class LocalAudioClient {
     *///?} else {
     public static void select(MusicDiscMakerMenu menu) {
         if (SESSION.upload != null) return;
+        if (pickerUnusable()) {
+            status = "picker_unavailable";
+            warnPickerUnavailableOnce();
+            return;
+        }
         String selected;
         try (MemoryStack stack = MemoryStack.stackPush()) {
             var filters = stack.mallocPointer(LocalImportDecisions.PICKER_PATTERNS.length);
@@ -171,14 +189,77 @@ public final class LocalAudioClient {
             selected = TinyFileDialogs.tinyfd_openFileDialog(
                     Component.translatable("gui.music_disc_maker.local.picker_title").getString(), "", filters,
                     Component.translatable("gui.music_disc_maker.local.filter_desc").getString(), false);
+        } catch (Throwable failure) {
+            // 例外の message は jar のパス等を含み得るので、型名だけを残す。
+            MusicDiscMaker.LOGGER.warn("File picker failed ({})", failure.getClass().getSimpleName());
+            status = "import_failed";
+            return;
         }
-        if (selected != null) startSelected(menu, selected);
+        if (selected == null) {
+            // tinyfd は「取消」と「backend 失敗」のどちらでも null を返す。既存の取消動作は
+            // 変えず (status も触らず idle のまま)、診断用に一度だけ警告を残す。
+            warnPickerNullOnce();
+            return;
+        }
+        startSelected(menu, selected);
+    }
+
+    /**
+     * Linux で GUI のファイル選択を開けない環境か。GUI セッションの有無で先に弾く。
+     *
+     * <p>LWJGL の TinyFileDialogs は C API の {@code tinyfd_query} を公開していないため、
+     * 実際に選ばれる backend は分からない。PATH 上に既知のダイアログ実装があるかだけを見て、
+     * GUI セッションが無い (または実装が無い) 環境は不可に倒す。そこで TinyFileDialogs は
+     * 端末向け backend に落ちて null を返し、取消と区別できない。判定は machine ごとに 1 回でよい。
+     * Wayland 表示だけの環境も TinyFileDialogs の GUI は開けないので不可に倒す。
+     */
+    private static boolean pickerUnusable() {
+        Boolean usable = pickerUsable;
+        if (usable == null) {
+            final String os = System.getProperty("os.name", "");
+            usable = !LocalImportDecisions.pickerSessionUnavailable(os,
+                    System.getenv("DISPLAY"), System.getenv("WAYLAND_DISPLAY"),
+                    LocalAudioClient::isOnPath);
+            pickerUsable = usable;
+        }
+        return !usable;
+    }
+
+    /**
+     * PATH 上の実行ファイルか。名前だけを調べ、パスはログにも状態にも残さない。
+     * ディレクトリを実行ファイルと誤認しないよう、判定は {@link LocalImportDecisions} に置く。
+     */
+    private static boolean isOnPath(String executable) {
+        return LocalImportDecisions.isExecutableOnPath(executable, System.getenv("PATH"));
+    }
+
+    /** 1 セッション 1 回だけ。DISPLAY/WAYLAND は有無だけを出し、PATH や個人パスは出さない。 */
+    private static void warnPickerUnavailableOnce() {
+        if (!pickerUnavailableWarned.compareAndSet(false, true)) return;
+        final String backend = LocalImportDecisions.firstDialogBackendOnPath(LocalAudioClient::isOnPath);
+        MusicDiscMaker.LOGGER.warn(
+                "File picker unavailable (os={}, display={}, wayland={}, backend={}); "
+                        + "the local file import picker cannot open in this session",
+                System.getProperty("os.name", ""), presence(System.getenv("DISPLAY")),
+                presence(System.getenv("WAYLAND_DISPLAY")), backend == null ? "none" : backend);
+    }
+
+    private static void warnPickerNullOnce() {
+        if (!pickerNullWarned.compareAndSet(false, true)) return;
+        MusicDiscMaker.LOGGER.warn(
+                "File picker returned no path (cancel or native failure); treating it as a cancel");
+    }
+
+    private static String presence(String value) {
+        return value == null || value.isBlank() ? "unset" : "set";
     }
     //?}
 
     private static void startSelected(MusicDiscMakerMenu menu, String selected) {
         long generation = ++operation;
         Upload u = new Upload(menu, generation, SESSION.connectionGeneration);
+        // 検査が終わる前から画面の左上に選択したファイル名を出す。prepare が曲名を読めたら上書きする。
+        u.name = LocalImportDecisions.displayNameFor(selected);
         SESSION.upload = u; status = "checking";
         Thread worker = new Thread(() -> prepare(u, selected), "mdm-local-audio-import");
         worker.setDaemon(true);
@@ -256,7 +337,9 @@ public final class LocalAudioClient {
             u.name = u.name.substring(0, Math.min(256, u.name.length())).replaceAll("[\\p{Cntrl}]", "");
             Minecraft.getInstance().execute(() -> {
                 if (!SESSION.live(u)) { cleanup(u); return; }
+                // 選択後の確認クリックを省く。名前は画面の左上に出るので、やり直す時は × で取り消せる。
                 status = "confirm";
+                confirm();
             });
         } catch (Throwable e) {
             // impl jar 破損等の Error でもスロット・一時ファイル・状態を残さない。
@@ -371,6 +454,9 @@ public final class LocalAudioClient {
      * 失敗にせず間を空けて取り直す。再生位置は呼び出し側が待ち時間ぶん進めて開く。
      * 待機は再生ワーカーだけ。main/render thread から呼ばない。
      *
+     * <p>サーバーが {@code missing} を返した時 (別ワールドで作った盤を持ち込んだ等) は、手元の
+     * キャッシュが盤のハッシュと一致していればそれを返す ({@link #verifiedCachedCopy})。
+     *
      * @param stillCurrent この再生がまだ有効か (null = 判定なし)。無効になったら取り直しをやめる
      */
     public static Path obtain(String hash, java.util.function.BooleanSupplier stillCurrent) throws Exception {
@@ -381,6 +467,14 @@ public final class LocalAudioClient {
             try {
                 return obtainOnce(hash);
             } catch (ExecutionException e) {
+                if (isMissing(e.getCause())) {
+                    Path cached = verifiedCachedCopy(hash);
+                    if (cached != null) {
+                        MusicDiscMaker.LOGGER.info(
+                                "Server has no original for {}; playing the verified copy in the local cache", hash);
+                        return cached;
+                    }
+                }
                 if (!isBusy(e.getCause()) || connection != SESSION.connectionGeneration
                         || System.currentTimeMillis() + delay > deadline
                         || stillCurrent != null && !stillCurrent.getAsBoolean()) throw e;
@@ -393,6 +487,35 @@ public final class LocalAudioClient {
     private static boolean isBusy(Throwable cause) {
         return cause instanceof IOException io
                 && ("busy".equals(io.getMessage()) || "Audio downloads busy".equals(io.getMessage()));
+    }
+
+    /** サーバーが「このワールドに原本が無い」と答えた時の名前。 */
+    private static boolean isMissing(Throwable cause) {
+        return cause instanceof IOException io && "missing".equals(io.getMessage());
+    }
+
+    /**
+     * ローカルキャッシュの、盤のハッシュと一致する原本 (再生スレッドから呼ぶ)。
+     *
+     * <p>別ワールドで作った盤をサーバーへ持ち込むと、サーバー側のワールドには原本が無いので
+     * {@code missing} が返る。それでも手元のキャッシュが盤のハッシュと一致していれば、
+     * その盤の音は確かにその盤のものなので鳴らす。一致しなければ null。
+     */
+    private static Path verifiedCachedCopy(String hash) {
+        final CompletableFuture<Path> found = new CompletableFuture<>();
+        IO.execute(() -> {
+            try {
+                ensureCache();
+                found.complete(cache.verified(hash));
+            } catch (Exception e) {
+                found.completeExceptionally(e);
+            }
+        });
+        try {
+            return found.get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static Path obtainOnce(String hash) throws Exception {

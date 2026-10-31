@@ -45,6 +45,15 @@ class LocalAudioClientImportTest {
         assertEquals("file.name", LocalImportDecisions.displayName("file.name.unknown9"));
     }
 
+    /** 選択パスから左上の欄へ出す名前。パスとして読めない時は欄を書き換えない。 */
+    @Test
+    void displayNameForSelectedPathStripsDirectoryAndExtension() {
+        assertEquals("song", LocalImportDecisions.displayNameFor("/tmp/music/song.mp3"));
+        assertEquals("live show", LocalImportDecisions.displayNameFor("live show.flac"));
+        assertEquals("", LocalImportDecisions.displayNameFor(""));
+        assertEquals("badname", LocalImportDecisions.displayNameFor("bad\u0001name.ogg"));
+    }
+
     /** 失敗の detail (normalizer の固定文言) が利用者向け status に分かれる。 */
     @Test
     void failureStatusMapsNormalizerDetails() {
