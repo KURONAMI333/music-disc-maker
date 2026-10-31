@@ -2,11 +2,13 @@ package com.kuronami.musicdiscmaker.lavaplayer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +21,6 @@ import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceM
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudHelper;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudSegmentDecoder;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
-import com.sedmelluq.discord.lavaplayer.tools.http.HttpStreamTools;
 import com.sedmelluq.discord.lavaplayer.tools.io.ChainedInputStream;
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpClientTools;
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpInterface;
@@ -127,7 +128,72 @@ final class SoundCloudAacHlsAudioTrack extends DelegatedAudioTrack {
         }
         final String[] lines = HttpClientTools.fetchResponseLines(media, new HttpGet(playbackUrl),
                 "stream segments list");
-        return new SegmentList(findInitSegmentUrl(lines), HlsStreamSegmentParser.parseFromLines(lines));
+        final String initUrl = findInitSegmentUrl(lines);
+        final List<HlsStreamSegment> parsed = HlsStreamSegmentParser.parseFromLines(lines);
+        final List<HlsStreamSegment> resolved = new ArrayList<>(parsed.size());
+        for (final HlsStreamSegment segment : parsed) {
+            resolved.add(new HlsStreamSegment(resolveUrl(playbackUrl, segment.url), segment.duration,
+                    segment.name));
+        }
+        return new SegmentList(initUrl == null ? null : resolveUrl(playbackUrl, initUrl), resolved);
+    }
+
+    /**
+     * プレイリストの中の URL を、プレイリスト自身の URL を基準に絶対 URL にする。HLS は
+     * 相対 URL を許すので、そのまま {@code HttpGet} に渡すと失敗する。絶対 URL はそのまま返る。
+     *
+     * @param base      プレイリストの URL
+     * @param reference プレイリストの行にあった URL (相対でも絶対でも可)
+     * @return 絶対 URL。解釈できない時は {@code reference} のまま
+     */
+    static String resolveUrl(String base, String reference) {
+        if (reference == null) {
+            return null;
+        }
+        try {
+            return URI.create(base).resolve(reference.trim()).toString();
+        } catch (IllegalArgumentException e) {
+            return reference;
+        }
+    }
+
+    /**
+     * セグメント・初期化セグメントを取りに行く。失敗の文に<b>署名付き URL を入れない</b>
+     * (素の {@code HttpStreamTools.streamContent} は URL 全文を例外に書き、ログと利用者向けの
+     * 詳細に出る上、長すぎて {@code FailureClassifier} がステータスを読めず UNKNOWN になる)。
+     *
+     * @param http    メディア用 interface
+     * @param request 取得要求
+     * @return 本文の stream
+     */
+    static InputStream openSegment(HttpInterface http, HttpGet request) {
+        final CloseableHttpResponse response;
+        try {
+            response = http.execute(request);
+        } catch (IOException e) {
+            throw new FriendlyException("SoundCloud segment request failed.",
+                    FriendlyException.Severity.SUSPICIOUS, e);
+        }
+        try {
+            final int status = response.getStatusLine().getStatusCode();
+            if (!HttpClientTools.isSuccessWithContent(status)) {
+                throw new FriendlyException(
+                        "SoundCloud segment request failed with status code " + status,
+                        FriendlyException.Severity.SUSPICIOUS, null);
+            }
+            return response.getEntity().getContent();
+        } catch (IOException | RuntimeException e) {
+            try {
+                response.close();
+            } catch (IOException closing) {
+                e.addSuppressed(closing);
+            }
+            if (e instanceof FriendlyException friendly) {
+                throw friendly;
+            }
+            throw new FriendlyException("SoundCloud segment request failed.",
+                    FriendlyException.Severity.SUSPICIOUS, e);
+        }
     }
 
     /**
@@ -222,10 +288,10 @@ final class SoundCloudAacHlsAudioTrack extends DelegatedAudioTrack {
         private InputStream getNextStream() {
             if (this.initSegmentPending) {
                 this.initSegmentPending = false;
-                return HttpStreamTools.streamContent(this.media, new HttpGet(this.initSegmentUrl));
+                return openSegment(this.media, new HttpGet(this.initSegmentUrl));
             }
             final HlsStreamSegment segment = this.getNextSegment();
-            return segment == null ? null : HttpStreamTools.streamContent(this.media, new HttpGet(segment.url));
+            return segment == null ? null : openSegment(this.media, new HttpGet(segment.url));
         }
 
         private void updateSegmentList() {

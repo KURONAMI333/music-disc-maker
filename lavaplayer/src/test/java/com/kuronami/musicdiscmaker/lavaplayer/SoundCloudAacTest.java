@@ -300,6 +300,9 @@ class SoundCloudAacTest {
         assertNotNull(failure);
         assertNotEquals(FailureReason.UNKNOWN, FailureClassifier.classify(failure),
                 "a 404 segment must not be UNKNOWN: " + messages(failure));
+        assertEquals(FailureReason.SOURCE_REFUSED, FailureClassifier.classify(failure));
+        assertFalse(messages(failure).contains("127.0.0.1"),
+                "the segment URL must not appear in the failure: " + messages(failure));
     }
 
     @Test

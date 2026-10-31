@@ -52,6 +52,7 @@ import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceM
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudDataLoader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudDataReader;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudFormatHandler;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudTrackFormat;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudPlaylistLoader;
 import com.sedmelluq.discord.lavaplayer.source.twitch.TwitchStreamAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
@@ -1104,8 +1105,11 @@ public class MusicLoaderImpl implements IMusicLoader {
             final SoundCloudDataReader dataReader = new DefaultSoundCloudDataReader();
             final SoundCloudDataLoader dataLoader = new DefaultSoundCloudDataLoader();
             final SoundCloudAacFormatHandler formatHandler = new SoundCloudAacFormatHandler();
+            // set の曲は isTrackBlocked が true の曲を黙って飛ばす。DRM・試聴版の曲 1 件で
+            // set 全体が落ちないよう、その判定を format handler の結果から作る。
             final AacAwarePlaylistLoader playlistLoader = new AacAwarePlaylistLoader(
-                    new DefaultSoundCloudPlaylistLoader(dataLoader, dataReader, formatHandler));
+                    new DefaultSoundCloudPlaylistLoader(dataLoader,
+                            new SkippingDataReader(dataReader, formatHandler), formatHandler));
             final PreviewAwareSoundCloud manager = new PreviewAwareSoundCloud(dataReader,
                     dataLoader, formatHandler, playlistLoader);
             // 曲の組み立ては manager 側の口 (adapt) を借りる。生成順の都合でここで挿す。
@@ -1113,14 +1117,42 @@ public class MusicLoaderImpl implements IMusicLoader {
             return manager;
         }
 
+        /**
+         * 今のスレッドが「単曲の URL を読む」経路にいるか。単曲なら DRM・試聴版を理由つきの
+         * 例外にし、一覧 (検索・liked) なら該当の曲だけ飛ばす。ライブラリは一覧の曲を 1 件ずつ
+         * {@code loadFromTrackData} で組み立て、例外を握らないので、1 件の DRM で検索全体が
+         * 落ちていた (2026-11-01 実測: {@code scsearch:ODESZA Say My Name})。
+         */
+        private static final ThreadLocal<Boolean> SINGLE_TRACK = ThreadLocal.withInitial(() -> false);
+
         @Override
         public AudioTrack loadTrack(String identifier, boolean allowFilter) {
-            final AudioTrack track = super.loadTrack(identifier, allowFilter);
+            final boolean outer = SINGLE_TRACK.get();
+            SINGLE_TRACK.set(true);
+            final AudioTrack track;
+            try {
+                track = super.loadTrack(identifier, allowFilter);
+            } finally {
+                SINGLE_TRACK.set(outer);
+            }
             if (track == null && allowFilter) {
                 throw new FriendlyException(FailureClassifier.PREVIEW_MARKER,
                         FriendlyException.Severity.COMMON, null);
             }
             return adapt(track);
+        }
+
+        /** 一覧の結果から、飛ばした曲の {@code null} を除く (後段が {@code get(0)} 等で踏まないように)。 */
+        @Override
+        public AudioItem loadItem(AudioPlayerManager manager, AudioReference reference) {
+            final AudioItem item = super.loadItem(manager, reference);
+            if (item instanceof AudioPlaylist playlist && playlist.getTracks().contains(null)) {
+                final List<AudioTrack> kept = new ArrayList<>(playlist.getTracks());
+                kept.removeIf(Objects::isNull);
+                return new BasicAudioPlaylist(playlist.getName(), kept, playlist.getSelectedTrack(),
+                        playlist.isSearchResult());
+            }
+            return item;
         }
 
         /**
@@ -1130,7 +1162,22 @@ public class MusicLoaderImpl implements IMusicLoader {
          */
         @Override
         protected AudioTrack loadFromTrackData(JsonBrowser trackData) {
-            return adapt(super.loadFromTrackData(trackData));
+            try {
+                return adapt(super.loadFromTrackData(trackData));
+            } catch (FriendlyException e) {
+                if (!SINGLE_TRACK.get() && isUnplayableMarker(e)) {
+                    LOGGER.debug("Skipping a SoundCloud track in a list: {}", e.getMessage());
+                    return null;
+                }
+                throw e;
+            }
+        }
+
+        /** DRM・試聴版だけの曲を示す、MDM 自身の目印か。 */
+        static boolean isUnplayableMarker(FriendlyException e) {
+            final String message = e.getMessage();
+            return FailureClassifier.DRM_MARKER.equals(message)
+                    || FailureClassifier.PREVIEW_MARKER.equals(message);
         }
 
         /**
@@ -1208,6 +1255,78 @@ public class MusicLoaderImpl implements IMusicLoader {
             }
             return new BasicAudioPlaylist(playlist.getName(), tracks,
                     owner.adapt(playlist.getSelectedTrack()), playlist.isSearchResult());
+        }
+    }
+
+    /**
+     * set (プレイリスト) の曲のうち、DRM・試聴版だけで鳴らせない曲を
+     * {@code isTrackBlocked} として申告する reader。ライブラリの set loader は blocked の曲を
+     * 飛ばすので、1 件の DRM で set 全体が落ちなくなる。判定は format handler と同じ結果を使う。
+     */
+    static final class SkippingDataReader implements SoundCloudDataReader {
+
+        private final SoundCloudDataReader delegate;
+        private final SoundCloudFormatHandler formatHandler;
+
+        SkippingDataReader(SoundCloudDataReader delegate, SoundCloudFormatHandler formatHandler) {
+            this.delegate = delegate;
+            this.formatHandler = formatHandler;
+        }
+
+        @Override
+        public boolean isTrackBlocked(JsonBrowser trackData) {
+            if (delegate.isTrackBlocked(trackData)) {
+                return true;
+            }
+            try {
+                formatHandler.chooseBestFormat(delegate.readTrackFormats(trackData));
+                return false;
+            } catch (FriendlyException e) {
+                return PreviewAwareSoundCloud.isUnplayableMarker(e);
+            } catch (RuntimeException e) {
+                // 未知の形式などは従来どおり、読み込みの側で落とす。
+                return false;
+            }
+        }
+
+        @Override
+        public JsonBrowser findTrackData(JsonBrowser rootData) {
+            return delegate.findTrackData(rootData);
+        }
+
+        @Override
+        public String readTrackId(JsonBrowser trackData) {
+            return delegate.readTrackId(trackData);
+        }
+
+        @Override
+        public AudioTrackInfo readTrackInfo(JsonBrowser trackData, String identifier) {
+            return delegate.readTrackInfo(trackData, identifier);
+        }
+
+        @Override
+        public List<SoundCloudTrackFormat> readTrackFormats(JsonBrowser trackData) {
+            return delegate.readTrackFormats(trackData);
+        }
+
+        @Override
+        public JsonBrowser findPlaylistData(JsonBrowser rootData, String kind) {
+            return delegate.findPlaylistData(rootData, kind);
+        }
+
+        @Override
+        public String readPlaylistName(JsonBrowser playlistData) {
+            return delegate.readPlaylistName(playlistData);
+        }
+
+        @Override
+        public String readPlaylistIdentifier(JsonBrowser playlistData) {
+            return delegate.readPlaylistIdentifier(playlistData);
+        }
+
+        @Override
+        public List<JsonBrowser> readPlaylistTracks(JsonBrowser playlistData) {
+            return delegate.readPlaylistTracks(playlistData);
         }
     }
 }

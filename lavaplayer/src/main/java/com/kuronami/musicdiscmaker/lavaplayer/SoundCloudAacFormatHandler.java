@@ -41,7 +41,15 @@ final class SoundCloudAacFormatHandler implements SoundCloudFormatHandler {
     private final DefaultSoundCloudFormatHandler delegate = new DefaultSoundCloudFormatHandler();
 
     @Override
-    public SoundCloudTrackFormat chooseBestFormat(List<SoundCloudTrackFormat> formats) {
+    public SoundCloudTrackFormat chooseBestFormat(List<SoundCloudTrackFormat> allFormats) {
+        // 試聴版 (SoundCloud が全長の曲に 30 秒だけ付ける transcoding) を最初に外す。素の handler は
+        // 試聴版の mp3 を AAC の全長より優先して選ぶので、残すと全長の曲でも試聴版を掴む。
+        final List<SoundCloudTrackFormat> formats = allFormats.stream()
+                .filter(format -> !isPreview(format)).toList();
+        if (formats.isEmpty() && !allFormats.isEmpty()) {
+            throw new FriendlyException(FailureClassifier.PREVIEW_MARKER,
+                    FriendlyException.Severity.COMMON, null);
+        }
         try {
             return delegate.chooseBestFormat(formats);
         } catch (RuntimeException unsupported) {
@@ -97,6 +105,20 @@ final class SoundCloudAacFormatHandler implements SoundCloudFormatHandler {
         final String mimeType = format.getMimeType();
         return PROTOCOL_HLS.equals(format.getProtocol()) && mimeType != null
                 && (mimeType.equals(MIME_MP4) || mimeType.startsWith(MIME_MP4 + ";"));
+    }
+
+    /**
+     * 試聴版 (数十秒だけの切り抜き) の transcoding か。SoundCloud は全長でない版の URL を
+     * {@code .../preview/hls}・{@code .../preview/progressive} とし、全長は {@code .../stream/...}。
+     * JSON では {@code snipped: true}・{@code policy: SNIP} が付くが、{@code SoundCloudTrackFormat}
+     * に載るのは URL だけなので URL で見る (2026-11-01 実測: Dua Lipa「Levitating」)。
+     *
+     * @param format 判定する形式 ({@code null} 可)
+     * @return 試聴版なら {@code true}
+     */
+    static boolean isPreview(SoundCloudTrackFormat format) {
+        return format != null && format.getLookupUrl() != null
+                && format.getLookupUrl().contains("/preview/");
     }
 
     private static SoundCloudTrackFormat findHlsMp4(List<SoundCloudTrackFormat> formats) {

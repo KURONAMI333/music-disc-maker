@@ -12,6 +12,10 @@ of the distributed jar) to stream and decode audio from URLs:
   - youtube-source (dev.lavalink.youtube)
     https://github.com/lavalink-devs/youtube-source
 
+Parts of Music Disc Maker's SoundCloud AAC playback code are modified from
+lavaplayer pull request #202 (Apache License 2.0):
+https://github.com/lavalink-devs/lavaplayer/pull/202
+
 Plus their transitive dependencies (Jackson, Apache HttpClient/Codec,
 jsoup, Mozilla Rhino, SLF4J, nanojson, and others). See LICENSE-DEPENDENCIES
 for the per-library license summary.
