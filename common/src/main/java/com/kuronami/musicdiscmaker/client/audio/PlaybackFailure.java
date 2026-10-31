@@ -98,8 +98,8 @@ public record PlaybackFailure(Kind kind, String detail) {
         /**
          * GUI に出す<b>短い文</b>の翻訳キー ({@link FailureReason#guiKey()} と同じ役割・同じ名前空間)。
          *
-         * <p>{@link #translationKey()} と分けてあるのは宛先が違うから。あちらはログとチャットに
-         * 出る技術寄りの 1 文で、こちらは画面の帯に折り返して収まる利用者向けの文。
+         * <p>{@link #translationKey()} と分けてあるのは宛先が違うから。あちらはログに出る
+         * 技術寄りの 1 文で、こちらは画面の帯に折り返して収まる利用者向けの文。
          * 金ジュークの画面に出るのは<b>こちら</b> ({@code GoldenJukeboxScreen})。
          *
          * <p>制作機側と<b>同じキーを共有する</b> — 制作機が「取得できない」と言う理由と、
@@ -142,6 +142,38 @@ public record PlaybackFailure(Kind kind, String detail) {
                 // こちらは解決できたのに鳴らせなかった状態なので、言うことが違う。
                 case STREAM_UNAVAILABLE, OPEN_ERROR, SOUND_ENGINE ->
                         "gui.music_disc_maker.failed.generic";
+            };
+        }
+
+        /**
+         * ブームボックスの<b>1 行</b>に出す短い文の翻訳キー ({@code gui.music_disc_maker.status.*})。
+         *
+         * <p>{@link #guiKey()} とは別に持つ。あちらは制作機・金ジュークと同じキーで、
+         * 文が長く「別のリンクをお試しください」まで含む。ブームボックスの帯は 128px で
+         * 折り返さないので、理由だけを短く言い切る語をここに置く。
+         *
+         * <p>{@link #guiKey()} と同じく {@code default} を書かない網羅 switch。分類を増やした時に
+         * <b>コンパイラに検出させる</b>ため。利用者に打つ手が無い 3 つは
+         * {@code guiKey()} と同じ理由で 1 つのキーに集約する。
+         *
+         * @return 1 行表示の翻訳キー
+         */
+        public String statusKey() {
+            return switch (this) {
+                case CONCURRENT_LIMIT -> "gui.music_disc_maker.status.limit";
+                case UNSUPPORTED_URL, BLOCKED_URL -> "gui.music_disc_maker.status.unsupported";
+                case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.status.removed";
+                case REGION_LOCKED -> "gui.music_disc_maker.status.region";
+                case AGE_RESTRICTED -> "gui.music_disc_maker.status.age";
+                case NETWORK -> "gui.music_disc_maker.status.network";
+                case REFUSED -> "gui.music_disc_maker.status.refused";
+                case BOT_CHECK -> "gui.music_disc_maker.status.bot_check";
+                case PREVIEW_ONLY -> "gui.music_disc_maker.status.preview";
+                case NO_ALTERNATIVE_FOUND -> "gui.music_disc_maker.status.no_alternative";
+                case LOCAL_AUDIO -> "gui.music_disc_maker.status.local_audio";
+                case MUTED -> "gui.music_disc_maker.status.muted";
+                case STREAM_UNAVAILABLE, OPEN_ERROR, SOUND_ENGINE ->
+                        "gui.music_disc_maker.status.generic";
             };
         }
     }

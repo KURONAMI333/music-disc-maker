@@ -123,6 +123,7 @@
   "gui.music_disc_maker.local.busy": "전송 혼잡. 나중에 다시",
   "gui.music_disc_maker.local.disc": "빈 음반을 넣고 출력 칸을 비우세요",
   "gui.music_disc_maker.local.import_failed": "파일을 가져오지 못함",
+  "gui.music_disc_maker.local.picker_unavailable": "파일 선택 창을 열 수 없음",
   "gui.music_disc_maker.local.download_failed": "오디오를 받지 못함",
   "gui.music_disc_maker.local.quota": "256 MiB 공간이 가득 참",
   "gui.music_disc_maker.local.world_full": "월드의 2 GiB 공간이 가득 참",

@@ -123,6 +123,7 @@
   "gui.music_disc_maker.local.busy": "Передача зайнята; пізніше",
   "gui.music_disc_maker.local.disc": "Порожня платівка й вихід",
   "gui.music_disc_maker.local.import_failed": "Не вдалося імпортувати",
+  "gui.music_disc_maker.local.picker_unavailable": "Не вдалося відкрити вибір файлу",
   "gui.music_disc_maker.local.download_failed": "Звук не отримано",
   "gui.music_disc_maker.local.quota": "Ваші 256 МіБ заповнено",
   "gui.music_disc_maker.local.world_full": "2 ГіБ світу заповнено",

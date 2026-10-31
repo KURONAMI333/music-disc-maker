@@ -123,6 +123,7 @@
   "gui.music_disc_maker.local.busy": "Transferencia ocupada; reintenta",
   "gui.music_disc_maker.local.disc": "Disco en blanco y salida vacía",
   "gui.music_disc_maker.local.import_failed": "No se pudo importar",
+  "gui.music_disc_maker.local.picker_unavailable": "No se pudo abrir el selector de archivos",
   "gui.music_disc_maker.local.download_failed": "No se pudo recibir el audio",
   "gui.music_disc_maker.local.quota": "Tus 256 MiB están llenos",
   "gui.music_disc_maker.local.world_full": "Los 2 GiB del mundo están llenos",
