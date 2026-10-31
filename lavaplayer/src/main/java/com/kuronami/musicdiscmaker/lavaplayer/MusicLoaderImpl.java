@@ -1087,7 +1087,8 @@ public class MusicLoaderImpl implements IMusicLoader {
         private final HttpInterfaceManager mediaHttp =
                 HttpClientTools.createDefaultThreadLocalManager();
 
-        private PreviewAwareSoundCloud(SoundCloudDataReader dataReader,
+        // package-private: 試験が data loader を差し替えて単曲の経路を通すため。
+        PreviewAwareSoundCloud(SoundCloudDataReader dataReader,
                 SoundCloudDataLoader dataLoader, SoundCloudFormatHandler formatHandler,
                 SoundCloudPlaylistLoader playlistLoader) {
             // 引数の並びは createDefault と同じ。最後の true だけが違う (= 試聴版を弾く)。
@@ -1146,7 +1147,9 @@ public class MusicLoaderImpl implements IMusicLoader {
         @Override
         public AudioItem loadItem(AudioPlayerManager manager, AudioReference reference) {
             final AudioItem item = super.loadItem(manager, reference);
-            if (item instanceof AudioPlaylist playlist && playlist.getTracks().contains(null)) {
+            // contains(null) は List.of 系の不変リストで NPE を投げるので使わない。
+            if (item instanceof AudioPlaylist playlist
+                    && playlist.getTracks().stream().anyMatch(Objects::isNull)) {
                 final List<AudioTrack> kept = new ArrayList<>(playlist.getTracks());
                 kept.removeIf(Objects::isNull);
                 return new BasicAudioPlaylist(playlist.getName(), kept, playlist.getSelectedTrack(),

@@ -123,6 +123,9 @@ class SoundCloudAacPlaybackTest {
         return new SoundCloudAacHlsAudioTrack(info, manager, mediaHttp, base + "/lookup");
     }
 
+    /** 直近の {@link #decodePcm} で最初に出てきたフレームの timecode (ms)。 */
+    private long firstTimecode = -1L;
+
     /** 再生が終わるまでに取り出せた PCM (48 kHz・2ch・16bit BE)。 */
     private byte[] decodePcm(AudioTrack track, long seekToMs) throws Exception {
         final AudioPlayer player = playerManager.createPlayer();
@@ -132,10 +135,14 @@ class SoundCloudAacPlaybackTest {
             }
             player.playTrack(track);
             final java.io.ByteArrayOutputStream pcm = new java.io.ByteArrayOutputStream();
+            firstTimecode = -1L;
             int idle = 0;
             while (idle < 60) {
                 final AudioFrame frame = player.provide(100, TimeUnit.MILLISECONDS);
                 if (frame != null) {
+                    if (firstTimecode < 0L) {
+                        firstTimecode = frame.getTimecode();
+                    }
                     pcm.write(frame.getData());
                     idle = 0;
                 } else if (player.getPlayingTrack() == null) {
@@ -191,8 +198,11 @@ class SoundCloudAacPlaybackTest {
     @Test
     void seekStartsAtTheContainingSegment() throws Exception {
         final long ms = decodedMs(serveFixtureTrack(), 2_500L);
-        // seek はセグメント単位 (2.043 s 境界) で、desired 位置までは捨てる。残りは約 1.5 s。
-        assertTrue(ms > 1_000L && ms < 2_100L, "decoded " + ms + " ms after seeking to 2500 ms");
+        // seek はセグメント単位 (2.020 s 境界) で、desired 位置までは捨てる。残りは 4.040 - 2.500 = 1.54 s。
+        // 捨てずに流すと 2.02 s になるので、幅はそれを弾く狭さにする。
+        assertTrue(Math.abs(ms - (FIXTURE_MS - 2_500L)) < 150L, "decoded " + ms + " ms after seeking to 2500 ms");
+        // 最初のフレームは要求した位置から始まる (セグメントの頭 2020 ms ではない)。
+        assertTrue(Math.abs(firstTimecode - 2_500L) < 50L, "first frame at " + firstTimecode + " ms");
     }
 
     // ---- 相対 URL ----------------------------------------------------------------------------
@@ -220,6 +230,16 @@ class SoundCloudAacPlaybackTest {
             assertFalse(thrown.getMessage().contains("127.0.0.1"), thrown.getMessage());
             assertFalse(thrown.getMessage().contains("secret"), thrown.getMessage());
             assertEquals(FailureReason.SOURCE_REFUSED, FailureClassifier.classify(thrown));
+        }
+    }
+
+    @Test
+    void malformedSegmentUrlFailsWithoutTheUrl() throws Exception {
+        try (HttpInterface http = mediaHttp.getInterface()) {
+            final FriendlyException thrown = assertThrows(FriendlyException.class,
+                    () -> SoundCloudAacHlsAudioTrack.openSegment(http, "https://cdn.example/a b?X-Amz-Signature=secret"));
+            assertFalse(thrown.getMessage().contains("secret"), thrown.getMessage());
+            assertNull(thrown.getCause());
         }
     }
 
@@ -305,5 +325,50 @@ class SoundCloudAacPlaybackTest {
         assertTrue(reader.isTrackBlocked(trackJson(DRM_JSON)));
         assertTrue(reader.isTrackBlocked(trackJson(PREVIEW_JSON)));
         assertFalse(reader.isTrackBlocked(trackJson(FULL_JSON)));
+    }
+
+    // ---- 単曲 URL (ライブラリの loadItem → processAsSingleTrack → loadTrack の経路) -------------
+
+    private static MusicLoaderImpl.PreviewAwareSoundCloud managerServing(JsonBrowser track) {
+        final SoundCloudAacFormatHandler formatHandler = new SoundCloudAacFormatHandler();
+        final DefaultSoundCloudDataReader dataReader = new DefaultSoundCloudDataReader();
+        final com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudDataLoader offline =
+                (http, url) -> track;
+        return new MusicLoaderImpl.PreviewAwareSoundCloud(dataReader, offline, formatHandler,
+                new DefaultSoundCloudPlaylistLoader(offline, dataReader, formatHandler));
+    }
+
+    private FailureReason singleUrlFailure(JsonBrowser track) {
+        final MusicLoaderImpl.PreviewAwareSoundCloud manager = managerServing(track);
+        try {
+            final FriendlyException thrown = assertThrows(FriendlyException.class,
+                    () -> manager.loadItem(playerManager,
+                            new com.sedmelluq.discord.lavaplayer.track.AudioReference(
+                                    "https://soundcloud.com/u/t", null)));
+            return FailureClassifier.classify(thrown);
+        } finally {
+            manager.shutdown();
+        }
+    }
+
+    @Test
+    void singleUrlOfAPreviewOnlyTrackFailsAsPreviewOnly() throws Exception {
+        assertEquals(FailureReason.PREVIEW_ONLY, singleUrlFailure(trackJson(PREVIEW_JSON)));
+    }
+
+    @Test
+    void singleUrlOfADrmTrackFailsAsDrmProtected() throws Exception {
+        assertEquals(FailureReason.DRM_PROTECTED, singleUrlFailure(trackJson(DRM_JSON)));
+    }
+
+    @Test
+    void singleUrlOfAFullAacTrackLoads() throws Exception {
+        final MusicLoaderImpl.PreviewAwareSoundCloud manager = managerServing(trackJson(FULL_JSON));
+        try {
+            assertInstanceOf(SoundCloudAacHlsAudioTrack.class, manager.loadItem(playerManager,
+                    new com.sedmelluq.discord.lavaplayer.track.AudioReference("https://soundcloud.com/u/t", null)));
+        } finally {
+            manager.shutdown();
+        }
     }
 }

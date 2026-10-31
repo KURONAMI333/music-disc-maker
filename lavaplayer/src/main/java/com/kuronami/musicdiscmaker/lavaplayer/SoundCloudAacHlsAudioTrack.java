@@ -162,6 +162,25 @@ final class SoundCloudAacHlsAudioTrack extends DelegatedAudioTrack {
      * (素の {@code HttpStreamTools.streamContent} は URL 全文を例外に書き、ログと利用者向けの
      * 詳細に出る上、長すぎて {@code FailureClassifier} がステータスを読めず UNKNOWN になる)。
      *
+     * @param http メディア用 interface
+     * @param url  セグメントの URL (署名付き)
+     * @return 本文の stream
+     */
+    static InputStream openSegment(HttpInterface http, String url) {
+        final HttpGet request;
+        try {
+            request = new HttpGet(url);
+        } catch (IllegalArgumentException e) {
+            // HttpGet は URL 全文を例外の文に入れる。署名付き URL を外へ出さないため原因を付けない。
+            throw new FriendlyException("SoundCloud sent a segment URL this player cannot read.",
+                    FriendlyException.Severity.SUSPICIOUS, null);
+        }
+        return openSegment(http, request);
+    }
+
+    /**
+     * {@link #openSegment(HttpInterface, String)} の本体。
+     *
      * @param http    メディア用 interface
      * @param request 取得要求
      * @return 本文の stream
@@ -288,10 +307,10 @@ final class SoundCloudAacHlsAudioTrack extends DelegatedAudioTrack {
         private InputStream getNextStream() {
             if (this.initSegmentPending) {
                 this.initSegmentPending = false;
-                return openSegment(this.media, new HttpGet(this.initSegmentUrl));
+                return openSegment(this.media, this.initSegmentUrl);
             }
             final HlsStreamSegment segment = this.getNextSegment();
-            return segment == null ? null : openSegment(this.media, new HttpGet(segment.url));
+            return segment == null ? null : openSegment(this.media, segment.url);
         }
 
         private void updateSegmentList() {
