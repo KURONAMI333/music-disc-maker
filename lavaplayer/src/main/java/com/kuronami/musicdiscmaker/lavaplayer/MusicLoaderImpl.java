@@ -160,25 +160,18 @@ public class MusicLoaderImpl implements IMusicLoader {
     private static final long SUBSTITUTE_BUDGET_MS = 20_000L;
 
     /**
-     * 制作時に<b>1 回だけ</b>予算を取り直す量。{@link #SUBSTITUTE_BUDGET_MS} を使い切って
-     * 時間切れになった時の二巡目。
-     *
-     * <p>予算で切るのは「遅い回線で利用者を待たせ続けない」ためで、曲が無いという結論では
-     * ない。一巡目で 2 つの検索が両方とも応答を返さないと、候補が在るかどうかも分からないまま
-     * 盤を作れないことになる。そこで<b>制作時だけ</b>もう一度だけ予算を置き直す。
-     *
-     * <p>再生時は取り直さない。鳴らなかった盤は鳴らないままで、client 側のやり直し
-     * ({@code TransientOpenRetry}) に任せた方が、聞いている間の待ち時間が短い。
-     */
-    private static final long SUBSTITUTE_REFILL_BUDGET_MS = 15_000L;
-
-    /**
      * 一覧 (検索結果・set・liked) から落とした曲を埋め直す時の、一覧 1 つ分の予算。
      *
      * <p>1 曲ずつ探すので、単曲の予算をそのまま積むと一覧が返らない。上限で頭を押さえ、
      * 使い切ったら残りは従来どおり落とす (一覧そのものは出る)。
+     *
+     * <p><b>{@link #LOAD_TIMEOUT_MS} より十分短くする</b>。埋め戻しは一覧を読む
+     * {@code apm.loadItem} の<b>内側</b>で走るので、呼び出し側が待っている時計
+     * ({@code LOAD_TIMEOUT_MS}) にこの予算がそのまま積まれる。30 秒にすると、
+     * 一覧の取得に時間がかかった時に埋め戻しの途中で呼び出し側が打ち切り、
+     * 「代わりが見つからなかった」ではなく {@code CONNECTION_FAILED} になる。
      */
-    private static final long LIST_SUBSTITUTE_BUDGET_MS = 30_000L;
+    private static final long LIST_SUBSTITUTE_BUDGET_MS = 15_000L;
 
     /**
      * 再生時に見つけた代替 URL を覚えておく件数。
@@ -285,13 +278,51 @@ public class MusicLoaderImpl implements IMusicLoader {
     private volatile UrlGate urlGate;
 
     /**
-     * 今のスレッドが「一覧から落とした曲の代わりを探す」検索の中に居るか。
+     * この読み込みで返る一覧を<b>どこまで使うか</b>。{@link ListReadReference} に載せて
+     * 要求ごとに渡す。使わない分は埋め戻さない — 代わりを探す 1 回が 8 秒なので、読まない
+     * 曲のために待つと、一覧そのものが返らなくなる。
      *
-     * <p>一覧の埋め戻しは {@code apm.loadItem} で検索を走らせる。その検索が返す一覧でも同じ
-     * ことをすると、1 曲の代わりを探すためにさらに一覧を埋め戻そうとして待ち時間が積み上がる
-     * (入れ子の一覧で落とした曲まで探す意味も薄い)。内側では埋め戻さない。
+     * <ul>
+     * <li>{@link #NONE} — 一覧を使わない (単曲 URL・再生・置き換え先の検索)。埋め戻しをせず、
+     *     {@code null} だけ落とす。</li>
+     * <li>{@link #FIRST_TRACK} — 先頭 1 曲だけ使う ({@code ytsearch:} の解決 = Spotify 経路と
+     *     検索クエリ)。<b>先頭が落ちた時だけ</b>代わりを 1 回探す。</li>
+     * <li>{@link #WHOLE_LIST} — 一覧の全件を並べる (set・liked 等)。落ちた曲を位置ごとに
+     *     埋め戻す。現在の mod 側 API ({@code IMusicLoader}) に一覧を返す口は無いので、
+     *     実運用で来るのは検索の {@link #FIRST_TRACK} だけ。全件の埋め戻しは
+     *     {@link #fillSubstitutes} として残してある。</li>
+     * </ul>
      */
-    static final ThreadLocal<Boolean> LIST_SUBSTITUTE_SUPPRESSED = ThreadLocal.withInitial(() -> false);
+    enum ListUse {
+        NONE, FIRST_TRACK, WHOLE_LIST
+    }
+
+    /**
+     * 「この一覧をどこまで使うか」を {@code apm.loadItem} の<b>向こう側まで</b>運ぶ目印。
+     *
+     * <h2>なぜスレッドに持たせないか</h2>
+     * {@code DefaultAudioPlayerManager#loadItem} は要求を info-loader のスレッドプールへ
+     * {@code submit} し、source manager は<b>そのプールのスレッド</b>で動く (同梱の
+     * lavaplayer 2.2.4 を javap で確認)。呼び出し側の {@code ThreadLocal} はそこへ届かないので、
+     * 「今は一覧の埋め戻し中だから内側では埋め戻さない」をスレッドで表すと<b>常に false</b> になり、
+     * 入れ子の検索でも埋め戻しが走る (1 曲の代わりを探すために一覧を丸ごと読み直し、
+     * 待ち時間が積み上がる)。
+     *
+     * <p>そこで目印は<b>要求そのもの</b>に載せる。{@code checkSourcesForItemOnce} は受け取った
+     * {@link AudioReference} をそのまま source manager へ渡すので、この派生クラスは
+     * プールのスレッドまで届く。
+     */
+    static final class ListReadReference extends AudioReference {
+
+        /** 一覧の全件を使うか ({@code false} = 先頭 1 曲だけ使う)。 */
+        final ListUse use;
+
+        ListReadReference(String identifier, ListUse use) {
+            // title は使わない (lavaplayer の読み込みは identifier だけで分岐する)。
+            super(identifier, null);
+            this.use = use;
+        }
+    }
 
     /**
      * 再生時に見つけた代替 URL と、それを覚えておく期限。
@@ -451,10 +482,15 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
         final AudioTrack track;
         try {
-            track = loadTrackSync(url);
+            // 検索は先頭 1 曲しか使わない (下の playlistLoaded で get(0))。読まない 2 件目以降の
+            // ために代わりを探すと、1 曲 8 秒の検索が一覧の数だけ積み上がる。
+            // 検索以外 (単曲) は、返る一覧を丸ごと使う前提で渡す。
+            final String normalized = normalizeYoutubeUrl(url);
+            track = loadTrackSync(normalized,
+                    isSearch(normalized) ? ListUse.FIRST_TRACK : ListUse.WHOLE_LIST);
         } catch (final ResolveException ex) {
             final TrackInfo substitute = ex instanceof UnplayableSoundCloudResolve soundCloud
-                    ? substituteForSoundCloud(url, soundCloud.track, true)
+                    ? substituteForSoundCloud(url, soundCloud.track)
                     : substituteForYoutube(normalizeYoutubeUrl(url), ex.reason());
             if (substitute != null) {
                 return substitute;
@@ -520,7 +556,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         final String query = (meta[1].isBlank() ? "" : meta[1] + " ") + meta[0];
         final AudioTrack yt;
         try {
-            yt = loadTrackSync("ytsearch:" + query);
+            yt = loadTrackSync("ytsearch:" + query, ListUse.FIRST_TRACK);
         } catch (final ResolveException ex) {
             // Spotify 経路は最終的に YouTube 検索に落ちるので、YouTube が弾かれると道連れになる。
             // 曲名は既に og タグから取れているので oEmbed は要らない。検索が bot 判定で弾かれると
@@ -628,20 +664,18 @@ public class MusicLoaderImpl implements IMusicLoader {
      *
      * @param originUrl 元の SoundCloud URL (ログ用・slug の取得元)
      * @param track     鳴らせなかった曲の情報
-     * @param mayRefill 予算を使い切った時に 1 回だけ取り直してよいか (制作時のみ true)
      * @return 代わりに使えるトラック。検索に踏み切れなかった場合は {@code null}
      * @throws ResolveException 検索が実際に走って使える候補が無かった
      *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
      */
-    private TrackInfo substituteForSoundCloud(String originUrl, UnplayableSoundCloudTrack track,
-            boolean mayRefill) {
+    private TrackInfo substituteForSoundCloud(String originUrl, UnplayableSoundCloudTrack track) {
         final String title = track.title.isBlank() ? titleFromSoundCloudUrl(originUrl) : track.title;
         final SourceMetadata source = sourceMetadata(title, track.author, YoutubeWatchPage.Result.EMPTY);
         LOGGER.info("SoundCloud cannot stream the full track ({}); looking for another source", originUrl);
         return substitute(SOUNDCLOUD_SUBSTITUTE_PREFIXES, title, source.searchTitle(),
                 source.searchAuthor(), source.displayTitle(), source.displayAuthor(), originUrl, null,
                 new YoutubeWatchPage.Result(track.fullDurationMs, "", "", ""),
-                clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS, mayRefill);
+                clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
     }
 
     /**
@@ -651,16 +685,16 @@ public class MusicLoaderImpl implements IMusicLoader {
      * {@link FailureReason#NO_ALTERNATIVE_FOUND} を投げる (D45 / D46。「探したが無かった」を
      * 元の理由と取り違えないため)。{@code null} が返るのは<b>検索を走らせ切れなかった時</b> —
      * 曲名が空で query を作れない時、アーティストも尺も分からず一致を判定できない時、
-     * 予算を使い切った時、そして<b>検索そのものが失敗した時</b> ({@code loadFailed} / 時間切れ)。
-     * その場合は呼び出し側が従来の失敗に落ちる。無理に何か鳴らさない — 違う曲が鳴るのは、
-     * 鳴らないより悪い。
+     * 曲名だけでは弱すぎる時、予算を使い切った時、そして<b>検索そのものが失敗した時</b>
+     * ({@code loadFailed} / 時間切れ)。その場合は呼び出し側が従来の失敗に落ちる。
+     * 無理に何か鳴らさない — 違う曲が鳴るのは、鳴らないより悪い。
      *
      * <h2>アーティストが分からない時は曲名だけで引く</h2>
      * SoundCloud の set や投稿者名を欠いた track JSON ではアーティストが空になる。そこで
      * 検索ごと諦めると、曲名は分かっているのに盤が作れない。曲名だけで引き、候補の側では
-     * <b>アーティスト名を名乗っていること</b>と<b>尺</b>を要求する
-     * ({@link TrackMatch#sameRecordingWithoutKnownArtist})。尺が分からない時は探さない
-     * (同名異曲を弾く材料が残らない)。
+     * <b>曲名の語が十分にあること</b> ({@link TrackMatch#titleAloneCanIdentify})、
+     * <b>尺が近いこと</b> ({@link TrackMatch#durationNear})、<b>同じ投稿者の曲であること</b>
+     * (SoundCloud の候補だけ) を要求する。
      *
      * <h2>尺で抜粋を落とし、残った中では元に一番近いものを採る</h2>
      * 同じ曲名・同じアーティストでも<b>尺の違う版が並ぶ</b> (2026-08-18 実測: Interscope が
@@ -688,22 +722,20 @@ public class MusicLoaderImpl implements IMusicLoader {
             String displayTitle, String displayAuthor, String originUrl,
             String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
         return substitute(ALTERNATE_SEARCH_PREFIXES, markerTitle, title, author, displayTitle,
-                displayAuthor, originUrl, watchUrl, watchResult, deadline, true);
+                displayAuthor, originUrl, watchUrl, watchResult, deadline);
     }
 
     /**
      * {@link #substitute(String, String, String, String, String, String, String, YoutubeWatchPage.Result, long)}
      * の本体。探す先 ({@code prefixes}) を呼び出し側が選べる。
      *
-     * @param prefixes  順に試す検索の接頭辞
-     * @param mayRefill 予算を使い切った時に 1 回だけ取り直してよいか
-     *                  ({@link #SUBSTITUTE_REFILL_BUDGET_MS})
+     * @param prefixes 順に試す検索の接頭辞
      */
     private TrackInfo substitute(String[] prefixes, String markerTitle, String title, String author,
             String displayTitle, String displayAuthor, String originUrl,
-            String watchUrl, YoutubeWatchPage.Result watchResult, long deadline, boolean mayRefill) {
+            String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
         final Match match = searchSubstitute(prefixes, markerTitle, title, author, originUrl, watchUrl,
-                watchResult, deadline, mayRefill);
+                watchResult, deadline);
         if (match == null) {
             return null;
         }
@@ -724,18 +756,20 @@ public class MusicLoaderImpl implements IMusicLoader {
     /**
      * 代替ソースを検索し、同じ録音とみなせる候補を 1 つ返す。
      *
-     * <p>アーティストが空なら曲名だけで引き、{@link TrackMatch#sameRecordingWithoutKnownArtist} と
-     * 尺で判定する。尺も分からない時は<b>検索しない</b> — 曲名だけでは同名異曲・カバーを弾けない。
+     * <p>アーティストが空なら曲名だけで引き、{@link TrackMatch#sameRecordingWithoutKnownArtist}・
+     * {@link TrackMatch#durationNear}・{@link #sameUploader} で判定する。尺も分からない時は
+     * <b>検索しない</b> — 曲名だけでは同名異曲・カバーを弾けない。
      *
-     * <p>予算は {@link #clockMs} で測る。テストは時計を進めて時間切れを作れる。
+     * <p>予算は {@link #clockMs} で測る。テストは時計を進めて時間切れを作れる。<b>予算を
+     * 取り直さない</b>: 一巡で使い切ったら諦める (取り直すと、一覧の埋め戻しの内側で走った時に
+     * 呼び出し側の待ち時間がその分だけ伸びる)。
      *
      * @return 一致した候補。検索を走らせ切れなかった場合は {@code null}
      * @throws ResolveException 検索が実際に走って使える候補が無かった
      *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
      */
     private Match searchSubstitute(String[] prefixes, String markerTitle, String title, String author,
-            String originUrl, String watchUrl, YoutubeWatchPage.Result watchResult, long deadline,
-            boolean mayRefill) {
+            String originUrl, String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
         if (title.isBlank()) {
             return null;
         }
@@ -747,26 +781,25 @@ public class MusicLoaderImpl implements IMusicLoader {
             LOGGER.info("No artist and no length to judge a match for ({}); not searching", originUrl);
             return null;
         }
+        if (!artistKnown && !TrackMatch.titleAloneCanIdentify(title)) {
+            // 1〜2 語の曲名は他の曲にも付く一般名で、検索語として弱い。アーティストも無いなら、
+            // 検索しても同名の別の曲を拾うだけになる。
+            LOGGER.info("The title is too short to identify a recording without an artist ({}); not searching",
+                    originUrl);
+            return null;
+        }
         final String query = artistKnown ? author + " " + title : title;
         // 検索そのものが失敗したか。0 件とは別物 — 0 件は「探したが無かった」、失敗は
         // 「探せていない」で、呼び出し側が次に取れる手が違う (失敗を 0 件に潰すと、
         // 元の理由が一時的なのに「代わりも無い」と確定させてしまう)。
         boolean searchFailed = false;
-        boolean refilled = false;
         for (int i = 0; i < prefixes.length; i++) {
-            long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - clockMs.getAsLong());
+            final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - clockMs.getAsLong());
             if (budget <= 0L) {
-                if (!mayRefill || refilled) {
-                    LOGGER.info("Ran out of time while looking for an alternate source ({})", originUrl);
-                    return null;
-                }
-                // 一巡目で使い切った。制作時だけ予算を置き直し、同じ接頭辞から引き直す。
-                refilled = true;
-                deadline = clockMs.getAsLong() + SUBSTITUTE_REFILL_BUDGET_MS;
-                budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, SUBSTITUTE_REFILL_BUDGET_MS);
-                LOGGER.info("Out of time looking for an alternate source ({}); retrying once", originUrl);
+                LOGGER.info("Ran out of time while looking for an alternate source ({})", originUrl);
+                return null;
             }
-            final Candidates candidates = loadCandidates(prefixes[i] + query, budget);
+            final Candidates candidates = searchCandidates(prefixes[i] + query, budget);
             searchFailed |= candidates.failed();
             final List<AudioTrack> matched = new ArrayList<>();
             for (final AudioTrack candidate : candidates.tracks()) {
@@ -779,7 +812,11 @@ public class MusicLoaderImpl implements IMusicLoader {
                         ? TrackMatch.sameRecordingFromCleanSource(markerTitle, title, author,
                                 info.title, info.author)
                         : TrackMatch.sameRecordingWithoutKnownArtist(markerTitle, title,
-                                info.title, info.author);
+                                info.title, info.author)
+                                // 曲名だけの経路は材料が 1 つしかない。尺を近くに絞り、
+                                // SoundCloud の候補は同じ投稿者のものだけ採る。
+                                && TrackMatch.durationNear(sourceMs, info.length)
+                                && sameUploader(originUrl, info);
                 if (same) {
                     matched.add(candidate);
                 }
@@ -858,40 +895,99 @@ public class MusicLoaderImpl implements IMusicLoader {
      * 全件がそうなら {@code noMatches} になって「対応外のリンクです」という嘘になる。落とした
      * 曲の情報が残っているので、単曲の時と同じ検索で代わりを探し、<b>同じ位置</b>へ戻す。
      *
-     * <p>set は落とした曲を<b>位置ごと消す</b>ので、対応する {@code null} が無い。余った分は
-     * 末尾へ足す (曲が消えるより、順序が後ろへ寄る方がまし)。
+     * <h2>位置で戻す理由</h2>
+     * 落とした曲は<b>落とした時の並び順</b> ({@link DroppedTrack#position()}) で戻す。一覧には
+     * こちらが記録していない {@code null} も混ざる (ライブラリが自分で弾いた曲) ので、順番に
+     * 詰めると落とした曲が<b>別の曲の枠</b>に入り、選ぶ曲が変わってしまう。記録の位置に
+     * {@code null} が無い時 (set のようにライブラリが詰めた時・別の曲が座っていた時) だけ、
+     * 位置の分からない記録を順に置き、それも無ければ末尾へ足す。
+     *
+     * <h2>先頭だけ使う一覧</h2>
+     * {@code headOnly} は「呼び出し側が先頭 1 曲しか使わない」経路 ({@code ytsearch:} の解決)。
+     * <b>先頭が生きているなら 1 回も検索しない</b> — 読まない 2 件目以降のために待たない。
+     * 先頭が落ちていて代わりも見つからない時は {@code null} を残したまま返す。2 件目を先頭へ
+     * 繰り上げると<b>別の曲が鳴る</b>。
      *
      * <p>予算は {@link #LIST_SUBSTITUTE_BUDGET_MS} で一覧 1 つ分。使い切ったら残りは従来どおり
      * 落とす — 一覧そのものは返す。
      *
-     * @param tracks  読み込み済みの一覧 ({@code null} = 落とした曲)
-     * @param dropped 落とした曲 (読んだ順)
-     * @return 埋め直した一覧
+     * @param tracks   読み込み済みの一覧 ({@code null} = 落とした曲)
+     * @param dropped  落とした曲 (読んだ順。位置は {@link DroppedTrack#position()})
+     * @param headOnly 先頭 1 曲だけを使うか
+     * @return 埋め直した一覧。埋め戻しをしなかった時は {@code tracks} そのもの
      */
-    List<AudioTrack> fillSubstitutes(List<AudioTrack> tracks, List<DroppedTrack> dropped) {
+    List<AudioTrack> fillSubstitutes(List<AudioTrack> tracks, List<DroppedTrack> dropped,
+            boolean headOnly) {
         final long deadline = clockMs.getAsLong() + LIST_SUBSTITUTE_BUDGET_MS;
-        final Iterator<DroppedTrack> next = dropped.iterator();
+        final boolean[] claimed = new boolean[dropped.size()];
+        if (headOnly) {
+            if (tracks.isEmpty() || tracks.get(0) != null) {
+                return tracks;
+            }
+            final AudioTrack replacement = substituteAt(dropped, claimed, 0, deadline);
+            if (replacement == null) {
+                return tracks;
+            }
+            final List<AudioTrack> filled = new ArrayList<>(tracks.size());
+            filled.add(replacement);
+            filled.addAll(tracks.subList(1, tracks.size()));
+            return filled;
+        }
         final List<AudioTrack> filled = new ArrayList<>(tracks.size() + dropped.size());
-        for (final AudioTrack track : tracks) {
+        for (int i = 0; i < tracks.size(); i++) {
+            final AudioTrack track = tracks.get(i);
             if (track != null) {
                 filled.add(track);
                 continue;
             }
-            if (!next.hasNext()) {
-                continue;
-            }
-            final AudioTrack replacement = substituteListEntry(next.next(), deadline);
+            final AudioTrack replacement = substituteAt(dropped, claimed, i, deadline);
             if (replacement != null) {
                 filled.add(replacement);
             }
         }
-        while (next.hasNext()) {
-            final AudioTrack replacement = substituteListEntry(next.next(), deadline);
+        // 記録の位置に枠が無かった分 (set のようにライブラリが詰めた・別の曲が座っていた) は
+        // 末尾へ足す。曲が消えるより、順序が後ろへ寄る方がまし。
+        for (int i = 0; i < dropped.size(); i++) {
+            if (claimed[i]) {
+                continue;
+            }
+            claimed[i] = true;
+            final AudioTrack replacement = substituteListEntry(dropped.get(i), deadline);
             if (replacement != null) {
                 filled.add(replacement);
             }
         }
         return filled;
+    }
+
+    /**
+     * 位置 {@code index} の {@code null} に入れる代わりを探す。
+     *
+     * <p>まず<b>その位置で落ちた</b>曲を探す。無ければ位置の分からない記録 (ライブラリが
+     * 自分で弾いた曲) を読んだ順に使う。位置が分かっている別の曲は使わない — 別の曲の枠へ
+     * 入れると、選ぶ曲が変わってしまう。
+     *
+     * @param dropped  落とした曲
+     * @param claimed  既に使った記録 ({@code true} へ書き換える)
+     * @param index    埋めたい位置
+     * @param deadline 一覧 1 つ分の予算の締切 (壁時計 ms)
+     * @return 代わりに並べるトラック。無ければ {@code null}
+     */
+    private AudioTrack substituteAt(List<DroppedTrack> dropped, boolean[] claimed, int index,
+            long deadline) {
+        for (int i = 0; i < dropped.size(); i++) {
+            if (!claimed[i] && dropped.get(i).position() == index) {
+                claimed[i] = true;
+                return substituteListEntry(dropped.get(i), deadline);
+            }
+        }
+        for (int i = 0; i < dropped.size(); i++) {
+            if (!claimed[i] && dropped.get(i).position() < 0) {
+                claimed[i] = true;
+                return substituteListEntry(dropped.get(i), deadline);
+            }
+        }
+        return null;
     }
 
     /**
@@ -918,13 +1014,41 @@ public class MusicLoaderImpl implements IMusicLoader {
         try {
             final Match match = searchSubstitute(SOUNDCLOUD_SUBSTITUTE_PREFIXES, title,
                     source.searchTitle(), source.searchAuthor(), dropped.url(), null,
-                    new YoutubeWatchPage.Result(dropped.durationMs(), "", "", ""), deadline, false);
+                    new YoutubeWatchPage.Result(dropped.durationMs(), "", "", ""), deadline);
             return match == null ? null : match.track();
         } catch (final ResolveException ex) {
             // 一覧では「代わりも無い」を伝える相手が居ない (1 曲分の話)。従来どおり落とす。
             LOGGER.debug("No substitute for a dropped list entry ({})", dropped.url(), ex);
             return null;
         }
+    }
+
+    /**
+     * 候補が元の曲と<b>同じ投稿者のもの</b>かを、SoundCloud の住所で確かめる。
+     *
+     * <p>アーティスト名が分からないまま曲名だけで引くと、同名の再アップロードやカバーが並ぶ。
+     * SoundCloud の曲の住所は {@code /<投稿者>/<slug>} なので、元の URL の投稿者の部分と
+     * 候補の住所・投稿者名を突き合わせれば、同じ人が上げた曲かを検索の往復なしで判定できる。
+     *
+     * <p><b>SoundCloud 以外の候補には掛けない</b>。YouTube のチャンネル名は SoundCloud の
+     * 投稿者 slug を持たないので、常に不一致になって別サービス経由の回復が丸ごと死ぬ。
+     *
+     * @param originUrl 元の曲の URL
+     * @param candidate 候補の曲
+     * @return 同じ投稿者と確認できなければ {@code false}。判定できない時 (元やすべての候補が
+     *         SoundCloud でない・投稿者を読めない) は {@code true} (他の材料で判定する)
+     */
+    private static boolean sameUploader(String originUrl, AudioTrackInfo candidate) {
+        if (!isSoundCloudTarget(originUrl) || !isSoundCloudTarget(candidate.uri)) {
+            return true;
+        }
+        final String path = slugOf(originUrl);
+        final int slash = path.indexOf('/');
+        final String uploader = slash < 0 ? path : path.substring(0, slash);
+        if (uploader.isEmpty()) {
+            return true;
+        }
+        return TrackMatch.mentionsArtist(uploader, slugOf(candidate.uri), candidate.author);
     }
 
     /**
@@ -963,16 +1087,22 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @return 曲名として読んだ slug。読めなければ空
      */
     static String titleFromSoundCloudUrl(String url) {
-        final String path = slugOf(url);
+        String path = slugOf(url);
+        // 問い合わせと断片を先に落とす。後で落とすと `/label/song-title/` の後ろに付いた
+        // `?utm=...` が slug の一部として検索語に混ざる。
+        final int query = path.indexOf('?');
+        if (query >= 0) {
+            path = path.substring(0, query);
+        }
+        final int fragment = path.indexOf('#');
+        if (fragment >= 0) {
+            path = path.substring(0, fragment);
+        }
         final int slash = path.indexOf('/');
         if (slash < 0) {
             return "";
         }
         String slug = path.substring(slash + 1);
-        final int query = slug.indexOf('?');
-        if (query >= 0) {
-            slug = slug.substring(0, query);
-        }
         final int nestedSlash = slug.indexOf('/');
         if (nestedSlash >= 0) {
             slug = slug.substring(0, nestedSlash);
@@ -980,7 +1110,21 @@ public class MusicLoaderImpl implements IMusicLoader {
         if (slug.isEmpty() || SOUNDCLOUD_NON_TRACK_PATHS.contains(slug.toLowerCase(Locale.ROOT))) {
             return "";
         }
+        // SoundCloud は同じ曲名の 2 件目以降に `-2` `-3` を足す。連番は曲名ではないので落とす。
+        slug = percentDecoded(slug).replaceFirst("-\\d+$", "");
         return slug.replace('-', ' ').replace('_', ' ').trim();
+    }
+
+    /**
+     * {@code %20} 等を戻す。壊れた escape はそのまま返す (曲名を作るための処理で、
+     * 例外を投げる相手ではない)。
+     */
+    private static String percentDecoded(String slug) {
+        try {
+            return java.net.URLDecoder.decode(slug, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (final IllegalArgumentException ex) {
+            return slug;
+        }
     }
 
     /**
@@ -1008,27 +1152,9 @@ public class MusicLoaderImpl implements IMusicLoader {
      * 検索の結果を先頭から数件まで読む。検索そのものが失敗したら {@code failed} を立てて返す
      * (代替ソース探しは「見つからなければ従来の失敗に落ちる」だけなので、ここで投げない)。
      *
-     * <p>入れ子の一覧では<b>埋め戻しを行わない</b> ({@link #LIST_SUBSTITUTE_SUPPRESSED})。
-     * ここから走る検索の先で落とした曲まで代わりを探すと、1 曲のために待ち時間が積み上がる。
-     *
-     * @param query     {@code scsearch:} 等の接頭辞つき検索クエリ
-     * @param timeoutMs 待ち上限
-     * @return 候補 (最大 {@link #MAX_CANDIDATES} 件) と、検索が答えたか
-     */
-    private Candidates loadCandidates(String query, long timeoutMs) {
-        // この検索は「一覧から落とした曲の代わり」を探すために走ることがある。入れ子の一覧でも
-        // 同じことをすると、待ち時間が積み上がるだけで結果が変わらないので内側では埋め戻さない。
-        final boolean outer = LIST_SUBSTITUTE_SUPPRESSED.get();
-        LIST_SUBSTITUTE_SUPPRESSED.set(true);
-        try {
-            return searchCandidates(query, timeoutMs);
-        } finally {
-            LIST_SUBSTITUTE_SUPPRESSED.set(outer);
-        }
-    }
-
-    /**
-     * {@link #loadCandidates} の本体 (入れ子の抑止を外した検索)。
+     * <p>ここから走る検索は<b>一覧を使わない</b> ({@code ListUse#NONE})。代わりを探すための
+     * 検索の先で落とした曲まで代わりを探すと、1 曲のために待ち時間が積み上がるだけで結果が
+     * 変わらない。
      *
      * @param query     {@code scsearch:} 等の接頭辞つき検索クエリ
      * @param timeoutMs 待ち上限
@@ -1259,8 +1385,8 @@ public class MusicLoaderImpl implements IMusicLoader {
             // 試聴版・DRM の失敗は曲名・投稿者・全長を持って帰る。盤のメタより新しいので優先する
             // (制作時と同じ経路 = 同じ検索語・同じ尺で探せる)。
             if (failure instanceof UnplayableSoundCloudResolve unplayable) {
-                // 再生時は予算を取り直さない (鳴らなかった盤は鳴らないまま。client 側のやり直しへ)。
-                return substituteForSoundCloud(url, unplayable.track, false);
+                // 鳴らなかった盤は鳴らないまま。client 側のやり直しへ渡す。
+                return substituteForSoundCloud(url, unplayable.track);
             }
         } else if (!isYoutubeTarget(normalized) || !firesSubstitute(reason)) {
             return null;
@@ -1279,10 +1405,9 @@ public class MusicLoaderImpl implements IMusicLoader {
         // 尺を取りに行く。ここでは絶対に取りに行かせない)。
         final long sourceMs = Math.max(0L, hint.durationMs());
         final String[] prefixes = soundCloud ? SOUNDCLOUD_SUBSTITUTE_PREFIXES : ALTERNATE_SEARCH_PREFIXES;
-        // 再生時は予算を取り直さない ({@link #SUBSTITUTE_REFILL_BUDGET_MS})。
         return substitute(prefixes, title, title, author, title, author, url, null,
                 new YoutubeWatchPage.Result(sourceMs, "", "", ""),
-                clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS, false);
+                clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
     }
 
     /**
@@ -1479,7 +1604,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             return source;
         }
         return new RetryingAudioSource(source,
-                () -> beginPlayback(loadOnce(target, REOPEN_TIMEOUT_MS), startMs),
+                () -> beginPlayback(loadOnce(target, REOPEN_TIMEOUT_MS, ListUse.NONE), startMs),
                 session, reason -> isRetryable(reason, isSearch(target)),
                 REOPEN_RETRIES, RetryingAudioSource.DEFAULT_GRACE_MS);
     }
@@ -1582,26 +1707,37 @@ public class MusicLoaderImpl implements IMusicLoader {
      * <p>YouTube 相手の失敗は<b>セッションを入れ替えて数回やり直す</b> ({@link SessionRetry})。
      * youtube-source は最初に取った visitorId を抱え続け、YouTube がそれを弾き始めると同じ
      * manager では全 URL が失敗し続けるため。待つだけの再試行は効かない (対照 0/10)。
+     *
+     * @param use 返る一覧をどこまで使うか ({@link ListUse#NONE} = 一覧を使わない)
      */
-    private AudioTrack loadTrackSync(String url) {
-        final String normalized = normalizeYoutubeUrl(url);
-        if (youtube == null || !isYoutubeTarget(normalized)) {
-            return loadOnce(normalized, LOAD_TIMEOUT_MS);
-        }
+    private AudioTrack loadTrackSync(String normalized, ListUse use) {
         final boolean search = isSearch(normalized);
-        return SessionRetry.run(() -> loadOnce(normalized, LOAD_TIMEOUT_MS), session, SYNC_RETRY,
+        if (youtube == null || !isYoutubeTarget(normalized)) {
+            return loadOnce(normalized, LOAD_TIMEOUT_MS, use);
+        }
+        return SessionRetry.run(() -> loadOnce(normalized, LOAD_TIMEOUT_MS, use), session, SYNC_RETRY,
                 reason -> isRetryable(reason, search), System::currentTimeMillis);
+    }
+
+    /** 一覧を使わない読み込み ({@link ListUse#NONE})。再生・置き換え先の検索がこちら。 */
+    private AudioTrack loadTrackSync(String url) {
+        return loadTrackSync(normalizeYoutubeUrl(url), ListUse.NONE);
     }
 
     /**
      * URL を 1 回だけ同期ロードする。
      * noMatches → UNSUPPORTED_URL / タイムアウト → CONNECTION_FAILED / loadFailed →
      * 例外メッセージから PRIVATE / REGION / AGE / CONNECTION に分類。
+     *
+     * @param use 返る一覧をどこまで使うか。{@link ListUse#NONE} 以外は目印を要求へ載せる
+     *            ({@link ListReadReference})
      */
-    private AudioTrack loadOnce(String normalized, long timeoutMs) {
+    private AudioTrack loadOnce(String normalized, long timeoutMs, ListUse use) {
         final String url = normalized;
         final CompletableFuture<AudioTrack> future = new CompletableFuture<>();
-        apm.loadItem(new AudioReference(normalized, null), new AudioLoadResultHandler() {
+        final AudioReference reference = use == ListUse.NONE
+                ? new AudioReference(normalized, null) : new ListReadReference(normalized, use);
+        apm.loadItem(reference, new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
                 future.complete(track);
@@ -1732,12 +1868,50 @@ public class MusicLoaderImpl implements IMusicLoader {
          * <p>例外ではなくこの記録で渡すのは、落とすのが失敗ではなく一覧 1 件の扱いだから
          * ({@link DroppedTrack})。
          */
-        private static final ThreadLocal<List<DroppedTrack>> DROPPED =
-                ThreadLocal.withInitial(ArrayList::new);
+        private static final class ListDrops {
+
+            final List<DroppedTrack> dropped = new ArrayList<>();
+
+            /** 次に組み立てる曲の位置 (一覧の先頭を 0 として数える)。 */
+            int nextPosition;
+
+            void clear() {
+                dropped.clear();
+                nextPosition = 0;
+            }
+        }
+
+        private static final ThreadLocal<ListDrops> DROPPED = ThreadLocal.withInitial(ListDrops::new);
+
+        /**
+         * 次に組み立てる曲の位置を 1 つ進めて返す。
+         *
+         * <p>一覧の曲は {@code loadFromTrackData} が 1 件ずつ順に呼ばれるので、その回数が
+         * そのまま一覧の位置になる。この位置を残しておくと、こちらが記録していない {@code null}
+         * (ライブラリが自分で弾いた曲) があっても、落とした曲を<b>元の枠</b>へ戻せる。
+         *
+         * @return この曲の位置。単曲 (一覧の外) なら {@code -1}
+         */
+        static int nextListPosition() {
+            if (SINGLE_TRACK.get()) {
+                return -1;
+            }
+            final ListDrops drops = DROPPED.get();
+            return drops.nextPosition++;
+        }
 
         /** 落とした曲を記録する。{@code SINGLE_TRACK} の時は呼ばない (単曲は例外で運ぶ)。 */
-        static void recordDropped(JsonBrowser trackData, boolean preview) {
-            DROPPED.get().add(DroppedTrack.from(trackData, preview));
+        static void recordDropped(JsonBrowser trackData, boolean preview, int position) {
+            final DroppedTrack track = DroppedTrack.from(trackData, preview, position);
+            final ListDrops drops = DROPPED.get();
+            // 同じ曲を 2 回記録しない。set は isTrackBlocked と loadFromTrackData の両方を通り、
+            // 両方で弾かれる曲がある。記録が重なると、1 曲のために 2 回検索することになる。
+            for (final DroppedTrack known : drops.dropped) {
+                if (known.sameTrack(track)) {
+                    return;
+                }
+            }
+            drops.dropped.add(track);
         }
 
         /**
@@ -1746,8 +1920,9 @@ public class MusicLoaderImpl implements IMusicLoader {
          * @return 落とした曲 (読んだ順)
          */
         static List<DroppedTrack> takeDropped() {
-            final List<DroppedTrack> dropped = new ArrayList<>(DROPPED.get());
-            DROPPED.get().clear();
+            final ListDrops drops = DROPPED.get();
+            final List<DroppedTrack> dropped = new ArrayList<>(drops.dropped);
+            drops.clear();
             return dropped;
         }
 
@@ -1830,30 +2005,35 @@ public class MusicLoaderImpl implements IMusicLoader {
          * 一覧の結果から、飛ばした曲の {@code null} を<b>代わりの曲で埋め直す</b>
          * (後段が {@code get(0)} 等で踏まないようにし、先頭の曲が消えて別の曲になるのを防ぐ)。
          *
-         * <p>埋め戻しは入れ子の検索の内側では行わない ({@link #LIST_SUBSTITUTE_SUPPRESSED})。
-         * 代わりを探すための検索の結果でも同じことをすると、待ち時間が積み上がるだけになる。
+         * <p>埋め戻す範囲は<b>この要求が返る一覧をどこまで使うか</b>で決まる ({@link ListUse})。
+         * 検索の解決 ({@code scsearch:}) は先頭しか使わないので、先頭が生きていれば検索しない。
+         * 再生・置き換え先の検索は一覧を使わないので、{@code null} を落とすだけにする。
+         *
+         * <p>目印は {@link ListReadReference} で受け取る。{@code apm.loadItem} は要求を
+         * スレッドプールへ渡すので、{@code ThreadLocal} ではここまで届かない
+         * ({@link ListReadReference} の javadoc 参照)。
          */
         @Override
         public AudioItem loadItem(AudioPlayerManager manager, AudioReference reference) {
-            final boolean suppressed = LIST_SUBSTITUTE_SUPPRESSED.get();
-            if (!suppressed) {
-                // 前の一覧の記録を持ち越さない (同じスレッドで解決が続く)。
-                takeDropped();
-            }
+            final ListUse use = reference instanceof ListReadReference read ? read.use : ListUse.NONE;
+            // 前の一覧の記録を持ち越さない (同じスレッドで解決が続く)。
+            takeDropped();
             final AudioItem item = super.loadItem(manager, reference);
-            final List<DroppedTrack> dropped = suppressed ? List.of() : takeDropped();
+            final List<DroppedTrack> dropped = takeDropped();
             if (!(item instanceof AudioPlaylist playlist)) {
                 return item;
             }
             final List<AudioTrack> tracks = playlist.getTracks();
             // contains(null) は List.of 系の不変リストで NPE を投げるので使わない。
-            final boolean hasDropped = tracks.stream().anyMatch(Objects::isNull);
-            if (dropped.isEmpty() && !hasDropped) {
+            if (tracks.stream().noneMatch(Objects::isNull)) {
                 return item;
             }
-            final List<AudioTrack> kept = owner != null && !dropped.isEmpty()
-                    ? owner.fillSubstitutes(tracks, dropped)
+            final List<AudioTrack> kept = use != ListUse.NONE && owner != null
+                    ? owner.fillSubstitutes(tracks, dropped, use == ListUse.FIRST_TRACK)
                     : withoutNulls(tracks);
+            if (kept == tracks) {
+                return item;
+            }
             return new BasicAudioPlaylist(playlist.getName(), kept, playlist.getSelectedTrack(),
                     playlist.isSearchResult());
         }
@@ -1879,6 +2059,9 @@ public class MusicLoaderImpl implements IMusicLoader {
          */
         @Override
         protected AudioTrack loadFromTrackData(JsonBrowser trackData) {
+            // 位置は落とした曲だけでは足りない。生きている曲も 1 件ずつ数えることで、一覧の
+            // 並びと記録の位置が対応する (単曲では -1 が返り、数えない)。
+            final int position = nextListPosition();
             try {
                 return adapt(super.loadFromTrackData(trackData));
             } catch (FriendlyException e) {
@@ -1889,7 +2072,7 @@ public class MusicLoaderImpl implements IMusicLoader {
                 if (!SINGLE_TRACK.get()) {
                     LOGGER.debug("Skipping a SoundCloud track in a list: {}", e.getMessage());
                     // 一覧では呼び出し側がこの 1 曲を代わりの曲で埋め直せるよう、曲の情報を残す。
-                    recordDropped(trackData, preview);
+                    recordDropped(trackData, preview, position);
                     return null;
                 }
                 // 単曲: 曲の情報を持たせて返し、呼び出し側が同じ曲を別の配信元から探せるようにする。
@@ -2006,7 +2189,8 @@ public class MusicLoaderImpl implements IMusicLoader {
         public boolean isTrackBlocked(JsonBrowser trackData) {
             if (delegate.isTrackBlocked(trackData)) {
                 // ライブラリ自身が弾いた曲 (地域制限など) も一覧から消える。代わりを探せるよう記録する。
-                PreviewAwareSoundCloud.recordDropped(trackData, false);
+                // 位置は分からない (ライブラリが詰める前の並びをこちらは持たない) ので -1。
+                PreviewAwareSoundCloud.recordDropped(trackData, false, -1);
                 return true;
             }
             try {
@@ -2016,7 +2200,7 @@ public class MusicLoaderImpl implements IMusicLoader {
                 final boolean unplayable = PreviewAwareSoundCloud.isUnplayableMarker(e);
                 if (unplayable) {
                     PreviewAwareSoundCloud.recordDropped(trackData,
-                            FailureClassifier.PREVIEW_MARKER.equals(e.getMessage()));
+                            FailureClassifier.PREVIEW_MARKER.equals(e.getMessage()), -1);
                 }
                 return unplayable;
             } catch (RuntimeException e) {

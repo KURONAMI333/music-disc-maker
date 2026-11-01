@@ -18,14 +18,16 @@ import com.sedmelluq.discord.lavaplayer.tools.JsonBrowser;
  * @param author     投稿者の表示名 ({@code user.username})。空のことがある
  * @param durationMs 全曲の長さ (ms)。プレビューの曲でも全長を名乗る {@code full_duration}。不明なら 0
  * @param url        元の曲の URL ({@code permalink_url})。曲名が空の時に slug から作る
+ * @param position   落ちた時の一覧の位置 (先頭を 0 とする)。分からなければ {@code -1}
  */
-record DroppedTrack(String title, String author, long durationMs, String url) {
+record DroppedTrack(String title, String author, long durationMs, String url, int position) {
 
     DroppedTrack {
         title = title == null ? "" : title;
         author = author == null ? "" : author;
         durationMs = Math.max(0L, durationMs);
         url = url == null ? "" : url;
+        position = Math.max(-1, position);
     }
 
     /**
@@ -33,9 +35,10 @@ record DroppedTrack(String title, String author, long durationMs, String url) {
      *
      * @param trackData 1 曲分の JSON
      * @param preview   落とした理由が試聴版か ({@code false} = DRM など、{@code duration} が全長)
+     * @param position  落ちた時の一覧の位置。分からなければ {@code -1}
      * @return 落とした曲の情報
      */
-    static DroppedTrack from(JsonBrowser trackData, boolean preview) {
+    static DroppedTrack from(JsonBrowser trackData, boolean preview, int position) {
         final long full = trackData.get("full_duration").asLong(0L);
         // full_duration が無い時の duration は、試聴版なら 30 秒前後で全長ではない。その値を尺と
         // して使うと正しい代わりが長さで全部落ちるので、分からない時は 0 (尺不明) にする。
@@ -43,6 +46,23 @@ record DroppedTrack(String title, String author, long durationMs, String url) {
         final long duration = full > 0L ? full : preview ? 0L : trackData.get("duration").asLong(0L);
         return new DroppedTrack(trackData.get("title").safeText(),
                 trackData.get("user").get("username").safeText(), duration,
-                trackData.get("permalink_url").safeText());
+                trackData.get("permalink_url").safeText(), position);
+    }
+
+    /**
+     * 同じ曲か。記録が重なると 1 曲のために 2 回検索するので、記録する前に見る。
+     *
+     * <p>URL があればそれで判定する (SoundCloud の {@code permalink_url} は曲ごとに一意)。
+     * URL を欠いた track JSON もあるので、その時は曲名・投稿者・全長の組で見る。
+     *
+     * @param other 比べる記録
+     * @return 同じ曲とみなせるなら {@code true}
+     */
+    boolean sameTrack(DroppedTrack other) {
+        if (!url.isEmpty() && !other.url.isEmpty()) {
+            return url.equals(other.url);
+        }
+        return title.equals(other.title) && author.equals(other.author)
+                && durationMs == other.durationMs;
     }
 }
