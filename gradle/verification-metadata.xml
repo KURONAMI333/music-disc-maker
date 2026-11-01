@@ -11188,5 +11188,16 @@
             <sha256 value="60b44558938f6f137265e3a090def0262a0a918578acfd87acca746b2e8cf5f8" origin="Verified against NeoForged Maven repository checksum"/>
          </artifact>
       </component>
+      <component group="com.tianscar.javasound" name="javasound-alac" version="0.2.3">
+         <artifact name="javasound-alac-0.2.3.jar">
+            <sha256 value="d5cb14c1c36fdad2b64a7892ada4f14d7cb5a675960ce5ac73b96a93e46a7d7f" origin="Downloaded from Maven Central and recorded by hand (ALAC direct decode support)"/>
+         </artifact>
+         <artifact name="javasound-alac-0.2.3.module">
+            <sha256 value="390eb2c3dbda638d718e77dc62d923466eca4fc046073d6517d7f37dbb0639ac" origin="Downloaded from Maven Central and recorded by hand (ALAC direct decode support)"/>
+         </artifact>
+         <artifact name="javasound-alac-0.2.3.pom">
+            <sha256 value="1fd00c4db2d5b0e1039dc806ea347a600ad029b0754d67966c73cb746fa71add" origin="Downloaded from Maven Central and recorded by hand (ALAC direct decode support)"/>
+         </artifact>
+      </component>
    </components>
 </verification-metadata>

@@ -148,7 +148,7 @@ tasks.named<Jar>("jar") {
 }
 
 // ─── LavaPlayer 一式を mod jar に同梱 (隔離 classloader が runtime ロード) ───
-// 帯によらず同じ 21 本 (impl 1 + 依存 20) が入る。出荷中の 9 本の jar と本数・名前が一致する。
+// 帯によらず同じ 22 本 (impl 1 + 依存 21) が入る。出荷中の 9 本の jar と本数・名前が一致する。
 // legacyforge の最終成果物は jar (reobf は class のみ remap し非 class リソースは保持する)。
 evaluationDependsOn(":lavaplayer")
 val lavaImpl = project(":lavaplayer")
