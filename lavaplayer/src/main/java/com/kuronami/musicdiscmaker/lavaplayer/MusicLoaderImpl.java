@@ -623,18 +623,26 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @return 盤に焼く曲の情報
      */
     private TrackInfo resolveViaMusicService(MusicServiceLookup.Link link) {
-        if (!openAllowed(link.lookupUrl())) {
+        if (!openAllowed(link.lookupUrl())
+                || (link.retryLookupUrl() != null && !openAllowed(link.retryLookupUrl()))) {
             LOGGER.warn("Refusing to read the {} lookup ({})", link.service().label(),
                     link.lookupUrl());
             throw new ResolveException(FailureReason.BLOCKED_URL,
                     "the " + link.service().label() + " lookup was refused");
         }
-        final MusicServiceLookup.Meta meta = MusicServiceLookup.read(link, pageFetcher, clockMs,
-                Thread::sleep);
-        if (meta == null || meta.title().isBlank()) {
-            throw new ResolveException(FailureReason.CONNECTION_FAILED,
-                    "could not read the " + link.service().label() + " track metadata");
+        final MusicServiceLookup.ReadResult read = MusicServiceLookup.readTrack(link, pageFetcher,
+                clockMs, Thread::sleep);
+        if (read.status() != MusicServiceLookup.ReadStatus.FOUND) {
+            // 「その ID の曲が無い」と「届かなかった」は、利用者が次にできることが違う。
+            // 前者は別の URL を探すしかなく、後者はもう一度試せる。
+            final FailureReason reason = read.status() == MusicServiceLookup.ReadStatus.NO_TRACK
+                    ? FailureReason.NO_ALTERNATIVE_FOUND
+                    : FailureReason.CONNECTION_FAILED;
+            throw new ResolveException(reason, read.status() == MusicServiceLookup.ReadStatus.NO_TRACK
+                    ? "the " + link.service().label() + " lookup has no track for this link"
+                    : "could not read the " + link.service().label() + " track metadata");
         }
+        final MusicServiceLookup.Meta meta = read.meta();
         LOGGER.info("Read the {} track as \"{}\" by \"{}\" ({}ms)", link.service().label(),
                 meta.title(), meta.artist(), meta.durationMs());
         return searchForServiceTrack(link.pageUrl(), meta.title(), meta.artist(),

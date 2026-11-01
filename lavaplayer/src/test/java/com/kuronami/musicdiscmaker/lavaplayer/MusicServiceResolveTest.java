@@ -41,7 +41,10 @@ class MusicServiceResolveTest {
 
     private static final String APPLE_SONG =
             "https://music.apple.com/us/song/never-gonna-give-you-up/1558533901";
-    private static final String APPLE_LOOKUP = "https://itunes.apple.com/lookup?id=1558533901&entity=song";
+    private static final String APPLE_LOOKUP =
+            "https://itunes.apple.com/lookup?id=1558533901&entity=song&country=us";
+    private static final String APPLE_LOOKUP_WITHOUT_COUNTRY =
+            "https://itunes.apple.com/lookup?id=1558533901&entity=song";
     private static final String DEEZER_TRACK = "https://www.deezer.com/en/track/3135556";
     private static final String DEEZER_LOOKUP = "https://api.deezer.com/track/3135556";
     private static final String FOUND = "https://www.youtube.com/watch?v=aaaaaaaaaaa";
@@ -153,6 +156,41 @@ class MusicServiceResolveTest {
         // リンクは正しいが相手に届かなかった。URL が対応外 (UNSUPPORTED_URL) とは別物。
         assertEquals(FailureReason.CONNECTION_FAILED, ex.reason());
         assertEquals(List.of(APPLE_LOOKUP, APPLE_LOOKUP, APPLE_LOOKUP), fetched);
+    }
+
+    @Test
+    void anAnswerThatSaysTheTrackDoesNotExistIsNoAlternative() {
+        final List<String> fetched = new ArrayList<>();
+        final PageMeta.Fetcher fetcher = (url, timeoutMs) -> {
+            fetched.add(url);
+            return "{\"error\":{\"type\":\"DataException\",\"message\":\"no data\"}}";
+        };
+
+        final ResolveException ex = assertThrows(ResolveException.class,
+                () -> loader(new FakeSource(identifier -> AudioReference.NO_TRACK), fetcher)
+                        .resolve(DEEZER_TRACK));
+
+        // 通信は成功していて、相手が「その曲は無い」と確定して答えた。取り直さない。
+        assertEquals(FailureReason.NO_ALTERNATIVE_FOUND, ex.reason());
+        assertEquals(List.of(DEEZER_LOOKUP), fetched);
+    }
+
+    @Test
+    void aCountrySpecificAppleLookupFallsBackOnceToTheCountrylessOne() {
+        final FakeSource sources = new FakeSource(identifier -> identifier.equals(YT_SEARCH)
+                ? track("Rick Astley - Never Gonna Give You Up", "Rick Astley", 213_000L, FOUND)
+                : AudioReference.NO_TRACK);
+        final List<String> fetched = new ArrayList<>();
+        final PageMeta.Fetcher fetcher = (url, timeoutMs) -> {
+            fetched.add(url);
+            return url.contains("country=us")
+                    ? "{\"resultCount\":0,\"results\":[]}" : APPLE_JSON;
+        };
+
+        final TrackInfo info = loader(sources, fetcher).resolve(APPLE_SONG);
+
+        assertEquals("Never Gonna Give You Up", info.title());
+        assertEquals(List.of(APPLE_LOOKUP, APPLE_LOOKUP_WITHOUT_COUNTRY), fetched);
     }
 
     @Test

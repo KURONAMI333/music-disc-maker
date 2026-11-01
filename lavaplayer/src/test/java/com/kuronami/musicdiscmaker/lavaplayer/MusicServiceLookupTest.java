@@ -48,8 +48,9 @@ class MusicServiceLookupTest {
         final MusicServiceLookup.Link link = MusicServiceLookup.match(APPLE_SONG);
 
         assertEquals(MusicServiceLookup.Service.APPLE_MUSIC, link.service());
-        // 問い合わせ先は数字の ID だけで組み立てる (入れた URL を混ぜない)。
-        assertEquals("https://itunes.apple.com/lookup?id=1558533901&entity=song", link.lookupUrl());
+        // 問い合わせ先は数字の ID とリンクの国だけで組み立てる (入れた URL を混ぜない)。
+        assertEquals("https://itunes.apple.com/lookup?id=1558533901&entity=song&country=us",
+                link.lookupUrl());
         assertEquals(APPLE_SONG, link.pageUrl());
     }
 
@@ -59,7 +60,33 @@ class MusicServiceLookupTest {
         final MusicServiceLookup.Link link = MusicServiceLookup.match(APPLE_ALBUM);
 
         assertEquals(MusicServiceLookup.Service.APPLE_MUSIC, link.service());
-        assertEquals("https://itunes.apple.com/lookup?id=1558533901&entity=song", link.lookupUrl());
+        assertEquals("https://itunes.apple.com/lookup?id=1558533901&entity=song&country=us",
+                link.lookupUrl());
+    }
+
+    @Test
+    void anAppleMusicLinkKeepsItsCountryInEitherCase() {
+        for (final String url : new String[] {
+                "https://music.apple.com/jp/song/never-gonna-give-you-up/1558533901",
+                "https://music.apple.com/JP/song/never-gonna-give-you-up/1558533901"}) {
+            final MusicServiceLookup.Link link = MusicServiceLookup.match(url);
+
+            assertEquals("https://itunes.apple.com/lookup?id=1558533901&entity=song&country=jp",
+                    link.lookupUrl(), url);
+            // 国付きで 0 件だった時の引き直し先は国コード無し。
+            assertEquals("https://itunes.apple.com/lookup?id=1558533901&entity=song",
+                    link.retryLookupUrl(), url);
+        }
+    }
+
+    @Test
+    void anAppleMusicLinkWithoutACountryIsLookedUpWithoutOne() {
+        final MusicServiceLookup.Link link = MusicServiceLookup.match(
+                "https://music.apple.com/song/never-gonna-give-you-up/1558533901");
+
+        assertEquals("https://itunes.apple.com/lookup?id=1558533901&entity=song",
+                link.lookupUrl());
+        assertNull(link.retryLookupUrl(), "国コードが無いリンクは引き直さない");
     }
 
     @Test
@@ -195,8 +222,86 @@ class MusicServiceLookupTest {
         };
         final MusicServiceLookup.Link link = MusicServiceLookup.match(DEEZER_TRACK);
 
-        assertNull(MusicServiceLookup.read(link, fetcher, () -> 0L, sleeps::add));
+        final MusicServiceLookup.ReadResult result =
+                MusicServiceLookup.readTrack(link, fetcher, () -> 0L, sleeps::add);
+        assertEquals(MusicServiceLookup.ReadStatus.UNREADABLE, result.status());
+        assertNull(result.meta());
         assertEquals(PageMeta.ATTEMPTS, calls.get());
         assertEquals(List.of(PageMeta.RETRY_DELAY_MS, PageMeta.RETRY_DELAY_MS), sleeps);
+    }
+
+    @Test
+    void aDefinitiveNoTrackAnswerIsNotRetried() {
+        for (final String url : new String[] {
+                // 国コードの無い Apple リンクは、0 件でも引き直し先が無い。
+                "https://music.apple.com/song/never-gonna-give-you-up/1558533901",
+                DEEZER_TRACK}) {
+            final AtomicInteger calls = new AtomicInteger();
+            final PageMeta.Fetcher fetcher = (target, timeoutMs) -> {
+                calls.incrementAndGet();
+                return target.contains("itunes.apple.com")
+                        ? "{\"resultCount\":0,\"results\":[]}"
+                        : "{\"error\":{\"type\":\"DataException\",\"message\":\"no data\"}}";
+            };
+            final MusicServiceLookup.Link link = MusicServiceLookup.match(url);
+
+            final MusicServiceLookup.ReadResult result =
+                    MusicServiceLookup.readTrack(link, fetcher, () -> 0L, ms -> {});
+
+            assertEquals(MusicServiceLookup.ReadStatus.NO_TRACK, result.status(), url);
+            assertEquals(1, calls.get(), "確定した 0 件を通信失敗として取り直した: " + url);
+        }
+    }
+
+    @Test
+    void aCountrySpecificLookupWithNoTrackFallsBackOnceToTheCountrylessOne() {
+        final List<String> fetched = new ArrayList<>();
+        final PageMeta.Fetcher fetcher = (url, timeoutMs) -> {
+            fetched.add(url);
+            return url.contains("country=us")
+                    ? "{\"resultCount\":0,\"results\":[]}" : APPLE_JSON;
+        };
+        final MusicServiceLookup.Link link = MusicServiceLookup.match(APPLE_SONG);
+
+        final MusicServiceLookup.ReadResult result =
+                MusicServiceLookup.readTrack(link, fetcher, () -> 0L, ms -> {});
+
+        assertEquals(MusicServiceLookup.ReadStatus.FOUND, result.status());
+        assertEquals("Never Gonna Give You Up", result.meta().title());
+        assertEquals(List.of(
+                "https://itunes.apple.com/lookup?id=1558533901&entity=song&country=us",
+                "https://itunes.apple.com/lookup?id=1558533901&entity=song"), fetched);
+    }
+
+    @Test
+    void aCountrySpecificLookupWithNoTrackAnywhereStopsAfterTheFallback() {
+        final AtomicInteger calls = new AtomicInteger();
+        final PageMeta.Fetcher fetcher = (url, timeoutMs) -> {
+            calls.incrementAndGet();
+            return "{\"resultCount\":0,\"results\":[]}";
+        };
+        final MusicServiceLookup.Link link = MusicServiceLookup.match(APPLE_SONG);
+
+        final MusicServiceLookup.ReadResult result =
+                MusicServiceLookup.readTrack(link, fetcher, () -> 0L, ms -> {});
+
+        assertEquals(MusicServiceLookup.ReadStatus.NO_TRACK, result.status());
+        assertEquals(2, calls.get(), "国付きと国無しの 2 回で止まる");
+    }
+
+    @Test
+    void anUnreadableAnswerStaysUnreadableAfterTheRetries() {
+        final AtomicInteger calls = new AtomicInteger();
+        final PageMeta.Fetcher fetcher = (url, timeoutMs) -> {
+            calls.incrementAndGet();
+            return "<html></html>";
+        };
+        final MusicServiceLookup.Link link = MusicServiceLookup.match(DEEZER_TRACK);
+
+        final MusicServiceLookup.ReadResult result =
+                MusicServiceLookup.readTrack(link, fetcher, () -> 0L, ms -> {});
+
+        assertEquals(MusicServiceLookup.ReadStatus.UNREADABLE, result.status());
+        assertEquals(PageMeta.ATTEMPTS, calls.get());
     }
 }

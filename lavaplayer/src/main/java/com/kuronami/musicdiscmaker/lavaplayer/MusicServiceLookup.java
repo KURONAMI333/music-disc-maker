@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.util.Locale;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,11 +57,17 @@ final class MusicServiceLookup {
     /**
      * 単曲リンク 1 本。
      *
-     * @param service   読む相手
-     * @param pageUrl   プレイヤーが入れた URL (ログ用)
-     * @param lookupUrl 曲名・アーティスト・尺を返す照会先 (この class が組み立てた固定の形)
+     * @param service        読む相手
+     * @param pageUrl        プレイヤーが入れた URL (ログ用)
+     * @param lookupUrl      曲名・アーティスト・尺を返す照会先 (この class が組み立てた固定の形)
+     * @param retryLookupUrl 国コード付きの照会が 0 件だった時に 1 回だけ引き直す先。
+     *                       国コードが無い URL では {@code null}
      */
-    record Link(Service service, String pageUrl, String lookupUrl) {
+    record Link(Service service, String pageUrl, String lookupUrl, String retryLookupUrl) {
+
+        Link(Service service, String pageUrl, String lookupUrl) {
+            this(service, pageUrl, lookupUrl, null);
+        }
     }
 
     /**
@@ -73,11 +80,45 @@ final class MusicServiceLookup {
     record Meta(String title, String artist, long durationMs) {
     }
 
+    /** 照会 1 回分の結末。 */
+    enum ReadStatus {
+        /** 曲名・アーティストを読めた。 */
+        FOUND,
+        /** 相手が「その ID の曲は無い」と確定して答えた。取り直しても変わらない。 */
+        NO_TRACK,
+        /** 届かない・読めない応答。時間を置けば変わりうる。 */
+        UNREADABLE
+    }
+
+    /**
+     * 照会 1 回分の結果。
+     *
+     * @param status 結末
+     * @param meta   {@link ReadStatus#FOUND} の時だけ曲の情報
+     */
+    record ReadResult(ReadStatus status, Meta meta) {
+
+        static ReadResult found(Meta meta) {
+            return new ReadResult(ReadStatus.FOUND, meta);
+        }
+
+        static ReadResult noTrack() {
+            return new ReadResult(ReadStatus.NO_TRACK, null);
+        }
+
+        static ReadResult unreadable() {
+            return new ReadResult(ReadStatus.UNREADABLE, null);
+        }
+    }
+
     /** {@code https://music.apple.com} と {@code https://geo.music.apple.com} だけ。 */
     private static final Pattern APPLE_ROOT = Pattern.compile(
             "(?i)^https?://(?:geo\\.)?music\\.apple\\.com/");
-    /** 国コードの段 ({@code /us/}, {@code /en/} 等) は任意。付かない形も実在する。 */
-    private static final Pattern LOCALE_SEGMENT = Pattern.compile("^(?:[a-z]{2}/)?");
+    /**
+     * 国コードの段 ({@code /us/}, {@code /jp/} 等) は任意。付かない形も実在する。
+     * 大文字で書かれたリンクも同じ国として扱う。
+     */
+    private static final Pattern LOCALE_SEGMENT = Pattern.compile("^([A-Za-z]{2})/");
     /** {@code /song/<slug>/<trackId>}。 */
     private static final Pattern APPLE_SONG = Pattern.compile(
             "(?i)^song/(?:[^?#]*/)?(\\d+)(?:[?#].*)?$");
@@ -120,14 +161,27 @@ final class MusicServiceLookup {
         final String trimmed = url.trim();
         final Matcher apple = APPLE_ROOT.matcher(trimmed);
         if (apple.find()) {
-            final String rest = LOCALE_SEGMENT.matcher(trimmed.substring(apple.end())).replaceFirst("");
+            final String path = trimmed.substring(apple.end());
+            final Matcher locale = LOCALE_SEGMENT.matcher(path);
+            final String country;
+            final String rest;
+            if (locale.find()) {
+                country = locale.group(1).toLowerCase(Locale.ROOT);
+                rest = path.substring(locale.end());
+            } else {
+                country = null;
+                rest = path;
+            }
             final String trackId = appleTrackId(rest, trimmed);
             return trackId == null ? null
-                    : new Link(Service.APPLE_MUSIC, trimmed, appleLookupUrl(trackId));
+                    : new Link(Service.APPLE_MUSIC, trimmed, appleLookupUrl(trackId, country),
+                            country == null ? null : appleLookupUrl(trackId, null));
         }
         final Matcher deezer = DEEZER_ROOT.matcher(trimmed);
         if (deezer.find()) {
-            final String rest = LOCALE_SEGMENT.matcher(trimmed.substring(deezer.end())).replaceFirst("");
+            final String path = trimmed.substring(deezer.end());
+            final Matcher locale = LOCALE_SEGMENT.matcher(path);
+            final String rest = locale.find() ? path.substring(locale.end()) : path;
             final Matcher track = DEEZER_TRACK.matcher(rest);
             return track.matches() ? new Link(Service.DEEZER, trimmed, deezerLookupUrl(track.group(1)))
                     : null;
@@ -155,9 +209,18 @@ final class MusicServiceLookup {
         return param.find() ? param.group(1) : null;
     }
 
-    /** iTunes Lookup API。曲 ID は Apple Music と同じ採番。 */
-    private static String appleLookupUrl(String trackId) {
-        return "https://itunes.apple.com/lookup?id=" + trackId + "&entity=song";
+    /**
+     * iTunes Lookup API。曲 ID は Apple Music と同じ採番。
+     *
+     * <p>国コードが分かる時は {@code country} を付ける。同じ曲 ID でも国によって扱いが
+     * 変わる (配信停止・別版) ため、リンクの国をそのまま照会へ渡す。
+     *
+     * @param trackId 曲 ID
+     * @param country 小文字の国コード。分からなければ {@code null}
+     */
+    private static String appleLookupUrl(String trackId, String country) {
+        final String base = "https://itunes.apple.com/lookup?id=" + trackId + "&entity=song";
+        return country == null ? base : base + "&country=" + country;
     }
 
     /** Deezer の公開 API。トラック照会は認証不要。 */
@@ -172,19 +235,53 @@ final class MusicServiceLookup {
      * @param fetcher 1 回分の取得 (テストは差し替えてネットワークに出ない)
      * @param clockMs 経過を測る時計
      * @param sleeper 試行の間の待ち
-     * @return 読めた曲の情報。上限まで試して読めなければ {@code null}
+     * @return 読めた曲の情報。読めなければ {@code null}
      */
     static Meta read(Link link, PageMeta.Fetcher fetcher, LongSupplier clockMs,
             PageMeta.Sleeper sleeper) {
-        final String body = PageMeta.fetchHtml(link.lookupUrl(), link.service().label(),
-                text -> parse(link.service(), text) != null, fetcher, clockMs, sleeper);
-        final Meta meta = body == null ? null : parse(link.service(), body);
-        if (meta == null) {
-            LOGGER.info("Could not read the {} track metadata ({})", link.service().label(),
-                    link.pageUrl());
-            return null;
+        return readTrack(link, fetcher, clockMs, sleeper).meta();
+    }
+
+    /**
+     * 照会先を読み、<b>曲が無いと確定したのか、届かなかったのか</b>まで返す。
+     *
+     * <p>iTunes の {@code resultCount:0} と Deezer の {@code error} は「その ID の曲が無い」の
+     * 確定回答で、取り直しても同じものが返る。これを通信失敗と同じ扱いで 3 回叩くと、存在
+     * しない ID に無駄な往復を重ねたうえ、利用者へは「接続できなかった」と嘘の理由を返す。
+     * 逆に、空の本文・曲名の欠けた応答は取り直す価値があるので {@link ReadStatus#UNREADABLE}
+     * のまま {@link PageMeta#fetchHtml} に再試行させる。
+     *
+     * <p>Apple Music のリンクに国コードが付いている時は、その国で 0 件だった時だけ国コード
+     * 無しの照会を 1 回試す (国によって配信状況が違い、URL の国で引けない曲がある)。
+     *
+     * @param link    照会できる単曲リンク
+     * @param fetcher 1 回分の取得 (テストは差し替えてネットワークに出ない)
+     * @param clockMs 経過を測る時計
+     * @param sleeper 試行の間の待ち
+     * @return 照会の結末
+     */
+    static ReadResult readTrack(Link link, PageMeta.Fetcher fetcher, LongSupplier clockMs,
+            PageMeta.Sleeper sleeper) {
+        ReadResult result = fetch(link, link.lookupUrl(), fetcher, clockMs, sleeper);
+        if (result.status() == ReadStatus.NO_TRACK && link.retryLookupUrl() != null) {
+            LOGGER.info("No {} track in the link's country; retrying without it ({})",
+                    link.service().label(), link.pageUrl());
+            result = fetch(link, link.retryLookupUrl(), fetcher, clockMs, sleeper);
         }
-        return meta;
+        if (result.status() != ReadStatus.FOUND) {
+            LOGGER.info("Could not read the {} track metadata ({}) [{}]",
+                    link.service().label(), link.pageUrl(), result.status());
+        }
+        return result;
+    }
+
+    /** 1 つの照会先を、確定回答が返るまで試す。 */
+    private static ReadResult fetch(Link link, String url, PageMeta.Fetcher fetcher,
+            LongSupplier clockMs, PageMeta.Sleeper sleeper) {
+        final String body = PageMeta.fetchHtml(url, link.service().label(),
+                text -> parseOutcome(link.service(), text).status() != ReadStatus.UNREADABLE,
+                fetcher, clockMs, sleeper);
+        return body == null ? ReadResult.unreadable() : parseOutcome(link.service(), body);
     }
 
     /**
@@ -195,12 +292,19 @@ final class MusicServiceLookup {
      * @return 曲名が読めなければ {@code null}
      */
     static Meta parse(Service service, String body) {
+        return parseOutcome(service, body).meta();
+    }
+
+    /** 応答を、読めた・曲が無い・読めないの 3 つに分ける。 */
+    private static ReadResult parseOutcome(Service service, String body) {
         if (body == null || body.isBlank()) {
-            return null;
+            return ReadResult.unreadable();
         }
         return switch (service) {
-            case APPLE_MUSIC -> parseApple(body);
-            case DEEZER -> parseDeezer(body);
+            case APPLE_MUSIC -> APPLE_NO_RESULT.matcher(body).find()
+                    ? ReadResult.noTrack() : parseApple(body);
+            case DEEZER -> DEEZER_ERROR.matcher(body).find()
+                    ? ReadResult.noTrack() : parseDeezer(body);
         };
     }
 
@@ -211,18 +315,15 @@ final class MusicServiceLookup {
      * "trackTimeMillis":...}]}}。{@code resultCount} が {@code 0} の時は「その ID の曲が
      * 無い」= 読めなかった時と同じ扱いにする (曲名を作れない)。
      */
-    private static Meta parseApple(String body) {
-        if (APPLE_NO_RESULT.matcher(body).find()) {
-            return null;
-        }
+    private static ReadResult parseApple(String body) {
         final String title = jsonString(body, "trackName");
         if (title == null || title.isBlank()) {
-            return null;
+            return ReadResult.unreadable();
         }
         final String artist = jsonString(body, "artistName");
         // trackTimeMillis が無い版もある。0 のままにすると尺の照合をしない (従来の Spotify と同じ)。
-        return new Meta(title.trim(), artist == null ? "" : artist.trim(),
-                jsonLong(body, "trackTimeMillis"));
+        return ReadResult.found(new Meta(title.trim(), artist == null ? "" : artist.trim(),
+                jsonLong(body, "trackTimeMillis")));
     }
 
     /**
@@ -232,19 +333,17 @@ final class MusicServiceLookup {
      * 読む。そうしないと曲名の欄にアルバム名が入り、検索語が別物になる。
      * {@code duration} は<b>秒</b>なので ms へ直す (尺の照合は ms で揃っている)。
      */
-    private static Meta parseDeezer(String body) {
-        if (DEEZER_ERROR.matcher(body).find()) {
-            return null;
-        }
+    private static ReadResult parseDeezer(String body) {
         final int album = body.indexOf("\"album\"");
         final String head = album > 0 ? body.substring(0, album) : body;
         final String title = jsonString(head, "title");
         if (title == null || title.isBlank()) {
-            return null;
+            return ReadResult.unreadable();
         }
         final String artist = artistName(head);
         final long seconds = jsonLong(head, "duration");
-        return new Meta(title.trim(), artist == null ? "" : artist.trim(), seconds * SECONDS_TO_MS);
+        return ReadResult.found(new Meta(title.trim(), artist == null ? "" : artist.trim(),
+                seconds * SECONDS_TO_MS));
     }
 
     /**
