@@ -139,7 +139,7 @@
   "gui.music_disc_maker.local.busy": "転送が混雑中。後でもう一度",
   "gui.music_disc_maker.local.disc": "空のディスクを入れ、出力欄を空けて",
   "gui.music_disc_maker.local.import_failed": "ファイルを取り込めませんでした",
-  "gui.music_disc_maker.local.picker_unavailable": "ファイル選択画面を開けませんでした。音声ファイルをここにドロップして",
+  "gui.music_disc_maker.local.picker_unavailable": "選択画面を開けません。ここに音声ファイルをドロップしてください",
   "gui.music_disc_maker.local.download_failed": "音声を取得できませんでした",
   "gui.music_disc_maker.local.quota": "持込容量256 MiBの上限です",
   "gui.music_disc_maker.local.world_full": "ワールドの保存容量2 GiBの上限です",
