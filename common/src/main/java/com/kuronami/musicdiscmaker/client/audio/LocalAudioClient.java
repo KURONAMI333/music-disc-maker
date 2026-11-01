@@ -276,14 +276,30 @@ public final class LocalAudioClient {
      * {@code pickerUnusable} は通らない — ドロップはその判定に依存しない)。フォルダや
      * 複数ドロップの扱いは {@link LocalImportDecisions#firstDroppedFile} が決める。
      *
-     * @param menu    取込先の画面のメニュー
-     * @param dropped ドロップされたパス
+     * @param menu     取込先の画面のメニュー
+     * @param selected {@link #droppedFile} が選んだパス
      */
-    public static void selectDropped(MusicDiscMakerMenu menu, List<Path> dropped) {
-        if (SESSION.upload != null) return;
-        final String selected = LocalImportDecisions.firstDroppedFile(dropped);
-        if (selected == null) return;
+    public static void selectDropped(MusicDiscMakerMenu menu, String selected) {
+        if (SESSION.upload != null || selected == null) return;
+        //? if >=26.3 {
+        /*// 開いたままの選択画面が後で結果を返しても、二本目の取込を始めさせない。
+        if (activePicker != null) {
+            activePicker.cancelled = true;
+            pickerEpoch++;
+        }
+        *///?}
         startSelected(menu, selected);
+    }
+
+    /**
+     * ドロップされた一覧から取込に使う 1 本を選ぶ ({@link LocalImportDecisions#firstDroppedFile})。
+     * 画面はこれが {@code null} の時に URL 欄を触らない。
+     *
+     * @param dropped ドロップされたパス
+     * @return 取込に使うパス。通常ファイルが無ければ {@code null}
+     */
+    public static String droppedFile(List<Path> dropped) {
+        return LocalImportDecisions.firstDroppedFile(dropped);
     }
     /**
      * 選択ファイルを転送できる形へ整える (専用ワーカー上)。内容 probe が分岐を決める

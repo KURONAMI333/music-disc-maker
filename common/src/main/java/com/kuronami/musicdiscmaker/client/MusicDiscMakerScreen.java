@@ -201,7 +201,9 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
      */
     @Override
     public void onFilesDrop(List<Path> dropped) {
-        if (clearForLocalImport()) LocalAudioClient.selectDropped(menu, dropped);
+        // 取り込める物が無いドロップ (フォルダだけ等) では、入っている URL を消さない。
+        final String selected = LocalAudioClient.droppedFile(dropped);
+        if (selected != null && clearForLocalImport()) LocalAudioClient.selectDropped(menu, selected);
     }
 
     private static boolean clipboardIsUrl() {
