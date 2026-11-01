@@ -80,6 +80,10 @@ final class DirectInputs {
             }
         } catch (final VirtualMachineError fatal) {
             throw fatal;
+        } catch (final LinkageError missingClass) {
+            // 配布物の欠け (repack で ALAC のクラスが無い等)。利用者の入力の問題ではないので warn。
+            LOGGER.warn("{} could not be probed for direct decoding", name, missingClass);
+            return null;
         } catch (final Throwable notDirect) {
             // 壊れた moov などで Error が出ても、元の失敗理由 (通常経路) を残すため null に畳む。
             LOGGER.debug("{} is not a direct-decode input: {}", name, notDirect.toString());
