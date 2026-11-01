@@ -314,7 +314,22 @@ final class LocalFileNormalizer {
                     Files.size(output), info.durationMs(), packets.size());
             return info;
         } finally {
-            Files.deleteIfExists(temp);
+            discardTemp(temp);
+        }
+    }
+
+    /**
+     * temp の後片付け。消せなくても (Windows で別プロセスが開いている等) 取込の成否は変えない —
+     * 発行済みなら output は検証済みの内容を指しており、失敗中なら元の失敗理由を隠さない。
+     */
+    private void discardTemp(Path temp) {
+        if (!Files.exists(temp)) {
+            return;
+        }
+        try {
+            deleter.delete(temp);
+        } catch (final IOException io) {
+            LOGGER.debug("Could not remove the normalized temp file {}", temp, io);
         }
     }
 

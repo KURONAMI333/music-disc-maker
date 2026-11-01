@@ -919,6 +919,29 @@ class LocalFileNormalizerTest {
         assertTrue(Files.exists(temp), "the injected deleter failed, so the temp name is still there");
     }
 
+    /**
+     * temp がどの段でも消せなくても、normalize 全体は保存済みの取込として成功する
+     * (finally の後片付けも失敗を握る)。
+     */
+    @Test
+    void normalizeSucceedsWhenTheTempCannotBeDeletedAnywhere() throws Exception {
+        final Path input = write("locked.wav", TrustedLocalFileTest.toneWav(9_600));
+        final Path output = tempDir.resolve("locked-everywhere.mka");
+        final LocalFileNormalizer normalizer = new LocalFileNormalizer(new MusicLoaderImpl(),
+                LocalFileNormalizer.MAX_OUTPUT_BYTES, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {},
+                Files::createLink,
+                ignored -> {
+                    throw new IOException("in use");
+                });
+
+        final TrackInfo info = normalizer.normalize(input, output);
+
+        assertNotNull(info);
+        assertTrue(Files.isRegularFile(output));
+    }
+
     /** hard link を持たない FS では、既存が無いことを確かめて move で発行する。 */
     @Test
     void publishFallsBackToMoveWhenHardLinkIsUnavailable() throws Exception {
