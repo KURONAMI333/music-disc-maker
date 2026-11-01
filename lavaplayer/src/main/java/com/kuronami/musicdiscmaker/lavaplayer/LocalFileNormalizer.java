@@ -4,11 +4,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -669,8 +667,8 @@ final class LocalFileNormalizer {
      * 別 FS 越えは起きない。
      *
      * <p>hard link を持たない FS (FAT 系・ネットワーク FS 等) では、出力先が無いことを
-     * 確かめてから temp を move する。ATOMIC_MOVE が使える FS ではそれを使い、使えなければ
-     * 通常の move へ落とす (どちらも REPLACE_EXISTING は付けない)。check→move の窓は
+     * 確かめてから temp を move する (REPLACE_EXISTING も ATOMIC_MOVE も付けない。ATOMIC_MOVE は
+     * 既存の target を置換しうる)。check→move の窓は
      * 残るが、hard link が使えない環境でも「変換できたのに保存できない」で終わらせない。
      * 既存 output は従来どおり {@code output file already exists} として拒否する。
      *
@@ -694,17 +692,9 @@ final class LocalFileNormalizer {
         if (Files.exists(output)) {
             throw new ResolveException(FailureReason.UNKNOWN, "output file already exists");
         }
-        try {
-            Files.move(temp, output, StandardCopyOption.ATOMIC_MOVE);
-            return;
-        } catch (final AtomicMoveNotSupportedException notAtomic) {
-            // 通常の move へ落とす。
-        } catch (final FileAlreadyExistsException exists) {
-            throw new ResolveException(FailureReason.UNKNOWN, "output file already exists");
-        } catch (final IOException io) {
-            throw new ResolveException(FailureReason.UNKNOWN,
-                    "could not publish the normalized file");
-        }
+        // ATOMIC_MOVE は付けない。付けると既存の target を置換するかが実装依存になる
+        // (Files.move の javadoc)。temp と output は同じディレクトリなので、通常の move も
+        // 同じ FS 内の rename で、既存の target があれば FileAlreadyExistsException になる。
         try {
             Files.move(temp, output);
         } catch (final FileAlreadyExistsException exists) {
