@@ -324,7 +324,8 @@ public class MusicLoaderImpl implements IMusicLoader {
             if (substitute != null) {
                 return substitute;
             }
-            throw ex;
+            // 隔離 classloader 側の型 (UnplayableSoundCloudResolve) を外へ出さない。
+            throw ex instanceof UnplayableSoundCloudResolve ? new ResolveException(ex.reason(), ex.detail()) : ex;
         }
         final AudioTrackInfo info = track.getInfo();
         final String normalized = normalizeYoutubeUrl(url);
@@ -1235,10 +1236,13 @@ public class MusicLoaderImpl implements IMusicLoader {
                     return null;
                 }
                 // 単曲: 曲の情報を持たせて返し、呼び出し側が同じ曲を別の配信元から探せるようにする。
+                // プレビューの duration は 30 秒前後なので、full_duration が無い時に代わりに使うと
+                // 正しい全曲の候補が長さで全部落ちる。その時は「長さ不明」(0) にする。DRM の duration は全長。
                 final long full = trackData.get("full_duration").asLong(0L);
+                final boolean preview = FailureClassifier.PREVIEW_MARKER.equals(e.getMessage());
                 throw new UnplayableSoundCloudTrack(e.getMessage(),
                         trackData.get("title").safeText(), trackData.get("user").get("username").safeText(),
-                        full > 0L ? full : trackData.get("duration").asLong(0L));
+                        full > 0L ? full : preview ? 0L : trackData.get("duration").asLong(0L));
             }
         }
 

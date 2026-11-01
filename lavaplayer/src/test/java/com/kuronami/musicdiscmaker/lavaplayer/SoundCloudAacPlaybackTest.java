@@ -375,6 +375,45 @@ class SoundCloudAacPlaybackTest {
     }
 
     @Test
+    void theTrackInfoSurvivesThePlayerManagersLoadPath() throws Exception {
+        // MusicLoaderImpl#loadOnce が受け取るのは DefaultAudioPlayerManager の loadFailed。
+        // そこで例外が包み直されると曲の情報が失われ、別の配信元を探せなくなる。
+        final MusicLoaderImpl.PreviewAwareSoundCloud manager = managerServing(trackJson(PREVIEW_JSON));
+        playerManager.registerSourceManager(manager);
+        final java.util.concurrent.CompletableFuture<FriendlyException> failed =
+                new java.util.concurrent.CompletableFuture<>();
+        playerManager.loadItem("https://soundcloud.com/u/t",
+                new com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler() {
+                    public void trackLoaded(AudioTrack track) { failed.complete(null); }
+                    public void playlistLoaded(com.sedmelluq.discord.lavaplayer.track.AudioPlaylist p) { failed.complete(null); }
+                    public void noMatches() { failed.complete(null); }
+                    public void loadFailed(FriendlyException e) { failed.complete(e); }
+                });
+        final UnplayableSoundCloudTrack track = assertInstanceOf(UnplayableSoundCloudTrack.class,
+                failed.get(10, TimeUnit.SECONDS));
+        assertEquals(200_000L, track.fullDurationMs);
+        assertEquals(FailureReason.PREVIEW_ONLY, FailureClassifier.classify(track));
+    }
+
+    @Test
+    void aPreviewWithoutFullDurationIsTreatedAsUnknownLength() throws Exception {
+        final JsonBrowser json = JsonBrowser.parse("{\"kind\":\"track\",\"id\":1,\"title\":\"T\","
+                + "\"user\":{\"username\":\"U\"},\"duration\":30000,"
+                + "\"permalink_url\":\"https://soundcloud.com/u/t\",\"media\":{\"transcodings\":["
+                + PREVIEW_JSON + "]}}");
+        final MusicLoaderImpl.PreviewAwareSoundCloud manager = managerServing(json);
+        try {
+            final FriendlyException thrown = assertThrows(FriendlyException.class,
+                    () -> manager.loadItem(playerManager,
+                            new com.sedmelluq.discord.lavaplayer.track.AudioReference("https://soundcloud.com/u/t", null)));
+            // 30 秒を全曲の長さとして使うと、正しい候補が長さで全部落ちる。
+            assertEquals(0L, assertInstanceOf(UnplayableSoundCloudTrack.class, thrown).fullDurationMs);
+        } finally {
+            manager.shutdown();
+        }
+    }
+
+    @Test
     void singleUrlOfADrmTrackFailsAsDrmProtected() throws Exception {
         assertEquals(FailureReason.DRM_PROTECTED, singleUrlFailure(trackJson(DRM_JSON)));
     }
