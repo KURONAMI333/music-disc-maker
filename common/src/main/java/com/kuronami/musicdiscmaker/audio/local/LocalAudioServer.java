@@ -179,8 +179,11 @@ public final class LocalAudioServer {
      * duplicate upload の prepare と同じ扱い。
      */
     private static void alreadyStored(State s, LocalAudioPayload p, ServerPlayer player) {
-        s.server.execute(() -> send(player, LocalAudioPayload.control(LocalAudioPayload.DONE, p.id(), 0, 0,
-                p.hash(), p.size(), p.size(), "done")));
+        s.server.execute(() -> {
+            send(player, LocalAudioPayload.control(LocalAudioPayload.DONE, p.id(), 0, 0,
+                    p.hash(), p.size(), p.size(), "done"));
+            notifyStored(s, p.hash(), p.size(), player);
+        });
     }
     /**
      * 「原本が無い」記録が無い (または古い) 時の返答。client は次の再生で missing を受け直すまで
@@ -236,22 +239,22 @@ public final class LocalAudioServer {
             s.restores.remove(r.player.getUUID(), r);
             if (connected(s, r.player)) send(r.player, LocalAudioPayload.control(LocalAudioPayload.DONE,
                     transferId, 0, 0, r.hash, r.size, r.size, "done"));
-            notifyRestored(s, r);
+            notifyStored(s, r.hash, r.size, r.player);
         });
     }
     /**
      * 同じ hash で missing と答えた他の player へ、原本が戻ったことを AVAILABLE で知らせる。
      * 受け取った client は、その hash の再生がまだ現役なら取り直す (client は missing の後しばらく待つ)。
      */
-    private static void notifyRestored(State s, Restore r) {
+    private static void notifyStored(State s, String hash, long size, ServerPlayer except) {
         final List<UUID> waiting;
         synchronized (s) {
-            waiting = LocalRestoreAdmission.takeWaiting(s.missing, r.hash, now(), MISSING_NOTICE_TTL_MS);
+            waiting = LocalRestoreAdmission.takeWaiting(s.missing, hash, now(), MISSING_NOTICE_TTL_MS);
         }
         for (UUID id : waiting) {
             final ServerPlayer other = s.server.getPlayerList().getPlayer(id);
-            if (other != null && other != r.player) send(other, LocalAudioPayload.control(
-                    LocalAudioPayload.AVAILABLE, UUID.randomUUID(), 0, 0, r.hash, 0, r.size, ""));
+            if (other != null && other != except) send(other, LocalAudioPayload.control(
+                    LocalAudioPayload.AVAILABLE, UUID.randomUUID(), 0, 0, hash, 0, size, ""));
         }
     }
     private static void failRestore(State s, Restore r, UUID transferId, String reason) {
@@ -328,6 +331,8 @@ public final class LocalAudioServer {
         // 完成原本は取消後も残るため、同じ操作で所有容量も必ず計上する。
         s.quota.record(u.player.getUUID(), u.request.hash(), u.request.size());
         if (u.cancelled) { discard(s, u); return; }
+        // 原本が world store にそろった。missing で待っている他の player がいれば知らせる。
+        s.server.execute(() -> notifyStored(s, u.request.hash(), u.request.size(), u.player));
         s.server.execute(() -> {
             if (!(connected(s, u.player) && valid(u) && !u.cancelled)) {
                 notifyDropped(s, u);
