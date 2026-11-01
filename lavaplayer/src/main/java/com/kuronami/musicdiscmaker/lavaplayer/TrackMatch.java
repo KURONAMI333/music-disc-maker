@@ -143,6 +143,46 @@ public final class TrackMatch {
     }
 
     /**
+     * 元のアーティストが分からない時の照合。曲名の語集合が完全一致し、候補がアーティスト名を
+     * 名乗っていれば通す。
+     *
+     * <h2>なぜアーティスト無しでも探すか</h2>
+     * SoundCloud の set や、投稿者名を欠いた track JSON では元のアーティストが分からない。
+     * そこで諦めると、曲名は分かっているのに盤が作れないまま黙って候補から消える
+     * (2026-11-01 実測)。探す側は<b>曲名だけ</b>で引き、採る側で別の材料を必ず重ねる。
+     *
+     * <h2>曲名だけでは足りない</h2>
+     * 同じ曲名のカバーは珍しくないので、<b>候補がアーティスト名を名乗っていること</b>を要求する
+     * (名乗っていない候補は誰の録音か判定できない)。版の目印 (括弧の中の live / cover 等) は
+     * {@link #sameRecordingFromCleanSource} と同じ規則で両側一致を要求する。
+     *
+     * <p><b>この判定単体では足りない</b>。呼び出し側は元の尺が分かっている時にだけ使い、
+     * {@link #durationFits} で抜粋・寄せ集めを落とすこと。尺が無いと同名異曲を弾く材料が
+     * 残らないため、尺が不明な時はそもそも検索しない。
+     *
+     * @param markerTitle     版の目印を探す元のタイトル
+     * @param sourceTitle     整形済みの曲名
+     * @param candidateTitle  候補の生タイトル
+     * @param candidateAuthor 候補の生アーティスト
+     * @return 同じ録音とみなせるなら {@code true}
+     */
+    public static boolean sameRecordingWithoutKnownArtist(String markerTitle, String sourceTitle,
+            String candidateTitle, String candidateAuthor) {
+        if (blank(sourceTitle) || blank(candidateTitle)) {
+            return false;
+        }
+        if (!variantMarkers(markerTitle).equals(variantMarkers(candidateTitle))) {
+            return false;
+        }
+        final String[] candidate = MetadataCleaner.clean(candidateTitle, candidateAuthor);
+        if (blank(candidate[1])) {
+            return false;
+        }
+        final Set<String> sourceWords = words(sourceTitle);
+        return !sourceWords.isEmpty() && sourceWords.equals(words(candidate[0]));
+    }
+
+    /**
      * アーティスト名が噛み合っているか。<b>片方がもう片方の先頭から始まっている</b>ことを見る。
      *
      * <h2>「含む」で判定してはいけない (2026-08-18 実測)</h2>

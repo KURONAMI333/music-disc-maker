@@ -3,11 +3,15 @@ package com.kuronami.musicdiscmaker.lavaplayer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,7 +28,11 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudDataReader;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.DefaultSoundCloudPlaylistLoader;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudDataLoader;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
+import com.sedmelluq.discord.lavaplayer.tools.JsonBrowser;
 import com.sedmelluq.discord.lavaplayer.track.AudioItem;
 import com.sedmelluq.discord.lavaplayer.track.AudioReference;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
@@ -264,6 +272,147 @@ class PlaybackSubstituteTest {
         assertFalse(sources.requests.contains(ALTERNATE));
     }
 
+    @Test
+    void aDroppedListEntryIsReplacedInPlaceWithAnotherSource() throws IOException {
+        final FakeSource sources = new FakeSource(identifier -> {
+            if (identifier.startsWith("ytsearch:")) {
+                return track("T", "U", 200_000L, SOUNDCLOUD_ALTERNATE);
+            }
+            return AudioReference.NO_TRACK;
+        });
+        final MusicLoaderImpl loader = loader(sources);
+        final MusicLoaderImpl.PreviewAwareSoundCloud manager =
+                ownedSoundCloud(loader, trackJson(PREVIEW_JSON));
+        try {
+            // 一覧の経路は試聴版を null にして飛ばす。飛ばした情報は残る。
+            assertNull(manager.loadFromTrackData(trackJson(PREVIEW_JSON)));
+            final List<DroppedTrack> dropped = MusicLoaderImpl.PreviewAwareSoundCloud.takeDropped();
+            assertEquals(1, dropped.size());
+            assertEquals(200_000L, dropped.get(0).durationMs());
+
+            final AudioTrack second =
+                    track("Second", "Someone Else", 100_000L, "https://www.youtube.com/watch?v=bbbbbbbbbbb");
+            final List<AudioTrack> filled = loader.fillSubstitutes(Arrays.asList(null, second), dropped);
+
+            // 検索結果の先頭が試聴版でも一覧が 1 件ずれないよう、落とした位置へ戻す。
+            assertEquals(2, filled.size());
+            assertEquals(SOUNDCLOUD_ALTERNATE, filled.get(0).getInfo().uri);
+            assertSame(second, filled.get(1));
+            // 曲名・投稿者・全長は track JSON から取れている。盤のメタ (空) には頼らない。
+            assertEquals(List.of("ytsearch:U T"), sources.requests);
+        } finally {
+            manager.shutdown();
+        }
+    }
+
+    @Test
+    void anUnknownArtistSearchesByTitleAloneAndDropsALengthMismatch() {
+        // 投稿者名を欠いた track JSON。曲名と全長だけで引く。
+        final FakeSource sources = new FakeSource(identifier -> {
+            if (identifier.equals(SOUNDCLOUD)) {
+                throw new UnplayableSoundCloudTrack(FailureClassifier.PREVIEW_MARKER,
+                        "Song Title", "", 200_000L);
+            }
+            if (identifier.startsWith("ytsearch:")) {
+                // 同名だが 30 秒しかない抜粋。尺で落ちる。
+                return track("Song Title", "Some Artist", 30_000L, SOUNDCLOUD_ALTERNATE);
+            }
+            return AudioReference.NO_TRACK;
+        });
+
+        final ResolveException ex = assertThrows(ResolveException.class,
+                () -> loader(sources).resolve(SOUNDCLOUD));
+
+        assertEquals(FailureReason.NO_ALTERNATIVE_FOUND, ex.reason());
+        // アーティストが空なので曲名だけを引く (アーティスト名を検索語に混ぜない)。
+        assertEquals(List.of(SOUNDCLOUD, "ytsearch:Song Title", "scsearch:Song Title"),
+                sources.requests);
+    }
+
+    @Test
+    void anUnknownTitleIsRecoveredFromTheSoundCloudUrlSlug() {
+        final String slugged = "https://soundcloud.com/label/some-song-title";
+        final FakeSource sources = new FakeSource(identifier -> {
+            if (identifier.equals(slugged)) {
+                // 曲名と投稿者を欠いた track JSON。全長だけは分かる。
+                throw new UnplayableSoundCloudTrack(FailureClassifier.PREVIEW_MARKER, "", "", 200_000L);
+            }
+            if (identifier.startsWith("ytsearch:")) {
+                return track("Some Song Title", "Some Artist", 200_000L, SOUNDCLOUD_ALTERNATE);
+            }
+            return AudioReference.NO_TRACK;
+        });
+
+        final var found = loader(sources).resolve(slugged);
+
+        // URL の slug を曲名として検索語を作る (曲名が空でも盤を作れる)。
+        assertEquals(SOUNDCLOUD_ALTERNATE, found.uri());
+        assertEquals(List.of(slugged, "ytsearch:some song title"), sources.requests);
+    }
+
+    @Test
+    void aCandidateWithADifferentLengthIsNotAdopted() {
+        final FakeSource sources = soundCloudPreviewWithSearch(
+                identifier -> track("Song Title", "Some Artist", 30_000L, SOUNDCLOUD_ALTERNATE));
+
+        final ResolveException ex = assertThrows(ResolveException.class,
+                () -> loader(sources).resolve(SOUNDCLOUD));
+
+        // 同名でも 30 秒の抜粋は元の 200 秒と釣り合わない。違う曲を鳴らすより失敗させる。
+        assertEquals(FailureReason.NO_ALTERNATIVE_FOUND, ex.reason());
+        assertEquals(List.of(SOUNDCLOUD, "ytsearch:Some Artist Song Title",
+                "scsearch:Some Artist Song Title"), sources.requests);
+    }
+
+    @Test
+    void creatingADiscRefillsTheBudgetOnceWhenTheSearchRanOutOfTime() {
+        final AtomicLong now = new AtomicLong(1_000_000L);
+        final FakeSource sources = new FakeSource(identifier -> {
+            if (identifier.equals(SOUNDCLOUD)) {
+                throw new UnplayableSoundCloudTrack(FailureClassifier.PREVIEW_MARKER,
+                        "Song Title", "Some Artist", 200_000L);
+            }
+            if (identifier.startsWith("ytsearch:")) {
+                // 1 回目の検索で予算 (20 秒) を使い切る。
+                now.addAndGet(60_000L);
+                return AudioReference.NO_TRACK;
+            }
+            if (identifier.startsWith("scsearch:")) {
+                return track("Song Title", "Some Artist", 200_000L, SOUNDCLOUD_ALTERNATE);
+            }
+            return AudioReference.NO_TRACK;
+        });
+
+        final var found = loader(sources, now::get).resolve(SOUNDCLOUD);
+
+        // 焼く前に作り直せるよう、制作時だけ予算を取り直して検索を続ける。
+        assertEquals(SOUNDCLOUD_ALTERNATE, found.uri());
+        assertEquals(List.of(SOUNDCLOUD, "ytsearch:Some Artist Song Title",
+                "scsearch:Some Artist Song Title"), sources.requests);
+    }
+
+    @Test
+    void playbackDoesNotRefillTheBudgetWhenTheSearchRanOutOfTime() {
+        final AtomicLong now = new AtomicLong(1_000_000L);
+        final FakeSource sources = new FakeSource(identifier -> {
+            if (identifier.equals(SOUNDCLOUD)) {
+                throw new UnplayableSoundCloudTrack(FailureClassifier.PREVIEW_MARKER,
+                        "Song Title", "Some Artist", 200_000L);
+            }
+            if (identifier.startsWith("ytsearch:")) {
+                now.addAndGet(60_000L);
+            }
+            return AudioReference.NO_TRACK;
+        });
+
+        final OpenStreamResult result = loader(sources, now::get)
+                .openStreamDetailed(SOUNDCLOUD, 0L, new TrackHint("", "", 0L));
+
+        // 鳴らなかった盤は鳴らないまま。再生のたびに検索をやり直さず、元の理由で失敗させる。
+        assertEquals(FailureReason.PREVIEW_ONLY, result.reason());
+        assertEquals(List.of(SOUNDCLOUD, "ytsearch:Some Artist Song Title"), sources.requests);
+    }
+
     /** 元の URL が弾かれ、検索で 1 件見つかり、その先が鳴る source。 */
     private static FakeSource substitutableSource() {
         return new FakeSource(identifier -> {
@@ -295,9 +444,34 @@ class PlaybackSubstituteTest {
         });
     }
 
+    /** 試聴版しか持たない曲の track JSON (`SoundCloudAacPlaybackTest` と同じ形)。 */
+    private static final String TRACK_HEAD = "{\"kind\":\"track\",\"id\":1,\"title\":\"T\","
+            + "\"user\":{\"username\":\"U\"},\"full_duration\":200000,"
+            + "\"permalink_url\":\"https://soundcloud.com/u/t\",\"media\":{\"transcodings\":[";
+
+    private static final String PREVIEW_JSON =
+            "{\"url\":\"https://api-v2.soundcloud.com/media/soundcloud:tracks:1/u/preview/hls\","
+            + "\"format\":{\"protocol\":\"hls\",\"mime_type\":\"audio/mpeg\"}}";
+
+    private static JsonBrowser trackJson(String transcodings) throws IOException {
+        return JsonBrowser.parse(TRACK_HEAD + transcodings + "]}}");
+    }
+
+    /**
+     * 一覧から落とした曲を記録する manager。{@code owner} を渡すのが本番と同じ組み立てで、
+     * 埋め戻しの検索をこの loader に借りる。
+     */
+    private static MusicLoaderImpl.PreviewAwareSoundCloud ownedSoundCloud(MusicLoaderImpl owner,
+            JsonBrowser track) {
+        final SoundCloudAacFormatHandler formatHandler = new SoundCloudAacFormatHandler();
+        final DefaultSoundCloudDataReader dataReader = new DefaultSoundCloudDataReader();
+        final SoundCloudDataLoader offline = (http, url) -> track;
+        return new MusicLoaderImpl.PreviewAwareSoundCloud(dataReader, offline, formatHandler,
+                new DefaultSoundCloudPlaylistLoader(offline, dataReader, formatHandler), owner);
+    }
+
     /** 本物の source manager を 1 つも登録しない loader に、偽の manager を 1 つだけ入れる。 */
-    private static MusicLoaderImpl loader(FakeSource sources) {
-        return loader(sources, System::currentTimeMillis);
+    private static MusicLoaderImpl loader(FakeSource sources) {        return loader(sources, System::currentTimeMillis);
     }
 
     private static MusicLoaderImpl loader(FakeSource sources, LongSupplier clockMs) {
