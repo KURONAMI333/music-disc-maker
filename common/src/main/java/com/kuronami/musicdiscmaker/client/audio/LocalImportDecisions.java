@@ -44,6 +44,14 @@ final class LocalImportDecisions {
     }
 
     /**
+     * サーバーの拒否で、選択済みの取込を捨てずに盤の待ちへ戻すか。盤の拒否 ("disc") で、
+     * 本体をまだ 1 byte も送っていない時だけ。送信後・別の理由の拒否は従来どおり取込を終える。
+     */
+    static boolean waitsForDisc(String reason, long sent) {
+        return "disc".equals(reason) && sent == 0;
+    }
+
+    /**
      * 取込失敗を表示用 status 名へ畳む。{@link ResolveException} の detail は normalizer と
      * このクラスが投げる固定文言で、そこから利用者向けの粒度だけを選ぶ。
      */

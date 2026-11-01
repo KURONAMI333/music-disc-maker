@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioStore;
+import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioServer;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
@@ -376,8 +377,10 @@ public final class LocalAudioClient {
             Minecraft.getInstance().execute(() -> {
                 if (!SESSION.live(u)) { cleanup(u); return; }
                 // 選択後の確認クリックを省く。名前は画面の左上に出るので、やり直す時は × で取り消せる。
+                // 白紙の盤がまだ無い時は取込を保持して待ち、盤が入った時点で送る。
                 status = "confirm";
-                confirm();
+                if (discSlotsReady(u.menu)) confirm();
+                else { status = "disc"; u.discWait.begin(false); }
             });
         } catch (Throwable e) {
             // impl jar 破損等の Error でもスロット・一時ファイル・状態を残さない。
@@ -407,6 +410,22 @@ public final class LocalAudioClient {
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IOException(e);
         }
+    }
+    /** 入力枠に白紙の盤があり出力枠が空か。サーバーが BEGIN で確かめる条件と同じ。 */
+    private static boolean discSlotsReady(MusicDiscMakerMenu menu) {
+        return MusicDiscMakerBlockEntity.isBlankDisc(menu.getSlot(MusicDiscMakerBlockEntity.SLOT_INPUT).getItem())
+                && menu.getSlot(MusicDiscMakerBlockEntity.SLOT_OUTPUT).getItem().isEmpty();
+    }
+    /**
+     * 画面の tick から呼ぶ。盤の待ちで保持している取込を、盤の条件が整った時に一度だけ送り出す。
+     * 待っていない・別の画面・取消済みの取込には何もしない。
+     */
+    public static void tick(MusicDiscMakerMenu menu) {
+        Upload u = SESSION.upload;
+        if (u == null || u.menu != menu || !u.discWait.waiting() || !SESSION.live(u)) return;
+        if (!u.discWait.poll(discSlotsReady(menu))) return;
+        status = "confirm";
+        confirm();
     }
     public static void confirm() {
         Upload u = SESSION.upload;
@@ -477,6 +496,11 @@ public final class LocalAudioClient {
                     });
                 } catch (IOException e) { Minecraft.getInstance().execute(() -> abort(u, "import_failed")); }
             });
+        } else if (p.operation() == LocalAudioPayload.ERROR && SESSION.live(u)
+                && LocalImportDecisions.waitsForDisc(p.name(), u.sent)) {
+            // 盤の判定が client とサーバーでずれた。選び直させず、盤の条件が変わるまで待つ。
+            status = "disc"; percent = 0;
+            u.discWait.begin(discSlotsReady(u.menu));
         } else if (p.operation() == LocalAudioPayload.DONE || p.operation() == LocalAudioPayload.ERROR) {
             SESSION.upload = null; status = p.operation() == LocalAudioPayload.DONE ? "done" : p.name(); cleanup(u);
         }
@@ -732,6 +756,7 @@ public final class LocalAudioClient {
         final MusicDiscMakerMenu menu; final long generation, connection;
         volatile String hash = "", name = ""; volatile Path path; volatile Thread worker;
         // NONE (転送前の仮 id) と同値。直定数にするのは headless 試験で payload クラスを引かないため。
+        final DiscWait discWait = new DiscWait();
         long size, sent; UUID id = new UUID(0, 0); InputStream input; boolean sending;
         Upload(MusicDiscMakerMenu menu, long generation, long connection) { this.menu = menu; this.generation = generation; this.connection = connection; }
     }
