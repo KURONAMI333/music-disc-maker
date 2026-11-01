@@ -198,6 +198,25 @@ public final class ClientPlaybackHandler {
      */
     public static void resetProtocolMismatchOnDisconnect() {
         protocolMismatch = false;
+        protocolConfirmed = false;
+    }
+
+    /** この接続でサーバーから自分と同じ wire 版が届いた後 true。接続が変わるまで戻さない。 */
+    private static volatile boolean protocolConfirmed;
+
+    /**
+     * 3.1.3 で増えた opcode (上げ直しの RESTORE) をサーバーが復号できると分かっているか。
+     *
+     * <p>NeoForge と Forge は login 段で版の違う相手を弾くので、繋がっていれば同じ版。
+     * Fabric には login 段の版ゲートが無く、旧サーバーは新 opcode を復号できずに接続を切る。
+     * しかも 3.1.2 までの Fabric 1.20.1 サーバーは版を送ってこない (JOIN の時点では相手の
+     * channel 宣言が届いておらず {@code canSend} が偽になる)。版が届かないことを「一致」と
+     * みなさず、同じ版が届いたと確かめられた時だけ送る。
+     */
+    public static boolean serverDecodesCurrentProtocol() {
+        if (protocolMismatch) return false;
+        if (!"Fabric".equals(com.kuronami.musicdiscmaker.platform.Services.PLATFORM.getPlatformName())) return true;
+        return protocolConfirmed;
     }
 
     /**
@@ -211,6 +230,7 @@ public final class ClientPlaybackHandler {
     public static void handleServerVersion(String serverVersion) {
         final String mine = com.kuronami.musicdiscmaker.network.ModNetwork.PROTOCOL_VERSION;
         if (mine.equals(serverVersion)) {
+            protocolConfirmed = true;
             return;
         }
         protocolMismatch = true;

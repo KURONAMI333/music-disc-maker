@@ -373,8 +373,20 @@ public class MusicDiscMakerFabric implements ModInitializer {
         FabricJukeboxEvents.register();
 
         // B5/C12: fabric 版ゲート (参加直後に wire 版を送る・canSend で盲送り回避)。詳細は FabricProtocolHandshake。
+        //? if >=1.21 {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 com.kuronami.musicdiscmaker.network.FabricProtocolHandshake.sendTo(handler.getPlayer()));
+        //?} else {
+        /*// 1.20.1 の Fabric API は JOIN を相手の channel 宣言より先に撃つので、JOIN では canSend が偽で
+        // 版が一度も届かなかった。相手が版の channel を宣言した時に送る。
+        net.fabricmc.fabric.api.networking.v1.S2CPlayChannelEvents.REGISTER.register((handler, sender, server, channels) -> {
+            if (channels.contains(com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                    com.kuronami.musicdiscmaker.network.VersionPayload.PATH))) {
+                com.kuronami.musicdiscmaker.network.FabricProtocolHandshake.sendTo(handler.getPlayer());
+            }
+        });
+        */
+        //?}
 
         // server 停止で再生中状態を破棄 (シングルプレイのワールド退出含む)。
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {

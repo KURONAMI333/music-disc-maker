@@ -706,8 +706,8 @@ public final class LocalAudioClient {
         }
         // 旧サーバー (RESTORE を知らない) は opcode を復号できず、例外で接続が切れる。
         // Fabric には login 段の版ゲートが無く play 段のハンドシェイクで版が分かるので、
-        // 食い違いを検出したら上げ直さない。
-        if (!LocalRestoreDecisions.shouldRestore(true, true, !ClientPlaybackHandler.isProtocolMismatch(),
+        // 同じ版が届いたと確かめられた時だけ上げ直す (届かない旧サーバーには送らない)。
+        if (!LocalRestoreDecisions.shouldRestore(true, true, ClientPlaybackHandler.serverDecodesCurrentProtocol(),
                 inFlight, since, RESTORE_RETRY_MS)) return;
         RESTORE_ATTEMPTS.put(hash, now());
         final long connection = SESSION.connectionGeneration;
@@ -725,7 +725,7 @@ public final class LocalAudioClient {
             Minecraft.getInstance().execute(() -> {
                 // 版の食い違いが送信直前に分かった時も送らない (旧サーバーは復号できず接続が切れる)。
                 if (connection != SESSION.connectionGeneration || RESTORES.get(hash) != r
-                        || ClientPlaybackHandler.isProtocolMismatch()) {
+                        || !ClientPlaybackHandler.serverDecodesCurrentProtocol()) {
                     RESTORES.remove(hash, r);
                     return;
                 }
