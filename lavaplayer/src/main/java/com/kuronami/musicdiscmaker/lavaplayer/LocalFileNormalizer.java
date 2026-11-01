@@ -297,13 +297,16 @@ final class LocalFileNormalizer {
         Files.createDirectories(directory);
         final Path temp = Files.createTempFile(directory, ".mdm-normalize-", ".tmp");
         try {
-            final long declaredMs = declaredDurationMs(input);
+            // 入力の解決 (内容 probe → 必要なら直 decode) は 1 回だけ。宣言尺を取り、
+            // pass ごとにはソースだけを開き直す。
+            final PcmInput resolved = resolveInput(input);
+            final long declaredMs = resolved.durationMs();
             if (declaredMs > 0L && declaredMs != Long.MAX_VALUE
                     && declaredMs > MAX_DECLARED_DURATION_MS) {
                 throw durationLimit();
             }
             // 宣言尺から encoder のレートを決め、収まらなければ落として 1 回だけ変換し直す。
-            final List<MkaWriter.OpusPacket> packets = encodeWithinLimits(input, declaredMs);
+            final List<MkaWriter.OpusPacket> packets = encodeWithinLimits(resolved, declaredMs);
             if (packets.isEmpty()) {
                 throw new ResolveException(FailureReason.UNKNOWN, "no decodable audio");
             }
@@ -334,13 +337,65 @@ final class LocalFileNormalizer {
     }
 
     /** 入力の宣言尺 (ms)。分からない入力は {@code 0} / {@link Long#MAX_VALUE} のまま返す。 */
-    private long declaredDurationMs(Path input) {
-        final AudioTrack track = loadInputTrack(input);
+    private PcmInput resolveInput(Path input) {
         try {
-            return track.getInfo().length;
+            return playerInput(input);
+        } catch (final ResolveException unsupported) {
+            final PcmInput direct = directInput(input);
+            if (direct != null) {
+                LOGGER.info("Decoding {} directly ({})", input.getFileName(), direct.origin());
+                return direct;
+            }
+            throw unsupported;
+        }
+    }
+
+    /**
+     * 通常経路: LavaPlayer の入力 registry で内容 probe し、track の宣言尺を取る。
+     * 再生 stream は pass ごとに {@link #open()} で開き直す (変換し直しでも先頭から decode する)。
+     */
+    private PcmInput playerInput(Path input) {
+        final AudioTrack track = loadInputTrack(input);
+        final long durationMs;
+        try {
+            durationMs = track.getInfo().length;
         } finally {
             track.stop();
         }
+        return new PcmInput() {
+            @Override
+            public long durationMs() {
+                return durationMs;
+            }
+
+            @Override
+            public Origin origin() {
+                return Origin.PLAYER;
+            }
+
+            @Override
+            public IAudioSource open() {
+                final AudioTrack opened = loadInputTrack(input);
+                boolean handedOver = false;
+                try {
+                    final IAudioSource source = loader.beginPlayback(opened, 0L);
+                    handedOver = true;
+                    return source;
+                } finally {
+                    if (!handedOver) {
+                        opened.stop();
+                    }
+                }
+            }
+        };
+    }
+
+    /**
+     * 通常の probe が扱えない入力の直 decode。対象外 (magic が違う・必要 track が無い) なら
+     * {@code null} を返し、呼び出し側は通常経路の失敗理由をそのまま使う。
+     */
+    private PcmInput directInput(Path input) {
+        return null;
     }
 
     /**
@@ -383,7 +438,7 @@ final class LocalFileNormalizer {
      *
      * @param declaredMs 入力の宣言尺 (分からなければ 0 / {@link Long#MAX_VALUE})
      */
-    private List<MkaWriter.OpusPacket> encodeWithinLimits(Path input, long declaredMs) {
+    private List<MkaWriter.OpusPacket> encodeWithinLimits(PcmInput input, long declaredMs) {
         final int rate = rateFor(declaredMs, maxOutputBytes);
         Pass pass = encodePass(input, rate);
         if (pass.stop() == StopReason.OUTPUT_BYTES && pass.isShort()
@@ -403,24 +458,26 @@ final class LocalFileNormalizer {
     }
 
     /**
-     * 1 回分の decode → encode。入力は pass ごとに開き直す (変換し直しで先頭から decode するため)。
+     * 1 回分の decode → encode。入力を {@code rate} で encode し直せる形で受け取る
+     * (変換し直しでも同じ入力の先頭から開き直す)。
      */
     Pass encodePass(Path input, int rate) {
-        AudioTrack track = null;
+        return encodePass(resolveInput(input), rate);
+    }
+
+    /**
+     * 1 回分の decode → encode。入力のソースは pass ごとに開き直す。
+     */
+    Pass encodePass(PcmInput input, int rate) {
         IAudioSource source = null;
         OpusEncoder encoder = null;
         try {
-            track = loadInputTrack(input);
+            source = input.open();
             encoder = openEncoder(rate);
-            source = loader.beginPlayback(track, 0L);
-            track = null; // 再生側が所有するので close は source が担う
             return encodePcm(source, encoder, rate);
         } finally {
             if (source != null) {
                 source.close();
-            }
-            if (track != null) {
-                track.stop();
             }
             if (encoder != null) {
                 try {
