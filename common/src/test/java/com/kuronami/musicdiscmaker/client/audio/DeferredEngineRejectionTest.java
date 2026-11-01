@@ -90,6 +90,20 @@ class DeferredEngineRejectionTest {
     }
 
     @Test
+    void aSuppressedRepeatOfMutedDoesNotTurnIntoStreamUnavailable() {
+        final PlaybackFailure muted = PlaybackFailure.soundMuted();
+        final int first = sessions.start(KEY, SONG, 0L, 64, 100, true).token();
+        assertEquals(muted, sessions.engineRejected(KEY, first, muted));
+        sessions.stop(KEY);
+
+        final int second = sessions.start(KEY, SONG, 0L, 64, 100, true).token();
+        assertNull(sessions.engineRejected(KEY, second, muted),
+                "the same mute was just shown, so the repeat stays quiet");
+        assertNull(sessions.firstAudioDeadlineFailure(KEY, second, PlaybackFailure.streamUnavailable()),
+                "the quiet repeat is still a mute, not a stream that never opened");
+    }
+
+    @Test
     void realAudioDiscardsTheHeldRejection() {
         final int token = sessions.start(KEY, SONG, 0L, 64, 100, true).token();
         sessions.engineRejected(KEY, token, REJECTED);

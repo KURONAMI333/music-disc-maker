@@ -571,11 +571,12 @@ public final class PlaybackSessions<K> {
             return null;
         }
         heldEngineRejections.remove(key);
+        // この世代の期限で別の理由を重ねない (音源は期限まで残っている)。頻度抑止で今回は
+        // 黙る場合も、音量 0 は直前に伝えてあるので同じく重ねない。
+        mutedReported.put(key, token);
         if (!startNotices.shouldReport(key, failure)) {
             return null;
         }
-        // この世代の期限で別の理由を重ねない (音源は期限まで残っている)。
-        mutedReported.put(key, token);
         return failure;
     }
 
