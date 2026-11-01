@@ -151,9 +151,6 @@ public final class LocalAudioServer {
         s.io.execute(() -> {
             try {
                 s.open();
-                // 「原本が無い」と答えた記録を先に消費する。これが無い client は、たとえ hash が
-                // 正しくても store の中身を確認できない (存在を探る経路にしない)。
-                if (!consumeMissing(s, player, p.hash())) { missingAgain(s, p, player); return; }
                 if (s.store.verified(p.hash()) != null) { alreadyStored(s, p, player); return; }
                 final Restore r = new Restore(player, p);
                 synchronized (s.restores) {
@@ -161,8 +158,11 @@ public final class LocalAudioServer {
                     if (s.restores.size() >= MAX_RESTORES || s.restores.containsKey(player.getUUID())
                             || s.restores.values().stream().anyMatch(o -> o.hash.equals(p.hash())))
                         throw new IOException("Transfer limit reached");
-                    s.quota.check(player.getUUID(), p.hash(), p.size());
-                    r.storeId = s.store.begin(player.getUUID(), p.hash(), p.size(), now());
+                    // 「原本が無い」と答えた記録は、容量と store の枠が通ってから消費する
+                    // ({@link LocalRestoreAdmission})。先に消費すると、断った時に通知だけが消える。
+                    r.storeId = LocalRestoreAdmission.open(s.store, s.quota, player.getUUID(), p.hash(), p.size(),
+                            now(), () -> consumeMissing(s, player, p.hash()));
+                    if (r.storeId == null) { missingAgain(s, p, player); return; }
                     s.restores.put(player.getUUID(), r);
                 }
                 replyRestore(s, r, LocalAudioPayload.RESTORE_READY, 0);
@@ -172,7 +172,12 @@ public final class LocalAudioServer {
             }
         });
     }
-    /** 既に store にある hash。転送せず完了だけ返す (duplicate upload の prepare と同じ扱い)。 */
+    /**
+     * 既に store にある hash。転送せず、完了 (DONE) だけを返す。
+     *
+     * <p>無応答にしないのは、client が上げ直しを 2 分間 in-flight のまま待つため。
+     * duplicate upload の prepare と同じ扱い。
+     */
     private static void alreadyStored(State s, LocalAudioPayload p, ServerPlayer player) {
         s.server.execute(() -> send(player, LocalAudioPayload.control(LocalAudioPayload.DONE, p.id(), 0, 0,
                 p.hash(), p.size(), p.size(), "done")));
