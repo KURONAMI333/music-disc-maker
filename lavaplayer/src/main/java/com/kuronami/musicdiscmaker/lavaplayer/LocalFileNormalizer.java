@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -54,9 +56,9 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
  *
  * <p><b>明示失敗</b>: 入力が読めない/大きすぎる、container が decode 不能、
  * 宣言尺が 2 時間超、再生中の decode 失敗、音声 0 frame、encoder の native 不在、
- * 生成物の検証不合格、置換しない発行 (hard link) が使えない FS、発行時に
- * {@code output} が既に存在した競合。失敗時は {@code output} を作らず
- * 一時ファイルも残さない。
+ * 生成物の検証不合格、発行時に {@code output} が既に存在した競合、発行の I/O 失敗。
+ * hard link が使えない FS では、既存が無いことを確かめて move で発行する。
+ * 失敗時は {@code output} を作らず一時ファイルも残さない。
  */
 final class LocalFileNormalizer {
 
@@ -171,26 +173,39 @@ final class LocalFileNormalizer {
         long packetNs;
     }
 
+    /** 検証済み temp を output 名へ付ける口 (製品は hard link)。 */
+    @FunctionalInterface
+    interface Linker {
+        void link(Path output, Path temp) throws IOException;
+    }
+
     private final MusicLoaderImpl loader;
     private final long maxOutputBytes;
     private final long maxDurationNs;
     private final IntFunction<OpusEncoder> encoderFactory;
     /** 発行直前に走る口 (試験が check→発行の窓への競合を注入する。製品は no-op)。 */
     private final Runnable beforePublish;
+    private final Linker linker;
 
     LocalFileNormalizer(MusicLoaderImpl loader) {
         this(loader, MAX_OUTPUT_BYTES, MAX_OUTPUT_DURATION_NS, LocalFileNormalizer::newEncoder,
                 () -> {});
     }
 
-    /** 試験が出力上限・尺上限・encoder 生成・発行直前を差し替える口 (製品経路は上の ctor)。 */
     LocalFileNormalizer(MusicLoaderImpl loader, long maxOutputBytes, long maxDurationNs,
             IntFunction<OpusEncoder> encoderFactory, Runnable beforePublish) {
+        this(loader, maxOutputBytes, maxDurationNs, encoderFactory, beforePublish, Files::createLink);
+    }
+
+    /** 試験が出力上限・尺上限・encoder 生成・発行直前・link を差し替える口 (製品経路は上の ctor)。 */
+    LocalFileNormalizer(MusicLoaderImpl loader, long maxOutputBytes, long maxDurationNs,
+            IntFunction<OpusEncoder> encoderFactory, Runnable beforePublish, Linker linker) {
         this.loader = loader;
         this.maxOutputBytes = maxOutputBytes;
         this.maxDurationNs = maxDurationNs;
         this.encoderFactory = encoderFactory;
         this.beforePublish = beforePublish;
+        this.linker = linker;
     }
 
     private static OpusEncoder newEncoder(int rate) {
@@ -648,31 +663,56 @@ final class LocalFileNormalizer {
     }
 
     /**
-     * temp を {@code output} 名へ発行する。POSIX の rename ({@code Files.move} の
-     * ATOMIC_MOVE) は既存の dst を黙って置換する (check-then-act の窓が残る) ので使わず、
-     * hard link に切り替える — link(2) / Windows の CreateHardLink は「既に存在すれば
-     * 失敗」を FS が原子に保証するので、検証済みの内容が第三者の既存 output を
-     * 置き換える経路は無い。temp と output は同じ dir なので別 FS 越えは起きない。
+     * temp を {@code output} 名へ発行する。基本は hard link — link(2) / Windows の
+     * CreateHardLink は「既に存在すれば失敗」を FS が原子に保証するので、検証済みの内容が
+     * 第三者の既存 output を置き換える経路は無い。temp と output は同じ dir なので
+     * 別 FS 越えは起きない。
      *
-     * <p>hard link を持たない FS (FAT 系等) では置換しない発行を保証できず、
-     * rename 系へ逃げず失敗に倒す (fail closed)。発行後の temp 名はここで外し、
-     * 失敗時は呼出し側の finally も削除を試す。
+     * <p>hard link を持たない FS (FAT 系・ネットワーク FS 等) では、出力先が無いことを
+     * 確かめてから temp を move する。ATOMIC_MOVE が使える FS ではそれを使い、使えなければ
+     * 通常の move へ落とす (どちらも REPLACE_EXISTING は付けない)。check→move の窓は
+     * 残るが、hard link が使えない環境でも「変換できたのに保存できない」で終わらせない。
+     * 既存 output は従来どおり {@code output file already exists} として拒否する。
+     *
+     * <p>発行後の temp 名はここで外し、失敗時は呼出し側の finally も削除を試す。
      */
     void publish(Path temp, Path output) throws IOException {
         beforePublish.run();
         try {
-            Files.createLink(output, temp);
+            linker.link(output, temp);
         } catch (final FileAlreadyExistsException exists) {
             throw new ResolveException(FailureReason.UNKNOWN, "output file already exists");
-        } catch (final UnsupportedOperationException unsupported) {
-            throw new ResolveException(FailureReason.UNKNOWN,
-                    "no-overwrite publish is not supported here");
+        } catch (final UnsupportedOperationException | IOException unavailable) {
+            moveWithoutReplacing(temp, output);
+            return;
+        }
+        Files.delete(temp);
+    }
+
+    /** hard link が使えない FS 向けの代替発行。既存 output は置換しない。 */
+    private static void moveWithoutReplacing(Path temp, Path output) throws IOException {
+        if (Files.exists(output)) {
+            throw new ResolveException(FailureReason.UNKNOWN, "output file already exists");
+        }
+        try {
+            Files.move(temp, output, StandardCopyOption.ATOMIC_MOVE);
+            return;
+        } catch (final AtomicMoveNotSupportedException notAtomic) {
+            // 通常の move へ落とす。
+        } catch (final FileAlreadyExistsException exists) {
+            throw new ResolveException(FailureReason.UNKNOWN, "output file already exists");
         } catch (final IOException io) {
-            // hard link 不可の FS (FAT 系・ネットワーク FS 等) でも rename 系へ逃げず閉じる
             throw new ResolveException(FailureReason.UNKNOWN,
                     "could not publish the normalized file");
         }
-        Files.delete(temp);
+        try {
+            Files.move(temp, output);
+        } catch (final FileAlreadyExistsException exists) {
+            throw new ResolveException(FailureReason.UNKNOWN, "output file already exists");
+        } catch (final IOException io) {
+            throw new ResolveException(FailureReason.UNKNOWN,
+                    "could not publish the normalized file");
+        }
     }
 
     private static void sleep() {

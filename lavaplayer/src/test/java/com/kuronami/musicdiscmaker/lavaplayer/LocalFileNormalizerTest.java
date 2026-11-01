@@ -896,6 +896,69 @@ class LocalFileNormalizerTest {
         assertFalse(Files.exists(temp), "発行済みの temp 名は外れる");
     }
 
+    /** hard link を持たない FS では、既存が無いことを確かめて move で発行する。 */
+    @Test
+    void publishFallsBackToMoveWhenHardLinkIsUnavailable() throws Exception {
+        final Path temp = write("stage.bin", new byte[] {4, 5, 6});
+        final Path output = tempDir.resolve("fallback.mka");
+        final LocalFileNormalizer normalizer = new LocalFileNormalizer(new MusicLoaderImpl(),
+                LocalFileNormalizer.MAX_OUTPUT_BYTES, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {},
+                (link, existing) -> {
+                    throw new UnsupportedOperationException("hard link unavailable");
+                });
+
+        normalizer.publish(temp, output);
+
+        assertArrayEquals(new byte[] {4, 5, 6}, Files.readAllBytes(output));
+        assertFalse(Files.exists(temp), "move で発行した temp 名も外れる");
+    }
+
+    /** fallback 経路でも既存 output は置換しない。 */
+    @Test
+    void publishFallbackStillRefusesAnExistingTarget() throws Exception {
+        final Path temp = write("stage.bin", new byte[] {1, 2, 3});
+        final Path output = tempDir.resolve("taken-fallback.mka");
+        Files.write(output, new byte[] {9, 9});
+        final LocalFileNormalizer normalizer = new LocalFileNormalizer(new MusicLoaderImpl(),
+                LocalFileNormalizer.MAX_OUTPUT_BYTES, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {},
+                (link, existing) -> {
+                    throw new IOException("hard links not supported");
+                });
+
+        final ResolveException ex = assertThrows(ResolveException.class,
+                () -> normalizer.publish(temp, output));
+
+        assertTrue(ex.detail().contains("already exists"), ex.detail());
+        assertArrayEquals(new byte[] {9, 9}, Files.readAllBytes(output), "既存ファイルは無傷");
+        assertTrue(Files.exists(temp), "失敗した発行は temp を消費しない (呼出し側が掃除する)");
+    }
+
+    /** normalize 全体でも hard link 不可の FS で保存まで到達し、temp を残さない。 */
+    @Test
+    void normalizePublishesThroughMoveWhenHardLinkIsUnavailable() throws Exception {
+        final Path input = write("ok.wav", TrustedLocalFileTest.toneWav(9_600));
+        final Path output = tempDir.resolve("fallback-normalized.mka");
+        final MusicLoaderImpl loader = new MusicLoaderImpl();
+        final LocalFileNormalizer normalizer = new LocalFileNormalizer(loader,
+                LocalFileNormalizer.MAX_OUTPUT_BYTES, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {},
+                (link, existing) -> {
+                    throw new UnsupportedOperationException("hard link unavailable");
+                });
+
+        final TrackInfo info = normalizer.normalize(input, output);
+
+        assertNotNull(info);
+        assertTrue(Files.isRegularFile(output));
+        assertAudioOnlyDecodableOutput(loader, output, info.durationMs());
+        assertNoTempLeft();
+    }
+
     // ==== stage3b: picker 分岐の前提 ====
 
     /**
