@@ -168,6 +168,23 @@ class MusicServiceLookupTest {
     }
 
     @Test
+    void theDeezerArtistIsNotTheFeaturedContributor() {
+        // 実応答では contributors (feat. の参加者) が artist より前に並ぶ。
+        // 最初の "artist" は contributors 内の "type":"artist" なので、そこを読むと別人になる。
+        final String body = "{\"id\":1,\"title\":\"One Kiss\",\"duration\":215,"
+                + "\"contributors\":[{\"id\":2,\"name\":\"Dua Lipa\",\"type\":\"artist\"},"
+                + "{\"id\":3,\"name\":\"Calvin Harris\",\"type\":\"artist\"}],"
+                + "\"artist\":{\"id\":3,\"name\":\"Calvin Harris\"},"
+                + "\"album\":{\"id\":4,\"title\":\"One Kiss\"},\"type\":\"track\"}";
+
+        final MusicServiceLookup.Meta meta =
+                MusicServiceLookup.parse(MusicServiceLookup.Service.DEEZER, body);
+
+        assertEquals("Calvin Harris", meta.artist());
+        assertEquals("One Kiss", meta.title());
+    }
+
+    @Test
     void jsonEscapesAreRestoredOnce() {
         final String apple = "{\"resultCount\":1,\"results\":[{\"trackName\":\"Rock \\u0026 Roll\","
                 + "\"artistName\":\"AC\\/DC \\\"Live\\\"\",\"trackTimeMillis\":1000}]}";

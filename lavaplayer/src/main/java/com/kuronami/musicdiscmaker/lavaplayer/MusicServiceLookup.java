@@ -346,18 +346,50 @@ final class MusicServiceLookup {
                 seconds * SECONDS_TO_MS));
     }
 
+    /** 曲の {@code "artist"} オブジェクト。contributors 内の {@code "type":"artist"} とは別物。 */
+    private static final Pattern ARTIST_OBJECT = Pattern.compile("\"artist\"\\s*:\\s*\\{");
+
     /**
      * Deezer の {@code "artist":{"id":...,"name":"..."}} から名前を取る。
      *
-     * <p>トップレベルにも {@code name} を持つ応答 (アーティスト照会) があるので、
-     * {@code "artist"} の後ろだけを見る。
+     * <p>{@code "artist"} という文字列は contributors の {@code "type":"artist"} にも現れる。
+     * 最初の出現をそのまま読むと、feat. の参加者を曲のアーティストとして採用してしまう
+     * (実応答では contributors が artist より前に並ぶ)。ここでは<b>値がオブジェクトである
+     * {@code "artist":\{} に錨を打ち</b>、そのオブジェクトの中だけから {@code name} を取る。
      */
     private static String artistName(String head) {
-        final int index = head.indexOf("\"artist\"");
-        if (index < 0) {
+        final Matcher artist = ARTIST_OBJECT.matcher(head);
+        if (!artist.find()) {
             return null;
         }
-        return jsonString(head.substring(index), "name");
+        final int start = artist.end() - 1; // '{'
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = start; i < head.length(); i++) {
+            final char c = head.charAt(i);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                inString = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return jsonString(head.substring(start, i + 1), "name");
+                }
+            }
+        }
+        return null;
     }
 
     /**
