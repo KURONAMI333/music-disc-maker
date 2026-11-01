@@ -347,6 +347,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         }
     }
 
+    /** サーバーの close・ブロック破壊・距離切れ・死亡など onClose を通らない閉じ方でも、保持した取込を片付ける。 */
+    @Override
+    public void removed() {
+        LocalAudioClient.cancel(menu);
+        super.removed();
+    }
+
     @Override
     public void onClose() {
         commitField(); // 入力したまま閉じた URL・曲名を取りこぼさない

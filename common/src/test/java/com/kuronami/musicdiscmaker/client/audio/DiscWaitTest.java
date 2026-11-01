@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,5 +48,29 @@ class DiscWaitTest {
         assertFalse(LocalImportDecisions.waitsForDisc("busy", 0));
         assertFalse(LocalImportDecisions.waitsForDisc("quota", 0));
         assertFalse(LocalImportDecisions.waitsForDisc(null, 0));
+    }
+
+    /** menu 実体の代わり。Session は menu を同一性でしか比べない。 */
+    private static LocalAudioClient.Upload waiting(LocalAudioClient.Session session) {
+        LocalAudioClient.Upload u = new LocalAudioClient.Upload(null, 1, session.connectionGeneration);
+        u.discWait.begin(false);
+        session.upload = u;
+        return u;
+    }
+
+    @Test
+    void tickSendsWhenOwnScreenSeesDisc() {
+        LocalAudioClient.Session session = new LocalAudioClient.Session();
+        waiting(session);
+        assertEquals(LocalAudioClient.Session.Step.NONE, session.tick(null, null, false));
+        assertEquals(LocalAudioClient.Session.Step.SEND, session.tick(null, null, true));
+    }
+
+    @Test
+    void tickAbortsWhenHeldMenuIsNoLongerOpen() {
+        LocalAudioClient.Session session = new LocalAudioClient.Session();
+        waiting(session);
+        // 画面がサーバーの close 等で閉じ、プレイヤーは別の menu (または無し) を開いている。
+        assertEquals(LocalAudioClient.Session.Step.ABORT, session.tick(new Object(), new Object(), true));
     }
 }

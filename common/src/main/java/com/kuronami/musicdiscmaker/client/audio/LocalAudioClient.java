@@ -421,11 +421,17 @@ public final class LocalAudioClient {
      * 待っていない・別の画面・取消済みの取込には何もしない。
      */
     public static void tick(MusicDiscMakerMenu menu) {
-        Upload u = SESSION.upload;
-        if (u == null || u.menu != menu || !u.discWait.waiting() || !SESSION.live(u)) return;
-        if (!u.discWait.poll(discSlotsReady(menu))) return;
-        status = "confirm";
-        confirm();
+        if (SESSION.upload == null) return;
+        switch (SESSION.tick(playerMenu(), menu, discSlotsReady(menu))) {
+            case ABORT -> abort(SESSION.upload, "select");
+            case SEND -> { status = "confirm"; confirm(); }
+            default -> {}
+        }
+    }
+    /** プレイヤーが今開いている menu。画面が無い・未接続なら null。 */
+    private static Object playerMenu() {
+        final var player = Minecraft.getInstance().player;
+        return player == null ? null : player.containerMenu;
     }
     public static void confirm() {
         Upload u = SESSION.upload;
@@ -445,7 +451,8 @@ public final class LocalAudioClient {
         *///?}
         Upload u = SESSION.upload;
         if (u == null) { status = "select"; return; }
-        if (u.menu != menu) return;
+        // 別の menu の取込でも、その画面が既に閉じていれば (onClose を通らない閉じ方) 片付ける。
+        if (u.menu != menu && u.menu == playerMenu()) return;
         abort(u, "select");
     }
     /**
@@ -703,6 +710,22 @@ public final class LocalAudioClient {
          */
         void ifLive(Upload u, Runnable action) {
             if (live(u)) action.run();
+        }
+        enum Step { NONE, ABORT, SEND }
+        /**
+         * 画面の tick が取るべき行動。保持中の upload の menu をプレイヤーがもう開いていなければ
+         * (サーバーからの close・ブロック破壊・距離・死亡で onClose を通らず閉じた) 中止する。
+         * 送信してよいのは、その upload の画面が tick を呼んでいて、盤の待ちが解けた時だけ。
+         *
+         * @param playerMenu プレイヤーが今開いている menu
+         * @param screenMenu tick を呼んだ画面の menu
+         */
+        Step tick(Object playerMenu, Object screenMenu, boolean discReady) {
+            Upload u = upload;
+            if (u == null || u.connection != connectionGeneration) return Step.NONE;
+            if (u.menu != playerMenu) return Step.ABORT;
+            if (u.menu != screenMenu) return Step.NONE;
+            return u.discWait.poll(discReady) ? Step.SEND : Step.NONE;
         }
         /** スロットにあるその upload だけを外す。別操作・済み操作への遅延到着は no-op。 */
         boolean clearIfCurrent(Upload u) {
