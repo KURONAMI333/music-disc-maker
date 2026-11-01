@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.audio.local;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
@@ -117,7 +118,7 @@ public final class LocalAudioServer {
                 u.storeId = prepared.transferId();
                 if (prepared.existing() != null) complete(s, u, prepared.existing());
                 else reply(s, u, LocalAudioPayload.READY, 0);
-            } catch (Exception e) { fail(s, u, importFailure(e)); }
+            } catch (Throwable e) { fail(s, u, importFailure(e)); }
         });
     }
     private static boolean valid(Upload u) {
@@ -149,7 +150,7 @@ public final class LocalAudioServer {
                     u.storeId = null;
                     complete(s, u, file);
                 } else reply(s, u, LocalAudioPayload.ACK, u.received);
-            } catch (Exception e) { fail(s, u, importFailure(e)); }
+            } catch (Throwable e) { fail(s, u, importFailure(e)); }
         }, s.delay(true, p.bytes().length), TimeUnit.MILLISECONDS);
     }
     private static void complete(State s, Upload u, Path file) throws IOException {
@@ -267,7 +268,7 @@ public final class LocalAudioServer {
                 if (path == null) throw new IOException("Missing audio");
                 d.size = Files.size(path); d.input = Files.newInputStream(path);
                 sendData(s, d);
-            } catch (Exception e) { closeDownload(s, d); s.server.execute(() -> error(player, p, "missing")); }
+            } catch (Throwable e) { workerFailure(e); closeDownload(s, d); s.server.execute(() -> error(player, p, "missing")); }
         });
     }
     /** A cache hit is usable only while this world's verified original still exists. */
@@ -291,7 +292,8 @@ public final class LocalAudioServer {
                             p.generation(), d.hash, 0, size, ""));
                     closeDownload(s, d);
                 });
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                workerFailure(e);
                 closeDownload(s, d);
                 s.server.execute(() -> error(player, p, "missing"));
             }
@@ -303,7 +305,7 @@ public final class LocalAudioServer {
         d.touched = now();
         s.io.schedule(() -> {
             try { if (d.offset == d.size) closeDownload(s, d); else sendData(s, d); }
-            catch (Exception e) { closeDownload(s, d); s.server.execute(() -> send(player, LocalAudioPayload.control(LocalAudioPayload.ERROR,
+            catch (Throwable e) { workerFailure(e); closeDownload(s, d); s.server.execute(() -> send(player, LocalAudioPayload.control(LocalAudioPayload.ERROR,
                     d.request, 0, d.generation, d.hash, 0, 0, "download_failed"))); }
         }, s.delay(false, LocalAudioStore.CHUNK_BYTES), TimeUnit.MILLISECONDS);
     }
@@ -379,13 +381,26 @@ public final class LocalAudioServer {
         }
         STATES.clear();
     }
-    private static String importFailure(Exception e) {
+    /** I/O ワーカーの Error (LinkageError 等) は executor に飲まれて client が expired を待つだけになるので、取込失敗へ畳む。 */
+    private static String importFailure(Throwable e) {
+        if (!LocalServerDecisions.recoverable(e)) throw (VirtualMachineError) e;
+        logUnexpected("import", e);
         return switch (String.valueOf(e.getMessage())) {
             case "Player audio storage full" -> "quota";
             case "Audio storage full" -> "world_full";
             case "Transfer limit reached" -> "busy";
             default -> "import_failed";
         };
+    }
+    /** download 側の I/O ワーカーの失敗をログに残す。VM の異常は握りつぶさず投げ直す。 */
+    private static void workerFailure(Throwable e) {
+        if (!LocalServerDecisions.recoverable(e)) throw (VirtualMachineError) e;
+        logUnexpected("transfer", e);
+    }
+    /** 想定内の I/O 失敗 (容量超過・原本なし等) は静かに畳み、Error と実行時例外だけ warn で残す。 */
+    private static void logUnexpected(String what, Throwable e) {
+        if (e instanceof Error || e instanceof RuntimeException)
+            MusicDiscMaker.LOGGER.warn("Local audio {} failed ({})", what, e.getClass().getSimpleName(), e);
     }
     private static void error(ServerPlayer player, LocalAudioPayload p, String reason) {
         send(player, LocalAudioPayload.control(LocalAudioPayload.ERROR, p.id(), p.containerId(), p.generation(), p.hash(), 0, 0, reason));

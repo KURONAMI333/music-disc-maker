@@ -12,4 +12,9 @@ final class LocalServerDecisions {
     static String dropReason(boolean alreadyCancelled, boolean connected) {
         return !alreadyCancelled && connected ? "expired" : null;
     }
+
+    /** I/O ワーカーの失敗として取込失敗へ畳んでよいか。JVM 自体の異常 (OOM 等) は握りつぶさない。 */
+    static boolean recoverable(Throwable failure) {
+        return !(failure instanceof VirtualMachineError);
+    }
 }

@@ -1,7 +1,11 @@
 package com.kuronami.musicdiscmaker.audio.local;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,4 +24,13 @@ class LocalServerDecisionsTest {
         assertNull(LocalServerDecisions.dropReason(true, false));
     }
 
+
+    @Test
+    void errorsAreFoldedButVmErrorsAreNot() {
+        assertTrue(LocalServerDecisions.recoverable(new IOException("x")));
+        assertTrue(LocalServerDecisions.recoverable(new LinkageError("x")));
+        assertTrue(LocalServerDecisions.recoverable(new NoClassDefFoundError("x")));
+        assertFalse(LocalServerDecisions.recoverable(new OutOfMemoryError()));
+        assertFalse(LocalServerDecisions.recoverable(new StackOverflowError()));
+    }
 }
