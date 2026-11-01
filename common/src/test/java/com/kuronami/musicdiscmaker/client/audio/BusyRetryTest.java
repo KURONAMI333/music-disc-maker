@@ -69,4 +69,17 @@ class BusyRetryTest {
         u.busyRetry.onBusy(1000);
         assertEquals(LocalAudioClient.Session.Step.GIVE_UP, session.tick(null, null, true, 61_000));
     }
+
+    @Test
+    void discWaitDropsTheEarlierBusyChain() {
+        LocalAudioClient.Session session = new LocalAudioClient.Session();
+        LocalAudioClient.Upload u = new LocalAudioClient.Upload(null, 1, session.connectionGeneration);
+        session.upload = u;
+        u.busyRetry.onBusy(0);
+        u.enterDiscWait(true); // 盤が外れて "disc" の待ちに入った
+        assertFalse(u.busyRetry.waiting());
+        u.busyRetry.onBusy(100_000); // 長い待ちの後の busy は新しい連鎖
+        assertEquals(BusyRetry.Poll.NONE, u.busyRetry.poll(100_500));
+        assertEquals(BusyRetry.Poll.RETRY, u.busyRetry.poll(101_000));
+    }
 }

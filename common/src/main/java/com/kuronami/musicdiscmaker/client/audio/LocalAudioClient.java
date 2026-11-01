@@ -380,7 +380,7 @@ public final class LocalAudioClient {
                 // 白紙の盤がまだ無い時は取込を保持して待ち、盤が入った時点で送る。
                 status = "confirm";
                 if (discSlotsReady(u.menu)) confirm();
-                else { status = "disc"; u.discWait.begin(false); }
+                else { status = "disc"; u.enterDiscWait(false); }
             });
         } catch (Throwable e) {
             // impl jar 破損等の Error でもスロット・一時ファイル・状態を残さない。
@@ -519,7 +519,7 @@ public final class LocalAudioClient {
                 && LocalImportDecisions.waitsForDisc(p.name(), u.sent)) {
             // 盤の判定が client とサーバーでずれた。選び直させず、盤の条件が変わるまで待つ。
             status = "disc"; percent = 0;
-            u.discWait.begin(discSlotsReady(u.menu));
+            u.enterDiscWait(discSlotsReady(u.menu));
         } else if (p.operation() == LocalAudioPayload.ERROR && SESSION.live(u)
                 && LocalImportDecisions.retriesBusy(p.name(), u.sent)) {
             // 待てば通る断り。変換済みの取込を捨てず、間を空けて tick から撃ち直す (表示は送信中のまま)。
@@ -804,6 +804,11 @@ public final class LocalAudioClient {
         final DiscWait discWait = new DiscWait();
         final BusyRetry busyRetry = new BusyRetry();
         long size, sent; UUID id = new UUID(0, 0); InputStream input; boolean sending;
+        /** 盤の待ちに入る。以前の busy の撃ち直しは、待ちを挟んだ後の busy で即 GIVE_UP にならないよう捨てる。 */
+        void enterDiscWait(boolean ready) {
+            busyRetry.clear();
+            discWait.begin(ready);
+        }
         Upload(MusicDiscMakerMenu menu, long generation, long connection) { this.menu = menu; this.generation = generation; this.connection = connection; }
     }
     static final class Receive {
