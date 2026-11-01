@@ -34,17 +34,20 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
  * 出力は常に「音声だけで完結する保存形式」の MKA になる。
  *
  * <p><b>有界と中断</b>: packet を集めながら出力見積が {@link #MAX_OUTPUT_BYTES} を
- * 超えないよう監視し、超える直前で encode を打ち切る (長い入力は先頭から
- * 32MiB 分の音声として成功する)。同じく encode した実尺が
- * {@link #MAX_OUTPUT_DURATION_NS} に達する直前でも打ち切る — 宣言尺が取れない
- * 入力や宣言尺を偽装した入力でも、出力は 2 時間を超えない (硬い上限)。
+ * 超えないよう監視し、超える直前で encode を止める。ただし止まった時に入力の終わりまで
+ * 届いていなければ「曲が途中で終わる盤」を黙って作らない — bitrate を下げて 1 回だけ
+ * 変換し直し ({@link #retryBitrate})、それでも入らなければ尺の上限として明示失敗する。
+ * encode した実尺が {@link #MAX_OUTPUT_DURATION_NS} に達した時も同じ規則で判定する
+ * (宣言尺が取れない入力や宣言尺を偽装した入力でも黙って切らない)。
  * 呼び出しスレッドの interrupt を各反復で観測し、中断時は encoder close・
  * temp 削除を保証した上で明示失敗にする。
  *
  * <p><b>尺と bitrate</b>: 長い曲を「尺の上限超過」で失敗させない。宣言尺から
  * 32MiB に収まる bitrate を選び ({@link #bitrateFor})、下限
  * {@link #MIN_OPUS_BITRATE} まで下げても収まらない尺だけを
- * {@link #MAX_DECLARED_DURATION_MS} で失敗にする。
+ * {@link #MAX_DECLARED_DURATION_MS} で失敗にする。下限で選んだ曲でも VBR の上振れで
+ * 溢れることがあるので、溢れた時は {@link #FINAL_MIN_OPUS_BITRATE} まで下げて
+ * 曲が最後まで入ることを優先する。
  *
  * <p><b>明示失敗</b>: 入力が読めない/大きすぎる、container が decode 不能、
  * 宣言尺が 2 時間超、再生中の decode 失敗、音声 0 frame、encoder の native 不在、
@@ -60,8 +63,9 @@ final class LocalFileNormalizer {
     static final long MAX_OUTPUT_BYTES = 32L * 1024 * 1024;
     /**
      * 宣言尺が分かる入力の上限。下限 bitrate ({@link #MIN_OPUS_BITRATE}) でも 32MiB に収まる尺で、
-     * 2 時間 × (32000 + {@link #CONTAINER_BPS}) / 8 ≈ 31.6MiB。ここを超える尺は
-     * bitrate を下げても入らないので失敗にする。分からない/偽装された入力は encode 側の実尺上限が効く。
+     * 2 時間 × (32000 + {@link #CONTAINER_BPS}) / 8 = 31,680,000 byte ≈ 30.2MiB となり、上限
+     * {@link #MAX_OUTPUT_BYTES} の 5.6% 内側に収まる。ここを超える尺は bitrate を下げても入らないので
+     * 失敗にする。分からない/偽装された入力は encode 側の実尺・実バイトで判定する。
      */
     static final long MAX_DECLARED_DURATION_MS = 2L * 60L * 60_000L;
     /** 生成物の尺上限 (ns)。宣言尺と同じ 2 時間を encode した実尺側でも強制する。 */
@@ -80,17 +84,65 @@ final class LocalFileNormalizer {
      * (2 時間はこの値で足りるので、下限を割る入力は尺の上限で失敗させる)。
      */
     static final int MIN_OPUS_BITRATE = 32_000;
+    /**
+     * 出力上限に当たって打ち切った時だけ 1 回使う最終下限。通常の選択は {@link #MIN_OPUS_BITRATE}。
+     *
+     * <p>2 時間 × (24000 + {@link #CONTAINER_BPS}) / 8 = 24,480,000 byte ≈ 23.3MiB なので、尺の
+     * 上限内の入力なら必ず入る。bitrate を下げるほど音は劣化するが、下限で選んだ曲が VBR の
+     * 上振れで溢れた時に「曲が途中で終わる盤」を作るより、最後まで鳴る盤の方が利用者の目的に合う。
+     * libopus の受付範囲 (500〜512000bps) の内側。
+     */
+    static final int FINAL_MIN_OPUS_BITRATE = 24_000;
+    /**
+     * 「まだ曲が続いている」と数える残り尺。これ以下の切れは曲の終わりと区別できない
+     * (この pin 版の再生経路は末尾 1 frame = 20ms を返さない) ので、成功に含める。
+     */
+    static final long SIGNIFICANT_REMAINING_NS = 1_000_000_000L;
     /** 選んだ bitrate の実測が目標をわずかに上回る分の余裕。出力見積は実 packet で別に検査する。 */
     private static final long OUTPUT_HEADROOM_PERCENT = 5L;
 
     /** 出力見積の固定分 (EBML header + Segment/Info/Tracks)。実測 ~250 byte に余裕を持たせる。 */
     private static final long ESTIMATE_FIXED_BYTES = 512L;
-    /** packet 1 個あたりの SimpleBlock 構造分 (block header 4 + element 外枠 ~4)。実測 ~7-8 byte。 */
-    private static final long ESTIMATE_PER_PACKET = 12L;
+    /**
+     * packet 1 個あたりの SimpleBlock 構造分 (block header 4 + element 外枠 ~4)。
+     * 実測 7〜8 byte なので 8 を使う。以前の 12 は実際より 4 byte 多く見積もり、2 時間の曲では
+     * 4 × 50 個/秒 × 7200 秒 ≈ 1.4MiB を上限の余白から差し引いていた (音声へ回せる分が減り、
+     * 末尾が切れる側へ働く)。実測に合わせて音声へ回す。
+     */
+    static final long ESTIMATE_PER_PACKET = 8L;
     /** cluster 1 個あたりの構造分 (Cluster element + Timestamp)。30 秒ごとに 1 個。 */
     private static final long ESTIMATE_PER_CLUSTER = 16L;
     /** 尺から bitrate を選ぶ時のコンテナ分 (20ms ごとの構造 = {@link #ESTIMATE_PER_PACKET} × 50 個/秒 × 8 bit)。 */
     static final long CONTAINER_BPS = ESTIMATE_PER_PACKET * 50L * 8L;
+
+    /** encode を止めた理由。 */
+    enum StopReason {
+        /** 入力の終わり (EOF) まで達した。 */
+        END_OF_INPUT,
+        /** 出力バイトの上限 ({@code maxOutputBytes}) に当たった。 */
+        OUTPUT_BYTES,
+        /** 実尺の上限 ({@code maxDurationNs}) に当たった。 */
+        DURATION
+    }
+
+    /**
+     * 1 回の encode の結果。
+     *
+     * @param packets     書けた packet (先頭から)
+     * @param encodedNs   packet が表す尺
+     * @param estimate    出力見積 (byte)
+     * @param remainingNs 止めた後にまだ入力が続いていた尺 (EOF までなら 0)
+     * @param stop        止まった理由
+     */
+    record Pass(List<MkaWriter.OpusPacket> packets, long encodedNs, long estimate, long remainingNs,
+            StopReason stop) {
+
+        /** 曲が途中で終わる盤になるか (入力の終わりに届かず、残りが 1 秒を超えている)。 */
+        boolean isShort() {
+            return stop != StopReason.END_OF_INPUT && remainingNs > SIGNIFICANT_REMAINING_NS;
+        }
+    }
+
 
     private final MusicLoaderImpl loader;
     private final long maxOutputBytes;
@@ -183,23 +235,14 @@ final class LocalFileNormalizer {
         }
         Files.createDirectories(directory);
         final Path temp = Files.createTempFile(directory, ".mdm-normalize-", ".tmp");
-
-        OpusEncoder encoder = null;
-        IAudioSource source = null;
-        AudioTrack track = null;
         try {
-            track = loadInputTrack(input);
-            final long declaredMs = track.getInfo().length;
+            final long declaredMs = declaredDurationMs(input);
             if (declaredMs > 0L && declaredMs != Long.MAX_VALUE
                     && declaredMs > MAX_DECLARED_DURATION_MS) {
-                throw new ResolveException(FailureReason.UNKNOWN,
-                        "input exceeds the duration limit");
+                throw durationLimit();
             }
-            // 宣言尺から bitrate を決めてから encoder を立てる (尺が長い曲だけ静かに下げる)。
-            encoder = openEncoder(bitrateFor(declaredMs, maxOutputBytes));
-            source = loader.beginPlayback(track, 0L);
-            track = null; // 再生側が所有するので close は source が担う
-            final List<MkaWriter.OpusPacket> packets = encodePcm(source, encoder);
+            // 宣言尺から bitrate を決め、収まらなければ下げて 1 回だけ変換し直す。
+            final List<MkaWriter.OpusPacket> packets = encodeWithinLimits(input, declaredMs);
             if (packets.isEmpty()) {
                 throw new ResolveException(FailureReason.UNKNOWN, "no decodable audio");
             }
@@ -210,20 +253,17 @@ final class LocalFileNormalizer {
                     Files.size(output), info.durationMs(), packets.size());
             return info;
         } finally {
-            if (source != null) {
-                source.close();
-            }
-            if (track != null) {
-                track.stop();
-            }
-            if (encoder != null) {
-                try {
-                    encoder.close();
-                } catch (final Throwable ignored) {
-                    // close 時の例外は握りつぶす (失敗経路の本体を上書きしない)
-                }
-            }
             Files.deleteIfExists(temp);
+        }
+    }
+
+    /** 入力の宣言尺 (ms)。分からない入力は {@code 0} / {@link Long#MAX_VALUE} のまま返す。 */
+    private long declaredDurationMs(Path input) {
+        final AudioTrack track = loadInputTrack(input);
+        try {
+            return track.getInfo().length;
+        } finally {
+            track.stop();
         }
     }
 
@@ -259,13 +299,74 @@ final class LocalFileNormalizer {
     }
 
     /**
+     * 上限に収まる形で encode する。上限に当たって途中で止まり、それでも曲が続いている時は
+     * 「曲が途中で終わる盤」を黙って作らない: bitrate を下げて 1 回だけ変換し直し
+     * ({@link #retryBitrate})、それでも入らなければ尺の上限として明示失敗する。
+     *
+     * <p>尺の上限 ({@link #maxDurationNs}) に当たった時は下げても伸びないので変換し直さない。
+     *
+     * @param declaredMs 入力の宣言尺 (分からなければ 0 / {@link Long#MAX_VALUE})
+     */
+    private List<MkaWriter.OpusPacket> encodeWithinLimits(Path input, long declaredMs) {
+        final int bitrate = bitrateFor(declaredMs, maxOutputBytes);
+        Pass pass = encodePass(input, bitrate);
+        if (pass.stop() == StopReason.OUTPUT_BYTES && pass.isShort()) {
+            final int retry = retryBitrate(bitrate, pass.encodedNs(), declaredMs, pass.estimate(),
+                    maxOutputBytes);
+            if (retry < bitrate) {
+                LOGGER.info("Re-encoding at {}bps (was {}bps) so the whole track fits",
+                        retry, bitrate);
+                pass = encodePass(input, retry);
+            }
+        }
+        if (pass.packets().isEmpty()) {
+            // 「音声 0 frame」は既存の理由 (decode 不能) で返す。
+            return pass.packets();
+        }
+        if (pass.isShort()) {
+            throw durationLimit();
+        }
+        return pass.packets();
+    }
+
+    /**
+     * 1 回分の decode → encode。入力は pass ごとに開き直す (変換し直しで先頭から decode するため)。
+     */
+    private Pass encodePass(Path input, int bitrate) {
+        AudioTrack track = null;
+        IAudioSource source = null;
+        OpusEncoder encoder = null;
+        try {
+            track = loadInputTrack(input);
+            encoder = openEncoder(bitrate);
+            source = loader.beginPlayback(track, 0L);
+            track = null; // 再生側が所有するので close は source が担う
+            return encodePcm(source, encoder);
+        } finally {
+            if (source != null) {
+                source.close();
+            }
+            if (track != null) {
+                track.stop();
+            }
+            if (encoder != null) {
+                try {
+                    encoder.close();
+                } catch (final Throwable ignored) {
+                    // close 時の例外は握りつぶす (失敗経路の本体を上書きしない)
+                }
+            }
+        }
+    }
+
+    /**
      * mono 48kHz PCM を pull しながら Opus packet へ encode する。出力見積が
-     * {@link #maxOutputBytes} に達したら、または encode した尺が {@link #maxDurationNs} に
-     * 達したら打ち切る (= 先頭から収まる分だけを持つ有界な成功)。尺側の打ち切りは
-     * 宣言尺を持たない/偽装した入力を 2 時間以内へ収める硬い上限になる。
+     * {@link #maxOutputBytes} に達した時、または encode した尺が {@link #maxDurationNs} に
+     * 達した時に止め、<b>入力の続きがどれだけ残っているか</b>を実 decode で測って返す
+     * (残りが {@link #SIGNIFICANT_REMAINING_NS} 以下なら曲の終わりと同じ扱い)。
      * interrupt・再生中の decode 失敗は明示失敗。
      */
-    private List<MkaWriter.OpusPacket> encodePcm(IAudioSource source, OpusEncoder encoder) {
+    private Pass encodePcm(IAudioSource source, OpusEncoder encoder) {
         final List<MkaWriter.OpusPacket> packets = new ArrayList<>();
         final ByteBuffer pcmIn = ByteBuffer.allocateDirect(FRAME_BYTES).order(ByteOrder.LITTLE_ENDIAN);
         final ByteBuffer encoded = ByteBuffer.allocateDirect(16_000);
@@ -295,15 +396,15 @@ final class LocalFileNormalizer {
                 pcmIn.put(readBuffer, offset, chunk);
                 offset += chunk;
                 if (pcmIn.position() == FRAME_BYTES) {
-                    // この frame を足すと尺上限を超えるなら、ここまでを有界な成功にする。
+                    // この frame を足すと尺上限を超えるなら止める。残りは測って呼び出し側が判定する。
                     if (packetNs + FRAME_NS > maxDurationNs) {
-                        return packets;
+                        return stopped(source, packets, packetNs, estimate, StopReason.DURATION);
                     }
                     final MkaWriter.OpusPacket packet = encodeFrame(encoder, pcmIn, encoded);
                     final long added = packet.data().length + ESTIMATE_PER_PACKET + clusterCost(packetNs);
-                    // 見積を先に確かめる。超えるならこの packet を捨てて打ち切る。
+                    // 見積を先に確かめる。超えるならこの packet を捨てて止める。
                     if (estimate + added > maxOutputBytes) {
-                        return packets;
+                        return stopped(source, packets, packetNs, estimate, StopReason.OUTPUT_BYTES);
                     }
                     estimate += added;
                     packets.add(packet);
@@ -328,7 +429,87 @@ final class LocalFileNormalizer {
         if (fault != null) {
             throw new ResolveException(fault.reason(), fault.detail());
         }
-        return packets;
+        return new Pass(packets, packetNs, estimate, 0L, StopReason.END_OF_INPUT);
+    }
+
+    /** 上限で止めた時の結果。残りの尺を実 decode で測ってから返す。 */
+    private static Pass stopped(IAudioSource source, List<MkaWriter.OpusPacket> packets,
+            long encodedNs, long estimate, StopReason reason) {
+        return new Pass(packets, encodedNs, estimate, remainingNs(source), reason);
+    }
+
+    /**
+     * 止めた後に入力がまだ続いているかを実 decode で測る。
+     * {@link #SIGNIFICANT_REMAINING_NS} を超える残りがあるかだけ分かればよいので、1 秒ぶん
+     * 読めた時点で止める (残り全部を decode しない)。読み出しが止まったままにならないよう
+     * 10 秒で打ち切る。
+     */
+    private static long remainingNs(IAudioSource source) {
+        final long wantBytes = (SIGNIFICANT_REMAINING_NS + FRAME_NS) / FRAME_NS * FRAME_BYTES;
+        final byte[] buffer = new byte[8_192];
+        final long deadline = System.nanoTime() + 10_000_000_000L;
+        long bytes = 0L;
+        while (bytes < wantBytes && System.nanoTime() < deadline) {
+            final PlaybackFault fault = source.playbackFault();
+            if (fault != null) {
+                throw new ResolveException(fault.reason(), fault.detail());
+            }
+            final int read = source.read(buffer, 0, buffer.length);
+            if (read < 0) {
+                break;
+            }
+            if (read == 0) {
+                sleep();
+                continue;
+            }
+            bytes += read;
+        }
+        return bytes * FRAME_NS / FRAME_BYTES;
+    }
+
+    /**
+     * 上限に当たって打ち切った時に試す bitrate。1 回目の実測から「この入力の 1ms あたりの
+     * 音声バイト」を出し、宣言尺ぶんを上限内に置ける値へ按分する。コンテナ分は bitrate に
+     * 依らない (packet あたり固定) ので別に引く。
+     *
+     * <p>{@link #MIN_OPUS_BITRATE} を割ってよいのはこの経路だけで、{@link #FINAL_MIN_OPUS_BITRATE}
+     * で止める。宣言尺が無い/偽装された入力は残り尺が読めないので半分にして 1 回だけ試す。
+     *
+     * @param encodedNs     1 回目が encode できた尺
+     * @param measuredBytes 1 回目の出力見積 (コンテナ分を含む)
+     * @return 下げる先の bitrate。既に {@link #FINAL_MIN_OPUS_BITRATE} なら同じ値を返す
+     *         (= 呼び出し側は変換し直さず失敗に倒す)
+     */
+    static int retryBitrate(int bitrate, long encodedNs, long declaredMs, long measuredBytes,
+            long maxBytes) {
+        final long encodedMs = encodedNs / 1_000_000L;
+        if (encodedMs <= 0L) {
+            return FINAL_MIN_OPUS_BITRATE;
+        }
+        if (declaredMs <= 0L || declaredMs == Long.MAX_VALUE || declaredMs <= encodedMs) {
+            return (int) Math.max(FINAL_MIN_OPUS_BITRATE, bitrate / 2L);
+        }
+        final double audioUsed = Math.max(1.0, measuredBytes - containerBytes(encodedMs));
+        final long audioBudget = (maxBytes - containerBytes(declaredMs) - ESTIMATE_FIXED_BYTES)
+                * (100L - OUTPUT_HEADROOM_PERCENT) / 100L;
+        if (audioBudget <= 0L) {
+            return FINAL_MIN_OPUS_BITRATE;
+        }
+        // 音声バイトは bitrate に比例する。実測の 1ms あたりを、尺ぶんの予算へ按分する。
+        final double wanted = bitrate * (double) audioBudget * encodedMs
+                / (audioUsed * declaredMs);
+        return (int) Math.max(FINAL_MIN_OPUS_BITRATE,
+                Math.min(bitrate - 1L, Math.round(wanted)));
+    }
+
+    /** その尺の出力に必ず載るコンテナ分 (byte)。{@link #ESTIMATE_PER_PACKET} と 20ms から出す。 */
+    private static long containerBytes(long ms) {
+        return ms / 20L * ESTIMATE_PER_PACKET;
+    }
+
+    /** 尺の上限としての明示失敗。文言は {@code LocalImportDecisions} が too_long へ写す語を含める。 */
+    private static ResolveException durationLimit() {
+        return new ResolveException(FailureReason.UNKNOWN, "input exceeds the duration limit");
     }
 
     /** この packet が入ると新しい cluster が始まる時だけ cluster 構造分を足す (writer と同じ 30 秒境界)。 */
