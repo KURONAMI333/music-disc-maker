@@ -470,8 +470,11 @@ public final class LocalAudioClient {
     private static void abort(Upload u, String newStatus) {
         if (!SESSION.clearIfCurrent(u)) return;
         status = newStatus;
-        Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.CANCEL, u.id,
-                u.menu.containerId, u.generation, u.hash, 0, 0, ""));
+        // 切断中の setScreen から来ることがある。未接続では送れない (送信が例外になる) ので省き、
+        // スロット解放と一時ファイルの片付けだけ進める。サーバー側の転送は切断で消える。
+        if (Minecraft.getInstance().getConnection() != null)
+            Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.CANCEL, u.id,
+                    u.menu.containerId, u.generation, u.hash, 0, 0, ""));
         cleanup(u);
     }
     public static void receive(LocalAudioPayload p) {

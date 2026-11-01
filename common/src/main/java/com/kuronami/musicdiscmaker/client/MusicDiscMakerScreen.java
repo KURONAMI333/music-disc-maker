@@ -353,8 +353,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
      */
     @Override
     public void removed() {
-        LocalAudioClient.screenRemoved(menu);
-        super.removed();
+        try {
+            LocalAudioClient.screenRemoved(menu);
+        } finally {
+            super.removed(); // 取消が失敗しても画面の後始末は必ず進める
+        }
     }
 
     @Override
