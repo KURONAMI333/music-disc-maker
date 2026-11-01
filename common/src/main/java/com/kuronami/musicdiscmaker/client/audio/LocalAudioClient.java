@@ -639,7 +639,11 @@ public final class LocalAudioClient {
             RESTORES.remove(hash, active);
             IO.execute(() -> closeRestore(active));
         }
-        if (!LocalRestoreDecisions.shouldRestore(true, true, inFlight, since, RESTORE_RETRY_MS)) return;
+        // 旧サーバー (RESTORE を知らない) は opcode を復号できず、例外で接続が切れる。
+        // Fabric には login 段の版ゲートが無く play 段のハンドシェイクで版が分かるので、
+        // 食い違いを検出したら上げ直さない。
+        if (!LocalRestoreDecisions.shouldRestore(true, true, !ClientPlaybackHandler.isProtocolMismatch(),
+                inFlight, since, RESTORE_RETRY_MS)) return;
         RESTORE_ATTEMPTS.put(hash, now());
         final long connection = SESSION.connectionGeneration;
         IO.execute(() -> beginRestore(hash, cached, connection));
@@ -654,7 +658,9 @@ public final class LocalAudioClient {
             final Restore r = new Restore(hash, cached, size, connection);
             if (RESTORES.putIfAbsent(hash, r) != null) return;
             Minecraft.getInstance().execute(() -> {
-                if (connection != SESSION.connectionGeneration || RESTORES.get(hash) != r) {
+                // 版の食い違いが送信直前に分かった時も送らない (旧サーバーは復号できず接続が切れる)。
+                if (connection != SESSION.connectionGeneration || RESTORES.get(hash) != r
+                        || ClientPlaybackHandler.isProtocolMismatch()) {
                     RESTORES.remove(hash, r);
                     return;
                 }
@@ -670,14 +676,17 @@ public final class LocalAudioClient {
      * 上げ直しの応答を処理する。関係ない包なら {@code false} を返し、既存の再生待ち・取込へ流す。
      *
      * <p>応答の id は、転送が始まる前はこちらが振った request、始まった後はサーバーの transfer id。
-     * hash も照合するので、同じ hash の再生待ちの ERROR を巻き取らない。
+     * ただし RESTORE_READY だけはサーバーが store に開いた id を載せるので、最初の 1 回は id を
+     * 見ずに受ける ({@link LocalRestoreDecisions#acceptsRestoreReply})。hash も照合するので、
+     * 同じ hash の再生待ちの ERROR を巻き取らない。
      */
     private static boolean restore(LocalAudioPayload p) {
         final Restore r = RESTORES.get(p.hash());
         if (r == null || r.connection != SESSION.connectionGeneration) return false;
         final UUID transfer = r.transferId;
-        if (!(transfer != null ? transfer : r.request).equals(p.id())) return false;
-        if (p.operation() == LocalAudioPayload.RESTORE_READY) {
+        final boolean ready = p.operation() == LocalAudioPayload.RESTORE_READY;
+        if (!LocalRestoreDecisions.acceptsRestoreReply(ready, transfer, r.request, p.id())) return false;
+        if (ready) {
             if (transfer != null) return true;
             r.transferId = p.id();
             if (p.offset() == r.sent) readRestoreChunk(r);

@@ -64,7 +64,9 @@ public final class ModNetwork {
     // 22: audio_lag (曲が実際に鳴り始めた時の遅れ。金のジュークボックスが次の曲を待つ) を追加。
     // 23: boombox_audio_lag (ブームボックスも同じ遅れを報告し、固定 8 秒の待ちをやめる) を追加。
     // 24: client_resolved_track (server が YouTube に弾かれた時、client が取った曲名・尺で元 URL を焼く) を追加。
-    public static final String PROTOCOL_VERSION = "24";
+    // 25: 原本の上げ直し (RESTORE/RESTORE_READY opcode) を追加。旧 server は opcode を復号できず
+    //     IllegalArgumentException で接続が切れるので、版を分けて送らせない。
+    public static final String PROTOCOL_VERSION = "25";
 
     private static final double MAX_REACH_SQR = 64.0;
 
