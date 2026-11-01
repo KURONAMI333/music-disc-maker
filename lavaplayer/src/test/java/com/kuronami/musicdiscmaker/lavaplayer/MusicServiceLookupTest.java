@@ -271,6 +271,48 @@ class MusicServiceLookupTest {
     }
 
     @Test
+    void aDeezerErrorOtherThanNoDataIsRetriedNotTakenAsNoTrack() {
+        // 回数制限は HTTP 200 の error 本文で来る。曲が無い確定ではないので取り直し、
+        // 読めなければ UNREADABLE (接続の失敗) にする。
+        final AtomicInteger calls = new AtomicInteger();
+        final PageMeta.Fetcher fetcher = (url, timeoutMs) -> {
+            calls.incrementAndGet();
+            return calls.get() == 1
+                    ? "{\"error\":{\"type\":\"Exception\",\"message\":\"Quota limit exceeded\",\"code\":4}}"
+                    : DEEZER_JSON;
+        };
+        final MusicServiceLookup.Link link = MusicServiceLookup.match(DEEZER_TRACK);
+
+        final MusicServiceLookup.ReadResult result =
+                MusicServiceLookup.readTrack(link, fetcher, () -> 0L, ms -> {});
+
+        assertEquals(MusicServiceLookup.ReadStatus.FOUND, result.status());
+        assertEquals(2, calls.get());
+
+        final AtomicInteger quotaCalls = new AtomicInteger();
+        final MusicServiceLookup.ReadResult quota = MusicServiceLookup.readTrack(link,
+                (url, timeoutMs) -> {
+                    quotaCalls.incrementAndGet();
+                    return "{\"error\":{\"type\":\"Exception\",\"message\":\"Quota limit exceeded\",\"code\":4}}";
+                }, () -> 0L, ms -> {});
+        assertEquals(MusicServiceLookup.ReadStatus.UNREADABLE, quota.status());
+        assertEquals(PageMeta.ATTEMPTS, quotaCalls.get());
+    }
+
+    @Test
+    void aDeezerTrackNamedErrorIsStillRead() {
+        // 本文のどこかに "error" があるだけでは失敗応答にしない。
+        final String body = "{\"id\":5,\"title\":\"error\",\"duration\":100,"
+                + "\"artist\":{\"id\":6,\"name\":\"error\"},\"type\":\"track\"}";
+
+        final MusicServiceLookup.Meta meta =
+                MusicServiceLookup.parse(MusicServiceLookup.Service.DEEZER, body);
+
+        assertEquals("error", meta.title());
+        assertEquals("error", meta.artist());
+    }
+
+    @Test
     void aCountrySpecificLookupWithNoTrackFallsBackOnceToTheCountrylessOne() {
         final List<String> fetched = new ArrayList<>();
         final PageMeta.Fetcher fetcher = (url, timeoutMs) -> {

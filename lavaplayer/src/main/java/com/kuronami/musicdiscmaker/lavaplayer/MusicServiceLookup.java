@@ -137,8 +137,18 @@ final class MusicServiceLookup {
 
     /** 「その ID の曲が無い」。空の {@code results} を曲名の空文字として扱わないための目印。 */
     private static final Pattern APPLE_NO_RESULT = Pattern.compile("\"resultCount\"\\s*:\\s*0");
-    /** Deezer の失敗応答 ({@code {"error":...}})。曲名の欄を持たない。 */
-    private static final Pattern DEEZER_ERROR = Pattern.compile("\"error\"");
+    /**
+     * Deezer の失敗応答 ({@code {"error":...}})。本文の先頭が {@code "error"} の時だけ見る
+     * (曲名や作者が {@code error} の曲を誤って拾わないため)。
+     */
+    private static final Pattern DEEZER_ERROR = Pattern.compile("^\\s*\\{\\s*\"error\"\\s*:");
+    /**
+     * そのうち「その ID の曲が無い」と確定するもの ({@code DataException}、code 800)。
+     * 回数制限 ({@code Quota limit exceeded}, code 4) などの他の失敗は、取り直せば読めるので
+     * 曲が無い扱いにしない。
+     */
+    private static final Pattern DEEZER_NO_DATA = Pattern.compile(
+            "\"type\"\\s*:\\s*\"DataException\"|\"code\"\\s*:\\s*800\\b");
 
     private MusicServiceLookup() {
     }
@@ -303,8 +313,9 @@ final class MusicServiceLookup {
         return switch (service) {
             case APPLE_MUSIC -> APPLE_NO_RESULT.matcher(body).find()
                     ? ReadResult.noTrack() : parseApple(body);
-            case DEEZER -> DEEZER_ERROR.matcher(body).find()
-                    ? ReadResult.noTrack() : parseDeezer(body);
+            case DEEZER -> !DEEZER_ERROR.matcher(body).find() ? parseDeezer(body)
+                    : DEEZER_NO_DATA.matcher(body).find() ? ReadResult.noTrack()
+                    : ReadResult.unreadable();
         };
     }
 

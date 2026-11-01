@@ -708,9 +708,8 @@ public class MusicLoaderImpl implements IMusicLoader {
                 // 検索語を作れない・探して無い・予算切れ・検索失敗を、元の失敗
                 // (UNSUPPORTED_URL / bot 判定) に潰さず、次にできることが分かる理由で返す。
                 throw new ResolveException(substituteFailure(substitute.outcome()),
-                        substitute.outcome() == SearchOutcome.NO_MATCH
-                                ? "searched \"" + title + "\" on the alternate sources with no usable copy"
-                                : "could not search an alternate source for \"" + title + "\"");
+                        substituteDetail(substitute.outcome(), title,
+                                "on the alternate sources with no usable copy"));
             }
             throw ex;
         }
@@ -728,9 +727,8 @@ public class MusicLoaderImpl implements IMusicLoader {
             // 尺の分かっている曲で、釣り合う候補が 1 つも無かった =「探したが無かった」。
             // 予算切れ・検索失敗は「探せていない」ので、接続の失敗として返す。
             throw new ResolveException(substituteFailure(substitute.outcome()),
-                    substitute.outcome() == SearchOutcome.NO_MATCH
-                            ? "every candidate for \"" + title + "\" was a different length"
-                            : "could not search an alternate source for \"" + title + "\"");
+                    substituteDetail(substitute.outcome(), title,
+                            "where every candidate was a different length"));
         }
         // 表示は元サービスのクリーンなメタ、再生は YouTube の uri。
         return new TrackInfo(title, artist, info.length, info.uri, info.identifier,
@@ -934,7 +932,21 @@ public class MusicLoaderImpl implements IMusicLoader {
     /** 「検索は走ったが、同じ録音とみなせる候補が無かった」の共通の失敗。 */
     private static ResolveException noAlternative(String title) {
         return new ResolveException(FailureReason.NO_ALTERNATIVE_FOUND,
-                "searched \"" + title + "\" on the alternate sources with no usable copy");
+                "searched \"" + logSafe(title) + "\" on the alternate sources with no usable copy");
+    }
+
+    /**
+     * 曲名の分かっている照会の、代替探しが実らなかった時の detail。曲名は外部の応答から来るので
+     * {@link #logSafe} を通す (detail はそのまま警告ログに出る)。
+     */
+    private static String substituteDetail(SearchOutcome outcome, String title, String noMatchTail) {
+        final String quoted = "\"" + logSafe(title) + "\"";
+        return switch (outcome) {
+            case NO_MATCH -> "searched " + quoted + " " + noMatchTail;
+            case NOT_SEARCHABLE -> "no search term could be built for " + quoted;
+            case BUDGET_EXHAUSTED -> "ran out of time searching the alternate sources for " + quoted;
+            default -> "could not search an alternate source for " + quoted;
+        };
     }
 
     /**
@@ -1529,7 +1541,7 @@ public class MusicLoaderImpl implements IMusicLoader {
      * 応答側がログの行構造を偽装できないようにする。
      */
     static String logSafe(String s) {
-        return safe(s).replaceAll("\\p{Cntrl}", " ");
+        return safe(s).replaceAll("[\\p{Cntrl}\\u0085\\u2028\\u2029]", " ");
     }
 
     @Override
