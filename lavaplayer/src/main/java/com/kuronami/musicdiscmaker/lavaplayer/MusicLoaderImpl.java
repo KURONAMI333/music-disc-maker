@@ -134,7 +134,7 @@ public class MusicLoaderImpl implements IMusicLoader {
     /**
      * YouTube で鳴らせなかった時に代わりを探す検索接頭辞 (試す順)。
      *
-     * <p>{@code bcsearch:} は 2026-08-18 時点で結果を返さない — Bandcamp の検索ページが
+     * <p>{@code bcsearch:} は 2026-11-02 時点で結果を返さない — Bandcamp の検索ページが
      * 「Client Challenge」(JS を要求する bot 判定) を返すようになり、lavaplayer が読む
      * {@code .searchresult} が HTML に無い。<b>それでも残してある</b>のは、失敗する時は
      * HTTP 1 往復で {@code noMatches} に落ちるだけで、Bandcamp 側か lavaplayer 側が直れば
