@@ -411,6 +411,13 @@ public final class LocalAudioClient {
             throw new IOException(e);
         }
     }
+    /**
+     * 画面が取り除かれた時 (MusicDiscMakerScreen#removed) に呼ぶ。menu を開いたまま画面だけが替わった
+     * (レシピ画面など) 場合は何もしない。
+     */
+    public static void screenRemoved(MusicDiscMakerMenu menu) {
+        if (LocalImportDecisions.cancelsOnScreenRemoved(menu, playerMenu())) cancel(menu);
+    }
     /** 入力枠に白紙の盤があり出力枠が空か。サーバーが BEGIN で確かめる条件と同じ。 */
     private static boolean discSlotsReady(MusicDiscMakerMenu menu) {
         return MusicDiscMakerBlockEntity.isBlankDisc(menu.getSlot(MusicDiscMakerBlockEntity.SLOT_INPUT).getItem())
@@ -453,7 +460,7 @@ public final class LocalAudioClient {
         Upload u = SESSION.upload;
         if (u == null) { status = "select"; return; }
         // 別の menu の取込でも、その画面が既に閉じていれば (onClose を通らない閉じ方) 片付ける。
-        if (u.menu != menu && u.menu == playerMenu()) return;
+        if (!LocalImportDecisions.cancelAborts(u.menu, menu, playerMenu())) return;
         abort(u, "select");
     }
     /**

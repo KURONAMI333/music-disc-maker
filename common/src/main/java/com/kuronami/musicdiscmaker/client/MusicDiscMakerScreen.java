@@ -347,10 +347,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         }
     }
 
-    /** サーバーの close・ブロック破壊・距離切れ・死亡など onClose を通らない閉じ方でも、保持した取込を片付ける。 */
+    /**
+     * サーバーの close・ブロック破壊・距離切れ・死亡など onClose を通らない閉じ方でも、保持した取込を片付ける。
+     * menu を開いたまま画面だけが替わる場合 (JEI・EMI のレシピ画面) は取り消さない。
+     */
     @Override
     public void removed() {
-        LocalAudioClient.cancel(menu);
+        LocalAudioClient.screenRemoved(menu);
         super.removed();
     }
 

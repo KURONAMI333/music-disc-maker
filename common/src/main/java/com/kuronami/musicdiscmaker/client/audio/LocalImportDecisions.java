@@ -51,6 +51,23 @@ final class LocalImportDecisions {
         return "disc".equals(reason) && sent == 0;
     }
 
+    /**
+     * 画面が取り除かれた時に保持した取込を取り消すか。JEI・EMI のレシピ画面のように画面だけが替わり、
+     * プレイヤーがまだその menu を開いている間は取り消さない (画面が戻れば tick が続きを進める)。
+     * vanilla の onClose・サーバーの close・死亡は、画面を替える前に containerMenu を戻す。
+     */
+    static boolean cancelsOnScreenRemoved(Object screenMenu, Object playerMenu) {
+        return playerMenu != screenMenu;
+    }
+
+    /**
+     * cancel(menu) が保持中の取込を中止するか。自分の menu からの取消は常に中止。別の menu からの呼び出しは、
+     * 保持した取込の menu がもう開かれていない (onClose を通らず閉じた) 時だけ中止する。
+     */
+    static boolean cancelAborts(Object uploadMenu, Object requestMenu, Object playerMenu) {
+        return uploadMenu == requestMenu || uploadMenu != playerMenu;
+    }
+
     /** サーバーの "busy" で、本体をまだ送っていないなら取込を保持して撃ち直す。 */
     static boolean retriesBusy(String reason, long sent) {
         return "busy".equals(reason) && sent == 0;
