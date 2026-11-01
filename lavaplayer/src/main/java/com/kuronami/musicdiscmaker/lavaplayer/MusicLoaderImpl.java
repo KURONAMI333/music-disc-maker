@@ -148,6 +148,15 @@ public class MusicLoaderImpl implements IMusicLoader {
      */
     private static final String[] SOUNDCLOUD_SUBSTITUTE_PREFIXES = {"ytsearch:", "scsearch:"};
     /**
+     * 音楽サービスから読んだ曲名で YouTube を引いたが、<b>尺の合う動画が先頭に無かった</b>時に
+     * 選び直す先。
+     *
+     * <p>YouTube を先に置くのは、その曲が既に YouTube 検索で見つかっているからで、同じ検索の
+     * 2 件目以降 = 同じ曲の別の動画が一番近い代わり。SoundCloud / Bandcamp はその次
+     * (別の配信元まで降りるのは、YouTube 側に尺の合うものが 1 つも無い時だけ)。
+     */
+    private static final String[] SERVICE_RESUBSTITUTE_PREFIXES = {"ytsearch:", "scsearch:", "bcsearch:"};
+    /**
      * 1 つの検索で中身を見る候補の数。1 回の応答に入っている件数なので、増やしても通信は増えない。
      * 上位が全部カバーやリミックスでも後ろまで見る。
      */
@@ -286,6 +295,16 @@ public class MusicLoaderImpl implements IMusicLoader {
     private volatile UrlGate urlGate;
 
     /**
+     * 音楽サービスの曲ページ (照会) を読む関数。テストは差し替えてネットワークに出ない。
+     *
+     * <p>Spotify は {@link SpotifyResolver} が自分で取りに行くが、Apple Music / Deezer の
+     * 照会は {@link MusicServiceLookup} に渡す。ここを差し替え口にしてあるのは、
+     * 「URL → 曲名 → YouTube 検索 → 盤」の<b>つながり全体</b>を偽の応答で固定するため
+     * (片方だけを試験すると、間に挟まる検索語の組み立てが壊れても気づけない)。
+     */
+    private final PageMeta.Fetcher pageFetcher;
+
+    /**
      * この読み込みで返る一覧を<b>どこまで使うか</b>。{@link ListReadReference} に載せて
      * 要求ごとに渡す。使わない分は埋め戻さない — 代わりを探す 1 回が 8 秒なので、読まない
      * 曲のために待つと、一覧そのものが返らなくなる。
@@ -353,6 +372,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
         this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
         this.clockMs = System::currentTimeMillis;
+        this.pageFetcher = PageMeta::fetchPage;
         configureOutput(this.apm);
         this.youtube = registerYoutube();
         this.session = youtube == null ? YoutubeSession.NONE
@@ -380,10 +400,22 @@ public class MusicLoaderImpl implements IMusicLoader {
      */
     MusicLoaderImpl(AudioPlayerManager apm, YoutubeAudioSourceManager youtube, YoutubeSession session,
             LongSupplier clockMs) {
+        this(apm, youtube, session, clockMs, PageMeta::fetchPage);
+    }
+
+    /**
+     * {@link #MusicLoaderImpl(AudioPlayerManager, YoutubeAudioSourceManager, YoutubeSession, LongSupplier)}
+     * に、曲ページの取得口を添えた版。
+     *
+     * @param pageFetcher 音楽サービスの照会を読む関数 (テストは偽の応答を返す)
+     */
+    MusicLoaderImpl(AudioPlayerManager apm, YoutubeAudioSourceManager youtube, YoutubeSession session,
+            LongSupplier clockMs, PageMeta.Fetcher pageFetcher) {
         this.apm = apm;
         this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
         this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
         this.clockMs = clockMs;
+        this.pageFetcher = pageFetcher;
         configureOutput(apm);
         this.youtube = youtube;
         this.session = session;
@@ -488,6 +520,11 @@ public class MusicLoaderImpl implements IMusicLoader {
         if (SpotifyResolver.isSpotifyTrack(url)) {
             return resolveViaSpotify(url);
         }
+        // Apple Music / Deezer の単曲リンクも同じ形で通す (ページの代わりにサービスの照会口を読む)。
+        final MusicServiceLookup.Link service = MusicServiceLookup.match(url);
+        if (service != null) {
+            return resolveViaMusicService(service);
+        }
         final AudioTrack track;
         try {
             // 検索は先頭 1 曲しか使わない (下の playlistLoaded で get(0))。読まない 2 件目以降の
@@ -556,6 +593,11 @@ public class MusicLoaderImpl implements IMusicLoader {
         return placeholder.equals(safe) ? "" : safe;
     }
 
+    /**
+     * Spotify のトラックを、og タグの曲名・アーティストから YouTube 検索で鳴らせる形にする。
+     *
+     * <p>Spotify のページは尺を返さないので、尺の照合はしない (従来どおり)。
+     */
     private TrackInfo resolveViaSpotify(String spotifyUrl) {
         final String[] meta = SpotifyResolver.fetchMeta(spotifyUrl);
         if (meta == null || meta[0].isBlank()) {
@@ -563,20 +605,75 @@ public class MusicLoaderImpl implements IMusicLoader {
             throw new ResolveException(FailureReason.CONNECTION_FAILED,
                     "could not read the Spotify page metadata");
         }
-        final String query = (meta[1].isBlank() ? "" : meta[1] + " ") + meta[0];
+        return searchForServiceTrack(spotifyUrl, meta[0], meta[1], 0L);
+    }
+
+    /**
+     * Apple Music / Deezer の単曲リンクを、サービスから読んだ曲名・アーティストで鳴らせる形にする。
+     *
+     * <p>読めなかった時に {@link FailureReason#CONNECTION_FAILED} を返すのは Spotify と同じ理由 —
+     * リンクは正しいが相手に届かなかったので、利用者に直せるのは「もう一度」だけ。URL が対応外
+     * ({@link FailureReason#UNSUPPORTED_URL}) とは別物として扱う。
+     *
+     * <p>取得の直前に {@code UrlGate} を通す。loader は隔離 classloader なので mod 側の
+     * {@code UrlGuard} を直接呼べず、盤の URL と同じ検査はこの口からしか掛けられない
+     * ({@link #openAllowed} と同じ判断)。差し込みが無い時は<b>読みに行かない</b>。
+     *
+     * @param link 照会できる単曲リンク
+     * @return 盤に焼く曲の情報
+     */
+    private TrackInfo resolveViaMusicService(MusicServiceLookup.Link link) {
+        if (!openAllowed(link.lookupUrl())) {
+            LOGGER.warn("Refusing to read the {} lookup ({})", link.service().label(),
+                    link.lookupUrl());
+            throw new ResolveException(FailureReason.BLOCKED_URL,
+                    "the " + link.service().label() + " lookup was refused");
+        }
+        final MusicServiceLookup.Meta meta = MusicServiceLookup.read(link, pageFetcher, clockMs,
+                Thread::sleep);
+        if (meta == null || meta.title().isBlank()) {
+            throw new ResolveException(FailureReason.CONNECTION_FAILED,
+                    "could not read the " + link.service().label() + " track metadata");
+        }
+        LOGGER.info("Read the {} track as \"{}\" by \"{}\" ({}ms)", link.service().label(),
+                meta.title(), meta.artist(), meta.durationMs());
+        return searchForServiceTrack(link.pageUrl(), meta.title(), meta.artist(),
+                meta.durationMs());
+    }
+
+    /**
+     * サービスから読んだ曲名・アーティストで YouTube を引き、盤の情報を組み立てる。
+     *
+     * <p>表示は<b>元サービスの曲名・アーティスト</b>、盤に焼く URL は見つけた先。ジャケットは
+     * 見つけた先のもの (元サービスの画像 URL は持っていない)。
+     *
+     * <h2>尺が分かる時は先頭をそのまま採らない</h2>
+     * 検索の先頭が同じ曲とは限らず、<b>試聴版・抜粋・別の版</b>が並ぶことがある。元サービスが尺を
+     * 返す (Apple Music / Deezer) なら、{@link TrackMatch#durationFits} に外れた候補は採らず、
+     * 同じ検索の 2 件目以降 → 別の配信元、の順で尺の合うものを選び直す。ここで諦めるのは
+     * 「同じ曲の別の版しか無い」時だけなので、採らない方が正しい (違う曲が鳴るのは、鳴らないより悪い)。
+     *
+     * @param originUrl  元の URL (ログ用)
+     * @param title      元サービスの曲名
+     * @param artist     元サービスのアーティスト (空のことがある)
+     * @param durationMs 元サービスの尺 (ms)。{@code 0} なら分からない
+     * @return 盤に焼く曲の情報
+     */
+    private TrackInfo searchForServiceTrack(String originUrl, String title, String artist,
+            long durationMs) {
+        final String query = (artist.isBlank() ? "" : artist + " ") + title;
         final AudioTrack yt;
         try {
             yt = loadTrackSync("ytsearch:" + query, ListUse.FIRST_TRACK);
         } catch (final ResolveException ex) {
-            // Spotify 経路は最終的に YouTube 検索に落ちるので、YouTube が弾かれると道連れになる。
-            // 曲名は既に og タグから取れているので oEmbed は要らない。検索が bot 判定で弾かれると
+            // この経路は最終的に YouTube 検索に落ちるので、YouTube が弾かれると道連れになる。
+            // 曲名は既にサービスから取れているので oEmbed は要らない。検索が bot 判定で弾かれると
             // 結果 0 件 = UNSUPPORTED_URL で返ってくるので、それも発火対象に含める。
             if (firesSubstitute(ex.reason()) || ex.reason() == FailureReason.UNSUPPORTED_URL) {
-                // og タグの曲名とアーティストは既に分かれているので、MetadataCleaner の
+                // 曲名とアーティストは既に分かれているので、MetadataCleaner の
                 // 「Artist - Song」分割をかけない (Spotify の "Song - Remastered 2011" が壊れる)。
-                // Spotify の URL には watch ページが無いので、尺は分からないまま探す。
-                final TrackInfo substitute = substitute(meta[0], meta[0], meta[1], meta[0], meta[1],
-                        spotifyUrl, null, null,
+                final TrackInfo substitute = substitute(title, title, artist, title, artist,
+                        originUrl, null, knownDuration(durationMs),
                         clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
                 if (substitute != null) {
                     return substitute;
@@ -585,9 +682,36 @@ public class MusicLoaderImpl implements IMusicLoader {
             throw ex;
         }
         final AudioTrackInfo info = yt.getInfo();
-        // 表示は Spotify のクリーンなメタ、再生は YouTube の uri。ジャケットは YouTube 側のもの。
-        return new TrackInfo(meta[0], meta[1], info.length, info.uri, info.identifier,
+        if (!TrackMatch.durationFits(durationMs, info.length)) {
+            LOGGER.info("The first hit for {} is a different length ({}ms against {}ms); "
+                    + "looking for a matching copy", originUrl, info.length, durationMs);
+            // 同じ検索の 2 件目以降 (別の動画) → 別の配信元、の順で探し直す。
+            final TrackInfo substitute = substitute(SERVICE_RESUBSTITUTE_PREFIXES, title, title,
+                    artist, title, artist, originUrl, null, knownDuration(durationMs),
+                    clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
+            if (substitute != null) {
+                return substitute;
+            }
+            // 尺の分かっている曲で、釣り合う候補が 1 つも無かった =「探したが無かった」。
+            throw new ResolveException(FailureReason.NO_ALTERNATIVE_FOUND,
+                    "every candidate for \"" + title + "\" was a different length");
+        }
+        // 表示は元サービスのクリーンなメタ、再生は YouTube の uri。
+        return new TrackInfo(title, artist, info.length, info.uri, info.identifier,
                 info.isStream, safe(info.artworkUrl));
+    }
+
+    /**
+     * 元サービスの尺を「取得済みの watch 結果」の形にする。
+     *
+     * <p>代替ソース探しは尺を {@link YoutubeWatchPage.Result} で受け取る (watch ページを
+     * 取りに行かずに済ませるため)。尺が不明なら {@code null} を返し、従来どおり尺で足切りしない。
+     *
+     * @param durationMs 分かっている尺 (ms)。{@code 0} 以下なら不明
+     * @return watch 結果。尺が不明なら {@code null}
+     */
+    private static YoutubeWatchPage.Result knownDuration(long durationMs) {
+        return durationMs <= 0L ? null : new YoutubeWatchPage.Result(durationMs, "", "", "");
     }
 
     /**
