@@ -359,7 +359,7 @@ final class LocalFileNormalizer {
     /**
      * 1 回分の decode → encode。入力は pass ごとに開き直す (変換し直しで先頭から decode するため)。
      */
-    private Pass encodePass(Path input, int rate) {
+    Pass encodePass(Path input, int rate) {
         AudioTrack track = null;
         IAudioSource source = null;
         OpusEncoder encoder = null;
@@ -467,7 +467,12 @@ final class LocalFileNormalizer {
             framePcm.clear();
             decimator.flushFrame(framePcm);
             framePcm.flip();
-            addFrame(acc, encoder, framePcm, frameSamples, encoded);
+            // 最後の 1 frame も他の block と同じく上限を見る。ここで溢れたのに理由を捨てると、
+            // 末尾 20ms が黙って抜けたまま END_OF_INPUT として返る。
+            final StopReason stop = addFrame(acc, encoder, framePcm, frameSamples, encoded);
+            if (stop != null) {
+                return stopped(source, acc, stop);
+            }
         }
         // 終端到達後にも理由が届く経路があるので、閉じる前にもう一度見る。
         final PlaybackFault fault = source.playbackFault();

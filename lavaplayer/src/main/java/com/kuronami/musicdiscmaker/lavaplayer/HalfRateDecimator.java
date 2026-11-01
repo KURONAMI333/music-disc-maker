@@ -19,8 +19,10 @@ import java.nio.ShortBuffer;
  * <p>フィルタは前後 {@link #DELAY} sample を見るので、どちらの端でも入力をはみ出す。はみ出した
  * 分は<b>0 として計算する</b> (先頭は {@link #emit} が範囲外を読まないことで、末尾は
  * {@link #flushFrame} が {@link #DELAY} 個の 0 を足してから最後の出力を計算することで揃える)。
- * 末尾を計算せずに残りを 0 で埋めると、実音がある最後の 15〜16 sample が段差で無音へ落ちて
- * クリックになる。尺は入力 (48kHz の sample 数) の半分 (端数 1 sample は 1 出力)。
+ * 末尾を計算せずに残りを 0 で埋めると、実音がある最後の出力が 0 で置き換わり、データの途中に
+ * 段差ができる。計算した末尾は振幅とほぼ同じ大きさで終わり (DC で実測 1.043 倍。窓のリンギングで
+ * 1 倍を少し超える)、無音への落差はデータの後ろに来る (48kHz 経路と同じ)。尺は入力
+ * (48kHz の sample 数) の半分 (端数 1 sample は 1 出力)。
  * 呼出し側は 20ms 分 (480 sample) たまってから 1 frame 取り出す。
  */
 final class HalfRateDecimator {
@@ -88,8 +90,9 @@ final class HalfRateDecimator {
      * （48kHz 経路の末尾の扱いと揃える）。
      *
      * <p>先読みが要る最後の出力はここで計算する ({@link #padTail})。足りない先読みを 0 と
-     * みなすので、実音は 0 へ滑らかに落ちる。呼出し側は毎 block の後に揃った frame を取り出して
-     * いるので、ここで書くのは 1 frame 分だけ ({@link #readyCount} は 480 未満)。
+     * みなすので、最後の出力は振幅とほぼ同じ大きさで終わる (DC で実測 1.043 倍。窓のリンギングで
+     * 1 倍を少し超える)。無音への落差はデータの後ろに来る。呼出し側は毎 block の後に揃った
+     * frame を取り出しているので、ここで書くのは 1 frame 分だけ ({@link #readyCount} は 480 未満)。
      */
     void flushFrame(ByteBuffer out) {
         padTail();

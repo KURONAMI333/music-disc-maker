@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntFunction;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -338,6 +339,40 @@ class LocalFileNormalizerTest {
                 "短い曲は 48kHz のまま変換し直さない: " + used);
         assertTrue(Files.size(output) <= LocalFileNormalizer.MAX_OUTPUT_BYTES);
         assertNoTempLeft();
+    }
+
+    /**
+     * 間引き器の最後の 1 frame (flush) が上限を超えた時も、黙って捨てずに出力上限として返す。
+     *
+     * <p>20ms の倍数でない入力では、最後の部分 block の後に flush frame が 1 つ増える。
+     * 上限を「全 packet の見積 - 1」にすると、部分 block までは入り、最後の flush だけが
+     * 溢れる。修正前はこの戻り値を捨てていたので、末尾 20ms が抜けたまま END_OF_INPUT と
+     * して返っていた。
+     */
+    @Test
+    void aFlushFrameThatExceedsTheCapIsReportedAsAByteLimit() throws Exception {
+        // 9,700 sample @8kHz は 48kHz へ直すと 58,200 sample。20ms (960) の倍数ではない。
+        final Path input = write("tail.wav", TrustedLocalFileTest.toneWav(9_700));
+        final MusicLoaderImpl loader = new MusicLoaderImpl();
+        final IntFunction<OpusEncoder> encoders =
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
+
+        final LocalFileNormalizer full = new LocalFileNormalizer(loader,
+                LocalFileNormalizer.MAX_OUTPUT_BYTES, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                encoders, () -> {});
+        final LocalFileNormalizer.Pass baseline =
+                full.encodePass(input, LocalFileNormalizer.MIN_ENCODER_RATE);
+        assertEquals(LocalFileNormalizer.StopReason.END_OF_INPUT, baseline.stop(),
+                "上限が無ければ最後まで encode する");
+
+        final LocalFileNormalizer tight = new LocalFileNormalizer(loader,
+                baseline.estimate() - 1L, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                encoders, () -> {});
+        final LocalFileNormalizer.Pass pass =
+                tight.encodePass(input, LocalFileNormalizer.MIN_ENCODER_RATE);
+
+        assertEquals(LocalFileNormalizer.StopReason.OUTPUT_BYTES, pass.stop(),
+                "flush frame が上限を超えたのに END_OF_INPUT として返した");
     }
 
     /**

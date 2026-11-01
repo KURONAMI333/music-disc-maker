@@ -16,9 +16,10 @@ import org.junit.jupiter.api.Test;
  *
  * <h2>端の扱いが要点</h2>
  * フィルタは前後 {@link HalfRateDecimator#DELAY} sample を見るので、入力の外は 0 として計算する
- * (先頭も末尾も同じ規則)。末尾を計算せずに残りを 0 で埋めると、実音がある最後の 15〜16 sample が
- * 段差で無音へ落ちる。ここでは DC と矩形波で、その段差が出ないこと・sample 数が入力の半分に
- * なることを固定する。encoder と container を通した確認は {@code LocalFileNormalizerTest} が持つ。
+ * (先頭も末尾も同じ規則)。末尾を計算せずに残りを 0 で埋めると、実音がある最後の出力が 0 で
+ * 置き換わり、データの途中に段差ができる。ここでは DC と矩形波で、計算した末尾が 0 埋めに
+ * なっていないこと・sample 数が入力の半分になることを固定する。encoder と container を通した
+ * 確認は {@code LocalFileNormalizerTest} が持つ。
  */
 class HalfRateDecimatorTest {
 
@@ -42,16 +43,16 @@ class HalfRateDecimatorTest {
     }
 
     /**
-     * 端で実音が段差で無音へ落ちない。前の実装は最後の 15 sample を計算せず 0 で埋めていたので、
+     * 計算した末尾の中に段差が無い。前の実装は最後の 15 sample を計算せず 0 で埋めていたので、
      * DC の 1 sample 手前で {@link #AMPLITUDE} ぶんの段差が出ていた。
      */
     @Test
-    void theEndDoesNotStepIntoSilence() {
+    void theComputedTailDoesNotContainAStep() {
         final int samples = 3 * HalfRateDecimator.BLOCK_SAMPLES;
         final short[] out = decimate(dc(samples));
 
-        // 末尾 32 sample の隣接差。フィルタが 0 へ収束する途中なので、窓のリンギング (実測 5.4%)
-        // までは許し、0 埋めのような 1 sample の段差 (100%) は許さない。
+        // 末尾 32 sample の隣接差。計算した末尾は振幅のまま終わるので、窓のリンギング
+        // (実測 5.4%) までは許し、0 埋めのような 1 sample の段差 (100%) は許さない。
         int maxStep = 0;
         for (int i = out.length - 32; i < out.length - 1; i++) {
             maxStep = Math.max(maxStep, Math.abs(out[i + 1] - out[i]));
@@ -84,7 +85,6 @@ class HalfRateDecimatorTest {
 
         assertEquals(HalfRateDecimator.FRAME_SAMPLES, out.length, "1 frame だけ出る");
         // 500 の半分 = 250 sample を計算し、残りの 230 は frame を埋める 0。
-        assertEquals(250, computedSamples(500), "短い入力でも計算するのは入力の半分");
         assertNear(AMPLITUDE, out[100], 1, "計算した範囲は実音");
         assertTrue(out[249] != 0, "最後の計算 sample を 0 で置いていない");
         assertEquals(0, out[250], "frame を埋める分だけ 0");
@@ -140,11 +140,6 @@ class HalfRateDecimatorTest {
         while (frame.hasRemaining()) {
             out.add(frame.getShort());
         }
-    }
-
-    /** 計算する sample 数 = 入力の半分 (端数は切り上げ)。 */
-    private static int computedSamples(int inputSamples) {
-        return (inputSamples + 1) / 2;
     }
 
     private static short[] dc(int samples) {
