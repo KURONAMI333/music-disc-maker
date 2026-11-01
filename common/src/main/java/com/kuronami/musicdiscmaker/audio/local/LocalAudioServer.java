@@ -167,7 +167,9 @@ public final class LocalAudioServer {
         s.quota.record(u.player.getUUID(), u.request.hash(), u.request.size());
         if (u.cancelled) { discard(s, u); return; }
         s.server.execute(() -> {
-            if (connected(s, u.player) && valid(u) && !u.cancelled) {
+            if (!(connected(s, u.player) && valid(u) && !u.cancelled)) {
+                notifyDropped(s, u);
+            } else {
                 MusicDiscMakerBlockEntity be = u.menu.getBlockEntity();
                 be.setResolvedTrack(track, "");
                 boolean made = be.createDisc();
@@ -182,6 +184,7 @@ public final class LocalAudioServer {
     private static void reply(State s, Upload u, int op, long offset) {
         s.server.execute(() -> {
             if (!connected(s, u.player) || !valid(u) || u.cancelled) {
+                notifyDropped(s, u);
                 u.cancelled = true;
                 s.io.execute(() -> discard(s, u));
                 return;
@@ -190,6 +193,13 @@ public final class LocalAudioServer {
             send(u.player, LocalAudioPayload.control(op, u.id, u.request.containerId(), u.request.generation(),
                     u.request.hash(), offset, u.request.size(), ""));
         });
+    }
+    /** 転送を黙って破棄すると client は送信中のまま止まるので、接続中なら理由を返す (通知は最善 effort)。 */
+    private static void notifyDropped(State s, Upload u) {
+        String reason = LocalServerDecisions.dropReason(u.cancelled, connected(s, u.player));
+        if (reason == null) return;
+        try { error(u.player, u.request, reason); }
+        catch (RuntimeException ignored) { /* 送信不能でも破棄は進める */ }
     }
     private static void fail(State s, Upload u, String reason) {
         discard(s, u);
