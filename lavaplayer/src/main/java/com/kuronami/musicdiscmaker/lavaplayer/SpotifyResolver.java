@@ -42,11 +42,17 @@ final class SpotifyResolver {
     /** 引き直すまでの間隔 (ms)。短く切るのは、待つより取り直す方が効く失敗だから。 */
     private static final long META_RETRY_DELAY_MS = 500L;
     /**
-     * 引き直しを含めた全体の上限 (ms)。各試行の connect / socket は 10 秒なので、
-     * 無応答が続くとそのまま 30 秒になる。ここで頭を押さえる。
+     * 1 回の取得に掛けてよい上限 (ms)。connect / socket / 接続待ちのすべてに同じ値を置く。
      *
-     * <p>途中の HTTP 呼び出しは横から打ち切れないため、この上限は<b>次の試行を始めるか</b>の
-     * 判定にだけ効く (始めた試行は自分の timeout まで待つ)。
+     * <p>実際に使う値は<b>残り時間との小さい方</b>。無応答のページを掴んだ時に、全体の上限
+     * ({@link #META_BUDGET_MS}) を過ぎて待ち続けないようにするため。
+     */
+    private static final long PAGE_TIMEOUT_MS = 10_000L;
+    /**
+     * 引き直しを含めた全体の上限 (ms)。解決スレッドは 2 本しかないので、ここで頭を押さえる。
+     *
+     * <p>各試行の timeout は<b>この残り時間に縮む</b> ({@link #PAGE_TIMEOUT_MS})。打ち切れない
+     * 1 往復が上限を超えて伸びることは無い。
      */
     private static final long META_BUDGET_MS = 12_000L;
 
@@ -54,7 +60,13 @@ final class SpotifyResolver {
     @FunctionalInterface
     interface PageFetcher {
 
-        String fetch(String url) throws Exception;
+        /**
+         * @param url       Spotify のトラック URL
+         * @param timeoutMs この試行に掛けてよい上限 (ms)
+         * @return HTML
+         * @throws Exception 取得できなかった
+         */
+        String fetch(String url, int timeoutMs) throws Exception;
     }
 
     /** 試行の間の待ち。テストは待たずに記録だけする。 */
@@ -88,8 +100,16 @@ final class SpotifyResolver {
     static String[] fetchMeta(String url, PageFetcher fetcher, LongSupplier clockMs, Sleeper sleeper) {
         final long deadline = clockMs.getAsLong() + META_BUDGET_MS;
         for (int attempt = 1; attempt <= META_ATTEMPTS; attempt++) {
+            final long remaining = deadline - clockMs.getAsLong();
+            if (remaining <= 0L) {
+                LOGGER.debug("Out of time for the Spotify page ({}), attempt {}/{}", url, attempt,
+                        META_ATTEMPTS);
+                break;
+            }
+            // 無応答のページを掴んでも全体の上限を超えないよう、1 回分の timeout を残りに縮める。
+            final int timeoutMs = (int) Math.min(PAGE_TIMEOUT_MS, remaining);
             try {
-                final String[] meta = parseMeta(fetcher.fetch(url.trim()));
+                final String[] meta = parseMeta(fetcher.fetch(url.trim(), timeoutMs));
                 if (meta != null) {
                     return meta;
                 }
@@ -118,15 +138,16 @@ final class SpotifyResolver {
      *
      * <p>タイムアウト未設定だと Spotify 無応答時に解決スレッド (全体で2本) が永久ブロックする。
      *
-     * @param url Spotify のトラック URL
+     * @param url       Spotify のトラック URL
+     * @param timeoutMs この試行に掛けてよい上限 (ms)
      * @return HTML
      * @throws Exception 取得できなかった
      */
-    private static String fetchPage(String url) throws Exception {
+    private static String fetchPage(String url, int timeoutMs) throws Exception {
         final RequestConfig cfg = RequestConfig.custom()
-                .setConnectTimeout(10_000)
-                .setSocketTimeout(10_000)
-                .setConnectionRequestTimeout(10_000)
+                .setConnectTimeout(timeoutMs)
+                .setSocketTimeout(timeoutMs)
+                .setConnectionRequestTimeout(timeoutMs)
                 .build();
         try (CloseableHttpClient http = HttpClients.custom().setDefaultRequestConfig(cfg).build()) {
             final HttpGet get = new HttpGet(url.trim());
