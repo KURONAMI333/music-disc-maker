@@ -63,6 +63,27 @@ public final class ClientPlaybackManager {
     /** A transient regular finite-track network open gets two short local retries. */
     private static final int FINITE_OPEN_RETRIES = 2;
     private static final long FINITE_OPEN_RETRY_DELAY_MS = 1_500L;
+    /**
+     * 上の即時再試行を使い切った後に、時間を置いて開き直す上限。
+     *
+     * <p>間隔を {@code YoutubeTokenSession#REFILL_INTERVAL_MS} と同じ 7.5 秒にしてあるのは、
+     * bot 判定が visitorId 単位で変わるため。それより短く叩いても同じ visitorId で同じ答えが
+     * 返るだけで、相手に余計な要求を積む。予算 30 秒は「盤を入れてから鳴り出すまで」として
+     * 待てる上限で、試行は 0 / 7.5 / 15 / 22.5 / 30 秒の 5 回になる (回数上限 6 は予算が
+     * 先に尽きるので実際には効かない。予算側だけを動かした時に回数が暴れないための歯止め)。
+     */
+    private static final TransientOpenRetry.Policy SLOW_OPEN_RETRY =
+            new TransientOpenRetry.Policy(30_000L, 7_500L, 6);
+    /** 再試行の間隔を待つ手段。中断されたら諦める (pool thread が畳まれる時に待ち続けない)。 */
+    private static final TransientOpenRetry.Sleeper SLEEPER = ms -> {
+        try {
+            Thread.sleep(ms);
+            return true;
+        } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    };
     /** 有限曲が再生途中で途切れた時、現在位置から開き直すまでの間隔 (ms)。位置は開く時に補正される。 */
     private static final long FINITE_RESUME_DELAY_MS = 1_500L;
 
@@ -488,7 +509,8 @@ public final class ClientPlaybackManager {
                     resolverSettled.remove(immutableExtensionId, resolverCompletion));
         }
         pool.submit(() -> {
-            boolean completionFollowsCleanupAck = false;
+            final java.util.concurrent.atomic.AtomicBoolean completionFollowsCleanupAck =
+                    new java.util.concurrent.atomic.AtomicBoolean();
             try {
             if (delayMs > 0L) {
                 try {
@@ -501,8 +523,6 @@ public final class ClientPlaybackManager {
             if (!sessions.isLive(immutableKey, immutableToken)) {
                 return; // 遅延中に停止/撤去/差し替えされた
             }
-            IAudioSource source = null;
-            PlaybackFailure failure = null;
             //? if >=1.21.2 {
             timing.beginResolve();
             //?} elif >=1.21 {
@@ -510,15 +530,17 @@ public final class ClientPlaybackManager {
             */
             //?} else {
             //?}
-            long openOffsetMs = startOffsetMs;
+            // 開く位置は試行ごとに進める。待つ間も server 側の曲は進むので、配列で持つ
+            // (再試行のラムダからも書き換えるため)。
+            final long[] openOffsetMs = { startOffsetMs };
             if (delayMs > 0L && !immutableTrack.radio() && !immutableTrack.isLocal() && immutableTrack.durationMs() > 0L) {
                 // 待っている間も server の曲は進む。ネット音源の open は要求時刻で位置を補正しないので、
                 // 待った分をここで足す (足さないと、開き直した client だけ待機時間ぶん遅れて鳴る)。
-                final long waited = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
-                openOffsetMs = Math.max(0L, startOffsetMs) + Math.min(waited, Long.MAX_VALUE - Math.max(0L, startOffsetMs));
+                openOffsetMs[0] = openOffsetAt(startOffsetMs, requestedAtMs);
             }
-            for (int retry = 0; ; retry++) {
-                if (!sessions.isLive(immutableKey, immutableToken)) return;
+            // 1 回開く本文。即時の再試行と時間を置いた再試行で同じ本文を通す (分類を 2 箇所に
+            // 書くと、片方だけ直した時に同じ失敗が経路によって別の分類になる)。
+            final java.util.function.Supplier<TransientOpenRetry.Outcome> openOnce = () -> {
                 try {
                     // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
                     if (!immutableTrack.isLocal()) UrlGuard.enforce(immutableTrack.url());
@@ -527,36 +549,43 @@ public final class ClientPlaybackManager {
                                     immutableExtensionId, PlaybackFailure.thrown(fault)));
                     final OpenStreamResult result = immutableRegularOnly
                             ? com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(
-                                    immutableTrack, openOffsetMs, requestedAtMs)
+                                    immutableTrack, openOffsetMs[0], requestedAtMs)
                             : com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSyncedForPlayback(
-                                    immutableTrack, openOffsetMs, requestedAtMs, immutableExtensionId,
+                                    immutableTrack, openOffsetMs[0], requestedAtMs, immutableExtensionId,
                                     immutableSourceContext, immutableSelection, providerFaultSink,
                                     // ローカル音源・拡張なしでは session id が null (select が none)。
                                     // その時は再生の生存だけを見る (共有音源の取得待ちの打ち切り判定にも使われる)。
                                     () -> sessions.isLive(immutableKey, immutableToken)
                                             && (immutableExtensionId == null
                                                     || immutableExtensionId.equals(extensionIds.get(immutableKey))));
-                    source = result.source();
-                    failure = result.isOk() ? null
-                            : PlaybackFailure.ofReason(result.reason(), result.detail());
+                    return result.isOk()
+                            ? TransientOpenRetry.Outcome.ok(result.source())
+                            : TransientOpenRetry.Outcome.failed(
+                                    PlaybackFailure.ofReason(result.reason(), result.detail()));
                 } catch (final UrlBlockedException blocked) {
-                    failure = PlaybackFailure.blocked(blocked.reason());
+                    return TransientOpenRetry.Outcome.failed(PlaybackFailure.blocked(blocked.reason()));
                 } catch (final PlaybackSessionRegistry.CleanupIncompleteException cleanup) {
                     // Never turn an unacknowledged AV cleanup into a regular retry or a second voice.
-                    failure = PlaybackFailure.thrown(cleanup);
-                    completionFollowsCleanupAck = true;
+                    completionFollowsCleanupAck.set(true);
                     cleanup.cleanupAcknowledged().whenComplete((ignored, cleanupFailure) -> {
                         if (cleanupFailure == null) resolverCompletion.complete(null);
                         else resolverCompletion.completeExceptionally(cleanupFailure);
                     });
+                    return TransientOpenRetry.Outcome.failed(PlaybackFailure.thrown(cleanup));
                 } catch (final Throwable t) {
-                    failure = PlaybackFailure.thrown(t);
+                    return TransientOpenRetry.Outcome.failed(PlaybackFailure.thrown(t));
                 }
-                if (source != null || retry >= FINITE_OPEN_RETRIES || failure == null
+            };
+            // 即時の再試行 (回線の瞬断向け)。待たずに短い間隔で 2 回まで。
+            TransientOpenRetry.Outcome outcome = null;
+            for (int retry = 0; ; retry++) {
+                if (!sessions.isLive(immutableKey, immutableToken)) return;
+                outcome = openOnce.get();
+                if (outcome.isOk() || retry >= FINITE_OPEN_RETRIES || outcome.failure() == null
                         || !FiniteOpenRetryPolicy.mayRetry(immutableTrack.radio(), immutableTrack.isLocal(),
                                 immutableSelection.selected(), immutableRegularOnly,
-                                (failure.kind() == PlaybackFailure.Kind.NETWORK
-                                        || failure.kind() == PlaybackFailure.Kind.STREAM_UNAVAILABLE))) break;
+                                (outcome.failure().kind() == PlaybackFailure.Kind.NETWORK
+                                        || outcome.failure().kind() == PlaybackFailure.Kind.STREAM_UNAVAILABLE))) break;
                 try {
                     Thread.sleep(FINITE_OPEN_RETRY_DELAY_MS * (retry + 1));
                 } catch (final InterruptedException ex) {
@@ -564,15 +593,28 @@ public final class ClientPlaybackManager {
                     return;
                 }
                 if (!sessions.isLive(immutableKey, immutableToken)) return;
-                final long elapsed = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
-                final long baseOffset = Math.max(0L, startOffsetMs);
-                openOffsetMs = baseOffset + Math.min(elapsed, Long.MAX_VALUE - baseOffset);
-                if (immutableTrack.durationMs() > 0L && openOffsetMs >= immutableTrack.durationMs()) break;
+                openOffsetMs[0] = openOffsetAt(startOffsetMs, requestedAtMs);
+                if (immutableTrack.durationMs() > 0L && openOffsetMs[0] >= immutableTrack.durationMs()) break;
             }
-            final IAudioSource resolved = source;
-            final long actualStartMs = TrackAudioResolver.actualOffset(resolved, openOffsetMs);
+            // それでも駄目なら、時間を置いて開き直す。bot 判定は同じ URL でも時機と visitorId で
+            // 結果が変わるので、1 回の失敗で確定させない。待つ間に盤が抜かれた・別の曲へ
+            // 差し替えられたら止める (待つ・止めるの判断は TransientOpenRetry 側に閉じてある)。
+            if (!outcome.isOk() && !pastTrackEnd(immutableTrack, startOffsetMs, requestedAtMs)
+                    && FiniteOpenRetryPolicy.mayRetry(immutableTrack.radio(), immutableTrack.isLocal(),
+                            immutableSelection.selected(), immutableRegularOnly,
+                            TransientOpenRetry.isTransient(outcome.failure()))) {
+                outcome = TransientOpenRetry.run(SLOW_OPEN_RETRY, MONOTONIC_MS, SLEEPER,
+                        () -> sessions.isLive(immutableKey, immutableToken)
+                                && !pastTrackEnd(immutableTrack, startOffsetMs, requestedAtMs),
+                        () -> {
+                            openOffsetMs[0] = openOffsetAt(startOffsetMs, requestedAtMs);
+                            return openOnce.get();
+                        });
+            }
+            final IAudioSource resolved = outcome.source();
+            final long actualStartMs = TrackAudioResolver.actualOffset(resolved, openOffsetMs[0]);
             final long dedupOffsetMs = immutableTrack.isLocal() ? actualStartMs : startOffsetMs;
-            final PlaybackFailure reported = failure;
+            final PlaybackFailure reported = outcome.failure();
             //? if >=1.21.2 {
             timing.resolved();
             //?} elif >=1.21 {
@@ -602,9 +644,35 @@ public final class ClientPlaybackManager {
             */
             //?}
             } finally {
-                if (!completionFollowsCleanupAck) resolverCompletion.complete(null);
+                if (!completionFollowsCleanupAck.get()) resolverCompletion.complete(null);
             }
         });
+    }
+
+    /**
+     * 要求時刻から今までに進んだ分を足した、開き直す位置。
+     *
+     * <p>待つ間も server 側の曲は進む。ネット音源の open は要求時刻で位置を補正しないので、
+     * ここで足さないと、開き直した client だけ待った分遅れて鳴る。
+     *
+     * @param startOffsetMs 元の開始位置
+     * @param requestedAtMs 再生を要求された時刻
+     * @return 開き直す位置 (ms)
+     */
+    private static long openOffsetAt(long startOffsetMs, long requestedAtMs) {
+        final long elapsed = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
+        final long base = Math.max(0L, startOffsetMs);
+        return base + Math.min(elapsed, Long.MAX_VALUE - base);
+    }
+
+    /**
+     * 待っている間に曲末を越えたか。越えたら開き直しても鳴る余地が無いので再試行しない。
+     *
+     * <p>ラジオ (長さ不定) とローカル音源 (時間で進まない) は対象外。
+     */
+    private static boolean pastTrackEnd(CustomTrackData track, long startOffsetMs, long requestedAtMs) {
+        if (track.radio() || track.isLocal() || track.durationMs() <= 0L) return false;
+        return openOffsetAt(startOffsetMs, requestedAtMs) >= track.durationMs();
     }
 
     private static boolean retryFiniteOpen(CustomTrackData track, PlaybackFailure failure) {
