@@ -451,10 +451,18 @@ final class LocalFileNormalizer {
             while (pcmIn.position() < FRAME_BYTES) {
                 pcmIn.put((byte) 0);
             }
-            // 上限に当たった時は 20ms を落とすだけ (曲が途中で終わる盤にはならない) ので理由は見ない。
-            encodeBlock(acc, encoder, decimator, framePcm, frameSamples, pcmIn, encoded);
+            // ここで上限に当たったら、この block の frame は既に間引き器から取り出して捨てて
+            // いる。理由を見ずに続けると、後の小さい flush packet だけが通って 20ms が黙って
+            // 抜け、END_OF_INPUT として返る (曲の途中なら切れたことに気づけない)。止めた時は
+            // 他の block と同じく残りを測って返す。
+            final StopReason stop = encodeBlock(acc, encoder, decimator, framePcm, frameSamples,
+                    pcmIn, encoded);
+            if (stop != null) {
+                return stopped(source, acc, stop);
+            }
         }
-        // 間引きは位相の都合で最後の frame が先読み分 (31 sample) だけ揃わない。0 詰めで出す。
+        // 間引きは位相の都合で最後の frame が先読み分 (31 sample) だけ揃わない。
+        // 間引き器が 0 を足して最後の出力まで計算するので、実音が段差で切れない。
         if (decimator != null && fed) {
             framePcm.clear();
             decimator.flushFrame(framePcm);

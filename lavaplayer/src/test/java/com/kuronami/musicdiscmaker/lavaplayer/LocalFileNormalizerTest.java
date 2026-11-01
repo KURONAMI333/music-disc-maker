@@ -384,6 +384,43 @@ class LocalFileNormalizerTest {
     }
 
     /**
+     * 1 秒未満の短い入力も 24kHz 経路で変換でき、尺・音高が 48kHz 版と一致する。
+     *
+     * <p>入力の宣言尺は 306ms だが、この decode 経路が返す PCM は 20ms frame 単位に揃う
+     * (実測 12 block = 240ms)。つまり「最後の block が 1 frame に満たない」形はここでは
+     * 踏まない — 間引き器の末尾の扱いは {@code HalfRateDecimatorTest} が直接見る。
+     * ここでは短い入力でもレート選択・尺・音高・読み戻しが崩れないことを見る。
+     */
+    @Test
+    void convertsAShortInputAtHalfRate() throws Exception {
+        final Path input = write("short.wav", TrustedLocalFileTest.toneWav(2_450));
+        final Path output = tempDir.resolve("short-half-rate.mka");
+        final MusicLoaderImpl loader = new MusicLoaderImpl();
+        final List<Integer> used = new ArrayList<>();
+        // この尺では 48kHz が入らず 24kHz なら入る上限 (レートは尺と上限だけで決まる)。
+        final long cap = 2_000L;
+        final Baseline full = encodeFullyAt(input);
+        assertEquals(LocalFileNormalizer.MIN_ENCODER_RATE,
+                LocalFileNormalizer.rateFor(306L, cap), // 宣言尺 = 2,450 sample / 8kHz
+                "この上限では 24kHz を選ぶ (48kHz 版は " + full.durationMs() + "ms, "
+                        + full.bytes() + " byte)");
+
+        final TrackInfo info = new LocalFileNormalizer(loader, cap,
+                LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> {
+                    used.add(rate);
+                    return new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
+                }, () -> {}).normalize(input, output);
+
+        assertEquals(List.of(LocalFileNormalizer.MIN_ENCODER_RATE), used, "24kHz で 1 回: " + used);
+        assertEquals(full.durationMs(), info.durationMs(),
+                "短い入力でも尺が 48kHz 版と一致する: " + info);
+        assertAudioOnlyDecodableOutput(loader, output, info.durationMs());
+        assertTonePitch(TrustedLocalFileTest.decode(loader.openTrustedFile(output, 0L)), 440.0);
+        assertNoTempLeft();
+    }
+
+    /**
      * 60 秒の盤でも尺・音高・seek が保たれる (24kHz 化で壊れやすい 3 点を 1 本で見る)。
      *
      * <p>前半 30 秒を 440Hz・後半 30 秒を 880Hz にしてあるので、seek 先の音高で位置が分かる。
@@ -902,13 +939,17 @@ class LocalFileNormalizerTest {
         assertTonePitchAt(pcm, pcm.length / 2.0 / 48_000.0 / 3.0, expectedHz);
     }
 
-    /** {@code fromSeconds} から 0.5 秒ぶんの音高。フィルタの過渡を避けて窓をずらす時に使う。 */
+    /**
+     * {@code fromSeconds} から 0.5 秒ぶんの音高。フィルタの過渡を避けて窓をずらす時に使う。
+     * 出力が短いと窓は末尾で切られる。0.1 秒あれば 440Hz でも 44 回のゼロ交差があり、
+     * ±5% の判定には足りるので、それを下限にする。
+     */
     private static void assertTonePitchAt(byte[] pcm, double fromSeconds, double expectedHz) {
         final int sampleRate = 48_000;
         final int samples = pcm.length / 2;
         final int from = (int) Math.round(fromSeconds * sampleRate);
         final int to = Math.min(samples, from + sampleRate / 2);
-        assertTrue(to - from >= sampleRate / 4,
+        assertTrue(to - from >= sampleRate / 10,
                 "音高を測る長さが足りない: " + (to - from) + " sample (" + fromSeconds + "s から)");
         int crossings = 0;
         int previous = 0;

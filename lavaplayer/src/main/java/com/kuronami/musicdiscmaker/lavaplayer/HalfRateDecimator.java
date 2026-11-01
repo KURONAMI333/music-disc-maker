@@ -16,10 +16,12 @@ import java.nio.ShortBuffer;
  * super-wideband の帯域 12kHz の少し内側）で、63 tap の Blackman 窓により遷移域は約 ±2.1kHz、
  * 13.1kHz 以上は -74dB まで落ちる。折り返しは 11kHz 以下の帯域へは入らない。
  *
- * <p>フィルタは前後 {@link #DELAY} sample を見るので、最初の 31 sample は入力の外 (0) として
- * 扱い、末尾は {@link #flushFrame} が同じく 0 詰めする。両端を同じ規則で埋めるので、尺は
- * 入力 (48kHz の sample 数を 2 で割ったもの) と一致する。呼出し側は 20ms 分 (480 sample)
- * たまってから 1 frame 取り出す。
+ * <p>フィルタは前後 {@link #DELAY} sample を見るので、どちらの端でも入力をはみ出す。はみ出した
+ * 分は<b>0 として計算する</b> (先頭は {@link #emit} が範囲外を読まないことで、末尾は
+ * {@link #flushFrame} が {@link #DELAY} 個の 0 を足してから最後の出力を計算することで揃える)。
+ * 末尾を計算せずに残りを 0 で埋めると、実音がある最後の 15〜16 sample が段差で無音へ落ちて
+ * クリックになる。尺は入力 (48kHz の sample 数) の半分 (端数 1 sample は 1 出力)。
+ * 呼出し側は 20ms 分 (480 sample) たまってから 1 frame 取り出す。
  */
 final class HalfRateDecimator {
 
@@ -44,7 +46,10 @@ final class HalfRateDecimator {
     /** 次に出す出力の絶対 sample 番号。 */
     private long nextOutput;
 
-    /** 取り出し待ちの出力 sample。1 回の push で最大 480 個増え、繰り越しは 479 個まで。 */
+    /**
+     * 取り出し待ちの出力 sample。1 回の push で最大 480 個増え、繰り越しは 479 個まで。
+     * {@link #flushFrame} は先読みの 0 を足すので、そこからさらに最大 {@link #DELAY} / 2 個増える。
+     */
     private final short[] ready = new short[FRAME_SAMPLES * 2];
     private int readyCount;
 
@@ -79,13 +84,35 @@ final class HalfRateDecimator {
     }
 
     /**
-     * 末尾で 20ms に満たない分を 0 詰めして 1 frame として書く（48kHz 経路の末尾の扱いと揃える）。
+     * 入力の終わりを告げ、20ms に満たない最後の分を 0 詰めして 1 frame として書く
+     * （48kHz 経路の末尾の扱いと揃える）。
+     *
+     * <p>先読みが要る最後の出力はここで計算する ({@link #padTail})。足りない先読みを 0 と
+     * みなすので、実音は 0 へ滑らかに落ちる。呼出し側は毎 block の後に揃った frame を取り出して
+     * いるので、ここで書くのは 1 frame 分だけ ({@link #readyCount} は 480 未満)。
      */
     void flushFrame(ByteBuffer out) {
+        padTail();
         for (int i = 0; i < FRAME_SAMPLES; i++) {
             out.putShort(i < readyCount ? ready[i] : 0);
         }
         readyCount = 0;
+    }
+
+    /**
+     * 入力の終わりの 0 を {@link #DELAY} 個だけ {@link #input} へ足し、先読みが揃った最後の
+     * 出力まで積む。{@code input} は前の block で埋まっていることがあるので、溢れる前に
+     * {@link #emit} と {@link #compact} で空ける。
+     */
+    private void padTail() {
+        for (int i = 0; i < DELAY; i++) {
+            if (inputCount == input.length) {
+                emit();
+                compact();
+            }
+            input[inputCount++] = 0;
+        }
+        emit();
     }
 
     /** 次の出力に要る最古の入力より前を捨てる（{@code input} は常に TAPS-1 + block で足りる）。 */
@@ -103,8 +130,9 @@ final class HalfRateDecimator {
      * 先読みが揃った出力を順に積む。{@code input} の範囲外は読まない (compact が保証する)。
      *
      * <p>出力 1 個は {@code x[2n-31] .. x[2n+31]} の積和 (中心 {@code x[2n]}) なので、始点では
-     * 前半 31 sample が入力の外にある。そこは 0 として扱い、末尾は {@link #flushFrame} が
-     * 同じく 0 詰めする (両端を揃えないと尺が 0.65ms ずれる)。
+     * 前半 31 sample が入力の外にある。そこは 0 として扱う。終点では後半 31 sample が入力を
+     * はみ出すので、ここでは出さずに {@link #padTail} が 0 を足してから残りを出す
+     * (両端を同じ規則で 0 とみなさないと、末尾だけ段差が出るか尺が 0.65ms ずれる)。
      */
     private void emit() {
         final long last = inputBase + inputCount - 1L;

@@ -492,6 +492,35 @@ class PlaybackSubstituteTest {
         assertEquals(List.of(), sources.requests);
     }
 
+    /**
+     * {@code scsearch:} の一覧 (先頭 1 曲だけ使う = {@link MusicLoaderImpl.ListUse#FIRST_TRACK}) で
+     * 先頭が落ちていても、先頭の枠に代わりが入る。
+     *
+     * <p>先頭を除いて詰めると、解決は 2 曲目を先頭として読む = 探していた曲と違う曲が盤になる。
+     * 埋め戻しを先頭だけに絞る時も、落とした先頭を探して同じ枠へ戻す。
+     */
+    @Test
+    void aHeadOnlyReadReplacesADroppedFirstTrack() {
+        final FakeSource sources = new FakeSource(identifier -> identifier.startsWith("ytsearch:")
+                ? track("T", "U", 200_000L, SOUNDCLOUD_ALTERNATE)
+                : AudioReference.NO_TRACK);
+        final MusicLoaderImpl loader = loader(sources);
+        final AudioTrack second =
+                track("Second", "Someone Else", 100_000L, "https://www.youtube.com/watch?v=fffffffffff");
+        final List<DroppedTrack> dropped = List.of(
+                new DroppedTrack("T", "U", 200_000L, "https://soundcloud.com/u/t", 0));
+
+        final List<AudioTrack> filled = loader.fillSubstitutes(Arrays.asList(null, second), dropped,
+                true);
+
+        assertEquals(2, filled.size(), "先頭を除いて詰めていない");
+        assertEquals(SOUNDCLOUD_ALTERNATE, filled.get(0).getInfo().uri,
+                "先頭の枠が代わりの曲になっていない");
+        assertSame(second, filled.get(1), "2 曲目は元の位置のまま");
+        // 落とした先頭の曲名・投稿者で 1 回だけ探す。
+        assertEquals(List.of("ytsearch:U T"), sources.requests);
+    }
+
     @Test
     void aWholeListReadStopsSearchingWhenTheBudgetIsGone() {
         final AtomicLong now = new AtomicLong(1_000_000L);
