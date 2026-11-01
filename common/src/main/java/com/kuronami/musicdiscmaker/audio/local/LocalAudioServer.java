@@ -389,10 +389,11 @@ public final class LocalAudioServer {
             default -> "import_failed";
         };
     }
-    /** download 側の I/O ワーカーの失敗をログに残す。VM の異常は握りつぶさず投げ直す。 */
+    /** I/O ワーカーの失敗をログに残す。executor の Future は投げ直した例外を飲むので、ここでは投げ直さない。 */
     private static void workerFailure(Throwable e) {
-        logUnexpected("worker", e);
-        if (!LocalServerDecisions.recoverable(e)) throw (VirtualMachineError) e;
+        if (LocalServerDecisions.vmFatal(e))
+            MusicDiscMaker.LOGGER.error("Local audio worker hit a VM error ({})", e.getClass().getSimpleName(), e);
+        else logUnexpected("worker", e);
     }
     /** 想定内の I/O 失敗 (容量超過・原本なし等) は静かに畳み、Error と実行時例外だけ warn で残す。 */
     private static void logUnexpected(String what, Throwable e) {

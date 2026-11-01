@@ -13,9 +13,12 @@ final class LocalServerDecisions {
         return !alreadyCancelled && connected ? "expired" : null;
     }
 
-    /** I/O ワーカーの失敗として取込失敗へ畳んでよいか。JVM 自体の異常 (OOM 等) は握りつぶさない。 */
-    static boolean recoverable(Throwable failure) {
-        return !(failure instanceof VirtualMachineError);
+    /**
+     * JVM 自体の異常 (OOM 等) か。取込は他の失敗と同じく畳むが、ログは error で残す。投げ直しても
+     * ScheduledThreadPoolExecutor の Future に飲まれて誰にも届かない。
+     */
+    static boolean vmFatal(Throwable failure) {
+        return failure instanceof VirtualMachineError;
     }
 
     /**

@@ -26,12 +26,12 @@ class LocalServerDecisionsTest {
 
 
     @Test
-    void errorsAreFoldedButVmErrorsAreNot() {
-        assertTrue(LocalServerDecisions.recoverable(new IOException("x")));
-        assertTrue(LocalServerDecisions.recoverable(new LinkageError("x")));
-        assertTrue(LocalServerDecisions.recoverable(new NoClassDefFoundError("x")));
-        assertFalse(LocalServerDecisions.recoverable(new OutOfMemoryError()));
-        assertFalse(LocalServerDecisions.recoverable(new StackOverflowError()));
+    void onlyVmErrorsAreFatalForLogging() {
+        assertFalse(LocalServerDecisions.vmFatal(new IOException("x")));
+        assertFalse(LocalServerDecisions.vmFatal(new LinkageError("x")));
+        assertFalse(LocalServerDecisions.vmFatal(new NoClassDefFoundError("x")));
+        assertTrue(LocalServerDecisions.vmFatal(new OutOfMemoryError()));
+        assertTrue(LocalServerDecisions.vmFatal(new StackOverflowError()));
     }
 
     @Test
