@@ -59,7 +59,8 @@ final class LocalImportDecisions {
                 // 読めない入力 (権限・消えたファイル等) と発行側 I/O 失敗
                 // ("could not publish the normalized file" / disk full 等) は、
                 // 入力形式の非対応ではないので import_failed へ。
-                if (d.contains("readable") || d.contains("output") || d.contains("parent directory")
+                if (d.startsWith("input file is not readable") || d.contains("output")
+                        || d.contains("parent directory")
                         || d.contains("normalization") || d.contains("i/o failed")
                         || d.contains("encoding failed") || d.contains("publish"))
                     return "import_failed";
