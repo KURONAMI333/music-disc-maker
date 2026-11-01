@@ -357,6 +357,24 @@ class SoundCloudAacPlaybackTest {
     }
 
     @Test
+    void singleUrlFailureCarriesTheTrackSoAnotherSourceCanBeSearched() throws Exception {
+        final MusicLoaderImpl.PreviewAwareSoundCloud manager = managerServing(trackJson(PREVIEW_JSON));
+        try {
+            final FriendlyException thrown = assertThrows(FriendlyException.class,
+                    () -> manager.loadItem(playerManager,
+                            new com.sedmelluq.discord.lavaplayer.track.AudioReference(
+                                    "https://soundcloud.com/u/t", null)));
+            final UnplayableSoundCloudTrack track = assertInstanceOf(UnplayableSoundCloudTrack.class, thrown);
+            assertEquals("T", track.title);
+            assertEquals("U", track.author);
+            // プレビューの曲でも全曲の長さ (full_duration) を持って帰る。
+            assertEquals(200_000L, track.fullDurationMs);
+        } finally {
+            manager.shutdown();
+        }
+    }
+
+    @Test
     void singleUrlOfADrmTrackFailsAsDrmProtected() throws Exception {
         assertEquals(FailureReason.DRM_PROTECTED, singleUrlFailure(trackJson(DRM_JSON)));
     }

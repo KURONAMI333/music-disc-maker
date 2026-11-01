@@ -125,6 +125,12 @@ public class MusicLoaderImpl implements IMusicLoader {
      */
     private static final String[] ALTERNATE_SEARCH_PREFIXES = {"scsearch:", "bcsearch:"};
     /**
+     * SoundCloud の曲がプレビューしか無い・DRM の時に探す先。YouTube を先に、次に SoundCloud の
+     * 別の投稿 (一覧の経路はプレビュー・DRM の曲を飛ばすので、全曲を配っている投稿だけが残る)。
+     * サーバーが YouTube に弾かれている時は検索が空振りし、SoundCloud の側へ進む。
+     */
+    private static final String[] SOUNDCLOUD_SUBSTITUTE_PREFIXES = {"ytsearch:", "scsearch:"};
+    /**
      * 1 つの検索で中身を見る候補の数。1 回の応答に入っている件数なので、増やしても通信は増えない。
      * 上位が全部カバーやリミックスでも後ろまで見る。
      */
@@ -312,7 +318,9 @@ public class MusicLoaderImpl implements IMusicLoader {
         try {
             track = loadTrackSync(url);
         } catch (final ResolveException ex) {
-            final TrackInfo substitute = substituteForYoutube(normalizeYoutubeUrl(url), ex.reason());
+            final TrackInfo substitute = ex instanceof UnplayableSoundCloudResolve soundCloud
+                    ? substituteForSoundCloud(url, soundCloud.track)
+                    : substituteForYoutube(normalizeYoutubeUrl(url), ex.reason());
             if (substitute != null) {
                 return substitute;
             }
@@ -472,6 +480,28 @@ public class MusicLoaderImpl implements IMusicLoader {
     }
 
     /**
+     * SoundCloud の単曲がプレビューしか無い・DRM で鳴らせない時に、同じ曲を別の配信元から探す。
+     *
+     * <p>曲名・投稿者・全曲の長さは SoundCloud の track JSON が持っている (プレビューの曲でも
+     * {@code full_duration} は全長)。長さが分かるので、抜粋や別の版は {@link TrackMatch#durationFits}
+     * で落ちる。表示は SoundCloud の曲名のまま、盤に焼く URL だけが見つけた先になる。
+     *
+     * @param originUrl 元の SoundCloud URL (ログ用)
+     * @param track     鳴らせなかった曲の情報
+     * @return 代わりに使えるトラック。検索に踏み切れなかった場合は {@code null}
+     * @throws ResolveException 検索が実際に走って使える候補が無かった
+     *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
+     */
+    private TrackInfo substituteForSoundCloud(String originUrl, UnplayableSoundCloudTrack track) {
+        final SourceMetadata source = sourceMetadata(track.title, track.author, YoutubeWatchPage.Result.EMPTY);
+        LOGGER.info("SoundCloud cannot stream the full track ({}); looking for another source", originUrl);
+        return substitute(SOUNDCLOUD_SUBSTITUTE_PREFIXES, track.title, source.searchTitle(),
+                source.searchAuthor(), source.displayTitle(), source.displayAuthor(), originUrl, null,
+                new YoutubeWatchPage.Result(track.fullDurationMs, "", "", ""),
+                System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS);
+    }
+
+    /**
      * 曲名とアーティストから別のソースを検索し、<b>同じ録音とみなせる候補だけ</b>を返す。
      *
      * <p>全プレフィックスを回して何も採れなければ
@@ -505,13 +535,26 @@ public class MusicLoaderImpl implements IMusicLoader {
     private TrackInfo substitute(String markerTitle, String title, String author,
             String displayTitle, String displayAuthor, String originUrl,
             String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
+        return substitute(ALTERNATE_SEARCH_PREFIXES, markerTitle, title, author, displayTitle,
+                displayAuthor, originUrl, watchUrl, watchResult, deadline);
+    }
+
+    /**
+     * {@link #substitute(String, String, String, String, String, String, String, YoutubeWatchPage.Result, long)}
+     * の本体。探す先 ({@code prefixes}) を呼び出し側が選べる。
+     *
+     * @param prefixes 順に試す検索の接頭辞
+     */
+    private TrackInfo substitute(String[] prefixes, String markerTitle, String title, String author,
+            String displayTitle, String displayAuthor, String originUrl,
+            String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
         if (title.isBlank() || author.isBlank()) {
             return null;
         }
         final String query = author + " " + title;
         // -1 = まだ取りに行っていない / 0 = 取得済みだが取れなかった。
         long sourceMs = watchResult == null ? -1L : watchResult.durationMs();
-        for (final String prefix : ALTERNATE_SEARCH_PREFIXES) {
+        for (final String prefix : prefixes) {
             final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - System.currentTimeMillis());
             if (budget <= 0L) {
                 LOGGER.info("Ran out of time while looking for an alternate source ({})", originUrl);
@@ -1028,6 +1071,9 @@ public class MusicLoaderImpl implements IMusicLoader {
             // 長い理由 (client ごとのスタックフレーム込み) と原因チェーンはログ側に出す。
             LOGGER.warn("Failed to load URL ({}) [{}] {}{}", url, reason, detail,
                     verbose.isEmpty() ? "" : System.lineSeparator() + verbose, cause);
+            if (cause instanceof UnplayableSoundCloudTrack soundCloud) {
+                throw new UnplayableSoundCloudResolve(reason, detail, soundCloud);
+            }
             throw new ResolveException(reason, detail);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -1040,6 +1086,19 @@ public class MusicLoaderImpl implements IMusicLoader {
                     "no source manager matched");
         }
         return track;
+    }
+
+    /** {@link UnplayableSoundCloudTrack} を {@link #resolve} まで運ぶ失敗。理由は元のまま。 */
+    static final class UnplayableSoundCloudResolve extends ResolveException {
+
+        private static final long serialVersionUID = 1L;
+
+        final transient UnplayableSoundCloudTrack track;
+
+        UnplayableSoundCloudResolve(FailureReason reason, String detail, UnplayableSoundCloudTrack track) {
+            super(reason, detail);
+            this.track = track;
+        }
     }
 
     /**
@@ -1168,11 +1227,18 @@ public class MusicLoaderImpl implements IMusicLoader {
             try {
                 return adapt(super.loadFromTrackData(trackData));
             } catch (FriendlyException e) {
-                if (!SINGLE_TRACK.get() && isUnplayableMarker(e)) {
+                if (!isUnplayableMarker(e)) {
+                    throw e;
+                }
+                if (!SINGLE_TRACK.get()) {
                     LOGGER.debug("Skipping a SoundCloud track in a list: {}", e.getMessage());
                     return null;
                 }
-                throw e;
+                // 単曲: 曲の情報を持たせて返し、呼び出し側が同じ曲を別の配信元から探せるようにする。
+                final long full = trackData.get("full_duration").asLong(0L);
+                throw new UnplayableSoundCloudTrack(e.getMessage(),
+                        trackData.get("title").safeText(), trackData.get("user").get("username").safeText(),
+                        full > 0L ? full : trackData.get("duration").asLong(0L));
             }
         }
 
