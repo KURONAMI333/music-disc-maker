@@ -5,8 +5,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -24,6 +27,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.FailureClassifier;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader;
+import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader.TrackHint;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
@@ -95,6 +99,9 @@ public class MusicLoaderImpl implements IMusicLoader {
             Pattern.compile("(?i)^(?:https?://)?(?:www\\.|m\\.|music\\.)?(?:youtube\\.com|youtu\\.be)/");
     private static final Pattern YT_VIDEO_ID =
             Pattern.compile("(?i)(?:youtu\\.be/|/shorts/|/embed/|[?&]v=)([A-Za-z0-9_-]{11})");
+    /** SoundCloud の単曲 URL か (再生時の代替ソース探しを出す相手)。 */
+    private static final Pattern SC_HOST =
+            Pattern.compile("(?i)^(?:https?://)?(?:www\\.|m\\.)?soundcloud\\.com/");
 
     /** URL 1 本を解決する時の待ち上限。 */
     private static final long LOAD_TIMEOUT_MS = 30_000L;
@@ -151,6 +158,18 @@ public class MusicLoaderImpl implements IMusicLoader {
     private static final long SUBSTITUTE_BUDGET_MS = 20_000L;
 
     /**
+     * 再生時に見つけた代替 URL を覚えておく件数。
+     *
+     * <p>同じ盤を何度も鳴らすたびに検索をやり直すと、そのつど数秒待たされるうえに、検索の
+     * 結果が揺れると同じ盤から違う曲が鳴りうる。見つけた先を覚えておけば 2 回目以降は
+     * 元の URL を試さずに済む。
+     *
+     * <p>これは<b>メモリだけ</b>の覚え書きで、ディスクや保存領域には書かない。プロセスが
+     * 終われば消える (相手の配信が戻っているかもしれない状態を焼き付けない)。
+     */
+    private static final int MAX_PLAYBACK_SUBSTITUTES = 32;
+
+    /**
      * 保存領域へ入れてよいコンテナの probe。保存したバイトは後で全 client が
      * {@link #openTrustedFile} 経由でそのまま鳴らすため、<b>音声だけで完結し、
      * かつシークが機能するコンテナ種別だけ</b>に絞る。ADTS 等のシーク不能入力や
@@ -203,6 +222,21 @@ public class MusicLoaderImpl implements IMusicLoader {
      * これが「起動時に一度弾かれると再起動まで全リンクが死ぬ」の直接の原因だった。
      */
     private final YoutubeSession session;
+    /**
+     * 盤の URL → 再生時に見つけた代替 URL。値が鳴らなくなったら捨てる。
+     *
+     * <p>LRU で {@link #MAX_PLAYBACK_SUBSTITUTES} 件に抑える。アクセス順で捨てるのは、
+     * よく鳴らす盤の覚えを残すため (件数だけ見て全部消すと、次の再生でまた検索になる)。
+     */
+    private final Map<String, String> playbackSubstitutes = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, true) {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                    return size() > MAX_PLAYBACK_SUBSTITUTES;
+                }
+            });
 
     public MusicLoaderImpl() {
         this.apm = new DefaultAudioPlayerManager();
@@ -211,10 +245,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         // (matroska probe は DocType を見ず動画入り MKV も通る点は SAVE_PROBES の javadoc 参照)
         this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
         this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
-        // lavaplayer 出力は stereo / 48kHz / S16 little-endian。mono 化は LavaAudioSource が担う
-        // (lavaplayer の mono downmix はソースによって効かないため = SoundCloud slow+低音バグ)。
-        this.apm.getConfiguration().setOutputFormat(
-                new Pcm16AudioDataFormat(LAVA_OUTPUT_CHANNELS, SAMPLE_RATE, 960, false));
+        configureOutput(this.apm);
         this.youtube = registerYoutube();
         this.session = youtube == null ? YoutubeSession.NONE
                 : new YoutubeTokenSession(youtube, System::currentTimeMillis);
@@ -223,6 +254,36 @@ public class MusicLoaderImpl implements IMusicLoader {
         register(VimeoAudioSourceManager::new);
         register(TwitchStreamAudioSourceManager::new);
         register(HttpAudioSourceManager::new);
+    }
+
+    /**
+     * テスト専用の骨組み。実ソースを登録しないので、外から偽の source manager を差し込める。
+     *
+     * <p>本番の経路で偽の manager を先に登録すると、{@code HttpAudioSourceManager} が
+     * watch URL を横取りして失敗の形が変わってしまう。再生時の代替ソース探しは
+     * 「元の URL が特定の理由で開けない」ことが前提なので、その前提を作れる入口を分けてある。
+     *
+     * @param apm     偽の source manager を登録する先
+     * @param youtube 有効にする YouTube manager ({@code null} なら入れ替え経路も無効)
+     * @param session visitorId の入れ替え口 ({@code null} 不可)
+     */
+    MusicLoaderImpl(AudioPlayerManager apm, YoutubeAudioSourceManager youtube, YoutubeSession session) {
+        this.apm = apm;
+        this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
+        this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
+        configureOutput(apm);
+        this.youtube = youtube;
+        this.session = session;
+    }
+
+    /**
+     * lavaplayer 出力を stereo / 48kHz / S16 little-endian に固定する。mono 化は
+     * {@link LavaAudioSource} が担う (lavaplayer の mono downmix はソースによって効かないため
+     * = SoundCloud の slow+低音バグ)。
+     */
+    private static void configureOutput(AudioPlayerManager apm) {
+        apm.getConfiguration().setOutputFormat(
+                new Pcm16AudioDataFormat(LAVA_OUTPUT_CHANNELS, SAMPLE_RATE, 960, false));
     }
 
     /**
@@ -816,6 +877,137 @@ public class MusicLoaderImpl implements IMusicLoader {
         return OpenStreamResult.ok(startPlayback(track, startMs, url));
     }
 
+    /**
+     * 盤の曲情報を使って、再生時にも代替ソースを探す。
+     *
+     * <h2>なぜ再生時にも探すか</h2>
+     * 代替ソース探しは制作時 ({@link #resolve}) に置いてある — 再生時に各 client が独立に
+     * 検索すると、人によって違う曲が鳴るため。だが<b>制作時には鳴っていた URL が、後から
+     * YouTube 側で弾かれる</b>ことがある (bot 判定は回線と時機で変わる)。その時に何もしないと、
+     * 盤は永久に鳴らないままになる。制作時と同じ検索をここでも使い、見つかった先を覚えておく。
+     *
+     * <h2>検索の条件</h2>
+     * <ul>
+     * <li>YouTube の単曲 URL で、理由が {@link #firesSubstitute} の集合にある時
+     *     (制作時の発火集合と同じ。直リンク HTTP の 403 は {@code BOT_CHECK} に分類されるが、
+     *     {@link #isYoutubeTarget} が偽なのでここへ来ない)</li>
+     * <li>SoundCloud の単曲 URL で、理由が {@link FailureReason#PREVIEW_ONLY} /
+     *     {@link FailureReason#DRM_PROTECTED} の時 (制作時に見逃した盤・後から試聴版へ
+     *     変わった盤の拾い直し)</li>
+     * </ul>
+     *
+     * <p><b>watch ページは取りに行かない</b>。尺は盤が持っている値を使うので、oEmbed も
+     * watch ページも要らない (取ると再生のたびに数百 KB の往復が増える)。尺が {@code 0}
+     * なら尺で足切りせず、一番長い候補を採る。
+     *
+     * @param url     鳴らなかった盤の URL
+     * @param failure その失敗 (SoundCloud の試聴版は曲情報もここに載っている)
+     * @param hint    盤が持っている曲情報 ({@code null} 可)
+     * @return 代わりに鳴らせるトラック。探す条件に当たらない・探し切れなかった場合は
+     *         {@code null} (呼び出し側は元の理由のまま失敗させる)
+     * @throws ResolveException 検索が実際に走って使える候補が無かった
+     *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
+     */
+    private TrackInfo substituteForPlayback(String url, ResolveException failure, TrackHint hint) {
+        final String normalized = normalizeYoutubeUrl(url);
+        if (isSearch(normalized)) {
+            return null;
+        }
+        final FailureReason reason = failure.reason();
+        final boolean soundCloud = isSoundCloudTarget(normalized);
+        if (soundCloud) {
+            if (reason != FailureReason.PREVIEW_ONLY && reason != FailureReason.DRM_PROTECTED) {
+                return null;
+            }
+            // 試聴版・DRM の失敗は曲名・投稿者・全長を持って帰る。盤のメタより新しいので優先する
+            // (制作時と同じ経路 = 同じ検索語・同じ尺で探せる)。
+            if (failure instanceof UnplayableSoundCloudResolve unplayable) {
+                return substituteForSoundCloud(url, unplayable.track);
+            }
+        } else if (!isYoutubeTarget(normalized) || !firesSubstitute(reason)) {
+            return null;
+        }
+        if (hint == null) {
+            return null;
+        }
+        final String title = safe(hint.title()).trim();
+        final String author = safe(hint.author()).trim();
+        if (title.isBlank() || author.isBlank()) {
+            // 曲名かアーティストが無いと query を作れない。制作時と同じく「探さずに諦める」。
+            LOGGER.info("No title/author on the disc to look for another source ({})", url);
+            return null;
+        }
+        // 0 以下 = 尺は分からない。負の値は渡さない (substitute は負を見ると watch ページへ
+        // 尺を取りに行く。ここでは絶対に取りに行かせない)。
+        final long sourceMs = Math.max(0L, hint.durationMs());
+        final String[] prefixes = soundCloud ? SOUNDCLOUD_SUBSTITUTE_PREFIXES : ALTERNATE_SEARCH_PREFIXES;
+        return substitute(prefixes, title, title, author, title, author, url, null,
+                new YoutubeWatchPage.Result(sourceMs, "", "", ""),
+                System.currentTimeMillis() + SUBSTITUTE_BUDGET_MS);
+    }
+
+    /**
+     * 再生用に 1 本開く (失敗は {@link ResolveException} のまま返す)。
+     *
+     * @param url     開く URL
+     * @param startMs 開始位置 (ミリ秒)
+     * @return 開けたソース
+     * @throws ResolveException 開けなかった
+     */
+    private OpenStreamResult openPlayback(String url, long startMs) throws ResolveException {
+        return OpenStreamResult.ok(startPlayback(loadTrackSync(url), startMs, url));
+    }
+
+    @Override
+    public OpenStreamResult openStreamDetailed(String url, long startMs, TrackHint hint) {
+        // 前回見つけた代替先があれば、元の URL を試す前にそこを開く。鳴らなかった盤は
+        // たいてい同じ理由で鳴らないので、毎回検索の数秒を待たせない。
+        final String remembered = playbackSubstitutes.get(url);
+        if (remembered != null) {
+            try {
+                final OpenStreamResult reused = openPlayback(remembered, startMs);
+                LOGGER.info("Playing the alternate source found earlier for {} -> {}", url, remembered);
+                return reused;
+            } catch (final ResolveException ex) {
+                LOGGER.info("The alternate source found earlier no longer plays ({}): [{}] {}",
+                        remembered, ex.reason(), ex.detail());
+                playbackSubstitutes.remove(url, remembered);
+            }
+        }
+        final ResolveException directFailure;
+        try {
+            return openPlayback(url, startMs);
+        } catch (final ResolveException ex) {
+            LOGGER.warn("Failed to load track for playback ({}) [{}] {}", url, ex.reason(),
+                    ex.detail());
+            directFailure = ex;
+        }
+        final TrackInfo substitute;
+        try {
+            substitute = substituteForPlayback(url, directFailure, hint);
+        } catch (final ResolveException ex) {
+            // 探したが無かった (NO_ALTERNATIVE_FOUND)。元の理由ではなくこちらを返す —
+            // 「観られない」と「代わりも無い」では、利用者が次にできることが違う。
+            LOGGER.warn("No usable alternate source for playback ({}) [{}] {}", url, ex.reason(),
+                    ex.detail());
+            return OpenStreamResult.failed(ex.reason(), ex.detail());
+        }
+        if (substitute == null) {
+            return OpenStreamResult.failed(directFailure.reason(), directFailure.detail());
+        }
+        playbackSubstitutes.put(url, substitute.uri());
+        try {
+            final OpenStreamResult alternative = openPlayback(substitute.uri(), startMs);
+            LOGGER.info("Playing an alternate source for {} -> {}", url, substitute.uri());
+            return alternative;
+        } catch (final ResolveException ex) {
+            LOGGER.warn("The alternate source found for playback also failed ({}) [{}] {}",
+                    substitute.uri(), ex.reason(), ex.detail());
+            playbackSubstitutes.remove(url, substitute.uri());
+            return OpenStreamResult.failed(ex.reason(), ex.detail());
+        }
+    }
+
     @Override
     public IAudioSource openTrustedFile(Path file, long startMs) {
         try {
@@ -974,6 +1166,11 @@ public class MusicLoaderImpl implements IMusicLoader {
     /** YouTube を相手にする URL か (セッションの入れ替えが効く相手だけ再試行する)。 */
     static boolean isYoutubeTarget(String url) {
         return url != null && (isSearch(url) || YT_HOST.matcher(url).find());
+    }
+
+    /** SoundCloud の URL か (試聴版・DRM の時に代替ソースを探す相手)。 */
+    static boolean isSoundCloudTarget(String url) {
+        return url != null && SC_HOST.matcher(url).find();
     }
 
     /**

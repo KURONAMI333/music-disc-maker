@@ -130,6 +130,50 @@ public interface IMusicLoader {
     }
 
     /**
+     * 盤が持っている曲の情報。再生時に元の URL が鳴らせなかった時、同じ曲を別の配信元から
+     * 探すための手掛かりになる。
+     *
+     * <p>なぜ境界を越えて渡すか: 再生は URL だけで始まり、ローダーは曲名も尺も知らない。
+     * ディスクを作った時に解決して盤へ焼いた値 (表示用の曲名・アーティスト・尺) は mod 側に
+     * 残っているので、それを渡さないと「鳴らなかった」で終わるしかない。制作時と同じ検索を
+     * 再生時にも使えるようにするのがこの型の役目。
+     *
+     * <p>{@code title} / {@code author} は<b>表示用に整形済みの値</b>でよい (制作時に
+     * {@code MetadataCleaner} を通したもの)。{@code durationMs} が {@code 0} 以下なら尺は
+     * 分からない扱いになり、尺での足切りをせずに探す。
+     *
+     * <p>api パッケージなので JDK とこのパッケージ以外に依存を持たせないこと
+     * ({@link OpenStreamResult} と同じ制約)。
+     *
+     * @param title      盤に焼いた曲名
+     * @param author     盤に焼いたアーティスト
+     * @param durationMs 盤に焼いた尺 (ms)。不明なら {@code 0}
+     */
+    record TrackHint(String title, String author, long durationMs) {
+    }
+
+    /**
+     * {@link #openStreamDetailed(String, long)} に、盤が持っている曲の情報を添えた版。
+     *
+     * <p>実装は、元の URL が「YouTube 側の都合で観られない」種類の理由で開けなかった時に、
+     * {@code hint} の曲名・アーティスト・尺で別の配信元を探し、見つかった方を開く。制作時
+     * ({@code resolve}) と同じ検索を使うので、見つからなければ
+     * {@link FailureReason#NO_ALTERNATIVE_FOUND} が返る。
+     *
+     * <p>既定実装が {@link #openStreamDetailed(String, long)} に落ちるのは、橋渡し interface
+     * だけ新しく impl の {@code jar.packed} が古い組み合わせでも再生を壊さないため。その場合は
+     * 従来どおり代替ソースを探さない (理由の粒度も従来のまま)。
+     *
+     * @param url     再生する URL
+     * @param startMs 開始位置 (ミリ秒)。0 以下なら先頭
+     * @param hint    盤が持っている曲の情報 ({@code null} なら探さない)
+     * @return 開けた PCM ソース、または開けなかった理由
+     */
+    default OpenStreamResult openStreamDetailed(String url, long startMs, TrackHint hint) {
+        return openStreamDetailed(url, startMs);
+    }
+
+    /**
      * 信頼済みのローカル音声ファイルを先頭から開く。
      *
      * @param file 呼び出し側で保存領域内と検証済みの通常ファイル
