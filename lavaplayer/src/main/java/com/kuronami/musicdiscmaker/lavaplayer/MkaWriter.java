@@ -28,6 +28,12 @@ import java.util.Objects;
  * <li>CodecPrivate に OpusHead、SeekPreRoll に 80ms を書く (ffmpeg 系 MKA と同じ値)</li>
  * </ul>
  *
+ * <p><b>encoder のレートとこの 2 つの値は別物</b>。長い曲は {@code LocalFileNormalizer} が
+ * encoder を 24kHz で回すが、Opus のデコーダーは常に 48kHz で出すので、ここは 48kHz のまま
+ * でよい (OpusHead の input sample rate は「元の録音レート」の情報で、復号のレートを決めない。
+ * pre-skip も 48kHz 単位の sample 数)。24kHz の encode でも尺・音高・seek は変わらないことを
+ * {@code LocalFileNormalizerTest} が読み戻して確かめている。
+ *
  * <p>段階2では「保存できる音声だけで完結する MKA」を出すだけで、normalize・
  * picker・GUI には触れない。
  */

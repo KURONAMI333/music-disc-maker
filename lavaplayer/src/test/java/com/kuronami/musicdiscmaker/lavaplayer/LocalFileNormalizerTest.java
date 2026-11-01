@@ -253,27 +253,35 @@ class LocalFileNormalizerTest {
     }
 
     /**
-     * 上限の手前で切れる入力は、bitrate を下げて 1 回だけ変換し直し、入力ぶんの尺を持つ盤にする
-     * (曲が黙って途中で終わらない)。
+     * 上限の手前で切れる入力は、encoder のレートを 24kHz へ落として 1 回だけ変換し直し、
+     * 入力ぶんの尺を持つ盤にする (曲が黙って途中で終わらない)。
+     *
+     * <p>尺から選ぶレートは実測の最悪側に余裕を足して決めてあるので、48kHz を選んだ曲が
+     * 実際に溢れるのは VBR がその余裕を超えて膨らんだ時だけ。その上振れを
+     * {@link InflatingEncoder} で作り、2 回目が実 encoder の 24kHz で最後まで入ることを見る。
      */
     @Test
-    void reEncodesAtALowerBitrateInsteadOfEndingTheTrackEarly() throws Exception {
+    void reEncodesAtHalfRateInsteadOfEndingTheTrackEarly() throws Exception {
         final Path input = write("noise.wav", noiseWav(48_000)); // 6秒@8kHz の雑音 (VBR で膨らみやすい)
         final MusicLoaderImpl loader = new MusicLoaderImpl();
         final Baseline full = encodeFullyAt(input);
-        final long cap = full.bytes() * 8L / 10L; // 実寸の 8 割 = 1 回目の encode が途中で止まる上限
+        // 48kHz が選ばれる (尺と上限だけで決まる) かつ、膨らんだ 1 回目が途中で止まる上限。
+        final long cap = 46_000L;
         final List<Integer> used = new ArrayList<>();
         final Path output = tempDir.resolve("retried.mka");
 
         final TrackInfo info = new LocalFileNormalizer(loader, cap,
                 LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                bitrate -> {
-                    used.add(bitrate);
-                    return new ShrinkingEncoder(bitrate);
+                rate -> {
+                    used.add(rate);
+                    return rate == LocalFileNormalizer.DEFAULT_ENCODER_RATE
+                            ? new InflatingEncoder(rate)
+                            : new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
                 }, () -> {}).normalize(input, output);
 
-        assertEquals(2, used.size(), "1 回目は切れ、2 回目で収まる: " + used);
-        assertTrue(used.get(1) < used.get(0), "2 回目は低い bitrate で変換し直す: " + used);
+        assertEquals(List.of(LocalFileNormalizer.DEFAULT_ENCODER_RATE,
+                LocalFileNormalizer.MIN_ENCODER_RATE), used,
+                "1 回目は 48kHz で切れ、2 回目は 24kHz で変換し直す: " + used);
         assertEquals(full.durationMs(), info.durationMs(),
                 "尺が入力と一致する (途中で終わらない): " + info);
         assertTrue(Files.size(output) <= cap, "出力は上限内: " + Files.size(output));
@@ -282,24 +290,31 @@ class LocalFileNormalizerTest {
     }
 
     /**
-     * 最終下限まで下げても上限に入らない入力は、短い成功を返さず尺の上限として失敗する
-     * (半分だけ鳴る盤を黙って作らない)。
+     * 下限レート (24kHz) まで下げても上限に入らない入力は、短い成功を返さず尺の上限として
+     * 失敗する (半分だけ鳴る盤を黙って作らない)。
      */
     @Test
-    void failsWhenEvenTheFinalFloorCannotHoldTheWholeTrack() throws Exception {
+    void failsWhenEvenTheFloorRateCannotHoldTheWholeTrack() throws Exception {
         final Path input = write("noise.wav", noiseWav(48_000));
         final MusicLoaderImpl loader = new MusicLoaderImpl();
         final Baseline full = encodeFullyAt(input);
-        final long cap = full.bytes() / 2L;
+        // 24kHz でも入らない上限 (実測の 24kHz は 48kHz の半分強なので、その内側)。
+        final long cap = full.bytes() * 35L / 100L;
         final Path output = tempDir.resolve("too-small.mka");
+        final List<Integer> used = new ArrayList<>();
 
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, cap,
                         LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                        bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {})
+                        rate -> {
+                            used.add(rate);
+                            return new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
+                        }, () -> {})
                         .normalize(input, output));
 
         assertTrue(ex.detail().contains("duration limit"), ex.detail());
+        assertEquals(List.of(LocalFileNormalizer.MIN_ENCODER_RATE), used,
+                "この上限では最初から下限レートで、変換し直す先が無い: " + used);
         assertFalse(Files.exists(output), "短い成功を返さない");
         assertNoTempLeft();
     }
@@ -314,13 +329,13 @@ class LocalFileNormalizerTest {
 
         new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES,
                 LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                bitrate -> {
-                    used.add(bitrate);
-                    return new OpusEncoder(48_000, 1, bitrate);
+                rate -> {
+                    used.add(rate);
+                    return new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
                 }, () -> {}).normalize(input, output);
 
-        assertEquals(1, used.size(), "短い曲で変換し直している: " + used);
-        assertEquals(64_000, used.get(0).intValue());
+        assertEquals(List.of(LocalFileNormalizer.DEFAULT_ENCODER_RATE), used,
+                "短い曲は 48kHz のまま変換し直さない: " + used);
         assertTrue(Files.size(output) <= LocalFileNormalizer.MAX_OUTPUT_BYTES);
         assertNoTempLeft();
     }
@@ -336,89 +351,160 @@ class LocalFileNormalizerTest {
                 LocalFileNormalizer.CONTAINER_BPS, "コンテナ分は同じ値から計算する");
     }
 
-    // ==== 尺から選ぶ bitrate (長い曲を「尺超過」で失敗させない) ====
+    // ==== 尺から選ぶ encoder のレート (長い曲を「尺超過」で失敗させない) ====
 
-    /** 短い曲は既定の 64kbps のまま (品質を落とさない)。 */
+    /**
+     * 24kHz で encode した盤も、48kHz と同じ尺・音高・seek で鳴る。
+     *
+     * <p>出力の SamplingFrequency と OpusHead は 48kHz のまま (Opus の復号レートは encoder の
+     * レートに依らない) なので、読み戻す側は 48kHz の PCM を受け取る。間引きで尺が縮んだり
+     * 音高がずれたりしていれば、この読み戻しで分かる。
+     */
     @Test
-    void keepsTheDefaultBitrateForAShortTrack() {
-        assertEquals(64_000, LocalFileNormalizer.bitrateFor(3L * 60_000L,
-                LocalFileNormalizer.MAX_OUTPUT_BYTES));
-    }
+    void aTrackEncodedAtHalfRateKeepsItsDurationPitchAndSeek() throws Exception {
+        final Path input = writeMka("tone.mka", 51); // 宣言 1.02 秒・decode で 50 frame = 1 秒
+        final Path output = tempDir.resolve("half-rate.mka");
+        final MusicLoaderImpl loader = new MusicLoaderImpl();
+        final List<Integer> used = new ArrayList<>();
+        // 1 秒で 48kHz は収まらず 24kHz なら収まる上限 (レートは尺と上限だけで決まる)。
+        final long cap = 6_000L;
 
-    /** 中くらいの長さは下限と既定の間へ下がる (いきなり下限へ落とさない)。 */
-    @Test
-    void lowersBitrateGraduallyForLongTracks() {
-        final int bitrate = LocalFileNormalizer.bitrateFor(90L * 60_000L,
-                LocalFileNormalizer.MAX_OUTPUT_BYTES);
+        final TrackInfo info = new LocalFileNormalizer(loader, cap,
+                LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> {
+                    used.add(rate);
+                    return new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
+                }, () -> {}).normalize(input, output);
 
-        assertTrue(bitrate < 64_000, "90 分でも既定のまま: " + bitrate);
-        assertTrue(bitrate > LocalFileNormalizer.MIN_OPUS_BITRATE,
-                "90 分で下限まで落ちている: " + bitrate);
+        assertEquals(List.of(LocalFileNormalizer.MIN_ENCODER_RATE), used,
+                "この上限では 24kHz を 1 回だけ使う: " + used);
+        assertEquals(1_000L, info.durationMs(), "間引いても尺が変わらない: " + info);
+        assertAudioOnlyDecodableOutput(loader, output, info.durationMs());
+        assertTonePitch(TrustedLocalFileTest.decode(loader.openTrustedFile(output, 0L)), 440.0);
     }
 
     /**
-     * 上限尺 (2 時間) は下限付近の bitrate で 32MiB に収まる — 尺を理由に失敗させない。
-     * 選ばれる値は下限ちょうどとは限らない (下限で足りる尺では下限を割らずに済む側へ寄る) ので、
-     * 下限以上であることと見積が上限内であることを別々に確かめる。
+     * 60 秒の盤でも尺・音高・seek が保たれる (24kHz 化で壊れやすい 3 点を 1 本で見る)。
+     *
+     * <p>前半 30 秒を 440Hz・後半 30 秒を 880Hz にしてあるので、seek 先の音高で位置が分かる。
+     * Cluster は 30 秒ごとなので、seek が効かず先頭から鳴っていれば 440Hz が出る。
+     *
+     * <p>尺は絶対値ではなく同じ入力の 48kHz 版と比べる。入力 WAV の 8kHz→48kHz 変換と
+     * 末尾 1 frame の差で絶対値は 60 秒ちょうどにならない (48kHz 版も同じだけ短い) ので、
+     * ここで見たい「レートを落として尺が動かない」は比較で判定する。
      */
     @Test
-    void theLongestAllowedTrackFitsAtTheFloor() {
-        final int bitrate = LocalFileNormalizer.bitrateFor(
-                LocalFileNormalizer.MAX_DECLARED_DURATION_MS,
-                LocalFileNormalizer.MAX_OUTPUT_BYTES);
-        assertTrue(bitrate >= LocalFileNormalizer.MIN_OPUS_BITRATE, "下限を割る: " + bitrate);
+    void aMinuteLongTrackAtHalfRateKeepsItsLengthPitchAndSeek() throws Exception {
+        final Path input = write("minute.wav", twoToneWav(30, 440.0, 30, 880.0));
+        final Path output = tempDir.resolve("minute.mka");
+        final MusicLoaderImpl loader = new MusicLoaderImpl();
+        final List<Integer> used = new ArrayList<>();
+        // 60 秒が 24kHz でだけ収まる上限 (48kHz なら 390KB 前後になる)。
+        final long cap = 300_000L;
+        final Baseline full = encodeFullyAt(input);
 
-        final long estimated = LocalFileNormalizer.MAX_DECLARED_DURATION_MS / 1_000L
-                * (bitrate + LocalFileNormalizer.CONTAINER_BPS) / 8L;
-        assertTrue(estimated < LocalFileNormalizer.MAX_OUTPUT_BYTES,
-                "2 時間が 32MiB を超えている: " + estimated);
+        final TrackInfo info = new LocalFileNormalizer(loader, cap,
+                LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> {
+                    used.add(rate);
+                    return new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
+                }, () -> {}).normalize(input, output);
+
+        assertEquals(List.of(LocalFileNormalizer.MIN_ENCODER_RATE), used,
+                "この上限では 24kHz を 1 回だけ使う: " + used);
+        assertEquals(full.durationMs(), info.durationMs(),
+                "レートを落としても尺が変わらない: " + info);
+        assertTrue(Files.size(output) <= cap, "出力は上限内: " + Files.size(output));
+
+        final byte[] whole = TrustedLocalFileTest.decode(loader.openTrustedFile(output, 0L));
+        final byte[] reference = TrustedLocalFileTest.decode(
+                loader.openTrustedFile(full.output(), 0L));
+        assertTrue(Math.abs(whole.length - reference.length) <= 1_920,
+                "復号 PCM の長さが 48kHz 版と同じ (差 "
+                        + Math.abs(whole.length - reference.length) + " byte)");
+        assertTonePitchAt(whole, 5.0, 440.0);
+        assertTonePitchAt(whole, 45.0, 880.0);
+
+        final byte[] fromFortySeconds = TrustedLocalFileTest.decode(
+                loader.openTrustedFile(output, 40_000L));
+        assertTrue(fromFortySeconds.length < whole.length * 0.5,
+                "seek 後は 40 秒以降だけを復号する: " + fromFortySeconds.length + "/" + whole.length);
+        assertTonePitchAt(fromFortySeconds, 1.0, 880.0);
+        assertNoTempLeft();
     }
 
-    /** 下限を割らない (これ以上下げても尺は伸びず、劣化だけが増える)。 */
+    /** 短い曲は既定の 48kHz のまま (品質を落とさない)。 */
     @Test
-    void neverGoesBelowTheFloor() {
-        assertEquals(LocalFileNormalizer.MIN_OPUS_BITRATE,
-                LocalFileNormalizer.bitrateFor(10L * 60L * 60_000L,
+    void keepsTheDefaultRateForAShortTrack() {
+        assertEquals(LocalFileNormalizer.DEFAULT_ENCODER_RATE,
+                LocalFileNormalizer.rateFor(3L * 60_000L, LocalFileNormalizer.MAX_OUTPUT_BYTES));
+    }
+
+    /** 中くらいの長さは 48kHz のままで、上限尺では 24kHz へ落ちる (段がある)。 */
+    @Test
+    void lowersTheRateOnlyWhereTheOutputWouldNotFit() {
+        assertEquals(LocalFileNormalizer.DEFAULT_ENCODER_RATE,
+                LocalFileNormalizer.rateFor(60L * 60_000L, LocalFileNormalizer.MAX_OUTPUT_BYTES));
+        assertEquals(LocalFileNormalizer.MIN_ENCODER_RATE,
+                LocalFileNormalizer.rateFor(90L * 60_000L, LocalFileNormalizer.MAX_OUTPUT_BYTES),
+                "90 分は 48kHz のままだと 32MiB に入らない");
+    }
+
+    /**
+     * 上限尺 (2 時間) は下限レートで 32MiB に余裕を残して収まる — 尺を理由に失敗させない。
+     * 実測の最悪側 ({@link LocalFileNormalizer#MEASURED_BPS_24K}) とコンテナ分で見積もり、
+     * 余裕が 5% 以上あることを確かめる (余裕が無いと VBR の上振れで末尾が切れる)。
+     */
+    @Test
+    void theLongestAllowedTrackFitsAtTheFloorRate() {
+        assertEquals(LocalFileNormalizer.MIN_ENCODER_RATE,
+                LocalFileNormalizer.rateFor(LocalFileNormalizer.MAX_DECLARED_DURATION_MS,
+                        LocalFileNormalizer.MAX_OUTPUT_BYTES));
+
+        final long estimated = LocalFileNormalizer.MAX_DECLARED_DURATION_MS / 1_000L
+                * (LocalFileNormalizer.MEASURED_BPS_24K + LocalFileNormalizer.CONTAINER_BPS) / 8L;
+        final long margin = LocalFileNormalizer.MAX_OUTPUT_BYTES - estimated;
+        assertTrue(margin * 100L / LocalFileNormalizer.MAX_OUTPUT_BYTES >= 5L,
+                "2 時間の見積が上限に近すぎる: " + estimated + " byte");
+    }
+
+    /**
+     * 尺が分からない入力は既定レートで始める。尺を持たない短い入力 (一部の ADTS 等) を
+     * 理由もなく 24kHz にしない。長ければ encode 中の実 packet で溢れ、その時に
+     * 24kHz へ落として変換し直す。
+     */
+    @Test
+    void keepsTheDefaultRateWhenTheLengthIsUnknown() {
+        assertEquals(LocalFileNormalizer.DEFAULT_ENCODER_RATE,
+                LocalFileNormalizer.rateFor(0L, LocalFileNormalizer.MAX_OUTPUT_BYTES));
+        assertEquals(LocalFileNormalizer.DEFAULT_ENCODER_RATE,
+                LocalFileNormalizer.rateFor(Long.MAX_VALUE,
                         LocalFileNormalizer.MAX_OUTPUT_BYTES));
     }
 
-    /** 尺が分からない入力は上限尺を仮定して下限側に置く (実 packet の見積が別に効く)。 */
+    /** 選んだレートが実際に encoder へ渡る (尺 → レート → encode の配線)。 */
     @Test
-    void assumesTheLongestTrackWhenTheLengthIsUnknown() {
-        final int longest = LocalFileNormalizer.bitrateFor(
-                LocalFileNormalizer.MAX_DECLARED_DURATION_MS,
-                LocalFileNormalizer.MAX_OUTPUT_BYTES);
-
-        assertEquals(longest,
-                LocalFileNormalizer.bitrateFor(0L, LocalFileNormalizer.MAX_OUTPUT_BYTES),
-                "0 は上限尺として扱う");
-        assertEquals(longest,
-                LocalFileNormalizer.bitrateFor(Long.MAX_VALUE,
-                        LocalFileNormalizer.MAX_OUTPUT_BYTES),
-                "MAX_VALUE は上限尺として扱う");
-    }
-
-    /** 選んだ bitrate が実際に encoder へ渡る (尺 → bitrate → encode の配線)。 */
-    @Test
-    void createsTheEncoderWithTheBitrateChosenFromTheLength() throws Exception {
+    void createsTheEncoderWithTheRateChosenFromTheLength() throws Exception {
         final Path input = write("long.wav", TrustedLocalFileTest.toneWav(480_000)); // 60秒@8kHz
         final Path output = tempDir.resolve("lowered.mka");
         final MusicLoaderImpl loader = new MusicLoaderImpl();
-        // 尺から既定より低い bitrate が選ばれる上限。実寸の 2% 上に置くので変換し直しは起きない。
-        final Baseline full = encodeFullyAt(input);
-        final long cap = full.bytes() * 102L / 100L;
+        // 60 秒で 48kHz が入らない上限 (24kHz なら入る)。実寸の 2% 上にしない:
+        // レートの選択は尺と上限だけで決まり、変換し直しは起きない。
+        final long cap = 250_000L;
         final AtomicReference<Integer> used = new AtomicReference<>();
 
         new LocalFileNormalizer(loader, cap, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                bitrate -> {
-                    used.set(bitrate);
-                    return new OpusEncoder(48_000, 1, bitrate);
+                rate -> {
+                    used.set(rate);
+                    return new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
                 }, () -> {}).normalize(input, output);
 
-        final int chosen = LocalFileNormalizer.bitrateFor(60_000L, cap);
+        final int chosen = LocalFileNormalizer.rateFor(60_000L, cap);
         assertEquals(Integer.valueOf(chosen), used.get(),
-                "尺から選んだ bitrate が encoder へ渡るべき");
-        assertTrue(chosen < 64_000, "この入力と cap では既定より下がるべき: " + chosen);
+                "尺から選んだレートが encoder へ渡るべき");
+        assertEquals(LocalFileNormalizer.MIN_ENCODER_RATE, chosen,
+                "この入力と cap では 24kHz へ落ちるべき: " + chosen);
+        assertTrue(Files.size(output) <= cap, "出力は上限内: " + Files.size(output));
     }
 
     // ==== 明示失敗 ====
@@ -592,7 +678,7 @@ class LocalFileNormalizerTest {
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES,
                         LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                        bitrate -> {
+                        rate -> {
                             throw new UnsatisfiedLinkError("no opus natives");
                         }, () -> {}).normalize(input, output));
         assertTrue(ex.detail().contains("opus encoder"), ex.detail());
@@ -631,8 +717,8 @@ class LocalFileNormalizerTest {
 
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES, capNs,
-                        bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {})
-                        .normalize(input, output));
+                        rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                        () -> {}).normalize(input, output));
 
         assertTrue(ex.detail().contains("duration limit"), ex.detail());
         assertFalse(Files.exists(output), "短い成功にしない");
@@ -648,13 +734,15 @@ class LocalFileNormalizerTest {
         final Path exact = tempDir.resolve("exact.mka");
         final TrackInfo exactInfo = new LocalFileNormalizer(loader,
                 LocalFileNormalizer.MAX_OUTPUT_BYTES, 1_200_000_000L,
-                bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, exact);
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {}).normalize(input, exact);
         assertEquals(1_200L, exactInfo.durationMs(), "cap と一致する入力は全 frame が入る: " + exactInfo);
 
         final Path shortCap = tempDir.resolve("short-cap.mka");
         final TrackInfo shortInfo = new LocalFileNormalizer(loader,
                 LocalFileNormalizer.MAX_OUTPUT_BYTES, 1_180_000_000L, // 59 frame
-                bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, shortCap);
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {}).normalize(input, shortCap);
         assertEquals(1_180L, shortInfo.durationMs(), "cap-1frame で打ち切る: " + shortInfo);
         assertNoTempLeft();
     }
@@ -669,7 +757,8 @@ class LocalFileNormalizerTest {
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES,
                         10_000_000L, // 10ms < 1 frame (20ms)
-                        bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, output));
+                        rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                        () -> {}).normalize(input, output));
         assertTrue(ex.detail().contains("no decodable audio"), ex.detail());
         assertFalse(Files.exists(output));
         assertNoTempLeft();
@@ -692,7 +781,7 @@ class LocalFileNormalizerTest {
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES,
                         LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                        bitrate -> new OpusEncoder(48_000, 1, bitrate),
+                        rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
                         () -> {
                             try {
                                 Files.write(output, foreign); // 発行直前に同名を出す
@@ -804,6 +893,38 @@ class LocalFileNormalizerTest {
         assertTrue(mid.length > 0, "途中 seek から PCM が読める");
     }
 
+    /**
+     * 復号 PCM (48kHz mono S16LE) の中央 0.5 秒の正の向きのゼロ交差から音高を測る。
+     * 間引きのレートを取り違えると 1 オクターブずれる (220Hz / 880Hz) ので、
+     * 440Hz ±5% で判定できる。
+     */
+    private static void assertTonePitch(byte[] pcm, double expectedHz) {
+        assertTonePitchAt(pcm, pcm.length / 2.0 / 48_000.0 / 3.0, expectedHz);
+    }
+
+    /** {@code fromSeconds} から 0.5 秒ぶんの音高。フィルタの過渡を避けて窓をずらす時に使う。 */
+    private static void assertTonePitchAt(byte[] pcm, double fromSeconds, double expectedHz) {
+        final int sampleRate = 48_000;
+        final int samples = pcm.length / 2;
+        final int from = (int) Math.round(fromSeconds * sampleRate);
+        final int to = Math.min(samples, from + sampleRate / 2);
+        assertTrue(to - from >= sampleRate / 4,
+                "音高を測る長さが足りない: " + (to - from) + " sample (" + fromSeconds + "s から)");
+        int crossings = 0;
+        int previous = 0;
+        for (int i = from; i < to; i++) {
+            final int value = (short) ((pcm[i * 2] & 0xFF) | (pcm[i * 2 + 1] << 8));
+            if (previous < 0 && value >= 0) {
+                crossings++;
+            }
+            previous = value;
+        }
+        final double measured = crossings / ((to - from) / (double) sampleRate);
+        assertTrue(Math.abs(measured - expectedHz) <= expectedHz * 0.05,
+                fromSeconds + "s からの音高が " + measured + "Hz (期待 " + expectedHz
+                        + "Hz): 間引きか seek でレート・位置がずれている");
+    }
+
     private void assertNoTempLeft() throws IOException {
         try (final var entries = Files.list(tempDir)) {
             assertTrue(entries.noneMatch(
@@ -825,47 +946,67 @@ class LocalFileNormalizerTest {
         return file;
     }
 
-    /** 上限を作るための実測値 (同じ入力を指定 bitrate で最後まで encode した実寸と尺)。 */
-    private record Baseline(long bytes, long durationMs) {}
+    /** 上限を作るための実測値 (同じ入力を既定レートで最後まで encode した実寸・尺・置き場所)。 */
+    private record Baseline(Path output, long bytes, long durationMs) {}
 
     /**
-     * {@code input} を実 encoder で最後まで encode した実寸と尺。上限はこの実寸から作る
+     * {@code input} を実 encoder (48kHz) で最後まで encode した実寸と尺。上限はこの実寸から作る
      * (固定の byte 数を書くと、encoder の実出力との差で試験が不安定になる)。
      */
     private Baseline encodeFullyAt(Path input) throws IOException {
         final Path probe = tempDir.resolve("baseline.mka");
         final TrackInfo info = new LocalFileNormalizer(new MusicLoaderImpl(),
                 LocalFileNormalizer.MAX_OUTPUT_BYTES, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, probe);
-        return new Baseline(Files.size(probe), info.durationMs());
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {}).normalize(input, probe);
+        return new Baseline(probe, Files.size(probe), info.durationMs());
     }
 
     /**
-     * 要求された bitrate を実際に出力サイズへ反映する encoder の代役。
-     *
-     * <p>この pin 版の {@link OpusEncoder} の第 3 引数は bitrate ではなく品質で、値を変えても
-     * 実出力はほぼ変わらない (実測: 500〜512000 のどれでも同じ packet 長)。そのままだと
-     * 「下げて変換し直す」経路が縮まないので、要求が実 encoder の水準より低い時は入力を
-     * 無音にして小さい packet を返し、bitrate を下げた効果だけを再現する。
+     * 48kHz の出力を実際の packet より膨らませる encoder。実 encoder の 48kHz は 51.4kbps 止まりで、
+     * 尺から選ぶレートの余裕 (52kbps) を超えないため、VBR の上振れで上限を溢れる状況だけを作る。
+     * 溢れた側の packet は捨てられるので、中身は実 packet + 0 埋めでよい。
      */
-    private static final class ShrinkingEncoder extends OpusEncoder {
+    private static final class InflatingEncoder extends OpusEncoder {
 
-        private final int requested;
+        private static final int INFLATION = 4;
 
-        ShrinkingEncoder(int requested) {
-            super(48_000, 1, 10);
-            this.requested = requested;
+        InflatingEncoder(int rate) {
+            super(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY);
         }
 
         @Override
         public int encode(ShortBuffer pcm, int frameSize, ByteBuffer encoded) {
-            if (requested < LocalFileNormalizer.MIN_OPUS_BITRATE) {
-                for (int i = 0; i < frameSize; i++) {
-                    pcm.put(pcm.position() + i, (short) 0);
-                }
-            }
-            return super.encode(pcm, frameSize, encoded);
+            final int length = super.encode(pcm, frameSize, encoded);
+            // 長さだけ膨らませる (中身は実 packet の後ろの残り)。溢れた側の packet は
+            // 捨てられるので、読める packet である必要はない。
+            final int inflated = Math.min(length * INFLATION, encoded.capacity());
+            encoded.limit(inflated);
+            return inflated;
         }
+    }
+
+    /**
+     * 8kHz mono 16bit の 2 音 WAV (前半 {@code firstSeconds} 秒を {@code firstHz}、後半を
+     * {@code secondHz})。seek が効いているかを復号後の音高で判定するために使う。
+     */
+    private static byte[] twoToneWav(int firstSeconds, double firstHz, int secondSeconds,
+            double secondHz) {
+        final int rate = 8_000;
+        final int samples = (firstSeconds + secondSeconds) * rate;
+        final int dataBytes = samples * 2;
+        final ByteBuffer wav = ByteBuffer.allocate(44 + dataBytes).order(ByteOrder.LITTLE_ENDIAN);
+        wav.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(36 + dataBytes);
+        wav.put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16);
+        wav.putShort((short) 1).putShort((short) 1).putInt(rate).putInt(rate * 2);
+        wav.putShort((short) 2).putShort((short) 16);
+        wav.put("data".getBytes(StandardCharsets.US_ASCII)).putInt(dataBytes);
+        final int switchAt = firstSeconds * rate;
+        for (int i = 0; i < samples; i++) {
+            final double hz = i < switchAt ? firstHz : secondHz;
+            wav.putShort((short) (10_000 * Math.sin(2.0 * Math.PI * hz * i / rate)));
+        }
+        return wav.array();
     }
 
     /**
