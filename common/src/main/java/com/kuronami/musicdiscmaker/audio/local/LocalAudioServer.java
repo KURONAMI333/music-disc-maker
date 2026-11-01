@@ -151,6 +151,9 @@ public final class LocalAudioServer {
         s.io.execute(() -> {
             try {
                 s.open();
+                // 「原本が無い」と答えた記録を先に消費する。これが無い client は、たとえ hash が
+                // 正しくても store の中身を確認できない (存在を探る経路にしない)。
+                if (!consumeMissing(s, player, p.hash())) { missingAgain(s, p, player); return; }
                 if (s.store.verified(p.hash()) != null) { alreadyStored(s, p, player); return; }
                 final Restore r = new Restore(player, p);
                 synchronized (s.restores) {
@@ -158,7 +161,6 @@ public final class LocalAudioServer {
                     if (s.restores.size() >= MAX_RESTORES || s.restores.containsKey(player.getUUID())
                             || s.restores.values().stream().anyMatch(o -> o.hash.equals(p.hash())))
                         throw new IOException("Transfer limit reached");
-                    if (!consumeMissing(s, player, p.hash())) { missingAgain(s, p, player); return; }
                     s.quota.check(player.getUUID(), p.hash(), p.size());
                     r.storeId = s.store.begin(player.getUUID(), p.hash(), p.size(), now());
                     s.restores.put(player.getUUID(), r);
