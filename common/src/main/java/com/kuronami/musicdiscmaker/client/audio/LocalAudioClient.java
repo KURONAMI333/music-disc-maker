@@ -60,7 +60,8 @@ public final class LocalAudioClient {
     /** 同じ hash を続けて上げ直さない間隔。missing のたびに同じ 32MiB を送らない。 */
     private static final long RESTORE_RETRY_MS = 60_000L;
     /**
-     * 応答が来ない上げ直しを諦めるまでの時間。32MiB を 1MiB/s で送っても 32 秒なので、2 分で十分。
+     * 応答が来ない上げ直しを諦めるまでの時間。開始からではなく最後の応答 (READY / ACK) から数える。
+     * 32MiB は 16KiB ずつ ACK 往復で進むので、遅い回線では全体が 2 分を超えうるが、進んでいる間は諦めない。
      * 古いサーバー (RESTORE を知らない) に繋いだ時も、この時間で枠が空く。
      */
     private static final long RESTORE_INFLIGHT_MS = 120_000L;
@@ -504,11 +505,11 @@ public final class LocalAudioClient {
             }
         }
         Receive r = SESSION.receive(p.hash());
-        if (p.operation() == LocalAudioPayload.AVAILABLE && r == null) {
-            // 他の player が原本を上げ直した知らせ。missing で待っている再生があれば起こす。
-            final CompletableFuture<Void> waiter = RESTORE_WAITERS.remove(p.hash());
-            if (waiter != null) waiter.complete(null);
-            return;
+        if (p.operation() == LocalAudioPayload.AVAILABLE) {
+            // 他の player が原本を上げ直した知らせ。missing で待っている再生を全部起こす。
+            // 同じ hash の受信が進行中でも待ちは別の再生なので、ここで起こしてから受信側の判定へ進む。
+            wakeRestoreWaiters(p.hash());
+            if (r == null) return;
         }
         if (p.operation() == LocalAudioPayload.AVAILABLE && r != null && r.cachedPath != null
                 && r.request.equals(p.id()) && p.generation() == r.request.getLeastSignificantBits()) {
@@ -574,7 +575,13 @@ public final class LocalAudioClient {
         long missingWaitStart = 0L; // 0 = まだ missing の待ちに入っていない
         while (true) {
             // missing の答えと上げ直しの知らせが行き違わないよう、問い合わせの前に待ち札を置く。
-            final CompletableFuture<Void> restored = RESTORE_WAITERS.computeIfAbsent(hash, k -> new CompletableFuture<>());
+            // 札は再生ごと。同じ hash の別の再生が終わっても、この再生の札は外れない。
+            final CompletableFuture<Void> restored = new CompletableFuture<>();
+            RESTORE_WAITERS.compute(hash, (k, set) -> {
+                if (set == null) set = ConcurrentHashMap.newKeySet();
+                set.add(restored);
+                return set;
+            });
             try {
                 return obtainOnce(hash);
             } catch (ExecutionException e) {
@@ -601,7 +608,10 @@ public final class LocalAudioClient {
                         || System.currentTimeMillis() + delay > deadline
                         || stillCurrent != null && !stillCurrent.getAsBoolean()) throw e;
             } finally {
-                RESTORE_WAITERS.remove(hash, restored);
+                RESTORE_WAITERS.computeIfPresent(hash, (k, set) -> {
+                    set.remove(restored);
+                    return set.isEmpty() ? null : set;
+                });
             }
             Thread.sleep(delay + ThreadLocalRandom.current().nextLong(delay / 2 + 1));
             delay = Math.min(delay * 2, 4_000L);
@@ -611,9 +621,15 @@ public final class LocalAudioClient {
     /** missing で他の player の上げ直しを待つ上限 (busy の待ちとは別)。 */
     private static final long MISSING_WAIT_MS = 60_000L;
 
-    /** missing で待たせている再生を、上げ直しの知らせで起こすための札 (hash ごと)。 */
-    private static final java.util.concurrent.ConcurrentHashMap<String, CompletableFuture<Void>> RESTORE_WAITERS =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    /** missing で待たせている再生を、上げ直しの知らせで起こすための札 (hash ごとに再生の数だけ)。 */
+    private static final ConcurrentHashMap<String, java.util.Set<CompletableFuture<Void>>> RESTORE_WAITERS =
+            new ConcurrentHashMap<>();
+
+    /** hash を待っている再生をすべて起こす。 */
+    private static void wakeRestoreWaiters(String hash) {
+        final java.util.Set<CompletableFuture<Void>> waiters = RESTORE_WAITERS.remove(hash);
+        if (waiters != null) for (CompletableFuture<Void> w : waiters) w.complete(null);
+    }
 
     /** 上げ直しの知らせを、この再生が現役で接続が同じ間だけ待つ。知らせが来たら true。 */
     private static boolean awaitRestored(CompletableFuture<Void> restored, long deadline,
@@ -683,7 +699,7 @@ public final class LocalAudioClient {
         final Long last = RESTORE_ATTEMPTS.get(hash);
         final long since = last == null ? Long.MAX_VALUE : now() - last;
         final Restore active = RESTORES.get(hash);
-        final boolean inFlight = active != null && now() - active.started < RESTORE_INFLIGHT_MS;
+        final boolean inFlight = active != null && now() - active.lastProgress < RESTORE_INFLIGHT_MS;
         if (active != null && !inFlight) {
             RESTORES.remove(hash, active);
             IO.execute(() -> closeRestore(active));
@@ -738,10 +754,12 @@ public final class LocalAudioClient {
         if (ready) {
             if (transfer != null) return true;
             r.transferId = p.id();
+            r.lastProgress = now();
             if (p.offset() == r.sent) readRestoreChunk(r);
             return true;
         }
         if (p.operation() == LocalAudioPayload.ACK) {
+            r.lastProgress = now();
             if (p.offset() == r.sent) readRestoreChunk(r);
             return true;
         }
@@ -1019,6 +1037,8 @@ public final class LocalAudioClient {
     static final class Restore {
         final String hash; final Path path; final long size, connection;
         final long started = now();
+        /** 最後にサーバーが応答した時刻。期限切れの判定はこれで行う。 */
+        volatile long lastProgress = started;
         final UUID request = UUID.randomUUID();
         volatile UUID transferId;
         volatile long sent;
