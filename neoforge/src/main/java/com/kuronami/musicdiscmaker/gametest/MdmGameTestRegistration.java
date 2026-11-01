@@ -253,6 +253,8 @@ public final class MdmGameTestRegistration {
                 NetworkProtocolGameTests::localAudioRegistersHandlersOnBothFlows, empty, 100);
         register(event, "local_audio_check_and_available_survive_registered_round_trip",
                 NetworkProtocolGameTests::localAudioCheckAndAvailableSurviveRegisteredRoundTrip, empty, 100);
+        register(event, "local_audio_restore_survives_registered_round_trip",
+                NetworkProtocolGameTests::localAudioRestoreSurvivesRegisteredRoundTrip, empty, 100);
         register(event, "stop_during_load_discards_the_pending_source",
                 PlaybackGenerationGameTests::stopDuringLoadDiscardsThePendingSource, empty, 100);
         register(event, "second_play_cancels_the_first_load",

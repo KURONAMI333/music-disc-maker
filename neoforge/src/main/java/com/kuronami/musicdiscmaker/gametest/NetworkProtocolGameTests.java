@@ -108,8 +108,8 @@ public class NetworkProtocolGameTests {
 
     /** 3.1.0 公開版。16 は候補段階の wire で、曲の終わりによる停止の印 ({@code StopDiscPayload#naturalEnd})
         を足して 17、金ジューク付きトロッコを金ジュークの menu・操作へ統合して 18、ブームボックスの再生に
-        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20、取りやめ (cancel_disc) を足して 21、曲が鳴り始めた時の遅れ (audio_lag) を足して 22、ブームボックスの同じ遅れ (boombox_audio_lag) を足して 23 にした。23 は公開前なので、ブームボックスの停止の曲の終わりの印 (boombox_stop の naturalEnd) は 23 のまま足した。サーバー側で曲を引けなかった時にクライアントが引いた曲情報 (client_resolved_track) を足して 24 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
-    private static final String PROTOCOL_VERSION = "24";
+        バニラ・他 MOD の盤の曲を足して 19、製作機で作った盤の曲名の付け直し (rename_disc) を足して 20、取りやめ (cancel_disc) を足して 21、曲が鳴り始めた時の遅れ (audio_lag) を足して 22、ブームボックスの同じ遅れ (boombox_audio_lag) を足して 23 にした。23 は公開前なので、ブームボックスの停止の曲の終わりの印 (boombox_stop の naturalEnd) は 23 のまま足した。サーバー側で曲を引けなかった時にクライアントが引いた曲情報 (client_resolved_track) を足して 24 にした。原本の上げ直し (RESTORE / RESTORE_READY) を足して 25 にした。{@link ModNetwork#PROTOCOL_VERSION} と一致すること。 */
+    private static final String PROTOCOL_VERSION = "25";
 
     /** 上の版に対応する wire 指紋 (下の見本をこの cell で登録される全 payload の codec で
         符号化した結果の SHA-256)。見本集合は cell 依存 — <1.21.2 では compat 経由の4型
@@ -277,6 +277,40 @@ public class NetworkProtocolGameTests {
 
         assertLocalAudioContract(helper, check, 10, checkWire);
         assertLocalAudioContract(helper, available, 11, availableWire);
+        helper.succeed();
+    }
+
+    /**
+     * RESTORE/RESTORE_READY のopcodeと、登録codecの実往復を固定する。
+     * opcode は既存 server が復号できる上限を決めるので、値を動かすと版も動かすことになる。
+     */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void localAudioRestoreSurvivesRegisteredRoundTrip(GameTestHelper helper) {
+        final var requestId = java.util.UUID.fromString("01234567-89ab-cdef-fedc-ba9876543210");
+        final String hash = "a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0fedcba9876543210";
+        final byte[] data = new byte[] {0, 127, (byte) 128, (byte) 255, 42};
+
+        helper.assertTrue(LocalAudioPayload.RESTORE == 12, "RESTORE opcode定数が12から変わった");
+        helper.assertTrue(LocalAudioPayload.RESTORE_READY == 13,
+                "RESTORE_READY opcode定数が13から変わった");
+        final LocalAudioPayload restore = new LocalAudioPayload(LocalAudioPayload.RESTORE, requestId, 173,
+                0x0102030405060708L, hash, 0x1122334455667788L, 0x1020304050607080L,
+                "cache-check-contract.mp3", data);
+        final LocalAudioPayload ready = new LocalAudioPayload(LocalAudioPayload.RESTORE_READY, requestId, 173,
+                0x0102030405060708L, hash, 0x1122334455667788L, 0x1020304050607080L,
+                "cache-check-contract.mp3", data);
+
+        final String restoreWire = "0c0123456789abcdeffedcba9876543210ad01010203040506070840"
+                + "61316232633364346535663630373138323933613462356336643765386639303132333435363738396162636465663066656463626139383736353433323130"
+                + "1122334455667788102030405060708018"
+                + "63616368652d636865636b2d636f6e74726163742e6d703305007f80ff2a";
+        final String readyWire = "0d" + restoreWire.substring(2);
+
+        assertLocalAudioContract(helper, restore, 12, restoreWire);
+        assertLocalAudioContract(helper, ready, 13, readyWire);
         helper.succeed();
     }
 
