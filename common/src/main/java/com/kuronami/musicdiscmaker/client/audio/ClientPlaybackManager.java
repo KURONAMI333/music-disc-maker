@@ -1233,6 +1233,10 @@ public final class ClientPlaybackManager {
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
                 PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
         if (track.radio()) {
+            // 保留中の拒否は radioStreamEnded が再接続のために捨てる。先に解決して、
+            // 諦めた時の理由として持ち越す (本当の拒否を SOUND_ENGINE として残す)。
+            final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+            sessions.holdRadioEngineRejection(key, token, engineActive);
             releaseOnFirstAudioDeadline(sessions, prefetch, key, true);
             onRadioStreamEnded(key, token);
             return;
@@ -1397,6 +1401,10 @@ public final class ClientPlaybackManager {
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
                 PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
         if (track.radio()) {
+            // 保留中の拒否は radioStreamEnded が再接続のために捨てる。先に解決して、
+            // 諦めた時の理由として持ち越す (本当の拒否を SOUND_ENGINE として残す)。
+            final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+            sessions.holdRadioEngineRejection(key, token, engineActive);
             onRadioStreamEnded(key, token);
             return;
         }

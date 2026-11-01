@@ -603,6 +603,28 @@ public final class PlaybackSessions<K> {
     }
 
     /**
+     * 期限でラジオの保留拒否を解決し、諦めた時の理由として持ち越す。
+     *
+     * <p>ラジオの期限は {@link #radioStreamEnded} を呼ぶが、そちらは再接続のために保留中の拒否を
+     * 捨てる。先にここで解決しないと、本当に拒否されたラジオは SOUND_ENGINE を一度も出さず、
+     * 再接続を使い切った {@code GIVE_UP} が理由なしになる。鳴っている ({@code engineActive})
+     * なら {@link #resolveHeldEngineRejection} が {@code null} を返すので、持ち越さない。
+     *
+     * @param key          再生の鍵
+     * @param token        この再生の世代
+     * @param engineActive 期限時点で sound engine がこの音源を保持しているか
+     * @return 持ち越した失敗。鳴っている・保留が無い・黙るなら {@code null}
+     */
+    @Nullable
+    public PlaybackFailure holdRadioEngineRejection(K key, int token, boolean engineActive) {
+        final PlaybackFailure rejected = resolveHeldEngineRejection(key, token, engineActive);
+        if (rejected != null) {
+            pendingFailure.put(key, rejected);
+        }
+        return rejected;
+    }
+
+    /**
      * {@link #FIRST_AUDIO_DEADLINE_MS} 以内に実音が届かなかった ({@link #firstAudioOverdue})。
      * 利用者に出すべきかどうかを答える。
      *

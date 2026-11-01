@@ -22,6 +22,8 @@ class DeferredEngineRejectionTest {
     private static final long KEY = 7L;
     private static final CustomTrackData SONG = new CustomTrackData(
             "https://example.invalid/song", "song", "artist", 180_000L, "", false);
+    private static final CustomTrackData RADIO = new CustomTrackData(
+            "https://example.invalid/radio", "radio", "artist", 0L, "", true);
     private static final PlaybackFailure REJECTED = PlaybackFailure.soundEngineRejected();
 
     private final AtomicLong clock = new AtomicLong(1_000L);
@@ -112,6 +114,42 @@ class DeferredEngineRejectionTest {
         sessions.engineRejected(KEY, third, REJECTED);
         assertEquals(REJECTED, sessions.resolveHeldEngineRejection(KEY, third, false),
                 "a genuine acceptance resets the frequency memory");
+    }
+
+    @Test
+    void aRejectedRadioStillReportsTheEngineReasonWhenReconnectingGivesUp() {
+        final int token = sessions.start(KEY, RADIO, 0L, 64, 100, true).token();
+        assertNull(sessions.engineRejected(KEY, token, REJECTED),
+                "the rejection is held until the deadline, as for any other track");
+
+        assertEquals(REJECTED, sessions.holdRadioEngineRejection(KEY, token, false),
+                "the deadline must resolve the held rejection before the radio branch drops it");
+
+        PlaybackSessions.Reconnect next = sessions.radioStreamEnded(KEY, token);
+        for (int attempt = 0; attempt < PlaybackSessions.MAX_RECONNECT; attempt++) {
+            assertEquals(PlaybackSessions.ReconnectKind.RETRY, next.kind(),
+                    "the radio must still reconnect before the budget is exhausted");
+            next = sessions.radioStreamEnded(KEY, token);
+        }
+        assertEquals(PlaybackSessions.ReconnectKind.GIVE_UP, next.kind());
+        assertEquals(REJECTED, next.why(),
+                "giving up must keep the SOUND_ENGINE reason instead of ending without one");
+    }
+
+    @Test
+    void anEngineThatOpensLateHoldsNoReasonForTheRadio() {
+        final int token = sessions.start(KEY, RADIO, 0L, 64, 100, true).token();
+        sessions.engineRejected(KEY, token, REJECTED);
+
+        assertNull(sessions.holdRadioEngineRejection(KEY, token, true),
+                "the engine holds the instance, so the rejection was wrong and must not surface later");
+
+        PlaybackSessions.Reconnect next = null;
+        for (int attempt = 0; attempt <= PlaybackSessions.MAX_RECONNECT; attempt++) {
+            next = sessions.radioStreamEnded(KEY, token);
+        }
+        assertEquals(PlaybackSessions.ReconnectKind.GIVE_UP, next.kind());
+        assertNull(next.why(), "a late-opened stream must not give up with a stale rejection");
     }
 
     @Test
