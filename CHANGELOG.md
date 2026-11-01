@@ -18,6 +18,7 @@
 - A search whose first result is a SoundCloud preview, and a SoundCloud track with no artist or title, now look for the same song elsewhere. A Spotify page that fails to load is tried again.
 - Apple Music and Deezer song links now make a disc from the same song on YouTube, SoundCloud or Bandcamp, keeping the original title and artist. A copy whose length does not match the song is not used.
 - Local M4A files encoded with Apple Lossless (ALAC), and MKV files with FLAC audio, can now be imported. Previously they were rejected as unreadable files.
+- Choosing a local audio file before inserting a Blank Disc no longer makes you choose it again: the import starts as soon as the disc is in. When the server is busy with other transfers, the import waits and tries again instead of stopping, and a transfer the server drops no longer leaves the screen stuck at "Sending audio".
 
 Use the same Music Disc Maker version on the server and all clients.
 
