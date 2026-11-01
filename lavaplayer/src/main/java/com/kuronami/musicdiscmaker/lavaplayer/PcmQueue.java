@@ -53,7 +53,23 @@ final class PcmQueue {
         return head;
     }
 
-    /** 積まれた分を取り切った後に「終端」を返すか。 */
+    /** 取り切った後の終端を表す目印 (chunk としては使われない)。 */
+    static final byte[] END = new byte[0];
+
+    /**
+     * 積まれた chunk を 1 つ取り出す。空で終端済みなら {@link #END}、空でまだ終端でなければ
+     * {@code null}。「空か」と「終端か」を同じ lock の中で見るので、{@link #poll()} と
+     * {@link #ended()} を別々に呼ぶ時の「最後の chunk が積まれた直後に終端と誤認する」競合が無い。
+     */
+    synchronized byte[] pollOrEnd() {
+        final byte[] head = poll();
+        if (head != null) {
+            return head;
+        }
+        return ended ? END : null;
+    }
+
+    /** 終端が記録されたか (積まれた chunk が残っていても true になり得る)。 */
     synchronized boolean ended() {
         return ended;
     }

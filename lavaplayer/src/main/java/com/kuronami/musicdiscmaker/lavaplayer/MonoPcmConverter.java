@@ -28,6 +28,7 @@ final class MonoPcmConverter implements PcmFrameSink {
     private final PcmQueue queue;
     private final FloatPcmAudioFilter chain;
     private float[][] samples = new float[0][];
+    private boolean closed;
 
     MonoPcmConverter(int inputRate, int channels, PcmQueue queue) {
         if (channels <= 0) {
@@ -70,6 +71,18 @@ final class MonoPcmConverter implements PcmFrameSink {
             Thread.currentThread().interrupt();
             throw new InterruptedIOException("interrupted while converting");
         }
+    }
+
+    /**
+     * resampler の native 資源を解放する。producer スレッドが成功・失敗・中断のどれで終わる時も
+     * 1 回呼ぶ (同じスレッドだけが {@code process} するので競合しない)。冪等。
+     */
+    void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        chain.close();
     }
 
     /** 末尾の flush と queue の終端記録。正常終了の時だけ呼ぶ。 */

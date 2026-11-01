@@ -54,7 +54,15 @@ final class DirectPcmSource implements IAudioSource {
                 fault = new PlaybackFault(FailureReason.UNKNOWN, describe(thrown));
             }
         } finally {
-            queue.end();
+            // flush 後の出力は put 済みなので、native の resampler を閉じてから終端を記録する。
+            // close が失敗しても終端は必ず記録する (read が待ち続けない)。
+            try {
+                converter.close();
+            } catch (final Throwable closeFailure) {
+                LOGGER.debug("closing the converter failed", closeFailure);
+            } finally {
+                queue.end();
+            }
         }
     }
 
@@ -95,7 +103,12 @@ final class DirectPcmSource implements IAudioSource {
         int written = 0;
         while (written < len) {
             if (current == null || currentOffset >= current.length) {
-                current = queue.poll();
+                final byte[] next = queue.pollOrEnd();
+                if (next == PcmQueue.END) {
+                    // 空かつ終端を同じ lock で見た時だけ終端。書いた分があればそれを先に返す。
+                    return written > 0 ? written : -1;
+                }
+                current = next;
                 currentOffset = 0;
                 if (current == null) {
                     break;
@@ -106,10 +119,7 @@ final class DirectPcmSource implements IAudioSource {
             currentOffset += copy;
             written += copy;
         }
-        if (written > 0) {
-            return written;
-        }
-        return queue.ended() ? -1 : 0;
+        return written;
     }
 
     @Override
