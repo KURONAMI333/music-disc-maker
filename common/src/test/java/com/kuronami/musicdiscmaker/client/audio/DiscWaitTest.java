@@ -62,8 +62,8 @@ class DiscWaitTest {
     void tickSendsWhenOwnScreenSeesDisc() {
         LocalAudioClient.Session session = new LocalAudioClient.Session();
         waiting(session);
-        assertEquals(LocalAudioClient.Session.Step.NONE, session.tick(null, null, false));
-        assertEquals(LocalAudioClient.Session.Step.SEND, session.tick(null, null, true));
+        assertEquals(LocalAudioClient.Session.Step.NONE, session.tick(null, null, false, 0));
+        assertEquals(LocalAudioClient.Session.Step.SEND, session.tick(null, null, true, 0));
     }
 
     @Test
@@ -71,6 +71,6 @@ class DiscWaitTest {
         LocalAudioClient.Session session = new LocalAudioClient.Session();
         waiting(session);
         // 画面がサーバーの close 等で閉じ、プレイヤーは別の menu (または無し) を開いている。
-        assertEquals(LocalAudioClient.Session.Step.ABORT, session.tick(new Object(), new Object(), true));
+        assertEquals(LocalAudioClient.Session.Step.ABORT, session.tick(new Object(), new Object(), true, 0));
     }
 }

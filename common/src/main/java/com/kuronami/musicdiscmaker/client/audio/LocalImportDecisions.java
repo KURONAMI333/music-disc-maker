@@ -51,6 +51,11 @@ final class LocalImportDecisions {
         return "disc".equals(reason) && sent == 0;
     }
 
+    /** サーバーの "busy" で、本体をまだ送っていないなら取込を保持して撃ち直す。 */
+    static boolean retriesBusy(String reason, long sent) {
+        return "busy".equals(reason) && sent == 0;
+    }
+
     /**
      * 取込失敗を表示用 status 名へ畳む。{@link ResolveException} の detail は normalizer と
      * このクラスが投げる固定文言で、そこから利用者向けの粒度だけを選ぶ。

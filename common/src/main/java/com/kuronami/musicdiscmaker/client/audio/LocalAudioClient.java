@@ -422,9 +422,10 @@ public final class LocalAudioClient {
      */
     public static void tick(MusicDiscMakerMenu menu) {
         if (SESSION.upload == null) return;
-        switch (SESSION.tick(playerMenu(), menu, discSlotsReady(menu))) {
+        switch (SESSION.tick(playerMenu(), menu, discSlotsReady(menu), now())) {
             case ABORT -> abort(SESSION.upload, "select");
-            case SEND -> { status = "confirm"; confirm(); }
+            case SEND, RETRY -> { status = "confirm"; confirm(); }
+            case GIVE_UP -> abort(SESSION.upload, "busy"); // 約 60 秒待っても通らない時だけ従来の終わり方
             default -> {}
         }
     }
@@ -486,6 +487,7 @@ public final class LocalAudioClient {
         if (u == null || p.containerId() != u.menu.containerId || p.generation() != u.generation) return;
         if (p.operation() == LocalAudioPayload.READY || p.operation() == LocalAudioPayload.ACK) {
             if (u.sending || p.offset() != u.sent) return;
+            u.busyRetry.clear();
             u.id = p.id(); u.sending = true;
             IO.execute(() -> {
                 try {
@@ -508,6 +510,11 @@ public final class LocalAudioClient {
             // 盤の判定が client とサーバーでずれた。選び直させず、盤の条件が変わるまで待つ。
             status = "disc"; percent = 0;
             u.discWait.begin(discSlotsReady(u.menu));
+        } else if (p.operation() == LocalAudioPayload.ERROR && SESSION.live(u)
+                && LocalImportDecisions.retriesBusy(p.name(), u.sent)) {
+            // 待てば通る断り。変換済みの取込を捨てず、間を空けて tick から撃ち直す (表示は送信中のまま)。
+            status = "transferring"; percent = 0;
+            u.busyRetry.onBusy(now());
         } else if (p.operation() == LocalAudioPayload.DONE || p.operation() == LocalAudioPayload.ERROR) {
             SESSION.upload = null; status = p.operation() == LocalAudioPayload.DONE ? "done" : p.name(); cleanup(u);
         }
@@ -711,7 +718,7 @@ public final class LocalAudioClient {
         void ifLive(Upload u, Runnable action) {
             if (live(u)) action.run();
         }
-        enum Step { NONE, ABORT, SEND }
+        enum Step { NONE, ABORT, SEND, RETRY, GIVE_UP }
         /**
          * 画面の tick が取るべき行動。保持中の upload の menu をプレイヤーがもう開いていなければ
          * (サーバーからの close・ブロック破壊・距離・死亡で onClose を通らず閉じた) 中止する。
@@ -720,12 +727,17 @@ public final class LocalAudioClient {
          * @param playerMenu プレイヤーが今開いている menu
          * @param screenMenu tick を呼んだ画面の menu
          */
-        Step tick(Object playerMenu, Object screenMenu, boolean discReady) {
+        Step tick(Object playerMenu, Object screenMenu, boolean discReady, long nowMs) {
             Upload u = upload;
             if (u == null || u.connection != connectionGeneration) return Step.NONE;
             if (u.menu != playerMenu) return Step.ABORT;
             if (u.menu != screenMenu) return Step.NONE;
-            return u.discWait.poll(discReady) ? Step.SEND : Step.NONE;
+            if (u.discWait.poll(discReady)) return Step.SEND;
+            return switch (u.busyRetry.poll(nowMs)) {
+                case RETRY -> Step.RETRY;
+                case GIVE_UP -> Step.GIVE_UP;
+                default -> Step.NONE;
+            };
         }
         /** スロットにあるその upload だけを外す。別操作・済み操作への遅延到着は no-op。 */
         boolean clearIfCurrent(Upload u) {
@@ -780,6 +792,7 @@ public final class LocalAudioClient {
         volatile String hash = "", name = ""; volatile Path path; volatile Thread worker;
         // NONE (転送前の仮 id) と同値。直定数にするのは headless 試験で payload クラスを引かないため。
         final DiscWait discWait = new DiscWait();
+        final BusyRetry busyRetry = new BusyRetry();
         long size, sent; UUID id = new UUID(0, 0); InputStream input; boolean sending;
         Upload(MusicDiscMakerMenu menu, long generation, long connection) { this.menu = menu; this.generation = generation; this.connection = connection; }
     }
