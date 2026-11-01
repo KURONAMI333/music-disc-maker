@@ -72,6 +72,10 @@ public final class MdmGameTestRegistration {
         register(event, "maker_single_disc_save_reload", MusicDiscMakerSingleDiscGameTests::singleDiscAndResolvedCacheSurviveSaveReload, empty, 100);
         register(event, "maker_fabricated_disc_fits_storage", MusicDiscMakerSingleDiscGameTests::fabricatedDiscFitsBoomboxAndAlbumAfterSaveReload, empty, 100);
         register(event, "maker_destroy_drops", MusicDiscMakerSingleDiscGameTests::destroyingMakerDropsEveryStoredStackExactlyOnce, empty, 100);
+        register(event, "client_resolved_stale_url", ClientResolvedTrackGameTests::staleUrlIsIgnored, empty, 100);
+        register(event, "client_resolved_while_resolving", ClientResolvedTrackGameTests::reportWhileResolvingIsIgnored, empty, 100);
+        register(event, "client_resolved_second_report_after_burn", ClientResolvedTrackGameTests::secondReportAfterBurnDoesNothing, empty, 100);
+        register(event, "client_resolved_without_blank_disc", ClientResolvedTrackGameTests::noBlankDiscLeavesNoCachedTrack, empty, 100);
         register(event, "album_recipe_assembles_and_rejects_wrong_grid",
                 RecipeAssemblyGameTests::albumRecipeAssemblesAndRejectsWrongGrid, empty, 100);
         register(event, "speaker_recipe_assembles_and_rejects_wrong_grid",

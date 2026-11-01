@@ -28,14 +28,14 @@ public final class ClientResolvedTrack {
     }
 
     /**
-     * client に解決を頼む失敗か。YouTube 以外は {@link #accept} が必ず落とすので、取りに行かせない
-     * (無駄な取得を増やさない)。
+     * client に解決を頼む失敗か。YouTube 以外と、動画 ID を持たない URL (プレイリスト・チャンネル) は
+     * {@link #accept} が必ず落とすので、取りに行かせない (無駄な取得を増やさない)。
      *
      * @param reason server が記録した失敗理由
      * @param url    server が解決しようとした URL
      */
     public static boolean shouldAskClient(FailureReason reason, String url) {
-        if (!isYoutube(url)) {
+        if (!isYoutube(url) || videoId(url.strip()) == null) {
             return false;
         }
         // BOT_CHECK: 回線の都合なので client なら通る見込みがある。
@@ -47,10 +47,13 @@ public final class ClientResolvedTrack {
     /**
      * client の値を焼いてよい形に直す。1 つでも検められなければ {@code null} (盤は作らない)。
      *
-     * <p>検めること: (a) client の URL が元の URL と同じ動画、(b) YouTube、(c) 尺が 1 秒以上で
-     * ラジオ判定の境目 ({@link DiscFabrication#RADIO_DURATION_THRESHOLD_MS}) 以下、(d) 曲名が空でない。
-     * 曲名・アーティストの長さとサロゲートの扱いは {@link CustomTrackData} の constructor に任せる
-     * (焼く時と同じ規則を二重に書かない)。
+     * <p>検めること: (a) 元の URL が YouTube の<b>動画</b>である、(b) client の URL が同じ動画 ID、
+     * (c) 尺が 1 秒以上でラジオ判定の境目 ({@link DiscFabrication#RADIO_DURATION_THRESHOLD_MS}) 以下、
+     * (d) 曲名が空でない。曲名・アーティストの長さとサロゲートの扱いは {@link CustomTrackData} の
+     * constructor に任せる (焼く時と同じ規則を二重に書かない)。
+     *
+     * <p>動画 ID を要求するのは、プレイリスト・チャンネル・検索の URL では「同じ動画か」を
+     * 確かめられないため。確かめずに通すと、client が任意の曲名と尺を元の URL に貼れてしまう。
      *
      * @param requestedUrl server が持つ元の URL。焼くのは常にこれ
      * @param clientUrl    client が解決した住所
@@ -64,7 +67,11 @@ public final class ClientResolvedTrack {
         if (!isYoutube(requestedUrl)) {
             return null;
         }
-        if (!normalize(requestedUrl).equals(normalize(clientUrl))) {
+        final String requestedId = videoId(requestedUrl.strip());
+        if (requestedId == null) {
+            return null;
+        }
+        if (clientUrl == null || !requestedId.equals(videoId(clientUrl.strip()))) {
             return null;
         }
         // 0 以下 (尺不明・ライブ) はラジオ扱いになって曲送り・シークが止まるので焼かない。
@@ -81,16 +88,6 @@ public final class ClientResolvedTrack {
         // サムネは載せない: 他人の client が取得する URL を client の言い値で決めさせない。
         // 空なら JacketUrls が動画 ID から YouTube の画像を導出する。
         return new CustomTrackData(requestedUrl.strip(), cleanTitle, cleanAuthor, durationMs, "", false);
-    }
-
-    /** 同じ動画を指すかを見るための正規化。YouTube は動画 ID、それ以外は前後の空白を落とした文字列。 */
-    static String normalize(String url) {
-        if (url == null) {
-            return "";
-        }
-        final String trimmed = url.strip();
-        final String id = videoId(trimmed);
-        return id == null ? trimmed : "youtube:" + id;
     }
 
     /** URL が YouTube か (DNS は引かない)。 */

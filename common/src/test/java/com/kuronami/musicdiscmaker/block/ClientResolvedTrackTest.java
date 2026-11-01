@@ -79,6 +79,23 @@ class ClientResolvedTrackTest {
                 DiscFabrication.RADIO_DURATION_THRESHOLD_MS));
     }
 
+    /**
+     * 動画 ID を持たない YouTube URL は「同じ動画か」を確かめられないので、client に取りに行かせず、
+     * 送られてきても焼かない (確かめずに通すと client が任意の曲名と尺を元の URL に貼れる)。
+     */
+    @Test void playlistAndChannelUrlsAreNeverBurned() {
+        for (final String url : new String[] {
+                "https://www.youtube.com/playlist?list=PL1234567890",
+                "https://www.youtube.com/@someone",
+                "https://www.youtube.com/results?search_query=test",
+                "https://www.youtube.com/watch?list=PL1234567890"}) {
+            assertFalse(ClientResolvedTrack.shouldAskClient(FailureReason.BOT_CHECK, url), url);
+            assertFalse(ClientResolvedTrack.shouldAskClient(FailureReason.NO_ALTERNATIVE_FOUND, url), url);
+            // client が同じ URL をそのまま返しても、動画を指していないので通さない。
+            assertNull(ClientResolvedTrack.accept(url, url, "曲名", "作者", 210_000L), url);
+        }
+    }
+
     @Test void blankTitleIsRejected() {
         assertNull(ClientResolvedTrack.accept(WATCH, WATCH, "", "作者", 210_000L));
         assertNull(ClientResolvedTrack.accept(WATCH, WATCH, "   ", "作者", 210_000L));

@@ -117,6 +117,11 @@ public final class ModNetwork {
             return;
         }
         final String requestedUrl = maker.getCurrentUrl();
+        // 焼く前提 (入力の空ディスク・空の出力) が揃っていない時に解決済みの曲だけ残すと、
+        // 後から別の経路 (入力の入れ替え・再入) で焼かれてしまう。焼けない時は何もしない。
+        if (!maker.hasRoomForDisc()) {
+            return;
+        }
         final CustomTrackData track = ClientResolvedTrack.accept(requestedUrl, payload.url(),
                 payload.title(), payload.author(), payload.durationMs());
         if (track == null) {
@@ -130,9 +135,12 @@ public final class ModNetwork {
             return;
         }
         maker.setResolvedTrack(track, requestedUrl);
-        if (maker.createDisc()) {
-            maker.resetToNeutral(); // 1枚作ったら URL を消してニュートラルへ
+        if (!maker.createDisc()) {
+            // 直前に置けることを確かめているので通常は起きないが、焼けなかった曲は残さない。
+            maker.clearResolvedTrack();
+            return;
         }
+        maker.resetToNeutral(); // 1枚作ったら URL を消してニュートラルへ
     }
 
     /** 製作機の出力枠にある盤の曲名を付け直す。その製作機の画面を開いている player だけ。 */
