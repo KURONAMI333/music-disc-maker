@@ -1154,8 +1154,9 @@ public final class ClientPlaybackManager {
         //? if >=26.2 {
         // 他MODが一度取り消して同じinstanceを後から再投入する経路もある。
         // 受理されなくても即座には閉じず、実PCMが来ない場合だけ期限で解放する。
-        armFirstAudioDeadline(key, token, track);
+        armFirstAudioDeadline(key, token, track, instance);
         if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
+            // 非 MUTED は期限まで保留される (#7-1)。ここで出るのは音量 0 だけ。
             final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
             if (show != null) {
                 failures.record(key, show);
@@ -1170,7 +1171,7 @@ public final class ClientPlaybackManager {
             group.update(speakerSet);
         }
         //?} elif >=1.21.2 {
-/*        armFirstAudioDeadline(key, token, track);
+/*        armFirstAudioDeadline(key, token, track, instance);
         if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
             final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
             if (show != null) {
@@ -1187,7 +1188,7 @@ public final class ClientPlaybackManager {
         }
 */
         //?} elif >=1.21 {
-/*        armFirstAudioDeadline(key, token, track);
+/*        armFirstAudioDeadline(key, token, track, instance);
         if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
             final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
             if (show != null) {
@@ -1248,13 +1249,15 @@ public final class ClientPlaybackManager {
     //?} elif >=1.21 {
 /*    }
 
-    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
         CompletableFuture.delayedExecutor(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, TimeUnit.MILLISECONDS)
                 .execute(() -> Minecraft.getInstance()
-                        .execute(() -> onFirstAudioDeadline(key, token, track)));
+                        .execute(() -> onFirstAudioDeadline(key, token, track, instance)));
     }
 
-    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
         if (!sessions.firstAudioOverdue(key, token)) {
             return; // 鳴り始めた / 停止済み / 差し替え済み
         }
@@ -1263,6 +1266,20 @@ public final class ClientPlaybackManager {
         if (track.radio()) {
             releaseOnFirstAudioDeadline(sessions, prefetch, key, true);
             onRadioStreamEnded(key, token);
+            return;
+        }
+        // 拒否された直後に遅れて開栓した音源は、ここでは engine が保持している (KEEP_UNTIL_DEADLINE)。
+        // 鳴っている以上、保留していた拒否は誤りなので報告しない (#7-1)。
+        final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+        final PlaybackFailure rejected = sessions.resolveHeldEngineRejection(key, token, engineActive);
+        if (engineActive) {
+            sessions.engineAccepted(key); // 遅れて受理された。拒否の頻度抑止も解く
+            return;
+        }
+        if (rejected != null) {
+            failures.record(key, rejected);
+            PlaybackFailureReport.report(track, key, token, rejected);
+            releaseOnFirstAudioDeadline(sessions, prefetch, key, false);
             return;
         }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
@@ -1290,13 +1307,15 @@ public final class ClientPlaybackManager {
     }
 
     //? if >=1.21.2 {
-    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
         CompletableFuture.delayedExecutor(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, TimeUnit.MILLISECONDS)
                 .execute(() -> Minecraft.getInstance()
-                        .execute(() -> onFirstAudioDeadline(key, token, track)));
+                        .execute(() -> onFirstAudioDeadline(key, token, track, instance)));
     }
 
-    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
         if (!sessions.firstAudioOverdue(key, token)) {
             return; // 鳴り始めた / 停止済み / 差し替え済み
         }
@@ -1304,6 +1323,21 @@ public final class ClientPlaybackManager {
                 PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
         if (track.radio()) {
             onRadioStreamEnded(key, token);
+            return;
+        }
+        // 拒否された直後に遅れて開栓した音源は、ここでは engine が保持している (KEEP_UNTIL_DEADLINE)。
+        // 鳴っている以上、保留していた拒否は誤りなので報告しない (#7-1)。
+        final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+        final PlaybackFailure rejected = sessions.resolveHeldEngineRejection(key, token, engineActive);
+        if (engineActive) {
+            sessions.engineAccepted(key); // 遅れて受理された。拒否の頻度抑止も解く
+            return;
+        }
+        if (rejected != null) {
+            // 期限まで engine が開栓しなかった = 拒否は本当だった。理由は engine のものを使う。
+            failures.record(key, rejected);
+            PlaybackFailureReport.report(track, rejected);
+            sessions.stop(key);
             return;
         }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
