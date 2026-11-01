@@ -57,6 +57,19 @@ public final class LocalAudioClient {
             new java.util.concurrent.atomic.AtomicBoolean();
     private static final java.util.concurrent.atomic.AtomicBoolean pickerNullWarned =
             new java.util.concurrent.atomic.AtomicBoolean();
+    /** 同じ hash を続けて上げ直さない間隔。missing のたびに同じ 32MiB を送らない。 */
+    private static final long RESTORE_RETRY_MS = 60_000L;
+    /**
+     * 応答が来ない上げ直しを諦めるまでの時間。32MiB を 1MiB/s で送っても 32 秒なので、2 分で十分。
+     * 古いサーバー (RESTORE を知らない) に繋いだ時も、この時間で枠が空く。
+     */
+    private static final long RESTORE_INFLIGHT_MS = 120_000L;
+    /** 上げ直し中の hash (1 本だけ)。 */
+    private static final java.util.concurrent.ConcurrentMap<String, Restore> RESTORES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** hash → 最後に上げ直しを始めた時刻。失敗後の間隔に使う。 */
+    private static final java.util.concurrent.ConcurrentMap<String, Long> RESTORE_ATTEMPTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private LocalAudioClient() {}
     public static Component status() {
         Upload u = SESSION.upload;
@@ -481,6 +494,7 @@ public final class LocalAudioClient {
     }
     public static void receive(LocalAudioPayload p) {
         if (p.operation() == LocalAudioPayload.DATA) { data(p); return; }
+        if (restore(p)) return;
         if (p.operation() == LocalAudioPayload.ERROR) {
             Receive r = SESSION.failReceive(p.hash(), p.id(), p.generation(), SESSION.connectionGeneration);
             if (r != null) {
@@ -558,6 +572,8 @@ public final class LocalAudioClient {
                 if (isMissing(e.getCause())) {
                     Path cached = verifiedCachedCopy(hash);
                     if (cached != null) {
+                        // 手元に原本があるなら、再生を続けながらサーバーへ戻す。戻れば他の全員も鳴らせる。
+                        offerRestore(hash, cached);
                         MusicDiscMaker.LOGGER.info(
                                 "Server has no original for {}; playing the verified copy in the local cache", hash);
                         return cached;
@@ -604,6 +620,119 @@ public final class LocalAudioClient {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 原本を持っている側からサーバーへ戻す (再生スレッドから呼ぶ)。戻せなくても再生は続ける。
+     *
+     * <p>上げ直すのは、サーバーがこの再生で「原本が無い」と答えた hash で、手元のキャッシュが
+     * hash と一致した時だけ ({@link LocalRestoreDecisions#shouldRestore})。同じ hash は 1 本だけ
+     * 走らせ、失敗後は {@link #RESTORE_RETRY_MS} 空ける。サーバーは受け取りを拒否できるので、
+     * ここでは何も表示しない。
+     */
+    private static void offerRestore(String hash, Path cached) {
+        final Long last = RESTORE_ATTEMPTS.get(hash);
+        final long since = last == null ? Long.MAX_VALUE : now() - last;
+        final Restore active = RESTORES.get(hash);
+        final boolean inFlight = active != null && now() - active.started < RESTORE_INFLIGHT_MS;
+        if (active != null && !inFlight) {
+            RESTORES.remove(hash, active);
+            IO.execute(() -> closeRestore(active));
+        }
+        if (!LocalRestoreDecisions.shouldRestore(true, true, inFlight, since, RESTORE_RETRY_MS)) return;
+        RESTORE_ATTEMPTS.put(hash, now());
+        final long connection = SESSION.connectionGeneration;
+        IO.execute(() -> beginRestore(hash, cached, connection));
+    }
+
+    /** 上げ直しの要求を 1 回送る (IO ワーカー)。サイズは送る直前に測る。 */
+    private static void beginRestore(String hash, Path cached, long connection) {
+        try {
+            if (connection != SESSION.connectionGeneration) return;
+            final long size = Files.size(cached);
+            if (size <= 0 || size > LocalAudioServer.FILE_LIMIT) return;
+            final Restore r = new Restore(hash, cached, size, connection);
+            if (RESTORES.putIfAbsent(hash, r) != null) return;
+            Minecraft.getInstance().execute(() -> {
+                if (connection != SESSION.connectionGeneration || RESTORES.get(hash) != r) {
+                    RESTORES.remove(hash, r);
+                    return;
+                }
+                Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.RESTORE,
+                        r.request, 0, 0, hash, 0, size, ""));
+            });
+        } catch (Exception e) {
+            RESTORES.remove(hash);
+        }
+    }
+
+    /**
+     * 上げ直しの応答を処理する。関係ない包なら {@code false} を返し、既存の再生待ち・取込へ流す。
+     *
+     * <p>応答の id は、転送が始まる前はこちらが振った request、始まった後はサーバーの transfer id。
+     * hash も照合するので、同じ hash の再生待ちの ERROR を巻き取らない。
+     */
+    private static boolean restore(LocalAudioPayload p) {
+        final Restore r = RESTORES.get(p.hash());
+        if (r == null || r.connection != SESSION.connectionGeneration) return false;
+        final UUID transfer = r.transferId;
+        if (!(transfer != null ? transfer : r.request).equals(p.id())) return false;
+        if (p.operation() == LocalAudioPayload.RESTORE_READY) {
+            if (transfer != null) return true;
+            r.transferId = p.id();
+            if (p.offset() == r.sent) readRestoreChunk(r);
+            return true;
+        }
+        if (p.operation() == LocalAudioPayload.ACK) {
+            if (p.offset() == r.sent) readRestoreChunk(r);
+            return true;
+        }
+        if (p.operation() == LocalAudioPayload.DONE) {
+            RESTORES.remove(p.hash(), r);
+            IO.execute(() -> closeRestore(r));
+            MusicDiscMaker.LOGGER.info("Restored the local audio original for {} on the server", p.hash());
+            return true;
+        }
+        if (p.operation() == LocalAudioPayload.ERROR) {
+            RESTORES.remove(p.hash(), r);
+            RESTORE_ATTEMPTS.put(p.hash(), now());
+            IO.execute(() -> closeRestore(r));
+            MusicDiscMaker.LOGGER.warn("Server declined the local audio restore for {} ({})", p.hash(), p.name());
+            return true;
+        }
+        return false;
+    }
+
+    /** 上げ直しの次の chunk を 1 つ送る。ACK で 1 つずつ進む (既存の取込と同じ間合い)。 */
+    private static void readRestoreChunk(Restore r) {
+        if (r.sending || r.closed) return;
+        r.sending = true;
+        IO.execute(() -> {
+            try {
+                if (r.closed || r.connection != SESSION.connectionGeneration) return;
+                if (r.input == null) r.input = Files.newInputStream(r.path);
+                final byte[] bytes = r.input.readNBytes((int) Math.min(16384, r.size - r.sent));
+                if (bytes.length == 0) throw new IOException("Incomplete audio");
+                final long offset = r.sent;
+                r.sent += bytes.length;
+                Minecraft.getInstance().execute(() -> {
+                    if (r.closed || r.connection != SESSION.connectionGeneration
+                            || RESTORES.get(r.hash) != r || r.transferId == null) return;
+                    r.sending = false;
+                    Services.NETWORK.sendToServer(new LocalAudioPayload(LocalAudioPayload.CHUNK, r.transferId,
+                            0, 0, "", offset, 0, "", bytes));
+                });
+            } catch (Exception e) {
+                RESTORES.remove(r.hash, r);
+                IO.execute(() -> closeRestore(r));
+            }
+        });
+    }
+
+    /** 上げ直しの入力を閉じる。キャッシュのファイル自体は消さない (他の再生が使う)。 */
+    private static void closeRestore(Restore r) {
+        r.closed = true;
+        if (r.input != null) try { r.input.close(); } catch (IOException ignored) {}
     }
 
     private static Path obtainOnce(String hash) throws Exception {
@@ -706,6 +835,8 @@ public final class LocalAudioClient {
         List<Receive> stale = SESSION.disconnectReceives();
         Upload u = SESSION.upload; SESSION.upload = null; if (u != null) cleanup(u);
         for (Receive r : stale) { r.future.completeExceptionally(new IOException("Disconnected")); IO.execute(() -> abort(r)); }
+        for (Restore r : List.copyOf(RESTORES.values())) { r.closed = true; IO.execute(() -> closeRestore(r)); }
+        RESTORES.clear(); RESTORE_ATTEMPTS.clear();
         status = "select";
     }
     private static long now() { return System.nanoTime() / 1_000_000; }
@@ -824,6 +955,19 @@ public final class LocalAudioClient {
             discWait.begin(ready);
         }
         Upload(MusicDiscMakerMenu menu, long generation, long connection) { this.menu = menu; this.generation = generation; this.connection = connection; }
+    }
+    /** サーバーへ戻している最中の原本。menu も盤も作らないので、取込の Upload とは別に持つ。 */
+    static final class Restore {
+        final String hash; final Path path; final long size, connection;
+        final long started = now();
+        final UUID request = UUID.randomUUID();
+        volatile UUID transferId;
+        volatile long sent;
+        volatile boolean sending, closed;
+        InputStream input;
+        Restore(String hash, Path path, long size, long connection) {
+            this.hash = hash; this.path = path; this.size = size; this.connection = connection;
+        }
     }
     static final class Receive {
         final String hash; final long connection; final UUID request = UUID.randomUUID();
