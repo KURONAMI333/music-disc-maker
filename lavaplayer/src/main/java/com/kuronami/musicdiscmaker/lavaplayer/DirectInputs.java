@@ -78,7 +78,10 @@ final class DirectInputs {
                 default:
                     return null;
             }
-        } catch (final IOException | RuntimeException notDirect) {
+        } catch (final VirtualMachineError fatal) {
+            throw fatal;
+        } catch (final Throwable notDirect) {
+            // 壊れた moov などで Error が出ても、元の失敗理由 (通常経路) を残すため null に畳む。
             LOGGER.debug("{} is not a direct-decode input: {}", name, notDirect.toString());
             return null;
         }

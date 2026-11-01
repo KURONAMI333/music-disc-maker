@@ -188,6 +188,23 @@ class LocalFileNormalizerDirectInputTest {
         assertEquals(null, DirectInputs.open(copy("a24-trunc.m4a")));
     }
 
+    /** 壊れた moov でも例外を漏らさず null (= 通常経路の元の失敗理由) に畳む。 */
+    @Test
+    void corruptedHeadersFoldIntoNull() throws Exception {
+        final byte[] original = Files.readAllBytes(copy("a16.m4a"));
+        final java.util.Random random = new java.util.Random(7);
+        for (int round = 0; round < 40; round++) {
+            final byte[] broken = original.clone();
+            final int from = 12 + random.nextInt(Math.min(400, broken.length - 40));
+            for (int i = 0; i < 24; i++) {
+                broken[from + i] = (byte) (round % 2 == 0 ? 0xFF : random.nextInt(256));
+            }
+            final Path file = tempDir.resolve("broken-" + round + ".m4a");
+            Files.write(file, broken);
+            DirectInputs.open(file); // 例外が漏れないこと
+        }
+    }
+
     // ==== 補助 ====
 
     private void assertNormalizes(String fixture) throws Exception {

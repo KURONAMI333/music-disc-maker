@@ -52,9 +52,12 @@ final class AlacPcmDecoder implements PcmDecoder {
      * 捕まえて通常経路の失敗理由をそのまま使う。
      */
     static Info probe(Path file) throws IOException {
-        final AlacContext context = AlacUtils.AlacOpenFileInput(new AlacContext(), file.toFile());
+        // context は open の前に手元へ持つ。open が途中で例外を投げても、ライブラリが context に
+        // 載せた RandomAccessFile を finally の AlacCloseFile で閉じられる。
+        final AlacContext context = new AlacContext();
         try {
-            if (context == null || context.error) {
+            AlacUtils.AlacOpenFileInput(context, file.toFile());
+            if (context.error) {
                 throw failure(context);
             }
             final int sampleRate = AlacUtils.AlacGetSampleRate(context);
@@ -94,9 +97,10 @@ final class AlacPcmDecoder implements PcmDecoder {
 
     @Override
     public void decode(PcmFrameSink sink) throws IOException {
-        final AlacContext context = AlacUtils.AlacOpenFileInput(new AlacContext(), file.toFile());
+        final AlacContext context = new AlacContext();
         try {
-            if (context == null || context.error) {
+            AlacUtils.AlacOpenFileInput(context, file.toFile());
+            if (context.error) {
                 throw failure(context);
             }
             final int bytesPerSample = AlacUtils.AlacGetBytesPerSample(context);
