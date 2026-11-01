@@ -117,7 +117,7 @@ public final class LocalAudioServer {
                 u.storeId = prepared.transferId();
                 if (prepared.existing() != null) complete(s, u, prepared.existing());
                 else reply(s, u, LocalAudioPayload.READY, 0);
-            } catch (Throwable e) { fail(s, u, importFailure(e)); }
+            } catch (Throwable e) { fail(s, u, importFailure(e)); workerFailure(e); }
         });
     }
     private static boolean valid(Upload u) {
@@ -149,7 +149,7 @@ public final class LocalAudioServer {
                     u.storeId = null;
                     complete(s, u, file);
                 } else reply(s, u, LocalAudioPayload.ACK, u.received);
-            } catch (Throwable e) { fail(s, u, importFailure(e)); }
+            } catch (Throwable e) { fail(s, u, importFailure(e)); workerFailure(e); }
         }, s.delay(true, p.bytes().length), TimeUnit.MILLISECONDS);
     }
     private static void complete(State s, Upload u, Path file) throws IOException {
@@ -267,7 +267,7 @@ public final class LocalAudioServer {
                 if (path == null) throw new IOException("Missing audio");
                 d.size = Files.size(path); d.input = Files.newInputStream(path);
                 sendData(s, d);
-            } catch (Throwable e) { workerFailure(e); closeDownload(s, d); s.server.execute(() -> error(player, p, "missing")); }
+            } catch (Throwable e) { closeDownload(s, d); s.server.execute(() -> error(player, p, "missing")); workerFailure(e); }
         });
     }
     /** A cache hit is usable only while this world's verified original still exists. */
@@ -292,9 +292,9 @@ public final class LocalAudioServer {
                     closeDownload(s, d);
                 });
             } catch (Throwable e) {
-                workerFailure(e);
                 closeDownload(s, d);
                 s.server.execute(() -> error(player, p, "missing"));
+                workerFailure(e);
             }
         });
     }
@@ -304,8 +304,8 @@ public final class LocalAudioServer {
         d.touched = now();
         s.io.schedule(() -> {
             try { if (d.offset == d.size) closeDownload(s, d); else sendData(s, d); }
-            catch (Throwable e) { workerFailure(e); closeDownload(s, d); s.server.execute(() -> send(player, LocalAudioPayload.control(LocalAudioPayload.ERROR,
-                    d.request, 0, d.generation, d.hash, 0, 0, "download_failed"))); }
+            catch (Throwable e) { closeDownload(s, d); s.server.execute(() -> send(player, LocalAudioPayload.control(LocalAudioPayload.ERROR,
+                    d.request, 0, d.generation, d.hash, 0, 0, "download_failed"))); workerFailure(e); }
         }, s.delay(false, LocalAudioStore.CHUNK_BYTES), TimeUnit.MILLISECONDS);
     }
     private static void sendData(State s, Download d) throws IOException {
@@ -382,8 +382,6 @@ public final class LocalAudioServer {
     }
     /** I/O ワーカーの Error (LinkageError 等) は executor に飲まれて client が expired を待つだけになるので、取込失敗へ畳む。 */
     private static String importFailure(Throwable e) {
-        if (!LocalServerDecisions.recoverable(e)) throw (VirtualMachineError) e;
-        logUnexpected("import", e);
         return switch (String.valueOf(e.getMessage())) {
             case "Player audio storage full" -> "quota";
             case "Audio storage full" -> "world_full";
@@ -393,8 +391,8 @@ public final class LocalAudioServer {
     }
     /** download 側の I/O ワーカーの失敗をログに残す。VM の異常は握りつぶさず投げ直す。 */
     private static void workerFailure(Throwable e) {
+        logUnexpected("worker", e);
         if (!LocalServerDecisions.recoverable(e)) throw (VirtualMachineError) e;
-        logUnexpected("transfer", e);
     }
     /** 想定内の I/O 失敗 (容量超過・原本なし等) は静かに畳み、Error と実行時例外だけ warn で残す。 */
     private static void logUnexpected(String what, Throwable e) {
