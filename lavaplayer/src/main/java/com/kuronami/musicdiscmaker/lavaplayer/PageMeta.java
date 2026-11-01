@@ -1,5 +1,7 @@
 package com.kuronami.musicdiscmaker.lavaplayer;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -154,6 +156,60 @@ final class PageMeta {
             get.setHeader("Accept-Language", "en");
             return http.execute(get,
                     resp -> EntityUtils.toString(resp.getEntity(), StandardCharsets.UTF_8));
+        }
+    }
+
+    /** 照会 API の応答に許す大きさ。曲 1 件の JSON がこれを超えることは無い。 */
+    static final int MAX_JSON_BYTES = 64 * 1024;
+    /** 照会 API へ名乗る UA。ページ取得のソーシャルクローラー UA とは別物。 */
+    private static final String API_UA = "MusicDiscMaker/3.1.3";
+
+    /**
+     * 照会 API (Apple Music / Deezer の JSON) を 1 回読む。
+     *
+     * <p>ページ取得 ({@link #fetchPage}) とは作法を分ける。ここは機械向けの API なので
+     * <ul>
+     *   <li>リダイレクトを追わない (別ホストの応答を曲の情報として読まない)</li>
+     *   <li>{@code Accept: application/json} を名乗り、MOD 名の UA を使う</li>
+     *   <li>本文は {@link #MAX_JSON_BYTES} で打ち切る (巨大な応答で解決スレッドを埋めない)</li>
+     *   <li>2xx 以外は本文を読まずに失敗にする</li>
+     * </ul>
+     *
+     * @param url       照会先
+     * @param timeoutMs この試行に掛けてよい上限 (ms)
+     * @return 応答本文 (UTF-8)
+     * @throws Exception 取得できなかった・2xx でない・大きすぎる
+     */
+    static String fetchJson(String url, int timeoutMs) throws Exception {
+        final RequestConfig cfg = RequestConfig.custom()
+                .setConnectTimeout(timeoutMs)
+                .setSocketTimeout(timeoutMs)
+                .setConnectionRequestTimeout(timeoutMs)
+                .build();
+        try (CloseableHttpClient http = HttpClients.custom()
+                .setDefaultRequestConfig(cfg)
+                .disableRedirectHandling()
+                .build()) {
+            final HttpGet get = new HttpGet(url.trim());
+            get.setHeader("User-Agent", API_UA);
+            get.setHeader("Accept", "application/json");
+            return http.execute(get, resp -> {
+                final int status = resp.getStatusLine().getStatusCode();
+                if (status < 200 || status >= 300) {
+                    throw new IOException("HTTP " + status + " from " + url);
+                }
+                if (resp.getEntity() == null) {
+                    throw new IOException("empty response from " + url);
+                }
+                try (InputStream in = resp.getEntity().getContent()) {
+                    final byte[] bytes = in.readNBytes(MAX_JSON_BYTES + 1);
+                    if (bytes.length > MAX_JSON_BYTES) {
+                        throw new IOException("response from " + url + " is larger than "
+                                + MAX_JSON_BYTES + " bytes");
+                    }
+                    return new String(bytes, StandardCharsets.UTF_8);
+                }
+            });
         }
     }
 

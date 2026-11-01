@@ -303,6 +303,8 @@ public class MusicLoaderImpl implements IMusicLoader {
      * (片方だけを試験すると、間に挟まる検索語の組み立てが壊れても気づけない)。
      */
     private final PageMeta.Fetcher pageFetcher;
+    /** 音楽サービスの照会 (JSON API) を読む口。ページ取得とは作法が違うので分ける。 */
+    private final PageMeta.Fetcher lookupFetcher;
 
     /**
      * この読み込みで返る一覧を<b>どこまで使うか</b>。{@link ListReadReference} に載せて
@@ -373,6 +375,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
         this.clockMs = System::currentTimeMillis;
         this.pageFetcher = PageMeta::fetchPage;
+        this.lookupFetcher = PageMeta::fetchJson;
         configureOutput(this.apm);
         this.youtube = registerYoutube();
         this.session = youtube == null ? YoutubeSession.NONE
@@ -411,11 +414,27 @@ public class MusicLoaderImpl implements IMusicLoader {
      */
     MusicLoaderImpl(AudioPlayerManager apm, YoutubeAudioSourceManager youtube, YoutubeSession session,
             LongSupplier clockMs, PageMeta.Fetcher pageFetcher) {
+        this(apm, youtube, session, clockMs, pageFetcher, pageFetcher);
+    }
+
+    /**
+     * {@link #MusicLoaderImpl(AudioPlayerManager, YoutubeAudioSourceManager, YoutubeSession, LongSupplier, PageMeta.Fetcher)}
+     * に、サービス照会用の取得口を別に添えた版。
+     *
+     * <p>ページ (Spotify の og タグ) と照会 API (Apple Music / Deezer の JSON) は、UA・
+     * リダイレクト・応答の上限が違う。1 つの口に寄せると、片方の作法がもう片方へ漏れる。
+     *
+     * @param pageFetcher   曲ページを読む関数
+     * @param lookupFetcher サービス照会 (JSON) を読む関数
+     */
+    MusicLoaderImpl(AudioPlayerManager apm, YoutubeAudioSourceManager youtube, YoutubeSession session,
+            LongSupplier clockMs, PageMeta.Fetcher pageFetcher, PageMeta.Fetcher lookupFetcher) {
         this.apm = apm;
         this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
         this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
         this.clockMs = clockMs;
         this.pageFetcher = pageFetcher;
+        this.lookupFetcher = lookupFetcher;
         configureOutput(apm);
         this.youtube = youtube;
         this.session = session;
@@ -630,7 +649,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             throw new ResolveException(FailureReason.BLOCKED_URL,
                     "the " + link.service().label() + " lookup was refused");
         }
-        final MusicServiceLookup.ReadResult read = MusicServiceLookup.readTrack(link, pageFetcher,
+        final MusicServiceLookup.ReadResult read = MusicServiceLookup.readTrack(link, lookupFetcher,
                 clockMs, Thread::sleep);
         if (read.status() != MusicServiceLookup.ReadStatus.FOUND) {
             // 「その ID の曲が無い」と「届かなかった」は、利用者が次にできることが違う。
@@ -644,7 +663,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
         final MusicServiceLookup.Meta meta = read.meta();
         LOGGER.info("Read the {} track as \"{}\" by \"{}\" ({}ms)", link.service().label(),
-                meta.title(), meta.artist(), meta.durationMs());
+                logSafe(meta.title()), logSafe(meta.artist()), meta.durationMs());
         return searchForServiceTrack(link.pageUrl(), meta.title(), meta.artist(),
                 meta.durationMs());
     }
@@ -1503,6 +1522,14 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     private static String safe(String s) {
         return s == null ? "" : s;
+    }
+
+    /**
+     * 外部 API から来た文字列をログ 1 行へ収める。改行・制御文字は空白にして、
+     * 応答側がログの行構造を偽装できないようにする。
+     */
+    static String logSafe(String s) {
+        return safe(s).replaceAll("\\p{Cntrl}", " ");
     }
 
     @Override

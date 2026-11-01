@@ -298,6 +298,43 @@ class MusicServiceResolveTest {
     }
 
     @Test
+    void theServiceLookupUsesTheLookupFetcherNotThePageFetcher() {
+        final FakeSource sources = new FakeSource(identifier -> identifier.equals(YT_SEARCH)
+                ? track("Rick Astley - Never Gonna Give You Up", "Rick Astley", 213_000L, FOUND)
+                : AudioReference.NO_TRACK);
+        final List<String> pages = new ArrayList<>();
+        final List<String> lookups = new ArrayList<>();
+        final PageMeta.Fetcher pageFetcher = (url, timeoutMs) -> {
+            pages.add(url);
+            return "";
+        };
+        final PageMeta.Fetcher lookupFetcher = (url, timeoutMs) -> {
+            lookups.add(url);
+            return APPLE_JSON;
+        };
+        final AudioPlayerManager apm = new DefaultAudioPlayerManager();
+        final MusicLoaderImpl loader = new MusicLoaderImpl(apm, null, YoutubeSession.NONE,
+                System::currentTimeMillis, pageFetcher, lookupFetcher);
+        apm.registerSourceManager(sources);
+        loader.setUrlGate(url -> true);
+
+        loader.resolve(APPLE_SONG);
+
+        // 照会 API は JSON 用の口だけ。ページ取得の口は触らない。
+        assertEquals(List.of(), pages);
+        assertEquals(List.of(APPLE_LOOKUP), lookups);
+    }
+
+    @Test
+    void aLookupValueCannotForgeALogLine() {
+        assertEquals("Rick Astley Never Gonna Give You Up", MusicLoaderImpl.logSafe(
+                "Rick Astley Never Gonna Give You Up"));
+        assertEquals("a b c", MusicLoaderImpl.logSafe("a\nb\tc"));
+        assertEquals("a b", MusicLoaderImpl.logSafe("a" + (char) 0 + "b"));
+        assertEquals("", MusicLoaderImpl.logSafe(null));
+    }
+
+    @Test
     void playbackDoesNotReadTheServicePage() {
         final List<String> fetched = new ArrayList<>();
         final FakeSource sources = new FakeSource(identifier -> AudioReference.NO_TRACK);
