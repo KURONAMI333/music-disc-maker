@@ -9,6 +9,7 @@ import java.io.DataOutput;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -23,6 +24,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.UrlGate;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioItem;
 import com.sedmelluq.discord.lavaplayer.track.AudioReference;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
@@ -213,6 +215,66 @@ class MusicServiceResolveTest {
     }
 
     @Test
+    void aSearchThatFailsIsReportedAsAConnectionProblem() {
+        // YouTube 検索は 0 件、代わりの SoundCloud / Bandcamp 検索はどちらも答えない。
+        final FakeSource sources = new FakeSource(identifier -> {
+            if (identifier.equals(YT_SEARCH)) {
+                return AudioReference.NO_TRACK;
+            }
+            throw new FriendlyException("search is blocked",
+                    FriendlyException.Severity.COMMON, new RuntimeException("blocked"));
+        });
+
+        final ResolveException ex = assertThrows(ResolveException.class,
+                () -> loader(sources, recording(new ArrayList<>(), APPLE_JSON)).resolve(APPLE_SONG));
+
+        // 「探せていない」ので、URL が対応外 (UNSUPPORTED_URL) ではなく接続の失敗として返す。
+        assertEquals(FailureReason.CONNECTION_FAILED, ex.reason());
+        assertEquals(List.of(YT_SEARCH, SC_SEARCH, BC_SEARCH), sources.requests);
+    }
+
+    @Test
+    void runningOutOfSearchBudgetIsAConnectionProblem() {
+        final AtomicBoolean expired = new AtomicBoolean();
+        final FakeSource sources = new FakeSource(identifier -> {
+            // 最初の代替検索が走った時点で締切を過ぎたことにする。
+            if (identifier.startsWith("scsearch:")) {
+                expired.set(true);
+            }
+            return AudioReference.NO_TRACK;
+        });
+        final java.util.function.LongSupplier clock =
+                () -> expired.get() ? 3_600_000L : 0L;
+
+        final ResolveException ex = assertThrows(ResolveException.class,
+                () -> loaderAt(sources, recording(new ArrayList<>(), APPLE_JSON), clock)
+                        .resolve(APPLE_SONG));
+
+        // 予算切れは「探し切れていない」ので、代わりが無い (NO_ALTERNATIVE_FOUND) とは言わない。
+        assertEquals(FailureReason.CONNECTION_FAILED, ex.reason());
+        assertEquals(List.of(YT_SEARCH, SC_SEARCH), sources.requests);
+    }
+
+    @Test
+    void aFailedResubstituteSearchIsAlsoAConnectionProblem() {
+        final AtomicInteger youtubeSearches = new AtomicInteger();
+        final FakeSource sources = new FakeSource(identifier -> {
+            if (identifier.equals(YT_SEARCH) && youtubeSearches.incrementAndGet() == 1) {
+                // 先頭は試聴版。2 回目以降の検索は答えない。
+                return track("Never Gonna Give You Up", "Rick Astley", 60_000L, FOUND);
+            }
+            throw new FriendlyException("search is blocked",
+                    FriendlyException.Severity.COMMON, new RuntimeException("blocked"));
+        });
+
+        final ResolveException ex = assertThrows(ResolveException.class,
+                () -> loader(sources, recording(new ArrayList<>(), APPLE_JSON)).resolve(APPLE_SONG));
+
+        assertEquals(FailureReason.CONNECTION_FAILED, ex.reason());
+        assertEquals(List.of(YT_SEARCH, YT_SEARCH, SC_SEARCH, BC_SEARCH), sources.requests);
+    }
+
+    @Test
     void aLaterCandidateOfTheRightLengthIsUsed() {
         final AtomicInteger searches = new AtomicInteger();
         final FakeSource sources = new FakeSource(identifier -> {
@@ -275,6 +337,16 @@ class MusicServiceResolveTest {
 
     private static MusicLoaderImpl loader(FakeSource sources, PageMeta.Fetcher fetcher) {
         return loader(sources, fetcher, url -> true);
+    }
+
+    private static MusicLoaderImpl loaderAt(FakeSource sources, PageMeta.Fetcher fetcher,
+            java.util.function.LongSupplier clock) {
+        final AudioPlayerManager apm = new DefaultAudioPlayerManager();
+        final MusicLoaderImpl loader = new MusicLoaderImpl(apm, null, YoutubeSession.NONE, clock,
+                fetcher);
+        apm.registerSourceManager(sources);
+        loader.setUrlGate(url -> true);
+        return loader;
     }
 
     private static MusicLoaderImpl loader(FakeSource sources, PageMeta.Fetcher fetcher,

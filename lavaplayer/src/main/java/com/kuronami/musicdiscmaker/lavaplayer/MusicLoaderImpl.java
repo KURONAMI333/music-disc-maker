@@ -680,12 +680,18 @@ public class MusicLoaderImpl implements IMusicLoader {
             if (firesSubstitute(ex.reason()) || ex.reason() == FailureReason.UNSUPPORTED_URL) {
                 // 曲名とアーティストは既に分かれているので、MetadataCleaner の
                 // 「Artist - Song」分割をかけない (Spotify の "Song - Remastered 2011" が壊れる)。
-                final TrackInfo substitute = substitute(title, title, artist, title, artist,
-                        originUrl, null, knownDuration(durationMs),
-                        clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
-                if (substitute != null) {
-                    return substitute;
+                final SubstituteResult substitute = substituteResult(ALTERNATE_SEARCH_PREFIXES,
+                        title, title, artist, title, artist, originUrl, null,
+                        knownDuration(durationMs), clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
+                if (substitute.outcome() == SearchOutcome.FOUND) {
+                    return substitute.track();
                 }
+                // 検索語を作れない・探して無い・予算切れ・検索失敗を、元の失敗
+                // (UNSUPPORTED_URL / bot 判定) に潰さず、次にできることが分かる理由で返す。
+                throw new ResolveException(substituteFailure(substitute.outcome()),
+                        substitute.outcome() == SearchOutcome.NO_MATCH
+                                ? "searched \"" + title + "\" on the alternate sources with no usable copy"
+                                : "could not search an alternate source for \"" + title + "\"");
             }
             throw ex;
         }
@@ -694,15 +700,18 @@ public class MusicLoaderImpl implements IMusicLoader {
             LOGGER.info("The first hit for {} is a different length ({}ms against {}ms); "
                     + "looking for a matching copy", originUrl, info.length, durationMs);
             // 同じ検索の 2 件目以降 (別の動画) → 別の配信元、の順で探し直す。
-            final TrackInfo substitute = substitute(SERVICE_RESUBSTITUTE_PREFIXES, title, title,
-                    artist, title, artist, originUrl, null, knownDuration(durationMs),
-                    clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
-            if (substitute != null) {
-                return substitute;
+            final SubstituteResult substitute = substituteResult(SERVICE_RESUBSTITUTE_PREFIXES,
+                    title, title, artist, title, artist, originUrl, null,
+                    knownDuration(durationMs), clockMs.getAsLong() + SUBSTITUTE_BUDGET_MS);
+            if (substitute.outcome() == SearchOutcome.FOUND) {
+                return substitute.track();
             }
             // 尺の分かっている曲で、釣り合う候補が 1 つも無かった =「探したが無かった」。
-            throw new ResolveException(FailureReason.NO_ALTERNATIVE_FOUND,
-                    "every candidate for \"" + title + "\" was a different length");
+            // 予算切れ・検索失敗は「探せていない」ので、接続の失敗として返す。
+            throw new ResolveException(substituteFailure(substitute.outcome()),
+                    substitute.outcome() == SearchOutcome.NO_MATCH
+                            ? "every candidate for \"" + title + "\" was a different length"
+                            : "could not search an alternate source for \"" + title + "\"");
         }
         // 表示は元サービスのクリーンなメタ、再生は YouTube の uri。
         return new TrackInfo(title, artist, info.length, info.uri, info.identifier,
@@ -876,14 +885,51 @@ public class MusicLoaderImpl implements IMusicLoader {
     private TrackInfo substitute(String[] prefixes, String markerTitle, String title, String author,
             String displayTitle, String displayAuthor, String originUrl,
             String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
-        final Match match = searchSubstitute(prefixes, markerTitle, title, author, originUrl, watchUrl,
-                watchResult, deadline);
-        if (match == null) {
-            return null;
+        final SubstituteResult result = substituteResult(prefixes, markerTitle, title, author,
+                displayTitle, displayAuthor, originUrl, watchUrl, watchResult, deadline);
+        return switch (result.outcome()) {
+            case FOUND -> result.track();
+            case NO_MATCH -> throw noAlternative(title);
+            case NOT_SEARCHABLE, BUDGET_EXHAUSTED, SEARCH_FAILED -> null;
+        };
+    }
+
+    /**
+     * {@link #substitute(String, String, String, String, String, String, String, YoutubeWatchPage.Result, long)}
+     * の本体。見つからなかった理由まで返す (サービス経路は理由で返す失敗を変える)。
+     */
+    private SubstituteResult substituteResult(String[] prefixes, String markerTitle, String title,
+            String author, String displayTitle, String displayAuthor, String originUrl,
+            String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
+        final SearchResult result = searchSubstitute(prefixes, markerTitle, title, author, originUrl,
+                watchUrl, watchResult, deadline);
+        if (result.outcome() != SearchOutcome.FOUND) {
+            return new SubstituteResult(result.outcome(), null);
         }
-        final AudioTrackInfo info = match.track().getInfo();
-        return new TrackInfo(displayTitle, displayAuthor, info.length, info.uri, info.identifier,
-                info.isStream, safe(info.artworkUrl));
+        final AudioTrackInfo info = result.match().track().getInfo();
+        return new SubstituteResult(SearchOutcome.FOUND,
+                new TrackInfo(displayTitle, displayAuthor, info.length, info.uri, info.identifier,
+                        info.isStream, safe(info.artworkUrl)));
+    }
+
+    /** 「検索は走ったが、同じ録音とみなせる候補が無かった」の共通の失敗。 */
+    private static ResolveException noAlternative(String title) {
+        return new ResolveException(FailureReason.NO_ALTERNATIVE_FOUND,
+                "searched \"" + title + "\" on the alternate sources with no usable copy");
+    }
+
+    /**
+     * 代替ソース探しの結末を、利用者へ返す失敗理由へ写す。
+     *
+     * <p>検索語を作れない時と、探して無かった時は「代わりも無い」で確定してよい。予算切れと
+     * 検索失敗は「探せていない」ので、元の URL をもう一度試せる接続の失敗として返す。
+     */
+    private static FailureReason substituteFailure(SearchOutcome outcome) {
+        return switch (outcome) {
+            case NOT_SEARCHABLE, NO_MATCH -> FailureReason.NO_ALTERNATIVE_FOUND;
+            case BUDGET_EXHAUSTED, SEARCH_FAILED -> FailureReason.CONNECTION_FAILED;
+            case FOUND -> throw new IllegalStateException("a found substitute has no failure");
+        };
     }
 
     /**
@@ -893,6 +939,44 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @param track 一致した候補 (読み込み済み)
      */
     private record Match(AudioTrack track) {
+    }
+
+    /** 代替ソース検索の結末。「探し切れなかった」と「探して無かった」を分ける。 */
+    private enum SearchOutcome {
+        /** 同じ録音とみなせる候補を採れた。 */
+        FOUND,
+        /** 検索は走ったが、同じ録音とみなせる候補が 1 つも無かった。 */
+        NO_MATCH,
+        /** 検索語を作れない (曲名が空・判定材料が無い・曲名が短すぎる)。 */
+        NOT_SEARCHABLE,
+        /** 予算を使い切った。 */
+        BUDGET_EXHAUSTED,
+        /** 検索そのものが答えなかった (loadFailed / 時間切れ)。 */
+        SEARCH_FAILED
+    }
+
+    /**
+     * 代替ソース検索 1 回分の結果。
+     *
+     * @param outcome 結末
+     * @param match   {@link SearchOutcome#FOUND} の時だけ一致した候補
+     */
+    private record SearchResult(SearchOutcome outcome, Match match) {
+
+        static SearchResult of(SearchOutcome outcome) {
+            return new SearchResult(outcome, null);
+        }
+
+        static SearchResult found(Match match) {
+            return new SearchResult(SearchOutcome.FOUND, match);
+        }
+    }
+
+    /**
+     * 呼び出し側へ返す代替ソースの結果。{@code track} は
+     * {@link SearchOutcome#FOUND} の時だけ入る。
+     */
+    private record SubstituteResult(SearchOutcome outcome, TrackInfo track) {
     }
 
     /**
@@ -910,10 +994,11 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @throws ResolveException 検索が実際に走って使える候補が無かった
      *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
      */
-    private Match searchSubstitute(String[] prefixes, String markerTitle, String title, String author,
-            String originUrl, String watchUrl, YoutubeWatchPage.Result watchResult, long deadline) {
+    private SearchResult searchSubstitute(String[] prefixes, String markerTitle, String title,
+            String author, String originUrl, String watchUrl, YoutubeWatchPage.Result watchResult,
+            long deadline) {
         if (title.isBlank()) {
-            return null;
+            return SearchResult.of(SearchOutcome.NOT_SEARCHABLE);
         }
         final boolean artistKnown = !author.isBlank();
         // -1 = まだ取りに行っていない / 0 = 取得済みだが取れなかった。
@@ -921,14 +1006,14 @@ public class MusicLoaderImpl implements IMusicLoader {
         if (!artistKnown && sourceMs <= 0L) {
             // 曲名だけで採ると同名異曲やカバーが素通りする。尺という別の材料が無いなら探さない。
             LOGGER.info("No artist and no length to judge a match for ({}); not searching", originUrl);
-            return null;
+            return SearchResult.of(SearchOutcome.NOT_SEARCHABLE);
         }
         if (!artistKnown && !TrackMatch.titleAloneCanIdentify(title)) {
             // 1〜2 語の曲名は他の曲にも付く一般名で、検索語として弱い。アーティストも無いなら、
             // 検索しても同名の別の曲を拾うだけになる。
             LOGGER.info("The title is too short to identify a recording without an artist ({}); not searching",
                     originUrl);
-            return null;
+            return SearchResult.of(SearchOutcome.NOT_SEARCHABLE);
         }
         final String query = artistKnown ? author + " " + title : title;
         // 検索そのものが失敗したか。0 件とは別物 — 0 件は「探したが無かった」、失敗は
@@ -939,7 +1024,7 @@ public class MusicLoaderImpl implements IMusicLoader {
             final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - clockMs.getAsLong());
             if (budget <= 0L) {
                 LOGGER.info("Ran out of time while looking for an alternate source ({})", originUrl);
-                return null;
+                return SearchResult.of(SearchOutcome.BUDGET_EXHAUSTED);
             }
             final Candidates candidates = searchCandidates(prefixes[i] + query, budget);
             searchFailed |= candidates.failed();
@@ -977,22 +1062,19 @@ public class MusicLoaderImpl implements IMusicLoader {
                 final String[] cleaned = MetadataCleaner.clean(info.title, info.author);
                 LOGGER.info("Substituting an alternate source for {} -> {} ({} - {}, {}ms against {}ms)",
                         originUrl, info.uri, cleaned[1], cleaned[0], info.length, sourceMs);
-                return new Match(best);
+                return SearchResult.found(new Match(best));
             }
         }
         if (searchFailed) {
-            // 1 つでも検索が答えなかったら「探したが無かった」とは言えない。元の理由のまま
-            // 失敗させる — 呼び出し側は null を「探し切れなかった」として扱う。
+            // 1 つでも検索が答えなかったら「探したが無かった」とは言えない。
             LOGGER.info("An alternate source search failed for ({}); keeping the original failure",
                     originUrl);
-            return null;
+            return SearchResult.of(SearchOutcome.SEARCH_FAILED);
         }
         LOGGER.info("No matching track on the alternate sources for ({})", originUrl);
         // ここが「検索が実際に走って、同じ録音とみなせる候補が1つも無かった」の唯一の出口。
-        // 時間切れ・query 不成立・検索失敗は上の return null (元の理由のまま) なので、この理由が
-        // 出る時は常に「探したが無かった」を意味する (MDM_DECISIONS D45 / D46)。
-        throw new ResolveException(FailureReason.NO_ALTERNATIVE_FOUND,
-                "searched \"" + title + "\" on the alternate sources with no usable copy");
+        // 時間切れ・query 不成立・検索失敗は別の結末で返す (MDM_DECISIONS D45 / D46)。
+        return SearchResult.of(SearchOutcome.NO_MATCH);
     }
 
     /**
@@ -1153,16 +1235,11 @@ public class MusicLoaderImpl implements IMusicLoader {
         }
         final SourceMetadata source = sourceMetadata(title, dropped.author(),
                 YoutubeWatchPage.Result.EMPTY);
-        try {
-            final Match match = searchSubstitute(SOUNDCLOUD_SUBSTITUTE_PREFIXES, title,
-                    source.searchTitle(), source.searchAuthor(), dropped.url(), null,
-                    new YoutubeWatchPage.Result(dropped.durationMs(), "", "", ""), deadline);
-            return match == null ? null : match.track();
-        } catch (final ResolveException ex) {
-            // 一覧では「代わりも無い」を伝える相手が居ない (1 曲分の話)。従来どおり落とす。
-            LOGGER.debug("No substitute for a dropped list entry ({})", dropped.url(), ex);
-            return null;
-        }
+        // 一覧では「代わりも無い」を伝える相手が居ない (1 曲分の話)。見つからなければ落とす。
+        final SearchResult result = searchSubstitute(SOUNDCLOUD_SUBSTITUTE_PREFIXES, title,
+                source.searchTitle(), source.searchAuthor(), dropped.url(), null,
+                new YoutubeWatchPage.Result(dropped.durationMs(), "", "", ""), deadline);
+        return result.outcome() == SearchOutcome.FOUND ? result.match().track() : null;
     }
 
     /**
