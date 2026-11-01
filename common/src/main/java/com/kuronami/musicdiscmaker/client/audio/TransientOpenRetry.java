@@ -6,6 +6,7 @@ import java.util.function.LongSupplier;
 import org.jetbrains.annotations.Nullable;
 
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
+import com.kuronami.musicdiscmaker.lavaplayer.api.YoutubeUrls;
 
 /**
  * 一時的な失敗で開けなかった既存の盤を、間隔を置いて開き直す純ロジック。
@@ -57,9 +58,9 @@ final class TransientOpenRetry {
     /**
      * 再試行の上限。
      *
-     * @param budgetMs    最初の試行から数えた全体の予算 (ms)
-     * @param delayMs     試行と試行の間に置く時間 (ms)
-     * @param maxAttempts 試行回数の上限 (最初の 1 回を含む)
+     * @param budgetMs    この中で開き直す全体の予算 (ms)。最初の待ちから数える
+     * @param delayMs     試行の前に置く時間 (ms)。最初の試行の前にも置く
+     * @param maxAttempts この中で開き直す回数の上限 (最初の 1 回を含む)
      */
     record Policy(long budgetMs, long delayMs, int maxAttempts) {
 
@@ -107,21 +108,35 @@ final class TransientOpenRetry {
      * {@code MUTED} / {@code SOUND_ENGINE} / {@code LOCAL_AUDIO} は音源の外側の話なので、
      * 開き直しても同じ結果になる。
      *
+     * <h2>bot 判定だけ URL を見る理由</h2>
+     * {@code BOT_CHECK} は「YouTube が bot と判断した」だけを指さない。401 / 403 / 429 を
+     * まとめてここへ寄せてある (MDM_DECISIONS D8) ので、<b>直リンク HTTP の 403 も同じ理由で
+     * 返る</b>。YouTube の bot 判定は時機と visitorId で変わるが、直リンク先が返した 403 は
+     * 待っても変わらない。そのままやり直すと、恒久的な拒否のために 30 秒待たせることになる。
+     * そこで bot 判定だけ {@link YoutubeUrls#isYoutube} を通し、YouTube 相手の時だけ
+     * やり直す。
+     *
      * @param failure 失敗 ({@code null} 可)
+     * @param url     開こうとした URL ({@code null} 可 = 判定できない時はやり直さない)
      * @return 開き直して意味があるなら {@code true}
      */
-    static boolean isTransient(@Nullable PlaybackFailure failure) {
+    static boolean isTransient(@Nullable PlaybackFailure failure, @Nullable String url) {
         if (failure == null) {
             return false;
         }
         return switch (failure.kind()) {
-            case BOT_CHECK, NETWORK, REFUSED, STREAM_UNAVAILABLE -> true;
+            case BOT_CHECK -> YoutubeUrls.isYoutube(url);
+            case NETWORK, REFUSED, STREAM_UNAVAILABLE -> true;
             default -> false;
         };
     }
 
     /**
-     * 最初の失敗を受けて、必要なら間隔を置いて開き直す。
+     * 直前の失敗を受けて、間隔を置いて開き直す。
+     *
+     * <p><b>最初の試行の前にも間隔ぶん待つ</b>。呼ぶ側は既に即時の再試行 (1.5 秒 × 2) を
+     * 使い切った直後なので、そこで間を置かずに開き直しても同じ visitorId で同じ答えが返る
+     * だけになる (待つ意味が無い 1 往復)。
      *
      * <p>予算は<b>壁時計ではなく渡された時計</b>で測る。試行そのものが数十秒かかることが
      * あり、その時間も予算に含めるため (含めないと「最後の試行が長引いて、気付いたら
@@ -135,15 +150,17 @@ final class TransientOpenRetry {
      * @param clockMs      経過を測る時計 (ms)。単調であること
      * @param sleeper      待つ手段
      * @param stillCurrent この再生がまだ要るか
-     * @param attempt      1 回開く試行 (最初の 1 回もここで呼ばれる)
+     * @param url          開こうとした URL ({@code null} 可)。bot 判定をやり直すかの判断に使う
+     * @param previous     直前の試行の結果 (待っても直らない失敗なら、待たずにこれを返す)
+     * @param attempt      1 回開く試行
      * @return 開けた結果、または最後の失敗
      */
     static Outcome run(Policy policy, LongSupplier clockMs, Sleeper sleeper,
-            BooleanSupplier stillCurrent, Attempt attempt) {
+            BooleanSupplier stillCurrent, @Nullable String url, Outcome previous, Attempt attempt) {
         final long startedMs = clockMs.getAsLong();
-        Outcome outcome = attempt.attempt();
-        for (int attemptNumber = 1; attemptNumber < policy.maxAttempts(); attemptNumber++) {
-            if (outcome.isOk() || !isTransient(outcome.failure()) || !stillCurrent.getAsBoolean()) {
+        Outcome outcome = previous;
+        for (int attemptNumber = 0; attemptNumber < policy.maxAttempts(); attemptNumber++) {
+            if (outcome.isOk() || !isTransient(outcome.failure(), url) || !stillCurrent.getAsBoolean()) {
                 return outcome;
             }
             final long elapsedMs = Math.max(0L, clockMs.getAsLong() - startedMs);

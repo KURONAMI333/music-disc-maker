@@ -69,8 +69,9 @@ public final class ClientPlaybackManager {
      * <p>間隔を {@code YoutubeTokenSession#REFILL_INTERVAL_MS} と同じ 7.5 秒にしてあるのは、
      * bot 判定が visitorId 単位で変わるため。それより短く叩いても同じ visitorId で同じ答えが
      * 返るだけで、相手に余計な要求を積む。予算 30 秒は「盤を入れてから鳴り出すまで」として
-     * 待てる上限で、試行は 0 / 7.5 / 15 / 22.5 / 30 秒の 5 回になる (回数上限 6 は予算が
-     * 先に尽きるので実際には効かない。予算側だけを動かした時に回数が暴れないための歯止め)。
+     * 待てる上限で、試行は 7.5 / 15 / 22.5 / 30 秒の 4 回になる (最初の試行の前にも間隔を
+     * 置くので、即時再試行の直後に空打ちしない)。回数上限 6 は予算が先に尽きるので実際には
+     * 効かない (予算側だけを動かした時に回数が暴れないための歯止め)。
      */
     private static final TransientOpenRetry.Policy SLOW_OPEN_RETRY =
             new TransientOpenRetry.Policy(30_000L, 7_500L, 6);
@@ -602,10 +603,11 @@ public final class ClientPlaybackManager {
             if (!outcome.isOk() && !pastTrackEnd(immutableTrack, startOffsetMs, requestedAtMs)
                     && FiniteOpenRetryPolicy.mayRetry(immutableTrack.radio(), immutableTrack.isLocal(),
                             immutableSelection.selected(), immutableRegularOnly,
-                            TransientOpenRetry.isTransient(outcome.failure()))) {
+                            TransientOpenRetry.isTransient(outcome.failure(), immutableTrack.url()))) {
                 outcome = TransientOpenRetry.run(SLOW_OPEN_RETRY, MONOTONIC_MS, SLEEPER,
                         () -> sessions.isLive(immutableKey, immutableToken)
                                 && !pastTrackEnd(immutableTrack, startOffsetMs, requestedAtMs),
+                        immutableTrack.url(), outcome,
                         () -> {
                             openOffsetMs[0] = openOffsetAt(startOffsetMs, requestedAtMs);
                             return openOnce.get();

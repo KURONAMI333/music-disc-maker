@@ -174,6 +174,22 @@ public interface IMusicLoader {
     }
 
     /**
+     * 開く前の URL 検査を差し込む。
+     *
+     * <p>再生時に見つける代わりの配信元は loader の中で決まり、mod 側の入口
+     * ({@code UrlGuard}) を一度も通らない。実装は代わりの URL を開く直前にこの口へ通し、
+     * 拒否されたら開かない。盤の URL と同じ検査を、loader が見つけた URL にも掛けるための入口。
+     *
+     * <p>既定実装が何もしないのは、橋渡し interface だけ新しく impl の {@code jar.packed} が
+     * 古い組み合わせでも起動を壊さないため。差し込みが無い実装は検査できないので、
+     * 代わりの配信元を開かない (検査できない URL へは接続しない)。
+     *
+     * @param gate 検査。{@code null} を渡した時の扱いは実装が決める
+     */
+    default void setUrlGate(UrlGate gate) {
+    }
+
+    /**
      * 信頼済みのローカル音声ファイルを先頭から開く。
      *
      * @param file 呼び出し側で保存領域内と検証済みの通常ファイル

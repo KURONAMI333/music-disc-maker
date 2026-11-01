@@ -16,6 +16,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,6 +32,8 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.IMusicLoader.TrackHint;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
+import com.kuronami.musicdiscmaker.lavaplayer.api.UrlGate;
+import com.kuronami.musicdiscmaker.lavaplayer.api.YoutubeUrls;
 import com.sedmelluq.discord.lavaplayer.container.MediaContainerProbe;
 import com.sedmelluq.discord.lavaplayer.container.MediaContainerRegistry;
 import com.sedmelluq.discord.lavaplayer.container.adts.AdtsContainerProbe;
@@ -93,10 +96,8 @@ public class MusicLoaderImpl implements IMusicLoader {
     // stereo で確実に受け、LavaAudioSource が全ソース一律に mono へ downmix する。
     private static final int LAVA_OUTPUT_CHANNELS = 2;
 
-    // YouTube リンクの host 判定と 11 桁 video ID 抽出。host が YouTube 系の時だけ正規化する
-    // (他サービスの URL に v= が含まれても触らない)。
-    private static final Pattern YT_HOST =
-            Pattern.compile("(?i)^(?:https?://)?(?:www\\.|m\\.|music\\.)?(?:youtube\\.com|youtu\\.be)/");
+    // YouTube リンクの 11 桁 video ID 抽出。host の判定は mod 側と共有する (YoutubeUrls) —
+    // 片方だけ直すと loader と client でやり直す集合がずれる。
     private static final Pattern YT_VIDEO_ID =
             Pattern.compile("(?i)(?:youtu\\.be/|/shorts/|/embed/|[?&]v=)([A-Za-z0-9_-]{11})");
     /** SoundCloud の単曲 URL か (再生時の代替ソース探しを出す相手)。 */
@@ -168,6 +169,14 @@ public class MusicLoaderImpl implements IMusicLoader {
      * 終われば消える (相手の配信が戻っているかもしれない状態を焼き付けない)。
      */
     private static final int MAX_PLAYBACK_SUBSTITUTES = 32;
+    /**
+     * 再生時に見つけた代替 URL を覚えておく時間 (ms)。
+     *
+     * <p>覚えている間は<b>元の URL を試さずに</b>代替先を開く。無期限にすると、一度弾かれた盤は
+     * 代替先が消えるまで元の URL を二度と試さない (相手の配信が戻っていても気づけない)。
+     * 30 分は「同じ盤を続けて何度も鳴らす」間は効き、次のセッションでは元の URL から試す長さ。
+     */
+    static final long PLAYBACK_SUBSTITUTE_TTL_MS = 30L * 60L * 1000L;
 
     /**
      * 保存領域へ入れてよいコンテナの probe。保存したバイトは後で全 client が
@@ -223,20 +232,48 @@ public class MusicLoaderImpl implements IMusicLoader {
      */
     private final YoutubeSession session;
     /**
-     * 盤の URL → 再生時に見つけた代替 URL。値が鳴らなくなったら捨てる。
+     * 盤の URL → 再生時に見つけた代替 URL と、それを覚えておく期限。値が鳴らなくなったら捨てる。
      *
      * <p>LRU で {@link #MAX_PLAYBACK_SUBSTITUTES} 件に抑える。アクセス順で捨てるのは、
      * よく鳴らす盤の覚えを残すため (件数だけ見て全部消すと、次の再生でまた検索になる)。
+     *
+     * <p>期限 ({@link #PLAYBACK_SUBSTITUTE_TTL_MS}) を持つのは、覚えた代替先を<b>元の URL より
+     * 先に</b>開くため。期限を切らないと、元の URL が再び鳴るようになっていても気づけない。
      */
-    private final Map<String, String> playbackSubstitutes = Collections.synchronizedMap(
+    private final Map<String, RememberedSubstitute> playbackSubstitutes = Collections.synchronizedMap(
             new LinkedHashMap<>(16, 0.75f, true) {
                 private static final long serialVersionUID = 1L;
 
                 @Override
-                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                protected boolean removeEldestEntry(Map.Entry<String, RememberedSubstitute> eldest) {
                     return size() > MAX_PLAYBACK_SUBSTITUTES;
                 }
             });
+    /**
+     * 代替 URL の期限を測る時計。テストで差し替えて、
+     * {@link #PLAYBACK_SUBSTITUTE_TTL_MS} を実際に待たずに失効を確かめる。
+     */
+    private final LongSupplier clockMs;
+    /**
+     * 代わりの配信元を開く直前の URL 検査。mod 側が {@link IMusicLoader#setUrlGate} で差し込む。
+     *
+     * <p>差し込まれていない間は<b>代わりの配信元を開かない</b> ({@link #openAllowed} が false)。
+     * 検査できない URL へは接続しない、を既定にしてある。
+     */
+    private volatile UrlGate urlGate;
+
+    /**
+     * 再生時に見つけた代替 URL と、それを覚えておく期限。
+     *
+     * @param uri         代わりの URL
+     * @param expiresAtMs これを過ぎたら忘れる (壁時計 ms)
+     */
+    private record RememberedSubstitute(String uri, long expiresAtMs) {
+
+        boolean expiredAt(long nowMs) {
+            return nowMs >= expiresAtMs;
+        }
+    }
 
     public MusicLoaderImpl() {
         this.apm = new DefaultAudioPlayerManager();
@@ -245,6 +282,7 @@ public class MusicLoaderImpl implements IMusicLoader {
         // (matroska probe は DocType を見ず動画入り MKV も通る点は SAVE_PROBES の javadoc 参照)
         this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
         this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
+        this.clockMs = System::currentTimeMillis;
         configureOutput(this.apm);
         this.youtube = registerYoutube();
         this.session = youtube == null ? YoutubeSession.NONE
@@ -266,11 +304,14 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @param apm     偽の source manager を登録する先
      * @param youtube 有効にする YouTube manager ({@code null} なら入れ替え経路も無効)
      * @param session visitorId の入れ替え口 ({@code null} 不可)
+     * @param clockMs 代替 URL の期限を測る時計 (テストで進める)
      */
-    MusicLoaderImpl(AudioPlayerManager apm, YoutubeAudioSourceManager youtube, YoutubeSession session) {
+    MusicLoaderImpl(AudioPlayerManager apm, YoutubeAudioSourceManager youtube, YoutubeSession session,
+            LongSupplier clockMs) {
         this.apm = apm;
         this.localFiles = new LocalAudioSourceManager(SAVE_REGISTRY);
         this.localInputs = new LocalAudioSourceManager(INPUT_REGISTRY);
+        this.clockMs = clockMs;
         configureOutput(apm);
         this.youtube = youtube;
         this.session = session;
@@ -568,8 +609,9 @@ public class MusicLoaderImpl implements IMusicLoader {
      *
      * <p>全プレフィックスを回して何も採れなければ
      * {@link FailureReason#NO_ALTERNATIVE_FOUND} を投げる (D45 / D46。「探したが無かった」を
-     * 元の理由と取り違えないため)。{@code null} が返るのは<b>検索に踏み切れなかった時だけ</b> —
-     * 曲名かアーティストが空で query を作れない時と、予算を使い切った時。その場合は呼び出し側が
+     * 元の理由と取り違えないため)。{@code null} が返るのは<b>検索を走らせ切れなかった時</b> —
+     * 曲名かアーティストが空で query を作れない時、予算を使い切った時、そして
+     * <b>検索そのものが失敗した時</b> ({@code loadFailed} / 時間切れ)。その場合は呼び出し側が
      * 従来の失敗に落ちる。無理に何か鳴らさない — 違う曲が鳴るのは、鳴らないより悪い。
      *
      * <h2>尺で抜粋を落とし、残った中では元に一番近いものを採る</h2>
@@ -590,7 +632,7 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @param watchUrl    元の尺を取れる watch URL ({@code null} 可 = 尺は分からない)
      * @param watchResult 曲情報のため先に取得済みのwatch結果 ({@code null} 可)
      * @param deadline    これを過ぎたら諦める時刻 (壁時計 ms)
-     * @return 代わりに使えるトラック。検索に踏み切れなかった場合は {@code null}
+     * @return 代わりに使えるトラック。検索を走らせ切れなかった場合は {@code null}
      * @throws ResolveException 全プレフィックスを検索して使える候補が無かった
      *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
      */
@@ -616,14 +658,20 @@ public class MusicLoaderImpl implements IMusicLoader {
         final String query = author + " " + title;
         // -1 = まだ取りに行っていない / 0 = 取得済みだが取れなかった。
         long sourceMs = watchResult == null ? -1L : watchResult.durationMs();
+        // 検索そのものが失敗したか。0 件とは別物 — 0 件は「探したが無かった」、失敗は
+        // 「探せていない」で、呼び出し側が次に取れる手が違う (失敗を 0 件に潰すと、
+        // 元の理由が一時的なのに「代わりも無い」と確定させてしまう)。
+        boolean searchFailed = false;
         for (final String prefix : prefixes) {
             final long budget = Math.min(ALTERNATE_SEARCH_TIMEOUT_MS, deadline - System.currentTimeMillis());
             if (budget <= 0L) {
                 LOGGER.info("Ran out of time while looking for an alternate source ({})", originUrl);
                 return null;
             }
+            final Candidates candidates = loadCandidates(prefix + query, budget);
+            searchFailed |= candidates.failed();
             final List<AudioTrackInfo> matched = new ArrayList<>();
-            for (final AudioTrack candidate : loadCandidates(prefix + query, budget)) {
+            for (final AudioTrack candidate : candidates.tracks()) {
                 final AudioTrackInfo info = candidate.getInfo();
                 // 曲の代わりに無限長ストリームや長さ不明のものを掴まない。
                 if (info.isStream || info.length <= 0L || info.length == Long.MAX_VALUE) {
@@ -651,10 +699,17 @@ public class MusicLoaderImpl implements IMusicLoader {
                         best.identifier, best.isStream, safe(best.artworkUrl));
             }
         }
+        if (searchFailed) {
+            // 1 つでも検索が答えなかったら「探したが無かった」とは言えない。元の理由のまま
+            // 失敗させる — 呼び出し側は null を「探し切れなかった」として扱う。
+            LOGGER.info("An alternate source search failed for ({}); keeping the original failure",
+                    originUrl);
+            return null;
+        }
         LOGGER.info("No matching track on the alternate sources for ({})", originUrl);
         // ここが「検索が実際に走って、同じ録音とみなせる候補が1つも無かった」の唯一の出口。
-        // 時間切れと query 不成立は上の return null (元の理由のまま) なので、この理由が出る時は
-        // 常に「探したが無かった」を意味する (MDM_DECISIONS D45 / D46)。
+        // 時間切れ・query 不成立・検索失敗は上の return null (元の理由のまま) なので、この理由が
+        // 出る時は常に「探したが無かった」を意味する (MDM_DECISIONS D45 / D46)。
         throw new ResolveException(FailureReason.NO_ALTERNATIVE_FOUND,
                 "searched \"" + title + "\" on the alternate sources with no usable copy");
     }
@@ -713,19 +768,40 @@ public class MusicLoaderImpl implements IMusicLoader {
     }
 
     /**
-     * 検索の結果を先頭から数件まで読む。検索そのものが失敗したら空を返す
+     * 代替ソース検索 1 回分の結果。
+     *
+     * <p>{@code failed} を持つのは、「検索が走って 0 件」と「検索が答えなかった」を
+     * 呼び出し側で区別するため。前者は「探したが無かった」、後者は「探せていない」で、
+     * 元の失敗を確定させてよいかが変わる。
+     *
+     * @param tracks 候補 (最大 {@link #MAX_CANDIDATES} 件)
+     * @param failed 検索そのものが失敗したか
+     */
+    private record Candidates(List<AudioTrack> tracks, boolean failed) {
+
+        static Candidates found(List<AudioTrack> tracks) {
+            return new Candidates(tracks, false);
+        }
+
+        static Candidates unanswered() {
+            return new Candidates(List.of(), true);
+        }
+    }
+
+    /**
+     * 検索の結果を先頭から数件まで読む。検索そのものが失敗したら {@code failed} を立てて返す
      * (代替ソース探しは「見つからなければ従来の失敗に落ちる」だけなので、ここで投げない)。
      *
      * @param query     {@code scsearch:} 等の接頭辞つき検索クエリ
      * @param timeoutMs 待ち上限
-     * @return 候補 (最大 {@link #MAX_CANDIDATES} 件・失敗時は空)
+     * @return 候補 (最大 {@link #MAX_CANDIDATES} 件) と、検索が答えたか
      */
-    private List<AudioTrack> loadCandidates(String query, long timeoutMs) {
-        final CompletableFuture<List<AudioTrack>> future = new CompletableFuture<>();
+    private Candidates loadCandidates(String query, long timeoutMs) {
+        final CompletableFuture<Candidates> future = new CompletableFuture<>();
         apm.loadItem(new AudioReference(query, null), new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
-                future.complete(List.of(track));
+                future.complete(Candidates.found(List.of(track)));
             }
 
             @Override
@@ -736,28 +812,28 @@ public class MusicLoaderImpl implements IMusicLoader {
                         tracks.add(track);
                     }
                 }
-                future.complete(tracks);
+                future.complete(Candidates.found(tracks));
             }
 
             @Override
             public void noMatches() {
-                future.complete(List.of());
+                future.complete(Candidates.found(List.of()));
             }
 
             @Override
             public void loadFailed(FriendlyException exception) {
                 LOGGER.debug("Alternate source search failed ({})", query, exception);
-                future.complete(List.of());
+                future.complete(Candidates.unanswered());
             }
         });
         try {
             return future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (final TimeoutException | ExecutionException ex) {
             LOGGER.debug("Alternate source search did not answer in time ({})", query);
-            return List.of();
+            return Candidates.unanswered();
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
-            return List.of();
+            return Candidates.unanswered();
         }
     }
 
@@ -906,9 +982,32 @@ public class MusicLoaderImpl implements IMusicLoader {
      * @return 代わりに鳴らせるトラック。探す条件に当たらない・探し切れなかった場合は
      *         {@code null} (呼び出し側は元の理由のまま失敗させる)
      * @throws ResolveException 検索が実際に走って使える候補が無かった
-     *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})
+     *         ({@link FailureReason#NO_ALTERNATIVE_FOUND})。ただし元の失敗が一時的なものなら
+     *         投げずに {@code null} を返す (元の理由でやり直せるようにするため)
      */
     private TrackInfo substituteForPlayback(String url, ResolveException failure, TrackHint hint) {
+        try {
+            return searchSubstituteForPlayback(url, failure, hint);
+        } catch (final ResolveException noAlternative) {
+            // 元の失敗が一時的なもの (bot 判定・接続断) なら、「代わりも無い」で確定させない。
+            // 検索が 0 件でも、時間を置けば元の URL が鳴りうるので、元の理由を返して
+            // client 側のやり直し ({@code TransientOpenRetry}) に乗せる。制作時は逆で、
+            // 焼く前に「代わりも無い」を利用者へ伝える必要があるのでこの読み替えはしない。
+            if (noAlternative.reason() != FailureReason.NO_ALTERNATIVE_FOUND
+                    || !isRetryable(failure.reason(), false)) {
+                throw noAlternative;
+            }
+            LOGGER.info("No alternate source for {} now; keeping the transient failure [{}]",
+                    url, failure.reason());
+            return null;
+        }
+    }
+
+    /**
+     * {@link #substituteForPlayback} の検索本体。見つからなければ
+     * {@link FailureReason#NO_ALTERNATIVE_FOUND} を投げる (読み替えは呼び出し側)。
+     */
+    private TrackInfo searchSubstituteForPlayback(String url, ResolveException failure, TrackHint hint) {
         final String normalized = normalizeYoutubeUrl(url);
         if (isSearch(normalized)) {
             return null;
@@ -962,16 +1061,27 @@ public class MusicLoaderImpl implements IMusicLoader {
     public OpenStreamResult openStreamDetailed(String url, long startMs, TrackHint hint) {
         // 前回見つけた代替先があれば、元の URL を試す前にそこを開く。鳴らなかった盤は
         // たいてい同じ理由で鳴らないので、毎回検索の数秒を待たせない。
-        final String remembered = playbackSubstitutes.get(url);
+        final RememberedSubstitute remembered = playbackSubstitutes.get(url);
         if (remembered != null) {
-            try {
-                final OpenStreamResult reused = openPlayback(remembered, startMs);
-                LOGGER.info("Playing the alternate source found earlier for {} -> {}", url, remembered);
-                return reused;
-            } catch (final ResolveException ex) {
-                LOGGER.info("The alternate source found earlier no longer plays ({}): [{}] {}",
-                        remembered, ex.reason(), ex.detail());
+            if (remembered.expiredAt(clockMs.getAsLong())) {
+                // 期限が切れたら元の URL から試し直す。相手の配信が戻っていることがある。
+                LOGGER.debug("Forgot the alternate source found earlier for {} (expired)", url);
                 playbackSubstitutes.remove(url, remembered);
+            } else if (!openAllowed(remembered.uri())) {
+                LOGGER.warn("Refusing the alternate source found earlier for {}"
+                        + " (outside the allowed hosts)", url);
+                playbackSubstitutes.remove(url, remembered);
+            } else {
+                try {
+                    final OpenStreamResult reused = openPlayback(remembered.uri(), startMs);
+                    LOGGER.info("Playing the alternate source found earlier for {} -> {}",
+                            url, remembered.uri());
+                    return reused;
+                } catch (final ResolveException ex) {
+                    LOGGER.info("The alternate source found earlier no longer plays ({}): [{}] {}",
+                            remembered.uri(), ex.reason(), ex.detail());
+                    playbackSubstitutes.remove(url, remembered);
+                }
             }
         }
         final ResolveException directFailure;
@@ -995,7 +1105,15 @@ public class MusicLoaderImpl implements IMusicLoader {
         if (substitute == null) {
             return OpenStreamResult.failed(directFailure.reason(), directFailure.detail());
         }
-        playbackSubstitutes.put(url, substitute.uri());
+        // 検索で見つけた先は mod 側の入口 (UrlGuard) を通っていない。内部アドレス等を
+        // 指していたら開かない — 覚えにも残さない (次も同じ URL を掴むので)。
+        if (!openAllowed(substitute.uri())) {
+            LOGGER.warn("Refusing an alternate source for {} (outside the allowed hosts)", url);
+            return OpenStreamResult.failed(FailureReason.BLOCKED_URL,
+                    "the alternate source is outside the allowed hosts");
+        }
+        playbackSubstitutes.put(url, new RememberedSubstitute(substitute.uri(),
+                clockMs.getAsLong() + PLAYBACK_SUBSTITUTE_TTL_MS));
         try {
             final OpenStreamResult alternative = openPlayback(substitute.uri(), startMs);
             LOGGER.info("Playing an alternate source for {} -> {}", url, substitute.uri());
@@ -1006,6 +1124,26 @@ public class MusicLoaderImpl implements IMusicLoader {
             playbackSubstitutes.remove(url, substitute.uri());
             return OpenStreamResult.failed(ex.reason(), ex.detail());
         }
+    }
+
+    @Override
+    public void setUrlGate(UrlGate gate) {
+        this.urlGate = gate;
+    }
+
+    /**
+     * その URL を開いてよいか。検査が差し込まれていなければ {@code false}。
+     *
+     * <p>盤の URL は mod 側の入口で {@code UrlGuard} を通っているが、再生時に検索で見つける
+     * 代わりの配信元は loader の中で決まるので、ここでしか検査できない ({@link UrlGate})。
+     * 差し込みが無い時を fail-closed にしてあるのは、検査できない URL へは接続しないため。
+     *
+     * @param url 開こうとしている URL ({@code null} 可)
+     * @return 開いてよければ {@code true}
+     */
+    private boolean openAllowed(String url) {
+        final UrlGate gate = urlGate;
+        return gate != null && gate.allows(url);
     }
 
     @Override
@@ -1148,7 +1286,7 @@ public class MusicLoaderImpl implements IMusicLoader {
      * YouTube 以外の URL・プレイリスト専用 URL・検索クエリ (ytsearch:) はそのまま返す。
      */
     static String normalizeYoutubeUrl(String url) {
-        if (url == null || !YT_HOST.matcher(url).find()) {
+        if (!YoutubeUrls.isYoutubeHost(url)) {
             return url;
         }
         final Matcher m = YT_VIDEO_ID.matcher(url);
@@ -1160,12 +1298,12 @@ public class MusicLoaderImpl implements IMusicLoader {
 
     /** 検索クエリか (Spotify 経路が使う {@code ytsearch:} 系)。 */
     private static boolean isSearch(String url) {
-        return url != null && (url.startsWith("ytsearch:") || url.startsWith("ytmsearch:"));
+        return YoutubeUrls.isSearchQuery(url);
     }
 
     /** YouTube を相手にする URL か (セッションの入れ替えが効く相手だけ再試行する)。 */
     static boolean isYoutubeTarget(String url) {
-        return url != null && (isSearch(url) || YT_HOST.matcher(url).find());
+        return YoutubeUrls.isYoutube(url);
     }
 
     /** SoundCloud の URL か (試聴版・DRM の時に代替ソースを探す相手)。 */
