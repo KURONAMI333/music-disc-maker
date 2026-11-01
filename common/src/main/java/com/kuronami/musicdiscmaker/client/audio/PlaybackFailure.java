@@ -214,6 +214,23 @@ public record PlaybackFailure(Kind kind, String detail) {
         return new PlaybackFailure(Kind.SOUND_ENGINE, "play rejected");
     }
 
+    /**
+     * 拒否時の streaming pool の使用数と上限を detail へ足す。上限が取れていない (0 以下) 時は
+     * 何も足さない — 推測値をログへ書かない。
+     *
+     * @param used  使用中の枠数
+     * @param limit 実際の上限
+     * @return detail に pool 使用状況を添えた失敗 (取れない時は同じ内容)
+     */
+    public PlaybackFailure withPoolUsage(int used, int limit) {
+        if (limit <= 0) {
+            return this;
+        }
+        final String usage = "pool used/limit=" + used + "/" + limit;
+        final String text = detail == null || detail.isBlank() ? usage : detail + " " + usage;
+        return new PlaybackFailure(kind, text);
+    }
+
     /** 音量が 0 なので engine が捨てた ({@link SoundEngineAcceptance})。 */
     public static PlaybackFailure soundMuted() {
         return new PlaybackFailure(Kind.MUTED, "volume=0");

@@ -8,6 +8,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.HashMap;
 import java.util.Map;
+import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
@@ -87,6 +88,8 @@ public final class ClientPlaybackManager {
     };
     /** 有限曲が再生途中で途切れた時、現在位置から開き直すまでの間隔 (ms)。位置は開く時に補正される。 */
     private static final long FINITE_RESUME_DELAY_MS = 1_500L;
+    /** engine が枯渇で拒否した時、play をやり直すまでの待ち (1 tick = 50ms)。 */
+    private static final long SOUND_ENGINE_RETRY_DELAY_MS = 50L;
 
     /**
      * 音源座標の決定を compat へ開く口。
@@ -1155,20 +1158,8 @@ public final class ClientPlaybackManager {
         // 他MODが一度取り消して同じinstanceを後から再投入する経路もある。
         // 受理されなくても即座には閉じず、実PCMが来ない場合だけ期限で解放する。
         armFirstAudioDeadline(key, token, track, instance);
-        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
-            // 非 MUTED は期限まで保留される (#7-1)。ここで出るのは音量 0 だけ。
-            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
-            if (show != null) {
-                failures.record(key, show);
-                PlaybackFailureReport.report(track, show);
-            }
-        })) {
+        if (startVoice(key, token, track, instance, playback, speakerSet) != VoiceStart.ACCEPTED) {
             return;
-        }
-        sessions.engineAccepted(key);
-        if (playback instanceof SpeakerVoiceGroup group) {
-            // The accepted Golden master must exist before child branches can prefill/read PCM.
-            group.update(speakerSet);
         }
         //?} elif >=1.21.2 {
 /*        armFirstAudioDeadline(key, token, track, instance);
@@ -1304,6 +1295,111 @@ public final class ClientPlaybackManager {
     */
     //?} else {
     //?}
+    }
+
+    /** engine へ音を渡した結果。 */
+    private enum VoiceStart {
+        ACCEPTED,
+        REJECTED,
+        RETRY_SCHEDULED
+    }
+
+    /**
+     * 音を engine へ渡し、受理されなかった時の次の一手まで決める。
+     *
+     * <p>枯渇による拒否だけは 1 tick 後に 1 回やり直す。他の音が抜けて枠が空くのを待つ価値があり、
+     * 待たずに「再生拒否」を出すと、実際には次の tick で鳴った盤へ失敗を付ける。
+     * 再試行しても拒否なら、既存の期限付き保留 (#7-1) へ渡す。
+     */
+    private VoiceStart startVoice(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance, PlaybackVoice playback, SpeakerSetPayload speakerSet) {
+        final PlaybackFailure[] rejected = new PlaybackFailure[1];
+        if (SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE,
+                failure -> rejected[0] = failure)) {
+            sessions.engineAccepted(key);
+            if (playback instanceof SpeakerVoiceGroup group) {
+                // The accepted Golden master must exist before child branches can prefill/read PCM.
+                group.update(speakerSet);
+            }
+            return VoiceStart.ACCEPTED;
+        }
+        return afterVoiceRejection(key, token, track, instance, playback, speakerSet,
+                rejected[0], 0);
+    }
+
+    private VoiceStart afterVoiceRejection(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance, PlaybackVoice playback, SpeakerSetPayload speakerSet,
+            PlaybackFailure rejected, int retriesSoFar) {
+        final PlaybackFailure failure = rejected == null
+                ? PlaybackFailure.soundEngineRejected() : rejected;
+        // 音量 0 は遅れて開栓しない。利用者が直せる唯一の理由なので、その場で返す。
+        if (failure.kind() == PlaybackFailure.Kind.MUTED) {
+            reportRejected(track, key, token, failure);
+            return VoiceStart.REJECTED;
+        }
+        final int used;
+        final int limit;
+        try {
+            used = Config.engineStreamingUsed();
+            limit = Config.engineStreamingLimit();
+        } catch (final Throwable t) {
+            // engine の状態を読めない時に枯渇を推測しない。従来どおり期限付き保留へ回す。
+            reportRejected(track, key, token, failure);
+            return VoiceStart.REJECTED;
+        }
+        final PlaybackFailure detailed = failure.withPoolUsage(used, limit);
+        if (StreamingChannelPool.afterPlayRejection(
+                StreamingChannelPool.exhausted(used, limit), retriesSoFar)
+                == StreamingChannelPool.PlayRetry.RETRY) {
+            scheduleVoiceRetry(key, token, track, instance, playback, speakerSet,
+                    retriesSoFar + 1);
+            return VoiceStart.RETRY_SCHEDULED;
+        }
+        reportRejected(track, key, token, detailed);
+        return VoiceStart.REJECTED;
+    }
+
+    private void reportRejected(CustomTrackData track, BlockPos key, int token,
+            PlaybackFailure failure) {
+        final PlaybackFailure show = sessions.engineRejected(key, token, failure);
+        if (show != null) {
+            failures.record(key, show);
+            PlaybackFailureReport.report(track, show);
+        }
+    }
+
+    private void scheduleVoiceRetry(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance, PlaybackVoice playback, SpeakerSetPayload speakerSet,
+            int retriesSoFar) {
+        CompletableFuture.delayedExecutor(SOUND_ENGINE_RETRY_DELAY_MS, TimeUnit.MILLISECONDS)
+                .execute(() -> Minecraft.getInstance().execute(() -> {
+                    if (!sessions.isLive(key, token)) {
+                        return;
+                    }
+                    final PlaybackFailure[] rejected = new PlaybackFailure[1];
+                    if (SoundEngineAcceptance.start(instance,
+                            SoundEngineAcceptance.KEEP_UNTIL_DEADLINE,
+                            failure -> rejected[0] = failure)) {
+                        sessions.engineAccepted(key);
+                        if (playback instanceof SpeakerVoiceGroup group) {
+                            group.update(speakerSet);
+                        }
+                        failures.clear(key);
+                        announceNowPlaying(key, token, track);
+                        return;
+                    }
+                    afterVoiceRejection(key, token, track, instance, playback, speakerSet,
+                            rejected[0], retriesSoFar);
+                }));
+    }
+
+    private void announceNowPlaying(BlockPos key, int token, CustomTrackData track) {
+        final String desc = (track.author() != null && !track.author().isBlank())
+                ? track.author() + " - " + track.title()
+                : track.title();
+        if (desc != null && !desc.isBlank() && mayAnnounce(key, token)) {
+            com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
+        }
     }
 
     //? if >=1.21.2 {

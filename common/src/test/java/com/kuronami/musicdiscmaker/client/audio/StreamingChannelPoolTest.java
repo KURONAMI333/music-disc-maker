@@ -1,6 +1,8 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -81,5 +83,33 @@ class StreamingChannelPoolTest {
         assertEquals(0, StreamingChannelPool.actualStreamingLimit("Localized: 0/184 + 0/72"));
         assertEquals(0, StreamingChannelPool.actualStreamingLimit("Sounds: 0/184 + 0/2147483648"));
         assertEquals(0, StreamingChannelPool.actualStreamingLimit("Sounds: 0/184 + 0/-1"));
+    }
+
+    @Test
+    void actualUsedComesFromTheSameMinecraftPoolDebugGetter() {
+        assertEquals(64, StreamingChannelPool.actualStreamingUsed("Sounds: 3/184 + 64/72"));
+        assertEquals(0, StreamingChannelPool.actualStreamingUsed("Sounds: 0/160 + 0/96"));
+        assertEquals(0, StreamingChannelPool.actualStreamingUsed(null));
+        assertEquals(0, StreamingChannelPool.actualStreamingUsed("Sounds: 0/184 + 0/not-a-number"));
+        assertEquals(0, StreamingChannelPool.actualStreamingUsed("Localized: 0/184 + 0/72"));
+    }
+
+    @Test
+    void exhaustionRequiresAKnownLimitAndAUsedCountThatReachesIt() {
+        assertTrue(StreamingChannelPool.exhausted(72, 72));
+        assertTrue(StreamingChannelPool.exhausted(73, 72));
+        assertFalse(StreamingChannelPool.exhausted(71, 72));
+        assertFalse(StreamingChannelPool.exhausted(0, 0), "an uninitialized pool is not exhausted");
+        assertFalse(StreamingChannelPool.exhausted(0, -1));
+    }
+
+    @Test
+    void anExhaustedPoolRetriesOnceAndThenDefers() {
+        assertEquals(StreamingChannelPool.PlayRetry.RETRY,
+                StreamingChannelPool.afterPlayRejection(true, 0));
+        assertEquals(StreamingChannelPool.PlayRetry.DEFER,
+                StreamingChannelPool.afterPlayRejection(true, 1));
+        assertEquals(StreamingChannelPool.PlayRetry.DEFER,
+                StreamingChannelPool.afterPlayRejection(false, 0));
     }
 }
