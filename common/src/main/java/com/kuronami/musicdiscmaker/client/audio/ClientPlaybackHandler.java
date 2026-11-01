@@ -215,6 +215,8 @@ public final class ClientPlaybackHandler {
      */
     public static boolean serverDecodesCurrentProtocol() {
         if (protocolMismatch) return false;
+        // シングルプレイ (LAN 公開を含む自分の統合サーバー) は同じ jar なので必ず同じ版。
+        if (Minecraft.getInstance().hasSingleplayerServer()) return true;
         if (!"Fabric".equals(com.kuronami.musicdiscmaker.platform.Services.PLATFORM.getPlatformName())) return true;
         return protocolConfirmed;
     }
