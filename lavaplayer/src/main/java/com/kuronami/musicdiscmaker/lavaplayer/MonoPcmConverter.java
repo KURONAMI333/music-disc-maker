@@ -22,7 +22,7 @@ import com.sedmelluq.discord.lavaplayer.player.AudioConfiguration;
  * libsamplerate の遅延分で、{@code flush()} も空実装)。normalize の「曲が途中で終わった」
  * 判定は 1 秒単位なので、この差は判定に影響しない。
  */
-final class MonoPcmConverter implements PcmFrameSink {
+final class MonoPcmConverter implements PcmConverter {
 
     private final int channels;
     private final PcmQueue queue;
@@ -77,7 +77,8 @@ final class MonoPcmConverter implements PcmFrameSink {
      * resampler の native 資源を解放する。producer スレッドが成功・失敗・中断のどれで終わる時も
      * 1 回呼ぶ (同じスレッドだけが {@code process} するので競合しない)。冪等。
      */
-    void close() {
+    @Override
+    public void close() {
         if (closed) {
             return;
         }
@@ -86,7 +87,8 @@ final class MonoPcmConverter implements PcmFrameSink {
     }
 
     /** 末尾の flush と queue の終端記録。正常終了の時だけ呼ぶ。 */
-    void finish() throws IOException {
+    @Override
+    public void finish() throws IOException {
         try {
             chain.flush();
         } catch (final InterruptedException e) {

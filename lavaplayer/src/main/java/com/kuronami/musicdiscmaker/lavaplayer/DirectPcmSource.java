@@ -12,7 +12,7 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.PlaybackFault;
 /**
  * 直 decode の PCM を再生側へ渡す pull 型ソース。48kHz / mono / 16bit LE を返す。
  *
- * <p>producer スレッド 1 本が {@link PcmDecoder} → {@link MonoPcmConverter} →
+ * <p>producer スレッド 1 本が {@link PcmDecoder} → {@link PcmConverter} →
  * {@link PcmQueue} を回し、{@link #read} は queue から取り出すだけで待たない
  * ({@code 0} = 今は無い、{@code -1} = 終端)。全曲を溜めないので長い入力でも常駐は queue 分だけ。
  *
@@ -32,14 +32,14 @@ final class DirectPcmSource implements IAudioSource {
     private int currentOffset;
     private volatile boolean closed;
 
-    DirectPcmSource(String name, PcmDecoder decoder, MonoPcmConverter converter, PcmQueue queue) {
+    DirectPcmSource(String name, PcmDecoder decoder, PcmConverter converter, PcmQueue queue) {
         this.queue = queue;
         this.producer = new Thread(() -> produce(decoder, converter), "mdm-local-decode-" + name);
         this.producer.setDaemon(true);
         this.producer.start();
     }
 
-    private void produce(PcmDecoder decoder, MonoPcmConverter converter) {
+    private void produce(PcmDecoder decoder, PcmConverter converter) {
         try {
             decoder.decode(converter);
             converter.finish();

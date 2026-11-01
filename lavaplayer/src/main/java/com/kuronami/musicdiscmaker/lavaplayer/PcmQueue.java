@@ -11,7 +11,7 @@ import java.util.ArrayDeque;
  * {@link #poll()} は待たない ({@code null} = 今は無い) — {@code IAudioSource.read} が
  * ゲームの Sound engine スレッドから呼ばれるので、ここで待つと本体が止まる。
  */
-final class PcmQueue {
+class PcmQueue {
 
     /** 積める上限。decoder はこれを超えて先行しない。 */
     static final int MAX_BUFFERED_BYTES = 128 * 1024;
@@ -45,6 +45,10 @@ final class PcmQueue {
 
     /** 積まれた chunk を 1 つ取り出す。無ければ {@code null} (待たない)。 */
     synchronized byte[] poll() {
+        return pollLocked();
+    }
+
+    private byte[] pollLocked() {
         final byte[] head = chunks.pollFirst();
         if (head != null) {
             buffered -= head.length;
@@ -62,7 +66,7 @@ final class PcmQueue {
      * {@link #ended()} を別々に呼ぶ時の「最後の chunk が積まれた直後に終端と誤認する」競合が無い。
      */
     synchronized byte[] pollOrEnd() {
-        final byte[] head = poll();
+        final byte[] head = pollLocked();
         if (head != null) {
             return head;
         }
@@ -83,6 +87,8 @@ final class PcmQueue {
     /** 破棄して閉じる。待っている producer は {@link InterruptedIOException} で抜ける。 */
     synchronized void close() {
         closed = true;
+        // 閉じた後の read は 0 を返し続けず、終端 (-1) を返す。
+        ended = true;
         chunks.clear();
         buffered = 0;
         notifyAll();

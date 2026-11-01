@@ -27,15 +27,12 @@ class PcmQueueTest {
         assertSame(PcmQueue.END, queue.pollOrEnd(), "終端は繰り返し返る");
     }
 
+    /** close した queue は終端を返す (read が 0 を返し続けない)。 */
     @Test
-    void readReturnsTheLastBytesBeforeTheEndMarker() throws Exception {
+    void closedQueueReportsTheEnd() {
         final PcmQueue queue = new PcmQueue();
-        final MonoPcmConverter converter = new MonoPcmConverter(48_000, 1, queue);
-        queue.put(new byte[] {9, 8, 7, 6});
-        queue.end();
-        converter.close();
-        converter.close(); // 冪等
-        assertArrayEquals(new byte[] {9, 8, 7, 6}, queue.pollOrEnd());
+        queue.close();
+
         assertSame(PcmQueue.END, queue.pollOrEnd());
     }
 
