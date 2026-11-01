@@ -16,6 +16,7 @@
 - When YouTube blocks the server and no other copy of the song is found, the disc is now made from the link as entered, using the details the player's own game reads from YouTube.
 - Local audio files can now be up to 2 hours long. Files over about 77 minutes are stored at a lower sample rate so they still fit in 32 MiB.
 - A search whose first result is a SoundCloud preview, and a SoundCloud track with no artist or title, now look for the same song elsewhere. A Spotify page that fails to load is tried again.
+- Apple Music and Deezer song links now make a disc from the same song on YouTube, SoundCloud or Bandcamp, keeping the original title and artist. A copy whose length does not match the song is not used.
 
 Use the same Music Disc Maker version on the server and all clients.
 
