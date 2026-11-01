@@ -68,6 +68,8 @@ class LocalAudioClientImportTest {
         assertEquals("select", statusOf("interrupted"));
         assertEquals("import_failed", statusOf("output file already exists"));
         assertEquals("import_failed", statusOf("normalization failed"));
+        // 権限・消えたファイル等で読めない入力は「非対応形式」ではない。
+        assertEquals("import_failed", statusOf("input file is not readable"));
         // publish の I/O 失敗 (disk full・hard link 不可の FS 等) は非対応ではなく取込失敗。
         assertEquals("import_failed", statusOf("could not publish the normalized file"));
     }

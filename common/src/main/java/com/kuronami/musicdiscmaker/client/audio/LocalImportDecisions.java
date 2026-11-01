@@ -56,10 +56,12 @@ final class LocalImportDecisions {
                 if (d.contains("duration limit")) return "too_long";
                 if (d.contains("size limit")) return "too_large";
                 if (d.contains("opus encoder") || d.contains("not supported here")) return "unavailable";
-                // "could not publish the normalized file" (hard link 不可・disk full 等の
-                // 発行側 I/O 失敗) は入力の非対応ではないので import_failed へ。
-                if (d.contains("output") || d.contains("parent directory") || d.contains("normalization")
-                        || d.contains("i/o failed") || d.contains("encoding failed") || d.contains("publish"))
+                // 読めない入力 (権限・消えたファイル等) と発行側 I/O 失敗
+                // ("could not publish the normalized file" / disk full 等) は、
+                // 入力形式の非対応ではないので import_failed へ。
+                if (d.contains("readable") || d.contains("output") || d.contains("parent directory")
+                        || d.contains("normalization") || d.contains("i/o failed")
+                        || d.contains("encoding failed") || d.contains("publish"))
                     return "import_failed";
                 return "unsupported";
             }
