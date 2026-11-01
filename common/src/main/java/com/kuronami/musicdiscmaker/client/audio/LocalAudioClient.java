@@ -470,10 +470,14 @@ public final class LocalAudioClient {
         status = newStatus;
         // 切断中の setScreen から来ることがある。未接続では送れない (送信が例外になる) ので省き、
         // スロット解放と一時ファイルの片付けだけ進める。サーバー側の転送は切断で消える。
-        if (Minecraft.getInstance().getConnection() != null)
-            Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.CANCEL, u.id,
-                    u.menu.containerId, u.generation, u.hash, 0, 0, ""));
-        cleanup(u);
+        // 切断の途中で接続がまだ見えていて送信だけが失敗する時も、片付けは必ず行う。
+        try {
+            if (Minecraft.getInstance().getConnection() != null)
+                Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.CANCEL, u.id,
+                        u.menu.containerId, u.generation, u.hash, 0, 0, ""));
+        } finally {
+            cleanup(u);
+        }
     }
     public static void receive(LocalAudioPayload p) {
         if (p.operation() == LocalAudioPayload.DATA) { data(p); return; }
