@@ -617,6 +617,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     //?} else {
     /*public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     *///?}
+        // server の回線で解決できなかった時だけ、この client の回線で引き直す (焼く前に server が検める)。
+        ClientTrackFallback.maybeResolve(menu.getBlockEntity());
         final String serverUrl = menu.getBlockEntity().getCurrentUrl();
         final boolean localUpload = LocalAudioClient.uploading();
         // 取込中はファイル選択・貼り付けを止め、左上の欄はファイル名の表示専用にする。

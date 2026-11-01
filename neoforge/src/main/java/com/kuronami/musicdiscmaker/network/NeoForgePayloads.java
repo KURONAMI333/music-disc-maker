@@ -50,6 +50,10 @@ public final class NeoForgePayloads {
         // client → server: 製作機で作った盤の取りやめ
         registrar.playToServer(ModPayloadTypes.CancelDisc.TYPE, ModPayloadTypes.CancelDisc.STREAM_CODEC,
                 NeoForgePayloads::handleCancelDisc);
+        // client → server: server が解決できなかった曲を、client が取った曲名・尺で焼く
+        registrar.playToServer(ModPayloadTypes.ClientResolvedTrack.TYPE,
+                ModPayloadTypes.ClientResolvedTrack.STREAM_CODEC,
+                NeoForgePayloads::handleClientResolvedTrack);
         registrar.playToServer(ModPayloadTypes.AudioLag.TYPE, ModPayloadTypes.AudioLag.STREAM_CODEC,
                 NeoForgePayloads::handleAudioLag);
         registrar.playToServer(ModPayloadTypes.BoomboxAudioLag.TYPE, ModPayloadTypes.BoomboxAudioLag.STREAM_CODEC,
@@ -130,6 +134,14 @@ public final class NeoForgePayloads {
             return;
         }
         context.enqueueWork(() -> ModNetwork.handleCancelDisc(msg.inner(), player));
+    }
+
+    private static void handleClientResolvedTrack(
+            ModPayloadTypes.ClientResolvedTrack msg, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        context.enqueueWork(() -> ModNetwork.handleClientResolvedTrack(msg.inner(), player));
     }
 
     private static void handleAudioLag(ModPayloadTypes.AudioLag msg, IPayloadContext context) {
