@@ -429,12 +429,10 @@ public final class LocalAudioClient {
      */
     public static void tick(MusicDiscMakerMenu menu) {
         if (SESSION.upload == null) return;
-        switch (SESSION.tick(playerMenu(), menu, discSlotsReady(menu), now())) {
-            case ABORT -> abort(SESSION.upload, "select");
-            case SEND, RETRY -> { status = "confirm"; confirm(); }
-            case GIVE_UP -> abort(SESSION.upload, "busy"); // 約 60 秒待っても通らない時だけ従来の終わり方
-            default -> {}
-        }
+        final Session.Step step = SESSION.tick(playerMenu(), menu, discSlotsReady(menu), now());
+        final String abortStatus = Session.abortStatus(step);
+        if (abortStatus != null) abort(SESSION.upload, abortStatus);
+        else if (Session.sends(step)) { status = "confirm"; confirm(); }
     }
     /** プレイヤーが今開いている menu。画面が無い・未接続なら null。 */
     private static Object playerMenu() {
@@ -748,6 +746,18 @@ public final class LocalAudioClient {
                 case GIVE_UP -> Step.GIVE_UP;
                 default -> Step.NONE;
             };
+        }
+        /** Step で upload を中止する時の status。中止しない Step は null。 */
+        static String abortStatus(Step step) {
+            return switch (step) {
+                case ABORT -> "select";
+                case GIVE_UP -> "busy"; // 約 60 秒待っても通らない時だけ従来の終わり方
+                default -> null;
+            };
+        }
+        /** Step で BEGIN を (撃ち直して) 送るか。 */
+        static boolean sends(Step step) {
+            return step == Step.SEND || step == Step.RETRY;
         }
         /** スロットにあるその upload だけを外す。別操作・済み操作への遅延到着は no-op。 */
         boolean clearIfCurrent(Upload u) {

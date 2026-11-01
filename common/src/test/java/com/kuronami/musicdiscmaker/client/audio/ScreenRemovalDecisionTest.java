@@ -1,6 +1,8 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -34,5 +36,19 @@ class ScreenRemovalDecisionTest {
         assertFalse(LocalImportDecisions.cancelAborts(maker, otherMaker, maker)); // 古い画面は開いたまま
         assertTrue(LocalImportDecisions.cancelAborts(maker, otherMaker, otherMaker)); // 新しい製作機を開いた
         assertTrue(LocalImportDecisions.cancelAborts(maker, otherMaker, null));
+    }
+
+    @Test
+    void tickStepsMapToActions() {
+        assertEquals("select", LocalAudioClient.Session.abortStatus(LocalAudioClient.Session.Step.ABORT));
+        assertEquals("busy", LocalAudioClient.Session.abortStatus(LocalAudioClient.Session.Step.GIVE_UP));
+        assertNull(LocalAudioClient.Session.abortStatus(LocalAudioClient.Session.Step.SEND));
+        assertNull(LocalAudioClient.Session.abortStatus(LocalAudioClient.Session.Step.RETRY));
+        assertNull(LocalAudioClient.Session.abortStatus(LocalAudioClient.Session.Step.NONE));
+        assertTrue(LocalAudioClient.Session.sends(LocalAudioClient.Session.Step.SEND));
+        assertTrue(LocalAudioClient.Session.sends(LocalAudioClient.Session.Step.RETRY));
+        assertFalse(LocalAudioClient.Session.sends(LocalAudioClient.Session.Step.ABORT));
+        assertFalse(LocalAudioClient.Session.sends(LocalAudioClient.Session.Step.GIVE_UP));
+        assertFalse(LocalAudioClient.Session.sends(LocalAudioClient.Session.Step.NONE));
     }
 }
