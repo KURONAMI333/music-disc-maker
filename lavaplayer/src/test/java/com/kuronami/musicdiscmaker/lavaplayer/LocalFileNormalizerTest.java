@@ -256,7 +256,7 @@ class LocalFileNormalizerTest {
 
         final TrackInfo info = new LocalFileNormalizer(loader, cap,
                 LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                () -> new OpusEncoder(48_000, 1, 64_000), () -> {}).normalize(input, output);
+                bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, output);
 
         assertNotNull(info);
         assertTrue(Files.isRegularFile(output));
@@ -264,6 +264,77 @@ class LocalFileNormalizerTest {
         assertTrue(info.durationMs() > 0L);
         assertTrue(info.durationMs() < 55_000L, "60秒入力が cap で短くなっている: " + info);
         assertAudioOnlyDecodableOutput(loader, output, info.durationMs());
+    }
+
+    // ==== 尺から選ぶ bitrate (長い曲を「尺超過」で失敗させない) ====
+
+    /** 短い曲は既定の 64kbps のまま (品質を落とさない)。 */
+    @Test
+    void keepsTheDefaultBitrateForAShortTrack() {
+        assertEquals(64_000, LocalFileNormalizer.bitrateFor(3L * 60_000L,
+                LocalFileNormalizer.MAX_OUTPUT_BYTES));
+    }
+
+    /** 中くらいの長さは下限と既定の間へ下がる (いきなり下限へ落とさない)。 */
+    @Test
+    void lowersBitrateGraduallyForLongTracks() {
+        final int bitrate = LocalFileNormalizer.bitrateFor(90L * 60_000L,
+                LocalFileNormalizer.MAX_OUTPUT_BYTES);
+
+        assertTrue(bitrate < 64_000, "90 分でも既定のまま: " + bitrate);
+        assertTrue(bitrate > LocalFileNormalizer.MIN_OPUS_BITRATE,
+                "90 分で下限まで落ちている: " + bitrate);
+    }
+
+    /** 上限尺 (2 時間) は下限 bitrate でも 32MiB に収まる — 尺を理由に失敗させない。 */
+    @Test
+    void theLongestAllowedTrackFitsAtTheFloor() {
+        final int bitrate = LocalFileNormalizer.bitrateFor(
+                LocalFileNormalizer.MAX_DECLARED_DURATION_MS,
+                LocalFileNormalizer.MAX_OUTPUT_BYTES);
+        assertEquals(LocalFileNormalizer.MIN_OPUS_BITRATE, bitrate);
+
+        final long estimated = LocalFileNormalizer.MAX_DECLARED_DURATION_MS / 1_000L
+                * (bitrate + LocalFileNormalizer.CONTAINER_BPS) / 8L;
+        assertTrue(estimated < LocalFileNormalizer.MAX_OUTPUT_BYTES,
+                "2 時間が 32MiB を超えている: " + estimated);
+    }
+
+    /** 下限を割らない (これ以上下げても尺は伸びず、劣化だけが増える)。 */
+    @Test
+    void neverGoesBelowTheFloor() {
+        assertEquals(LocalFileNormalizer.MIN_OPUS_BITRATE,
+                LocalFileNormalizer.bitrateFor(10L * 60L * 60_000L,
+                        LocalFileNormalizer.MAX_OUTPUT_BYTES));
+    }
+
+    /** 尺が分からない入力は上限尺を仮定して下限側に置く (実 packet の見積が別に効く)。 */
+    @Test
+    void assumesTheLongestTrackWhenTheLengthIsUnknown() {
+        assertEquals(LocalFileNormalizer.MIN_OPUS_BITRATE,
+                LocalFileNormalizer.bitrateFor(0L, LocalFileNormalizer.MAX_OUTPUT_BYTES));
+        assertEquals(LocalFileNormalizer.MIN_OPUS_BITRATE,
+                LocalFileNormalizer.bitrateFor(Long.MAX_VALUE,
+                        LocalFileNormalizer.MAX_OUTPUT_BYTES));
+    }
+
+    /** 選んだ bitrate が実際に encoder へ渡る (尺 → bitrate → encode の配線)。 */
+    @Test
+    void createsTheEncoderWithTheBitrateChosenFromTheLength() throws Exception {
+        final Path input = write("long.wav", TrustedLocalFileTest.toneWav(480_000)); // 60秒@8kHz
+        final Path output = tempDir.resolve("lowered.mka");
+        final MusicLoaderImpl loader = new MusicLoaderImpl();
+        final long cap = 64L * 1024L;
+        final AtomicReference<Integer> used = new AtomicReference<>();
+
+        new LocalFileNormalizer(loader, cap, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                bitrate -> {
+                    used.set(bitrate);
+                    return new OpusEncoder(48_000, 1, bitrate);
+                }, () -> {}).normalize(input, output);
+
+        assertEquals(Integer.valueOf(LocalFileNormalizer.MIN_OPUS_BITRATE), used.get(),
+                "この入力と cap では下限まで下がるべき");
     }
 
     // ==== 明示失敗 ====
@@ -362,11 +433,11 @@ class LocalFileNormalizerTest {
         assertNoTempLeft();
     }
 
-    /** 宣言尺が 60 分超の入力は decode 前に明示失敗する。 */
+    /** 宣言尺が 2 時間超の入力は decode 前に明示失敗する。 */
     @Test
     void failsForDeclaredDurationOverTheLimit() throws Exception {
         final Path input = write("too-long.mka",
-                TrustedLocalFileTest.minimalMka(61.0 * 60_000.0, "t", "a"));
+                TrustedLocalFileTest.minimalMka(121.0 * 60_000.0, "t", "a"));
         final Path output = tempDir.resolve("out.mka");
         final MusicLoaderImpl loader = new MusicLoaderImpl();
 
@@ -437,7 +508,7 @@ class LocalFileNormalizerTest {
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES,
                         LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                        () -> {
+                        bitrate -> {
                             throw new UnsatisfiedLinkError("no opus natives");
                         }, () -> {}).normalize(input, output));
         assertTrue(ex.detail().contains("opus encoder"), ex.detail());
@@ -473,7 +544,7 @@ class LocalFileNormalizerTest {
 
         final TrackInfo info = new LocalFileNormalizer(loader,
                 LocalFileNormalizer.MAX_OUTPUT_BYTES, capNs,
-                () -> new OpusEncoder(48_000, 1, 64_000), () -> {}).normalize(input, output);
+                bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, output);
 
         assertNotNull(info);
         assertEquals(1_200L, info.durationMs(), "cap ちょうどの尺に揃う: " + info);
@@ -490,13 +561,13 @@ class LocalFileNormalizerTest {
         final Path exact = tempDir.resolve("exact.mka");
         final TrackInfo exactInfo = new LocalFileNormalizer(loader,
                 LocalFileNormalizer.MAX_OUTPUT_BYTES, 1_200_000_000L,
-                () -> new OpusEncoder(48_000, 1, 64_000), () -> {}).normalize(input, exact);
+                bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, exact);
         assertEquals(1_200L, exactInfo.durationMs(), "cap と一致する入力は全 frame が入る: " + exactInfo);
 
         final Path shortCap = tempDir.resolve("short-cap.mka");
         final TrackInfo shortInfo = new LocalFileNormalizer(loader,
                 LocalFileNormalizer.MAX_OUTPUT_BYTES, 1_180_000_000L, // 59 frame
-                () -> new OpusEncoder(48_000, 1, 64_000), () -> {}).normalize(input, shortCap);
+                bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, shortCap);
         assertEquals(1_180L, shortInfo.durationMs(), "cap-1frame で打ち切る: " + shortInfo);
         assertNoTempLeft();
     }
@@ -511,7 +582,7 @@ class LocalFileNormalizerTest {
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES,
                         10_000_000L, // 10ms < 1 frame (20ms)
-                        () -> new OpusEncoder(48_000, 1, 64_000), () -> {}).normalize(input, output));
+                        bitrate -> new OpusEncoder(48_000, 1, bitrate), () -> {}).normalize(input, output));
         assertTrue(ex.detail().contains("no decodable audio"), ex.detail());
         assertFalse(Files.exists(output));
         assertNoTempLeft();
@@ -534,7 +605,7 @@ class LocalFileNormalizerTest {
         final ResolveException ex = assertThrows(ResolveException.class,
                 () -> new LocalFileNormalizer(loader, LocalFileNormalizer.MAX_OUTPUT_BYTES,
                         LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
-                        () -> new OpusEncoder(48_000, 1, 64_000),
+                        bitrate -> new OpusEncoder(48_000, 1, bitrate),
                         () -> {
                             try {
                                 Files.write(output, foreign); // 発行直前に同名を出す

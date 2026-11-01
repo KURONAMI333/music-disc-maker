@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.IntFunction;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,12 +37,17 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
  * 超えないよう監視し、超える直前で encode を打ち切る (長い入力は先頭から
  * 32MiB 分の音声として成功する)。同じく encode した実尺が
  * {@link #MAX_OUTPUT_DURATION_NS} に達する直前でも打ち切る — 宣言尺が取れない
- * 入力や宣言尺を偽装した入力でも、出力は 60 分を超えない (硬い上限)。
+ * 入力や宣言尺を偽装した入力でも、出力は 2 時間を超えない (硬い上限)。
  * 呼び出しスレッドの interrupt を各反復で観測し、中断時は encoder close・
  * temp 削除を保証した上で明示失敗にする。
  *
+ * <p><b>尺と bitrate</b>: 長い曲を「尺の上限超過」で失敗させない。宣言尺から
+ * 32MiB に収まる bitrate を選び ({@link #bitrateFor})、下限
+ * {@link #MIN_OPUS_BITRATE} まで下げても収まらない尺だけを
+ * {@link #MAX_DECLARED_DURATION_MS} で失敗にする。
+ *
  * <p><b>明示失敗</b>: 入力が読めない/大きすぎる、container が decode 不能、
- * 宣言尺が 60 分超、再生中の decode 失敗、音声 0 frame、encoder の native 不在、
+ * 宣言尺が 2 時間超、再生中の decode 失敗、音声 0 frame、encoder の native 不在、
  * 生成物の検証不合格、置換しない発行 (hard link) が使えない FS、発行時に
  * {@code output} が既に存在した競合。失敗時は {@code output} を作らず
  * 一時ファイルも残さない。
@@ -53,9 +58,13 @@ final class LocalFileNormalizer {
 
     /** 生成物の上限。保存契約 (32MiB) と同じ値。エンコード中に打ち切るので実ファイルは常に内側。 */
     static final long MAX_OUTPUT_BYTES = 32L * 1024 * 1024;
-    /** 宣言尺が分かる入力の上限 (設計 §8)。分からない/偽装された入力は encode 側の実尺上限が効く。 */
-    static final long MAX_DECLARED_DURATION_MS = 60L * 60_000L;
-    /** 生成物の尺上限 (ns)。宣言尺と同じ 60 分を encode した実尺側でも強制する。 */
+    /**
+     * 宣言尺が分かる入力の上限。下限 bitrate ({@link #MIN_OPUS_BITRATE}) でも 32MiB に収まる尺で、
+     * 2 時間 × (32000 + {@link #CONTAINER_BPS}) / 8 ≈ 31.6MiB。ここを超える尺は
+     * bitrate を下げても入らないので失敗にする。分からない/偽装された入力は encode 側の実尺上限が効く。
+     */
+    static final long MAX_DECLARED_DURATION_MS = 2L * 60L * 60_000L;
+    /** 生成物の尺上限 (ns)。宣言尺と同じ 2 時間を encode した実尺側でも強制する。 */
     static final long MAX_OUTPUT_DURATION_NS = MAX_DECLARED_DURATION_MS * 1_000_000L;
     /** 入力ファイルの byte 上限 (設計 §8)。decode は streaming なので memory ではなく disk 問題を止める。 */
     static final long MAX_INPUT_BYTES = 2L * 1024 * 1024 * 1024;
@@ -64,8 +73,15 @@ final class LocalFileNormalizer {
     private static final int FRAME_SAMPLES = 960;
     private static final int FRAME_BYTES = FRAME_SAMPLES * 2;
     private static final long FRAME_NS = 20_000_000L;
-    /** encoder の bitrate。品質値は bitrate に不感なので固定 (設計 §6 実測)。 */
+    /** encoder の bitrate。品質値は bitrate に不感なので固定 (設計 §6 実測)。短い曲はこの値のまま。 */
     private static final int OPUS_BITRATE = 64_000;
+    /**
+     * 長い曲で下げる bitrate の下限。これ以下は 32MiB に収まる尺が伸びず、劣化だけが増える
+     * (2 時間はこの値で足りるので、下限を割る入力は尺の上限で失敗させる)。
+     */
+    static final int MIN_OPUS_BITRATE = 32_000;
+    /** 選んだ bitrate の実測が目標をわずかに上回る分の余裕。出力見積は実 packet で別に検査する。 */
+    private static final long OUTPUT_HEADROOM_PERCENT = 5L;
 
     /** 出力見積の固定分 (EBML header + Segment/Info/Tracks)。実測 ~250 byte に余裕を持たせる。 */
     private static final long ESTIMATE_FIXED_BYTES = 512L;
@@ -73,11 +89,13 @@ final class LocalFileNormalizer {
     private static final long ESTIMATE_PER_PACKET = 12L;
     /** cluster 1 個あたりの構造分 (Cluster element + Timestamp)。30 秒ごとに 1 個。 */
     private static final long ESTIMATE_PER_CLUSTER = 16L;
+    /** 尺から bitrate を選ぶ時のコンテナ分 (20ms ごとの構造 = {@link #ESTIMATE_PER_PACKET} × 50 個/秒 × 8 bit)。 */
+    static final long CONTAINER_BPS = ESTIMATE_PER_PACKET * 50L * 8L;
 
     private final MusicLoaderImpl loader;
     private final long maxOutputBytes;
     private final long maxDurationNs;
-    private final Supplier<OpusEncoder> encoderFactory;
+    private final IntFunction<OpusEncoder> encoderFactory;
     /** 発行直前に走る口 (試験が check→発行の窓への競合を注入する。製品は no-op)。 */
     private final Runnable beforePublish;
 
@@ -88,7 +106,7 @@ final class LocalFileNormalizer {
 
     /** 試験が出力上限・尺上限・encoder 生成・発行直前を差し替える口 (製品経路は上の ctor)。 */
     LocalFileNormalizer(MusicLoaderImpl loader, long maxOutputBytes, long maxDurationNs,
-            Supplier<OpusEncoder> encoderFactory, Runnable beforePublish) {
+            IntFunction<OpusEncoder> encoderFactory, Runnable beforePublish) {
         this.loader = loader;
         this.maxOutputBytes = maxOutputBytes;
         this.maxDurationNs = maxDurationNs;
@@ -96,8 +114,32 @@ final class LocalFileNormalizer {
         this.beforePublish = beforePublish;
     }
 
-    private static OpusEncoder newEncoder() {
-        return new OpusEncoder(MusicLoaderImpl.SAMPLE_RATE, MusicLoaderImpl.CHANNELS, OPUS_BITRATE);
+    private static OpusEncoder newEncoder(int bitrate) {
+        return new OpusEncoder(MusicLoaderImpl.SAMPLE_RATE, MusicLoaderImpl.CHANNELS, bitrate);
+    }
+
+    /**
+     * 宣言尺と出力上限から、出力が 32MiB に収まる Opus bitrate を選ぶ。
+     *
+     * <p>尺が短い入力は {@link #OPUS_BITRATE} のまま (品質を落とさない)。収まらない長さの時だけ
+     * 下げ、下限 {@link #MIN_OPUS_BITRATE} で止める。尺が分からない入力
+     * ({@code 0} / {@link Long#MAX_VALUE}) は上限尺を仮定して最も低い側に置く
+     * (encode 中は実 packet で出力見積を別に検査するので、外しても失敗はしない)。
+     */
+    static int bitrateFor(long durationMs, long maxBytes) {
+        final long ms = durationMs > 0L && durationMs != Long.MAX_VALUE
+                ? durationMs
+                : MAX_DECLARED_DURATION_MS;
+        final long budget = maxBytes - maxBytes * OUTPUT_HEADROOM_PERCENT / 100L
+                - ESTIMATE_FIXED_BYTES;
+        if (budget <= 0L) {
+            return MIN_OPUS_BITRATE;
+        }
+        final long allowed = budget * 8_000L / ms - CONTAINER_BPS;
+        if (allowed <= MIN_OPUS_BITRATE) {
+            return MIN_OPUS_BITRATE;
+        }
+        return (int) Math.min(allowed, OPUS_BITRATE);
     }
 
     /**
@@ -146,8 +188,6 @@ final class LocalFileNormalizer {
         IAudioSource source = null;
         AudioTrack track = null;
         try {
-            // native が無い環境ではここで明示失敗 (試行する前に input の stream を開かない)。
-            encoder = openEncoder();
             track = loadInputTrack(input);
             final long declaredMs = track.getInfo().length;
             if (declaredMs > 0L && declaredMs != Long.MAX_VALUE
@@ -155,6 +195,8 @@ final class LocalFileNormalizer {
                 throw new ResolveException(FailureReason.UNKNOWN,
                         "input exceeds the duration limit");
             }
+            // 宣言尺から bitrate を決めてから encoder を立てる (尺が長い曲だけ静かに下げる)。
+            encoder = openEncoder(bitrateFor(declaredMs, maxOutputBytes));
             source = loader.beginPlayback(track, 0L);
             track = null; // 再生側が所有するので close は source が担う
             final List<MkaWriter.OpusPacket> packets = encodePcm(source, encoder);
@@ -185,10 +227,13 @@ final class LocalFileNormalizer {
         }
     }
 
-    /** encoder を立てる。native 不在では理由つき失敗 (「読めないファイル」とは別の話)。 */
-    private OpusEncoder openEncoder() {
+    /**
+     * encoder を立てる。native 不在では理由つき失敗 (「読めないファイル」とは別の話)。
+     * ここへ来る時点で input は内容 probe 済みだが、再生 stream はまだ開いていない。
+     */
+    private OpusEncoder openEncoder(int bitrate) {
         try {
-            return encoderFactory.get();
+            return encoderFactory.apply(bitrate);
         } catch (final Throwable thrown) {
             LOGGER.warn("Opus encoder is unavailable", thrown);
             throw new ResolveException(FailureReason.UNKNOWN, "opus encoder is unavailable");
@@ -217,7 +262,7 @@ final class LocalFileNormalizer {
      * mono 48kHz PCM を pull しながら Opus packet へ encode する。出力見積が
      * {@link #maxOutputBytes} に達したら、または encode した尺が {@link #maxDurationNs} に
      * 達したら打ち切る (= 先頭から収まる分だけを持つ有界な成功)。尺側の打ち切りは
-     * 宣言尺を持たない/偽装した入力を 60 分以内へ収める硬い上限になる。
+     * 宣言尺を持たない/偽装した入力を 2 時間以内へ収める硬い上限になる。
      * interrupt・再生中の decode 失敗は明示失敗。
      */
     private List<MkaWriter.OpusPacket> encodePcm(IAudioSource source, OpusEncoder encoder) {
