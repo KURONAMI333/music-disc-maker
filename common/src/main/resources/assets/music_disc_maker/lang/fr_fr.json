@@ -125,7 +125,7 @@
   "gui.music_disc_maker.local.busy": "Transfert saturé ; réessayez",
   "gui.music_disc_maker.local.disc": "Disque vierge requis, sortie vide",
   "gui.music_disc_maker.local.import_failed": "Import impossible",
-  "gui.music_disc_maker.local.picker_unavailable": "Impossible d'ouvrir le sélecteur de fichiers",
+  "gui.music_disc_maker.local.picker_unavailable": "Sélecteur de fichiers indisponible. Déposez l'audio ici",
   "gui.music_disc_maker.local.download_failed": "Réception de l'audio impossible",
   "gui.music_disc_maker.local.quota": "Vos 256 Mio sont pleins",
   "gui.music_disc_maker.local.world_full": "Les 2 Gio du monde sont pleins",

@@ -125,7 +125,7 @@
   "gui.music_disc_maker.local.busy": "Envio ocupado; tente depois",
   "gui.music_disc_maker.local.disc": "Disco em branco e saída vazia",
   "gui.music_disc_maker.local.import_failed": "Falha ao importar",
-  "gui.music_disc_maker.local.picker_unavailable": "Não foi possível abrir o seletor de arquivos",
+  "gui.music_disc_maker.local.picker_unavailable": "Seletor de arquivos indisponível. Solte o áudio aqui",
   "gui.music_disc_maker.local.download_failed": "Falha ao receber o áudio",
   "gui.music_disc_maker.local.quota": "Seus 256 MiB estão cheios",
   "gui.music_disc_maker.local.world_full": "Os 2 GiB do mundo estão cheios",

@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -82,5 +83,32 @@ class LocalImportDecisionsPickerTest {
                 "a directory named like a backend must not count as an executable");
         assertTrue(LocalImportDecisions.isExecutableOnPath("kdialog", directory.toString()));
         assertFalse(LocalImportDecisions.isExecutableOnPath("missing", directory.toString()));
+    }
+
+    /** ドロップはフォルダも渡るので、最初の通常ファイルだけを使う。 */
+    @Test
+    void dropUsesTheFirstRegularFile(@TempDir Path directory) throws IOException {
+        final Path folder = Files.createDirectory(directory.resolve("Album"));
+        final Path first = Files.createFile(directory.resolve("first.mp3"));
+        final Path second = Files.createFile(directory.resolve("second.wav"));
+
+        assertEquals(first.toString(), LocalImportDecisions.firstDroppedFile(List.of(folder, first, second)));
+        assertEquals(first.toString(), LocalImportDecisions.firstDroppedFile(List.of(first, second)));
+    }
+
+    /** フォルダだけを落とした時は取込を始めない (取込中表示や失敗を出さない)。 */
+    @Test
+    void dropWithOnlyDirectoriesStartsNothing(@TempDir Path directory) throws IOException {
+        final Path folder = Files.createDirectory(directory.resolve("Album"));
+        assertNull(LocalImportDecisions.firstDroppedFile(List.of(folder)));
+        assertNull(LocalImportDecisions.firstDroppedFile(List.of()));
+        assertNull(LocalImportDecisions.firstDroppedFile(null));
+    }
+
+    /** 拡張子では弾かない。対応外の入力は内容で判定し、理由を画面へ出す経路に乗せる。 */
+    @Test
+    void dropDoesNotFilterByExtension(@TempDir Path directory) throws IOException {
+        final Path odd = Files.createFile(directory.resolve("recording.bin"));
+        assertEquals(odd.toString(), LocalImportDecisions.firstDroppedFile(List.of(odd)));
     }
 }

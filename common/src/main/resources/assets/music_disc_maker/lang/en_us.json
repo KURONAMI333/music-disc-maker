@@ -139,7 +139,7 @@
   "gui.music_disc_maker.local.busy": "Audio transfer busy; try again",
   "gui.music_disc_maker.local.disc": "Insert a Blank Disc; clear output",
   "gui.music_disc_maker.local.import_failed": "File could not be imported",
-  "gui.music_disc_maker.local.picker_unavailable": "Could not open the file picker",
+  "gui.music_disc_maker.local.picker_unavailable": "File picker unavailable. Drop an audio file here.",
   "gui.music_disc_maker.local.download_failed": "Audio could not be received",
   "gui.music_disc_maker.local.quota": "Your 256 MiB audio storage is full",
   "gui.music_disc_maker.local.world_full": "This world's 2 GiB storage is full",

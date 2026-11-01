@@ -266,6 +266,25 @@ public final class LocalAudioClient {
         u.worker = worker;
         worker.start();
     }
+
+    /**
+     * 画面へドラッグ＆ドロップされたファイルから取込を始める。
+     *
+     * <p>OS のファイル選択画面を開かない経路なので、TinyFileDialogs や SDL のダイアログを
+     * 使えない Linux (Wayland だけの環境・zenity/kdialog 等が無い環境) でも取り込める。
+     * 前提は {@link #select} と同じで、取込中は何もしない (ダイアログを開けるかの判定
+     * {@code pickerUnusable} は通らない — ドロップはその判定に依存しない)。フォルダや
+     * 複数ドロップの扱いは {@link LocalImportDecisions#firstDroppedFile} が決める。
+     *
+     * @param menu    取込先の画面のメニュー
+     * @param dropped ドロップされたパス
+     */
+    public static void selectDropped(MusicDiscMakerMenu menu, List<Path> dropped) {
+        if (SESSION.upload != null) return;
+        final String selected = LocalImportDecisions.firstDroppedFile(dropped);
+        if (selected == null) return;
+        startSelected(menu, selected);
+    }
     /**
      * 選択ファイルを転送できる形へ整える (専用ワーカー上)。内容 probe が分岐を決める
      * — 拡張子は一切見ない:

@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.client.audio;
 import java.io.InterruptedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.function.Predicate;
 
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
@@ -142,6 +143,31 @@ final class LocalImportDecisions {
             }
         }
         return false;
+    }
+
+    /**
+     * 画面へドラッグ＆ドロップされた一覧から、取込に使う 1 本を選ぶ。
+     *
+     * <p>GLFW のドロップはフォルダも渡すので、フォルダは飛ばして最初の通常ファイルを使う。
+     * 複数落とされた時は 2 本目以降を無視する (取込は 1 本ずつ、取込中は受け付けない)。
+     * 拡張子では弾かない — 内容の判定は {@code LocalAudioClient#prepare} が行い、失敗理由を
+     * 画面へ出す。ここで絞ると、対応外の入力に理由が出ないまま無反応になる。
+     *
+     * @param dropped ドロップされたパス (OS が渡した順)
+     * @return 取込に使うパス文字列。通常ファイルが無ければ {@code null}
+     */
+    static String firstDroppedFile(List<? extends Path> dropped) {
+        if (dropped == null) return null;
+        for (Path path : dropped) {
+            if (path == null) continue;
+            try {
+                if (Files.isDirectory(path)) continue;
+            } catch (RuntimeException invalidPath) {
+                continue; // パスとして読めない要素は取込へ回さない
+            }
+            return path.toString();
+        }
+        return null;
     }
 
     private static boolean isBlank(String value) {

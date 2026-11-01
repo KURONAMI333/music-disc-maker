@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client;
 
+import java.nio.file.Path;
 import java.util.List;
 
 //? if >=1.21.11 {
@@ -165,10 +166,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                 topPos + MusicDiscMakerLayout.TOOL_Y,
                 Component.translatable("gui.music_disc_maker.local.select"),
                 "textures/gui/music_disc_maker/folder.png", () -> {
-                    if (LocalAudioClient.uploading()) return;
-                    leaveRename();
-                    urlField.setValue(""); commitUrl();
-                    LocalAudioClient.select(menu);
+                    if (clearForLocalImport()) LocalAudioClient.select(menu);
                 });
         this.folderButton.setTooltip(Tooltip.create(Component.translatable("gui.music_disc_maker.local.select")));
         addRenderableWidget(this.folderButton);
@@ -180,6 +178,30 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                     clearUrl();
                 });
         addRenderableWidget(this.clearButton);
+    }
+
+    /**
+     * ローカル取込の直前に URL 欄を空へ戻す (フォルダのボタンと画面へのドロップで共通)。
+     * 取込中は欄を触らず {@code false} を返す — 取込を重ねない。
+     *
+     * @return 取込を始めてよいなら {@code true}
+     */
+    private boolean clearForLocalImport() {
+        if (LocalAudioClient.uploading()) return false;
+        leaveRename();
+        urlField.setValue("");
+        commitUrl();
+        return true;
+    }
+
+    /**
+     * 画面へ音声ファイルをドロップした時の取込。OS のファイル選択画面を開かない経路で、
+     * リソースパック画面と同じ {@code Screen#onFilesDrop} (GLFW のドロップ通知) を使うので、
+     * ダイアログ実装の無い Linux でも全 OS と同じように働く。
+     */
+    @Override
+    public void onFilesDrop(List<Path> dropped) {
+        if (clearForLocalImport()) LocalAudioClient.selectDropped(menu, dropped);
     }
 
     private static boolean clipboardIsUrl() {

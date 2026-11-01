@@ -125,7 +125,7 @@
   "gui.music_disc_maker.local.busy": "Overdracht druk; probeer later",
   "gui.music_disc_maker.local.disc": "Leeg schijfje erin, uitvoer leeg",
   "gui.music_disc_maker.local.import_failed": "Importeren mislukt",
-  "gui.music_disc_maker.local.picker_unavailable": "Bestandskeuze kon niet worden geopend",
+  "gui.music_disc_maker.local.picker_unavailable": "Bestandskeuze niet beschikbaar. Sleep de audio hierheen",
   "gui.music_disc_maker.local.download_failed": "Audio niet ontvangen",
   "gui.music_disc_maker.local.quota": "Je 256 MiB is vol",
   "gui.music_disc_maker.local.world_full": "De 2 GiB van de wereld is vol",

@@ -7,7 +7,7 @@
 - Fixed a disc that was out of range, or playing with directional audio off, showing [MUTED] when no volume setting was actually muted.
 - Playback failures no longer appear in chat. The Golden Jukebox and Boombox screens show the reason where available, and the details stay in the log.
 - The Music Disc Maker recipe now appears in the recipe book once you have iron ingots or lapis lazuli, not only a Note Block.
-- On Linux without a graphical file dialog, choosing a local file now says that the file picker could not open instead of doing nothing.
+- On Linux without a graphical file dialog, you can now import a local audio file by dropping it onto the Music Disc Maker screen, which works without any dialog program.
 - With Sound Physics Remastered installed, custom discs playing at a position now go through its reverb and occlusion. The Records volume slider is unchanged.
 - Custom discs displayed on shelves no longer recalculate their color every frame, fixing FPS drops when many discs are in view.
 - SoundCloud links, and the search for another copy when YouTube blocks the server, play again. When SoundCloud only offers a preview of a track, or only a DRM-protected copy, the disc is made from the same song on YouTube or another SoundCloud upload instead.

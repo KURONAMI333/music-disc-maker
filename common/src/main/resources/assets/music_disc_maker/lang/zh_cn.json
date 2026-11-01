@@ -125,7 +125,7 @@
   "gui.music_disc_maker.local.busy": "传输繁忙，请稍后再试",
   "gui.music_disc_maker.local.disc": "请放入空白唱片并清空输出栏",
   "gui.music_disc_maker.local.import_failed": "无法导入文件",
-  "gui.music_disc_maker.local.picker_unavailable": "无法打开文件选择器",
+  "gui.music_disc_maker.local.picker_unavailable": "无法打开文件选择器。将音频文件拖放到这里",
   "gui.music_disc_maker.local.download_failed": "无法接收音频",
   "gui.music_disc_maker.local.quota": "256 MiB 个人空间已满",
   "gui.music_disc_maker.local.world_full": "世界的 2 GiB 空间已满",
