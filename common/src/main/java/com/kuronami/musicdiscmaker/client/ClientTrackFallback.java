@@ -7,6 +7,7 @@ import java.util.concurrent.Executors;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.block.ClientResolvedTrack;
 import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
+import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.TrackInfo;
 import com.kuronami.musicdiscmaker.network.ClientResolvedTrackPayload;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
@@ -46,6 +47,7 @@ public final class ClientTrackFallback {
 
     /**
      * 画面の tick から呼ぶ。server が「回線の都合」で失敗していて、まだ試していない時だけ引き直す。
+     * 単体ワールドのホストでは server と同じ回線なので何もしない ({@link #shouldRescue})。
      *
      * @param maker 画面が開いている製作機 (client 側の同期値)
      */
@@ -66,7 +68,8 @@ public final class ClientTrackFallback {
         }
         final String url = maker.getCurrentUrl();
         // server と同じ条件で絞る。client が取っても焼いてよい理由にならない失敗では動かない。
-        if (!ClientResolvedTrack.shouldAskClient(maker.getFailureReason(), url)) {
+        if (!shouldRescue(maker.getFailureReason(), url,
+                Minecraft.getInstance().hasSingleplayerServer())) {
             ATTEMPTS.release(pos);
             return;
         }
@@ -74,7 +77,32 @@ public final class ClientTrackFallback {
             return;
         }
         final BlockPos blockPos = maker.getBlockPos();
-        POOL.submit(() -> resolveAndSend(blockPos, url));
+        POOL.submit(() -> {
+            try {
+                resolveAndSend(blockPos, url);
+            } finally {
+                // 成功・失敗どちらでも終わりを記録する (次を試すまでの間隔はここから数える)。
+                // 途中で例外が出ても、記録が「取得中」のまま残って二度と試せなくなることはない。
+                ATTEMPTS.finish(blockPos.asLong(), url, System.currentTimeMillis());
+            }
+        });
+    }
+
+    /**
+     * この client が server の代わりに引き直すか (純粋関数)。
+     *
+     * <p>server が失敗する理由と URL の絞り込みは {@link ClientResolvedTrack#shouldAskClient} に任せ、
+     * ここでは「そもそも別の回線か」だけを足す。<b>単体ワールドでは server と client が同じ機械の
+     * 同じ回線なので、引き直しても server が失敗した理由は変わらない</b> (時間と回線を使うだけ)。
+     * LAN で他人のワールドに入っている時は client 側の回線が違うので、この判定は false にならない
+     * ({@code Minecraft#hasSingleplayerServer} はホスト側でだけ true)。
+     *
+     * @param reason       server が記録した失敗理由
+     * @param url          server が解決しようとした URL
+     * @param singleplayer この client がワールドのホストか (単体ワールドの持ち主)
+     */
+    static boolean shouldRescue(FailureReason reason, String url, boolean singleplayer) {
+        return !singleplayer && ClientResolvedTrack.shouldAskClient(reason, url);
     }
 
     private static void resolveAndSend(BlockPos pos, String url) {
@@ -86,7 +114,8 @@ public final class ClientTrackFallback {
             info = LoaderHolder.get().resolve(url);
         } catch (final Throwable failure) {
             // 取れなかっただけ。画面は server が付けた失敗理由を出し続ける。ここで記録を戻すと
-            // 画面が開いている間ずっと引き直すので、記録は時間切れ (ClientResolveAttempts) に任せる。
+            // 画面が開いている間ずっと引き直すので、記録は呼び出し側の finish と
+            // 間隔 (ClientResolveAttempts) に任せる。
             return;
         }
         if (info == null) {
