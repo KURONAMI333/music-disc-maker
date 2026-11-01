@@ -410,6 +410,32 @@ class PlaybackSubstituteTest {
                 ((MusicLoaderImpl.ListReadReference) reference).use);
     }
 
+    /**
+     * {@code scsearch:} / {@code bcsearch:} の解決も一覧を先頭 1 曲しか使わない。
+     *
+     * <p>以前は YouTube の検索接頭辞 ({@code ytsearch:} / {@code ytmsearch:}) だけで判定して
+     * いたため、SoundCloud・Bandcamp の検索は「一覧を丸ごと使う」と扱われ、読まない 2 件目
+     * 以降のために代わりを探す検索が積み上がっていた (1 曲 8 秒ぶん)。
+     */
+    @Test
+    void aSoundCloudOrBandcampSearchAlsoReadsOnlyTheFirstTrack() {
+        for (final String query : List.of(WATCH_SEARCH, BANDCAMP_SEARCH)) {
+            final FakeSource sources = new FakeSource(identifier -> identifier.equals(query)
+                    ? track("Rick Astley - Never Gonna Give You Up (Official Video)", "Rick Astley",
+                            213_000L, ALTERNATE)
+                    : AudioReference.NO_TRACK);
+
+            loader(sources).resolve(query);
+
+            assertEquals(1, sources.requests.size(), "検索が 1 回で終わっていない: " + sources.requests);
+            final AudioReference reference = sources.references.get(0);
+            assertTrue(reference instanceof MusicLoaderImpl.ListReadReference,
+                    "一覧の使い道が要求に載っていない: " + query);
+            assertEquals(MusicLoaderImpl.ListUse.FIRST_TRACK,
+                    ((MusicLoaderImpl.ListReadReference) reference).use, query);
+        }
+    }
+
     @Test
     void aSubstituteSearchDoesNotRefillItsOwnResult() {
         final Thread caller = Thread.currentThread();

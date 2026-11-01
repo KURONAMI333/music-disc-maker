@@ -105,6 +105,14 @@ public class MusicLoaderImpl implements IMusicLoader {
     private static final Pattern SC_HOST =
             Pattern.compile("(?i)^(?:https?://)?(?:www\\.|m\\.)?soundcloud\\.com/");
 
+    /**
+     * lavaplayer の検索接頭辞。解決の一覧を先頭 1 曲しか使わない相手 ({@link #isLavaSearch})。
+     * ここへ足すのは「一覧の 2 件目以降を読まない」接頭辞だけで、YouTube のやり直し集合
+     * ({@code YoutubeUrls}) とは別の役割。
+     */
+    private static final String[] LAVA_SEARCH_PREFIXES = {
+            "ytsearch:", "ytmsearch:", "scsearch:", "bcsearch:"};
+
     /** URL 1 本を解決する時の待ち上限。 */
     private static final long LOAD_TIMEOUT_MS = 30_000L;
 
@@ -483,11 +491,13 @@ public class MusicLoaderImpl implements IMusicLoader {
         final AudioTrack track;
         try {
             // 検索は先頭 1 曲しか使わない (下の playlistLoaded で get(0))。読まない 2 件目以降の
-            // ために代わりを探すと、1 曲 8 秒の検索が一覧の数だけ積み上がる。
+            // ために代わりを探すと、1 曲 8 秒の検索が一覧の数だけ積み上がる。接頭辞の判定は
+            // lavaplayer の検索全体 (ytsearch:/ytmsearch:/scsearch:/bcsearch:) で行う —
+            // YouTube だけを指す YoutubeUrls#isSearchQuery はやり直し集合用で、ここでは不足する。
             // 検索以外 (単曲) は、返る一覧を丸ごと使う前提で渡す。
             final String normalized = normalizeYoutubeUrl(url);
             track = loadTrackSync(normalized,
-                    isSearch(normalized) ? ListUse.FIRST_TRACK : ListUse.WHOLE_LIST);
+                    isLavaSearch(normalized) ? ListUse.FIRST_TRACK : ListUse.WHOLE_LIST);
         } catch (final ResolveException ex) {
             final TrackInfo substitute = ex instanceof UnplayableSoundCloudResolve soundCloud
                     ? substituteForSoundCloud(url, soundCloud.track)
@@ -1666,6 +1676,31 @@ public class MusicLoaderImpl implements IMusicLoader {
         return YoutubeUrls.isSearchQuery(url);
     }
 
+    /**
+     * lavaplayer の検索接頭辞か ({@code ytsearch:} / {@code ytmsearch:} / {@code scsearch:} /
+     * {@code bcsearch:})。<b>解決の一覧をどこまで使うか</b>を決める用途に限る。
+     *
+     * <h2>なぜ {@link YoutubeUrls#isSearchQuery} と分けるか</h2>
+     * 共有の述語は loader のやり直しと client のやり直しを同じ集合にするためのもので、
+     * <b>YouTube 側の答えで決まる相手</b>だけを指す ({@code scsearch:} を足すと、SoundCloud の
+     * 検索まで YouTube の visitorId 入れ替えで開き直す)。一方ここで要るのは「結果の一覧を
+     * 先頭 1 曲しか使わないか」で、こちらは SoundCloud・Bandcamp の検索も含む。
+     *
+     * <p>含めないと {@code scsearch:} の解決 (先頭しか読まない) が一覧の全件を対象に
+     * 埋め戻しを行い、読まない 2 曲目以降のために代わりを探す検索を積み上げる。
+     */
+    static boolean isLavaSearch(String url) {
+        if (url == null) {
+            return false;
+        }
+        for (final String prefix : LAVA_SEARCH_PREFIXES) {
+            if (url.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** YouTube を相手にする URL か (セッションの入れ替えが効く相手だけ再試行する)。 */
     static boolean isYoutubeTarget(String url) {
         return YoutubeUrls.isYoutube(url);
@@ -1746,9 +1781,10 @@ public class MusicLoaderImpl implements IMusicLoader {
             @Override
             public void playlistLoaded(AudioPlaylist playlist) {
                 AudioTrack selected = playlist.getSelectedTrack();
-                // ytsearch/scsearch は候補列として返るので先頭を採る。通常URLで selected が無い
+                // 検索の一覧は候補列として返るので先頭を採る。通常URLで selected が無い
                 // AudioPlaylist は純粋な再生リストであり、単曲盤へ黙って先頭だけを焼かない。
-                if (selected == null && isSearch(url) && !playlist.getTracks().isEmpty()) {
+                // 判定は lavaplayer の検索接頭辞で行う (scsearch: も selectedTrack が無い)。
+                if (selected == null && isLavaSearch(url) && !playlist.getTracks().isEmpty()) {
                     selected = playlist.getTracks().get(0);
                 }
                 future.complete(selected);
