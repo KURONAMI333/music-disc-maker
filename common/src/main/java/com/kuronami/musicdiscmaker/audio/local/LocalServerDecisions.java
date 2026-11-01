@@ -17,4 +17,15 @@ final class LocalServerDecisions {
     static boolean recoverable(Throwable failure) {
         return !(failure instanceof VirtualMachineError);
     }
+
+    /**
+     * BEGIN の形式的な拒否理由。null なら通す。盤の有無 ("disc") と区別するのは、client が
+     * "disc" を「盤を入れれば通る」待ちとして扱うため。menu が無い (画面が閉じた・container のずれ) 時は
+     * 待っても通らないので "expired"、hash や size の不正は取込失敗として終える。
+     */
+    static String beginRejection(boolean menuPresent, String hash, long size, long limit) {
+        if (!menuPresent) return "expired";
+        if (hash == null || !hash.matches("[a-f0-9]{64}") || size <= 0 || size > limit) return "import_failed";
+        return null;
+    }
 }

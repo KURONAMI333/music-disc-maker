@@ -33,4 +33,15 @@ class LocalServerDecisionsTest {
         assertFalse(LocalServerDecisions.recoverable(new OutOfMemoryError()));
         assertFalse(LocalServerDecisions.recoverable(new StackOverflowError()));
     }
+
+    @Test
+    void beginRejectionsAreNotDiscWaits() {
+        String hash = "a".repeat(64);
+        assertNull(LocalServerDecisions.beginRejection(true, hash, 10, 100));
+        assertEquals("expired", LocalServerDecisions.beginRejection(false, hash, 10, 100));
+        assertEquals("import_failed", LocalServerDecisions.beginRejection(true, "xyz", 10, 100));
+        assertEquals("import_failed", LocalServerDecisions.beginRejection(true, null, 10, 100));
+        assertEquals("import_failed", LocalServerDecisions.beginRejection(true, hash, 0, 100));
+        assertEquals("import_failed", LocalServerDecisions.beginRejection(true, hash, 101, 100));
+    }
 }

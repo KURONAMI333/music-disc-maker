@@ -97,9 +97,8 @@ public final class LocalAudioServer {
     private static void begin(State s, LocalAudioPayload p, ServerPlayer player) {
         MusicDiscMakerMenu menu = maker(player, p.containerId());
         // 拒否は必ず client へ返す。黙って捨てると相手は transferring のまま残る。
-        if (menu == null || !p.hash().matches("[a-f0-9]{64}") || p.size() <= 0 || p.size() > FILE_LIMIT) {
-            error(player, p, "disc"); return;
-        }
+        String rejection = LocalServerDecisions.beginRejection(menu != null, p.hash(), p.size(), FILE_LIMIT);
+        if (rejection != null) { error(player, p, rejection); return; }
         if (s.uploads.size() >= 2 || s.uploads.containsKey(player.getUUID())) {
             error(player, p, "busy"); return;
         }
