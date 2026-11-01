@@ -420,6 +420,8 @@ public final class LocalAudioServer {
         //?}
         return false;
     }
+    /** 通知を記録した missing だけ別の name にする (wire の形は同じ)。旧 client は "missing" 以外を知らない。 */
+    private static String missingName(boolean recorded) { return recorded ? "missing_restorable" : "missing"; }
     private static void fetch(State s, LocalAudioPayload p, ServerPlayer player) {
         if (!authorized(s, player, p.hash())) { error(player, p, "missing"); return; }
         if (s.downloads.size() >= 4 || s.downloads.values().stream().anyMatch(d -> d.player == player && d.hash.equals(p.hash()))) {
@@ -427,14 +429,15 @@ public final class LocalAudioServer {
         }
         Download d = new Download(player, p.hash(), UUID.randomUUID(), p.id(), p.generation());
         s.downloads.put(d.id, d);
+        final boolean[] recorded = new boolean[1];
         s.io.execute(() -> {
             try {
                 s.open();
                 Path path = s.store.verified(d.hash);
-                if (path == null) { rememberMissing(s, player, d.hash); throw new IOException("Missing audio"); }
+                if (path == null) { rememberMissing(s, player, d.hash); recorded[0] = true; throw new IOException("Missing audio"); }
                 d.size = Files.size(path); d.input = Files.newInputStream(path);
                 sendData(s, d);
-            } catch (Throwable e) { closeDownload(s, d); s.server.execute(() -> error(player, p, "missing")); workerFailure(e); }
+            } catch (Throwable e) { closeDownload(s, d); s.server.execute(() -> error(player, p, missingName(recorded[0]))); workerFailure(e); }
         });
     }
     /** A cache hit is usable only while this world's verified original still exists. */
@@ -445,11 +448,12 @@ public final class LocalAudioServer {
         }
         Download d = new Download(player, p.hash(), UUID.randomUUID(), p.id(), p.generation());
         s.downloads.put(d.id, d);
+        final boolean[] recorded = new boolean[1];
         s.io.execute(() -> {
             try {
                 s.open();
                 Path path = s.store.verified(d.hash);
-                if (path == null) { rememberMissing(s, player, d.hash); throw new IOException("Missing audio"); }
+                if (path == null) { rememberMissing(s, player, d.hash); recorded[0] = true; throw new IOException("Missing audio"); }
                 long size = Files.size(path);
                 s.server.execute(() -> {
                     if (d.closed) return;
@@ -460,7 +464,7 @@ public final class LocalAudioServer {
                 });
             } catch (Throwable e) {
                 closeDownload(s, d);
-                s.server.execute(() -> error(player, p, "missing"));
+                s.server.execute(() -> error(player, p, missingName(recorded[0])));
                 workerFailure(e);
             }
         });

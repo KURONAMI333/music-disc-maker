@@ -571,6 +571,7 @@ public final class LocalAudioClient {
         final long connection = SESSION.connectionGeneration;
         final long deadline = System.currentTimeMillis() + BUSY_RETRY_DEADLINE_MS;
         long delay = 500L;
+        long missingWaitStart = 0L; // 0 = まだ missing の待ちに入っていない
         while (true) {
             // missing の答えと上げ直しの知らせが行き違わないよう、問い合わせの前に待ち札を置く。
             final CompletableFuture<Void> restored = RESTORE_WAITERS.computeIfAbsent(hash, k -> new CompletableFuture<>());
@@ -588,16 +589,27 @@ public final class LocalAudioClient {
                     }
                     // 原本がどこにも無い。別の player が上げ直せば AVAILABLE が来るので、
                     // 再生が現役の間だけ待って取り直す (待てなければ従来どおり missing で終える)。
-                    if (awaitRestored(restored, deadline, stillCurrent, connection)) continue;
+                    // 待つのは通知の記録がある name で、再生の現役判定がある経路だけ。待ちは開始から 60 秒まで。
+                    if (LocalRestoreDecisions.awaitsRestore(stillCurrent != null, missingName(e.getCause()))) {
+                        if (missingWaitStart == 0L) missingWaitStart = System.currentTimeMillis();
+                        final long until = LocalRestoreDecisions.restoreWaitDeadline(
+                                deadline, missingWaitStart, MISSING_WAIT_MS);
+                        if (awaitRestored(restored, until, stillCurrent, connection)) continue;
+                    }
                 }
                 if (!isBusy(e.getCause()) || connection != SESSION.connectionGeneration
                         || System.currentTimeMillis() + delay > deadline
                         || stillCurrent != null && !stillCurrent.getAsBoolean()) throw e;
+            } finally {
+                RESTORE_WAITERS.remove(hash, restored);
             }
             Thread.sleep(delay + ThreadLocalRandom.current().nextLong(delay / 2 + 1));
             delay = Math.min(delay * 2, 4_000L);
         }
     }
+
+    /** missing で他の player の上げ直しを待つ上限 (busy の待ちとは別)。 */
+    private static final long MISSING_WAIT_MS = 60_000L;
 
     /** missing で待たせている再生を、上げ直しの知らせで起こすための札 (hash ごと)。 */
     private static final java.util.concurrent.ConcurrentHashMap<String, CompletableFuture<Void>> RESTORE_WAITERS =
@@ -627,7 +639,12 @@ public final class LocalAudioClient {
 
     /** サーバーが「このワールドに原本が無い」と答えた時の名前。 */
     private static boolean isMissing(Throwable cause) {
-        return cause instanceof IOException io && "missing".equals(io.getMessage());
+        return cause instanceof IOException io && LocalRestoreDecisions.isMissingName(io.getMessage());
+    }
+
+    /** サーバーの error name ("missing" / 通知を記録した "missing_restorable")。 */
+    private static String missingName(Throwable cause) {
+        return cause instanceof IOException io ? io.getMessage() : null;
     }
 
     /**
@@ -878,6 +895,7 @@ public final class LocalAudioClient {
         for (Receive r : stale) { r.future.completeExceptionally(new IOException("Disconnected")); IO.execute(() -> abort(r)); }
         for (Restore r : List.copyOf(RESTORES.values())) { r.closed = true; IO.execute(() -> closeRestore(r)); }
         RESTORES.clear(); RESTORE_ATTEMPTS.clear();
+        RESTORE_WAITERS.clear();
         status = "select";
     }
     private static long now() { return System.nanoTime() / 1_000_000; }

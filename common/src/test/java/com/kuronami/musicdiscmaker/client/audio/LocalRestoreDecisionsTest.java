@@ -1,5 +1,6 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,5 +77,34 @@ class LocalRestoreDecisionsTest {
     void matchesTheRequestBeforeTheTransferStarts() {
         assertTrue(LocalRestoreDecisions.acceptsRestoreReply(false, null, REQUEST, REQUEST));
         assertFalse(LocalRestoreDecisions.acceptsRestoreReply(false, null, REQUEST, SERVER_ID));
+    }
+
+    /** 記録のある missing だけ待つ。旧サーバー・記録なしの "missing" は待たない。 */
+    @Test
+    void awaitsOnlyWhenTheServerRecordedTheNotice() {
+        assertTrue(LocalRestoreDecisions.awaitsRestore(true, "missing_restorable"));
+        assertFalse(LocalRestoreDecisions.awaitsRestore(true, "missing"));
+        assertFalse(LocalRestoreDecisions.awaitsRestore(true, "busy"));
+        assertFalse(LocalRestoreDecisions.awaitsRestore(true, null));
+    }
+
+    /** 再生の現役判定が無い経路 (停止しても待ちが解けない) は待たない。 */
+    @Test
+    void doesNotAwaitWithoutAStillCurrentCheck() {
+        assertFalse(LocalRestoreDecisions.awaitsRestore(false, "missing_restorable"));
+    }
+
+    @Test
+    void bothMissingNamesCountAsMissing() {
+        assertTrue(LocalRestoreDecisions.isMissingName("missing"));
+        assertTrue(LocalRestoreDecisions.isMissingName("missing_restorable"));
+        assertFalse(LocalRestoreDecisions.isMissingName("busy"));
+    }
+
+    /** missing の待ちは、全体の締切が遠くても待ち開始から上限で切る。 */
+    @Test
+    void capsTheMissingWaitFromItsOwnStart() {
+        assertEquals(1_000L + 60_000L, LocalRestoreDecisions.restoreWaitDeadline(1_000L + 120_000L, 1_000L, 60_000L));
+        assertEquals(30_000L, LocalRestoreDecisions.restoreWaitDeadline(30_000L, 1_000L, 60_000L));
     }
 }

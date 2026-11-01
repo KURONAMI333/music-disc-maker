@@ -55,5 +55,27 @@ final class LocalRestoreDecisions {
         return (transferId != null ? transferId : request).equals(packetId);
     }
 
+    /** 通知を記録した missing の name。旧サーバーは "missing" だけを返す。 */
+    static final String MISSING_RESTORABLE = "missing_restorable";
+
+    /** サーバーの error name が「原本が無い」か (記録の有無を問わない)。 */
+    static boolean isMissingName(String name) {
+        return "missing".equals(name) || MISSING_RESTORABLE.equals(name);
+    }
+
+    /**
+     * missing の後、他の player の上げ直しを待つか。
+     * 通知の記録がある name の時だけ待つ (旧サーバー・記録なしの "missing" は来ない AVAILABLE を待たない)。
+     * 再生の現役判定 (stillCurrent) が無い経路は、止めても待ちが解けないので待たない。
+     */
+    static boolean awaitsRestore(boolean hasStillCurrent, String name) {
+        return hasStillCurrent && MISSING_RESTORABLE.equals(name);
+    }
+
+    /** missing の待ちの締切。busy 用の全体締切と、待ち開始から数えた専用の上限の早い方。 */
+    static long restoreWaitDeadline(long overallDeadline, long waitStart, long maxWaitMs) {
+        return Math.min(overallDeadline, waitStart + maxWaitMs);
+    }
+
     private LocalRestoreDecisions() {}
 }
