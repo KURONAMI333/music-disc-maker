@@ -95,7 +95,10 @@ public final class LocalAudioClient {
             PICKERS.remove(picker.id);
             activePicker = null;
             picker.freeFilters();
-            status = LocalImportDecisions.failureStatus(failure);
+            // ダイアログ自体が開けなかった。ファイルの取込失敗ではないので、
+            // ダイアログ無し環境と同じ status へ寄せる。
+            MusicDiscMaker.LOGGER.warn("File picker failed ({})", failure.getClass().getSimpleName());
+            status = "picker_unavailable";
         }
     }
 
@@ -167,7 +170,7 @@ public final class LocalAudioClient {
                     || Minecraft.getInstance().player == null
                     || Minecraft.getInstance().player.containerMenu != menu) return;
             if (error) {
-                status = "import_failed";
+                status = "picker_unavailable";
             } else if (selected != null && SESSION.upload == null) {
                 startSelected(menu, selected);
             }
@@ -192,7 +195,7 @@ public final class LocalAudioClient {
         } catch (Throwable failure) {
             // 例外の message は jar のパス等を含み得るので、型名だけを残す。
             MusicDiscMaker.LOGGER.warn("File picker failed ({})", failure.getClass().getSimpleName());
-            status = "import_failed";
+            status = "picker_unavailable";
             return;
         }
         if (selected == null) {
