@@ -1163,36 +1163,14 @@ public final class ClientPlaybackManager {
         }
         //?} elif >=1.21.2 {
 /*        armFirstAudioDeadline(key, token, track, instance);
-        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
-            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
-            if (show != null) {
-                failures.record(key, show);
-                PlaybackFailureReport.report(track, show);
-            }
-        })) {
+        if (startVoice(key, token, track, instance, playback, speakerSet) != VoiceStart.ACCEPTED) {
             return;
-        }
-        sessions.engineAccepted(key);
-        if (playback instanceof SpeakerVoiceGroup group) {
-            // The accepted Golden master must exist before child branches can prefill/read PCM.
-            group.update(speakerSet);
         }
 */
         //?} elif >=1.21 {
 /*        armFirstAudioDeadline(key, token, track, instance);
-        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
-            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
-            if (show != null) {
-                failures.record(key, show);
-                PlaybackFailureReport.report(track, key, token, show);
-            }
-        })) {
-            return;
-         }
-         sessions.engineAccepted(key); // engine が受理した。拒否の記憶を捨てる唯一の点
-         if (playback instanceof SpeakerVoiceGroup group) {
-             // The accepted Golden master must exist before child streams prefill on every supported band.
-             group.update(speakerSet);
+         if (startVoice(key, token, track, instance, playback, speakerSet) != VoiceStart.ACCEPTED) {
+             return;
          }
          */
         //?} else {
@@ -1364,7 +1342,8 @@ public final class ClientPlaybackManager {
         final PlaybackFailure show = sessions.engineRejected(key, token, failure);
         if (show != null) {
             failures.record(key, show);
-            PlaybackFailureReport.report(track, show);
+            // 帯で 1 つの実装を共有するので、座標と世代を添える 4 引数版に揃える (ログ行だけの差)。
+            PlaybackFailureReport.report(track, key, token, show);
         }
     }
 
