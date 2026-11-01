@@ -73,4 +73,30 @@ class DiscWaitTest {
         // 画面がサーバーの close 等で閉じ、プレイヤーは別の menu (または無し) を開いている。
         assertEquals(LocalAudioClient.Session.Step.ABORT, session.tick(new Object(), new Object(), true, 0));
     }
+
+    @Test
+    void tickAfterCancelFiresNothing() {
+        LocalAudioClient.Session session = new LocalAudioClient.Session();
+        LocalAudioClient.Upload u = waiting(session);
+        u.busyRetry.onBusy(0);
+        session.clearIfCurrent(u); // × / close
+        assertEquals(LocalAudioClient.Session.Step.NONE, session.tick(null, null, true, 1_000));
+        assertEquals(LocalAudioClient.Session.Step.NONE, session.tick(null, null, true, 100_000));
+    }
+
+    @Test
+    void anotherScreenNeverFiresTheHeldImport() {
+        LocalAudioClient.Session session = new LocalAudioClient.Session();
+        waiting(session);
+        // 保持中の menu は開いたまま (中止はしない) だが、tick を呼んだのは別の画面。
+        assertEquals(LocalAudioClient.Session.Step.NONE, session.tick(null, new Object(), true, 0));
+    }
+
+    @Test
+    void staleConnectionNeverFires() {
+        LocalAudioClient.Session session = new LocalAudioClient.Session();
+        waiting(session);
+        session.connectionGeneration++; // 切断・再接続
+        assertEquals(LocalAudioClient.Session.Step.NONE, session.tick(null, null, true, 0));
+    }
 }
