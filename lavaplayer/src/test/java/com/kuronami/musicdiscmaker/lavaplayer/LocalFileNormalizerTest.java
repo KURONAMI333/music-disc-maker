@@ -896,6 +896,29 @@ class LocalFileNormalizerTest {
         assertFalse(Files.exists(temp), "発行済みの temp 名は外れる");
     }
 
+    /**
+     * 発行は成功したが temp を消せない (Windows で別プロセスが開いている等) でも、
+     * 保存済みの取込を失敗にしない。後片付けは呼出し側の finally に残る。
+     */
+    @Test
+    void publishSucceedsWhenTheTempCannotBeDeleted() throws Exception {
+        final Path temp = write("stage.bin", new byte[] {7, 8, 9});
+        final Path output = tempDir.resolve("locked-temp.mka");
+        final LocalFileNormalizer normalizer = new LocalFileNormalizer(new MusicLoaderImpl(),
+                LocalFileNormalizer.MAX_OUTPUT_BYTES, LocalFileNormalizer.MAX_OUTPUT_DURATION_NS,
+                rate -> new OpusEncoder(rate, 1, LocalFileNormalizer.OPUS_COMPLEXITY),
+                () -> {},
+                Files::createLink,
+                ignored -> {
+                    throw new IOException("in use");
+                });
+
+        normalizer.publish(temp, output);
+
+        assertArrayEquals(new byte[] {7, 8, 9}, Files.readAllBytes(output));
+        assertTrue(Files.exists(temp), "the injected deleter failed, so the temp name is still there");
+    }
+
     /** hard link を持たない FS では、既存が無いことを確かめて move で発行する。 */
     @Test
     void publishFallsBackToMoveWhenHardLinkIsUnavailable() throws Exception {

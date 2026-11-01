@@ -177,6 +177,12 @@ final class LocalFileNormalizer {
         void link(Path output, Path temp) throws IOException;
     }
 
+    /** 発行後の temp を消す口 (製品は {@link Files#delete})。 */
+    @FunctionalInterface
+    interface Deleter {
+        void delete(Path temp) throws IOException;
+    }
+
     private final MusicLoaderImpl loader;
     private final long maxOutputBytes;
     private final long maxDurationNs;
@@ -184,6 +190,7 @@ final class LocalFileNormalizer {
     /** 発行直前に走る口 (試験が check→発行の窓への競合を注入する。製品は no-op)。 */
     private final Runnable beforePublish;
     private final Linker linker;
+    private final Deleter deleter;
 
     LocalFileNormalizer(MusicLoaderImpl loader) {
         this(loader, MAX_OUTPUT_BYTES, MAX_OUTPUT_DURATION_NS, LocalFileNormalizer::newEncoder,
@@ -195,15 +202,26 @@ final class LocalFileNormalizer {
         this(loader, maxOutputBytes, maxDurationNs, encoderFactory, beforePublish, Files::createLink);
     }
 
-    /** 試験が出力上限・尺上限・encoder 生成・発行直前・link を差し替える口 (製品経路は上の ctor)。 */
+    /**
+     * 試験が出力上限・尺上限・encoder 生成・発行直前・link を差し替える口 (製品経路は上の ctor)。
+     */
     LocalFileNormalizer(MusicLoaderImpl loader, long maxOutputBytes, long maxDurationNs,
             IntFunction<OpusEncoder> encoderFactory, Runnable beforePublish, Linker linker) {
+        this(loader, maxOutputBytes, maxDurationNs, encoderFactory, beforePublish, linker,
+                Files::delete);
+    }
+
+    /** temp の削除も差し替える口 (発行成功後の削除失敗を試験する)。 */
+    LocalFileNormalizer(MusicLoaderImpl loader, long maxOutputBytes, long maxDurationNs,
+            IntFunction<OpusEncoder> encoderFactory, Runnable beforePublish, Linker linker,
+            Deleter deleter) {
         this.loader = loader;
         this.maxOutputBytes = maxOutputBytes;
         this.maxDurationNs = maxDurationNs;
         this.encoderFactory = encoderFactory;
         this.beforePublish = beforePublish;
         this.linker = linker;
+        this.deleter = deleter;
     }
 
     private static OpusEncoder newEncoder(int rate) {
@@ -673,6 +691,8 @@ final class LocalFileNormalizer {
      * 既存 output は従来どおり {@code output file already exists} として拒否する。
      *
      * <p>発行後の temp 名はここで外し、失敗時は呼出し側の finally も削除を試す。
+     * 削除の失敗は発行の失敗ではない — output は既に検証済みの内容を指しているので、
+     * ここで投げると「保存できた取込」を失敗と表示してしまう。
      */
     void publish(Path temp, Path output) throws IOException {
         beforePublish.run();
@@ -684,7 +704,12 @@ final class LocalFileNormalizer {
             moveWithoutReplacing(temp, output);
             return;
         }
-        Files.delete(temp);
+        try {
+            deleter.delete(temp);
+        } catch (final IOException ignored) {
+            // Windows で別プロセスが開いている等。finally の再削除と後片付けに任せる。
+            LOGGER.debug("Could not remove the normalized temp file {}", temp, ignored);
+        }
     }
 
     /** hard link が使えない FS 向けの代替発行。既存 output は置換しない。 */
