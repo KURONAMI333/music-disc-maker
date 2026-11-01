@@ -1362,11 +1362,15 @@ public final class ClientPlaybackManager {
             int retriesSoFar) {
         CompletableFuture.delayedExecutor(SOUND_ENGINE_RETRY_DELAY_MS, TimeUnit.MILLISECONDS)
                 .execute(() -> Minecraft.getInstance().execute(() -> {
-                    if (!sessions.isLive(key, token)) {
+                    if (!sessions.isLive(key, token) || sessions.activeVoice(key) != playback) {
                         return;
                     }
+                    // 最初の play が遅れて開栓していたら (KEEP_UNTIL_DEADLINE)、もう一度 play すると
+                    // 同じ instance が二重に登録され、片方の channel を誰も閉じなくなる。受理として扱う。
+                    final boolean openedLate =
+                            Minecraft.getInstance().getSoundManager().isActive(instance);
                     final PlaybackFailure[] rejected = new PlaybackFailure[1];
-                    if (SoundEngineAcceptance.start(instance,
+                    if (openedLate || SoundEngineAcceptance.start(instance,
                             SoundEngineAcceptance.KEEP_UNTIL_DEADLINE,
                             failure -> rejected[0] = failure)) {
                         sessions.engineAccepted(key);
