@@ -82,4 +82,18 @@ class LocalRestoreAdmissionTest {
             assertEquals(0L, store.reservedBytes(), "断ったのに枠が開いたまま");
         }
     }
+
+    /** 上げ直しが済んだら、同じ hash で missing と答えた他の player だけを、1 回ずつ取り出す。 */
+    @Test
+    void takesOnlyFreshWaitersForTheHash() {
+        final UUID fresh = UUID.randomUUID(), stale = UUID.randomUUID(), other = UUID.randomUUID();
+        final var missing = new java.util.HashMap<UUID, java.util.Map<String, Long>>();
+        missing.put(fresh, new java.util.HashMap<>(java.util.Map.of(HASH, 900L)));
+        missing.put(stale, new java.util.HashMap<>(java.util.Map.of(HASH, 0L)));
+        missing.put(other, new java.util.HashMap<>(java.util.Map.of("f".repeat(64), 900L)));
+        final var taken = LocalRestoreAdmission.takeWaiting(missing, HASH, 1000L, 500L);
+        assertEquals(java.util.List.of(fresh), taken);
+        assertTrue(LocalRestoreAdmission.takeWaiting(missing, HASH, 1000L, 500L).isEmpty(), "通知が 2 回出る");
+        assertTrue(missing.get(other).containsKey("f".repeat(64)), "別の hash の記録を消した");
+    }
 }

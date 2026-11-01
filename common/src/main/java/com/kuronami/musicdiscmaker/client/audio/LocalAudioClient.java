@@ -504,6 +504,12 @@ public final class LocalAudioClient {
             }
         }
         Receive r = SESSION.receive(p.hash());
+        if (p.operation() == LocalAudioPayload.AVAILABLE && r == null) {
+            // 他の player が原本を上げ直した知らせ。missing で待っている再生があれば起こす。
+            final CompletableFuture<Void> waiter = RESTORE_WAITERS.remove(p.hash());
+            if (waiter != null) waiter.complete(null);
+            return;
+        }
         if (p.operation() == LocalAudioPayload.AVAILABLE && r != null && r.cachedPath != null
                 && r.request.equals(p.id()) && p.generation() == r.request.getLeastSignificantBits()) {
             if (SESSION.removeReceive(p.hash(), r)) r.future.complete(r.cachedPath);
@@ -566,6 +572,8 @@ public final class LocalAudioClient {
         final long deadline = System.currentTimeMillis() + BUSY_RETRY_DEADLINE_MS;
         long delay = 500L;
         while (true) {
+            // missing の答えと上げ直しの知らせが行き違わないよう、問い合わせの前に待ち札を置く。
+            final CompletableFuture<Void> restored = RESTORE_WAITERS.computeIfAbsent(hash, k -> new CompletableFuture<>());
             try {
                 return obtainOnce(hash);
             } catch (ExecutionException e) {
@@ -578,6 +586,9 @@ public final class LocalAudioClient {
                                 "Server has no original for {}; playing the verified copy in the local cache", hash);
                         return cached;
                     }
+                    // 原本がどこにも無い。別の player が上げ直せば AVAILABLE が来るので、
+                    // 再生が現役の間だけ待って取り直す (待てなければ従来どおり missing で終える)。
+                    if (awaitRestored(restored, deadline, stillCurrent, connection)) continue;
                 }
                 if (!isBusy(e.getCause()) || connection != SESSION.connectionGeneration
                         || System.currentTimeMillis() + delay > deadline
@@ -586,6 +597,27 @@ public final class LocalAudioClient {
             Thread.sleep(delay + ThreadLocalRandom.current().nextLong(delay / 2 + 1));
             delay = Math.min(delay * 2, 4_000L);
         }
+    }
+
+    /** missing で待たせている再生を、上げ直しの知らせで起こすための札 (hash ごと)。 */
+    private static final java.util.concurrent.ConcurrentHashMap<String, CompletableFuture<Void>> RESTORE_WAITERS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 上げ直しの知らせを、この再生が現役で接続が同じ間だけ待つ。知らせが来たら true。 */
+    private static boolean awaitRestored(CompletableFuture<Void> restored, long deadline,
+            java.util.function.BooleanSupplier stillCurrent, long connection) throws InterruptedException {
+        while (System.currentTimeMillis() < deadline && connection == SESSION.connectionGeneration
+                && (stillCurrent == null || stillCurrent.getAsBoolean())) {
+            try {
+                restored.get(500, TimeUnit.MILLISECONDS);
+                return true;
+            } catch (java.util.concurrent.TimeoutException ignored) {
+                // 待ち続ける
+            } catch (ExecutionException e) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private static boolean isBusy(Throwable cause) {

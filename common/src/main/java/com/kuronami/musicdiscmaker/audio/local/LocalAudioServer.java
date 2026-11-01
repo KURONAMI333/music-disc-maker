@@ -236,7 +236,23 @@ public final class LocalAudioServer {
             s.restores.remove(r.player.getUUID(), r);
             if (connected(s, r.player)) send(r.player, LocalAudioPayload.control(LocalAudioPayload.DONE,
                     transferId, 0, 0, r.hash, r.size, r.size, "done"));
+            notifyRestored(s, r);
         });
+    }
+    /**
+     * 同じ hash で missing と答えた他の player へ、原本が戻ったことを AVAILABLE で知らせる。
+     * 受け取った client は、その hash の再生がまだ現役なら取り直す (client は missing の後しばらく待つ)。
+     */
+    private static void notifyRestored(State s, Restore r) {
+        final List<UUID> waiting;
+        synchronized (s) {
+            waiting = LocalRestoreAdmission.takeWaiting(s.missing, r.hash, now(), MISSING_NOTICE_TTL_MS);
+        }
+        for (UUID id : waiting) {
+            final ServerPlayer other = s.server.getPlayerList().getPlayer(id);
+            if (other != null && other != r.player) send(other, LocalAudioPayload.control(
+                    LocalAudioPayload.AVAILABLE, UUID.randomUUID(), 0, 0, r.hash, 0, r.size, ""));
+        }
     }
     private static void failRestore(State s, Restore r, UUID transferId, String reason) {
         discardRestore(s, r);

@@ -1,6 +1,9 @@
 package com.kuronami.musicdiscmaker.audio.local;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -40,6 +43,19 @@ final class LocalRestoreAdmission {
         // 記録が無い (古い・別の再生) ので受け入れない。開いた枠だけ閉じる。
         store.cancel(player, storeId);
         return null;
+    }
+
+    /**
+     * 上げ直しが済んだ hash について「原本が無い」と答えて待たせている player を取り出す (記録は消す)。
+     * TTL を過ぎた記録は通知せず捨てる。呼び出し側は同期して呼ぶ。
+     */
+    static List<UUID> takeWaiting(Map<UUID, Map<String, Long>> missing, String hash, long now, long ttlMs) {
+        final List<UUID> waiting = new ArrayList<>();
+        for (Map.Entry<UUID, Map<String, Long>> e : missing.entrySet()) {
+            final Long noticed = e.getValue().remove(hash);
+            if (noticed != null && now - noticed <= ttlMs) waiting.add(e.getKey());
+        }
+        return waiting;
     }
 
     private LocalRestoreAdmission() {}
