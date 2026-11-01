@@ -336,7 +336,10 @@ final class LocalFileNormalizer {
         }
     }
 
-    /** 入力の宣言尺 (ms)。分からない入力は {@code 0} / {@link Long#MAX_VALUE} のまま返す。 */
+    /**
+     * 入力を解決する。通常の probe が扱えない入力だけ直 decode を試し、どちらも駄目なら
+     * 通常経路の失敗理由をそのまま投げる。
+     */
     private PcmInput resolveInput(Path input) {
         try {
             return playerInput(input);
@@ -395,7 +398,7 @@ final class LocalFileNormalizer {
      * {@code null} を返し、呼び出し側は通常経路の失敗理由をそのまま使う。
      */
     private PcmInput directInput(Path input) {
-        return null;
+        return DirectInputs.open(input);
     }
 
     /**
