@@ -1,7 +1,9 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -59,6 +61,32 @@ class DeferredEngineRejectionTest {
         assertEquals(muted, sessions.engineRejected(KEY, token, muted),
                 "volume 0 cannot resolve itself late; the user must see it at once");
         assertNull(sessions.heldEngineRejection(KEY, token), "MUTED must not be deferred");
+    }
+
+    @Test
+    void aMutedReportIsNotFollowedByStreamUnavailableAtTheDeadline() {
+        final int token = sessions.start(KEY, SONG, 0L, 64, 100, true).token();
+        final PlaybackFailure muted = PlaybackFailure.soundMuted();
+
+        assertEquals(muted, sessions.engineRejected(KEY, token, muted));
+        assertTrue(sessions.mutedAlreadyReported(KEY, token),
+                "the reported generation is remembered so the deadline can stay quiet");
+        assertNull(sessions.firstAudioDeadlineFailure(KEY, token, PlaybackFailure.streamUnavailable()),
+                "the deadline must not stack a second reason on the same generation");
+    }
+
+    @Test
+    void aMutedReportDoesNotSilenceTheNextGeneration() {
+        final int first = sessions.start(KEY, SONG, 0L, 64, 100, true).token();
+        sessions.engineRejected(KEY, first, PlaybackFailure.soundMuted());
+        sessions.stop(KEY);
+
+        final int second = sessions.start(KEY, SONG, 0L, 64, 100, true).token();
+        assertFalse(sessions.mutedAlreadyReported(KEY, second),
+                "a new generation starts without the previous report");
+        assertEquals(PlaybackFailure.streamUnavailable(),
+                sessions.firstAudioDeadlineFailure(KEY, second, PlaybackFailure.streamUnavailable()),
+                "a fresh generation that stays silent is still reported");
     }
 
     @Test

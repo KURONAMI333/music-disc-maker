@@ -1255,6 +1255,12 @@ public final class ClientPlaybackManager {
             releaseOnFirstAudioDeadline(sessions, prefetch, key, false);
             return;
         }
+        if (sessions.mutedAlreadyReported(key, token)) {
+            // MUTED は報告済み。期限で「ストリームが届かない」に化けると、ミュートされただけの
+            // 再生へ誤った理由が付く。
+            releaseOnFirstAudioDeadline(sessions, prefetch, key, false);
+            return;
+        }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
         failures.record(key, show);
         // 報告の可否は stop より先に決める。releaseOnFirstAudioDeadline は stop(key) で世代を進めるので、
@@ -1420,6 +1426,12 @@ public final class ClientPlaybackManager {
             // 期限まで engine が開栓しなかった = 拒否は本当だった。理由は engine のものを使う。
             failures.record(key, rejected);
             PlaybackFailureReport.report(track, rejected);
+            sessions.stop(key);
+            return;
+        }
+        if (sessions.mutedAlreadyReported(key, token)) {
+            // MUTED は報告済み。期限で「ストリームが届かない」に化けると、ミュートされただけの
+            // 再生へ誤った理由が付く。
             sessions.stop(key);
             return;
         }

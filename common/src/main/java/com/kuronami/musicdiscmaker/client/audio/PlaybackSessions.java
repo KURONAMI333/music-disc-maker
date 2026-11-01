@@ -301,6 +301,15 @@ public final class PlaybackSessions<K> {
      * {@link #stop} でも忘れない — 停止と次の再生を挟んで繰り返される失敗こそ抑えたい相手。
      */
     private final PlaybackFailureNotices deadlineNotices = new PlaybackFailureNotices();
+    /**
+     * MUTED を報告済みの世代。MUTED はその場で返るので {@link #heldEngineRejections} に残らず、
+     * 音源は {@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE} のまま残る。期限で
+     * {@link #firstAudioDeadlineFailure} が別の理由 (STREAM_UNAVAILABLE) を積むと、同じ再生に
+     * 理由が 2 つ付く。同じ世代では期限の報告を抑える。
+     *
+     * <p>新しい世代 ({@link #stop} / {@link #abandon} / {@link #stopAll}) では捨てる。
+     */
+    private final Map<K, Integer> mutedReported = new ConcurrentHashMap<>();
 
     private final LongSupplier clockMs;
     private final LongSupplier monotonicMs;
@@ -500,6 +509,7 @@ public final class PlaybackSessions<K> {
             generations.invalidate(key);
             requests.remove(key);
             heldEngineRejections.remove(key);
+            mutedReported.remove(key);
         }
     }
 
@@ -561,7 +571,12 @@ public final class PlaybackSessions<K> {
             return null;
         }
         heldEngineRejections.remove(key);
-        return startNotices.shouldReport(key, failure) ? failure : null;
+        if (!startNotices.shouldReport(key, failure)) {
+            return null;
+        }
+        // この世代の期限で別の理由を重ねない (音源は期限まで残っている)。
+        mutedReported.put(key, token);
+        return failure;
     }
 
     /**
@@ -636,6 +651,9 @@ public final class PlaybackSessions<K> {
      * <p>ログ ({@code ClientPlaybackManager} の "No audio reached..." 行) はここでは抑止しない。
      * 切り分けには毎回の記録が要るので、黙らせるのはチャット向けの報告だけ。
      *
+     * <p>同じ世代で MUTED を報告済み ({@link #mutedAlreadyReported}) なら {@code null} を返す。
+     * 音源は期限まで残っているので、ここで別の理由を重ねると同じ再生に 2 つ付く。
+     *
      * @param key     再生の鍵 (金ジューク = jukebox の位置)
      * @param token   この再生の世代
      * @param failure 分類済みの失敗
@@ -646,7 +664,23 @@ public final class PlaybackSessions<K> {
         if (!isLive(key, token)) {
             return null; // 停止済み / 差し替え済みの再生の期限切れは出さない
         }
+        if (mutedAlreadyReported(key, token)) {
+            return null; // MUTED を出した世代。同じ再生に 2 つ目の理由を付けない
+        }
         return deadlineNotices.shouldReport(key, failure) ? failure : null;
+    }
+
+    /**
+     * この世代で MUTED を既に報告したか。期限の STREAM_UNAVAILABLE で同じ再生に 2 つ目の理由を
+     * 付けないための判定。
+     *
+     * @param key   再生の鍵
+     * @param token この再生の世代
+     * @return 同じ世代で MUTED を報告済みなら {@code true}
+     */
+    public boolean mutedAlreadyReported(K key, int token) {
+        final Integer reported = mutedReported.get(key);
+        return reported != null && reported == token;
     }
 
     /**
@@ -902,6 +936,7 @@ public final class PlaybackSessions<K> {
         loadOffsetMs.remove(key);
         pendingFailure.remove(key);
         heldEngineRejections.remove(key);
+        mutedReported.remove(key);
         notices.forget(key);
         final PlaybackVoice voice = active.remove(key);
         if (voice != null) {
@@ -930,6 +965,7 @@ public final class PlaybackSessions<K> {
         loadOffsetMs.clear();
         pendingFailure.clear();
         heldEngineRejections.clear();
+        mutedReported.clear();
         notices.forgetAll();
         startNotices.forgetAll();
         deadlineNotices.forgetAll();
