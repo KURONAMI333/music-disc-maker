@@ -132,7 +132,7 @@
   "gui.music_disc_maker.local.expired": "만료됨. 다시 선택하세요",
   "gui.music_disc_maker.local.unsupported": "오디오 없음 또는 미지원 형식",
   "gui.music_disc_maker.local.too_large": "파일이 너무 큽니다",
-  "gui.music_disc_maker.local.too_long": "60분을 넘는 오디오입니다",
+  "gui.music_disc_maker.local.too_long": "2시간을 넘는 오디오입니다",
   "gui.music_disc_maker.local.unavailable": "오디오 변환을 쓸 수 없음",
   "gui.music_disc_maker.local.picker_title": "오디오 또는 동영상 파일 선택",
   "gui.music_disc_maker.local.filter_desc": "오디오/동영상 파일",

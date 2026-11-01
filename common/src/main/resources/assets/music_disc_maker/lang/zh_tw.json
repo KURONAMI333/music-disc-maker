@@ -132,7 +132,7 @@
   "gui.music_disc_maker.local.expired": "已逾期，請重新選擇",
   "gui.music_disc_maker.local.unsupported": "沒有音訊或格式不支援",
   "gui.music_disc_maker.local.too_large": "檔案過大",
-  "gui.music_disc_maker.local.too_long": "音訊超過 60 分鐘",
+  "gui.music_disc_maker.local.too_long": "音訊超過 2 小時",
   "gui.music_disc_maker.local.unavailable": "無法轉換音訊",
   "gui.music_disc_maker.local.picker_title": "選擇音訊或影片檔案",
   "gui.music_disc_maker.local.filter_desc": "音訊/影片檔案",

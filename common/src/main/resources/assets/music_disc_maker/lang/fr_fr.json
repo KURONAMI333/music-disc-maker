@@ -132,7 +132,7 @@
   "gui.music_disc_maker.local.expired": "Expiré ; rechoisissez le fichier",
   "gui.music_disc_maker.local.unsupported": "Pas d'audio ou format inconnu",
   "gui.music_disc_maker.local.too_large": "Fichier trop volumineux",
-  "gui.music_disc_maker.local.too_long": "L'audio dépasse 60 minutes",
+  "gui.music_disc_maker.local.too_long": "L'audio dépasse 2 heures",
   "gui.music_disc_maker.local.unavailable": "Conversion audio indisponible",
   "gui.music_disc_maker.local.picker_title": "Choisir un fichier audio ou vidéo",
   "gui.music_disc_maker.local.filter_desc": "Fichiers audio/vidéo",

@@ -132,7 +132,7 @@
   "gui.music_disc_maker.local.expired": "Verlopen; kies opnieuw",
   "gui.music_disc_maker.local.unsupported": "Geen audio of onbekend formaat",
   "gui.music_disc_maker.local.too_large": "Bestand is te groot",
-  "gui.music_disc_maker.local.too_long": "Langer dan 60 minuten",
+  "gui.music_disc_maker.local.too_long": "Langer dan 2 uur",
   "gui.music_disc_maker.local.unavailable": "Omzetten niet beschikbaar",
   "gui.music_disc_maker.local.picker_title": "Kies een audio- of videobestand",
   "gui.music_disc_maker.local.filter_desc": "Audio-/videobestanden",

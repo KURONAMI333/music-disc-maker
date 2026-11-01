@@ -146,7 +146,7 @@
   "gui.music_disc_maker.local.expired": "期限切れです。選び直してください",
   "gui.music_disc_maker.local.unsupported": "音声が無いか、非対応の形式です",
   "gui.music_disc_maker.local.too_large": "ファイルが大きすぎて取り込めません",
-  "gui.music_disc_maker.local.too_long": "60分を超えるため取り込めません",
+  "gui.music_disc_maker.local.too_long": "2時間を超えるため取り込めません",
   "gui.music_disc_maker.local.unavailable": "この環境では音声変換を利用できません",
   "gui.music_disc_maker.local.picker_title": "音声・動画ファイルを選択",
   "gui.music_disc_maker.local.filter_desc": "音声・動画ファイル",

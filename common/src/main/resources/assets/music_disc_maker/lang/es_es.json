@@ -132,7 +132,7 @@
   "gui.music_disc_maker.local.expired": "Caducado; elige otra vez",
   "gui.music_disc_maker.local.unsupported": "Sin audio o formato no válido",
   "gui.music_disc_maker.local.too_large": "Archivo demasiado grande",
-  "gui.music_disc_maker.local.too_long": "Dura más de 60 minutos",
+  "gui.music_disc_maker.local.too_long": "Dura más de 2 horas",
   "gui.music_disc_maker.local.unavailable": "Conversión no disponible",
   "gui.music_disc_maker.local.picker_title": "Elige un archivo de audio o vídeo",
   "gui.music_disc_maker.local.filter_desc": "Archivos de audio/vídeo",

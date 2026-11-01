@@ -132,7 +132,7 @@
   "gui.music_disc_maker.local.expired": "Истекло; выберите снова",
   "gui.music_disc_maker.local.unsupported": "Нет звука или не тот формат",
   "gui.music_disc_maker.local.too_large": "Файл слишком большой",
-  "gui.music_disc_maker.local.too_long": "Длиннее 60 минут",
+  "gui.music_disc_maker.local.too_long": "Длиннее 2 часов",
   "gui.music_disc_maker.local.unavailable": "Конвертация недоступна",
   "gui.music_disc_maker.local.picker_title": "Выберите аудио- или видеофайл",
   "gui.music_disc_maker.local.filter_desc": "Аудио- и видеофайлы",

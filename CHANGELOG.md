@@ -11,6 +11,11 @@
 - With Sound Physics Remastered installed, custom discs playing at a position now go through its reverb and occlusion. The Records volume slider is unchanged.
 - Custom discs displayed on shelves no longer recalculate their color every frame, fixing FPS drops when many discs are in view.
 - SoundCloud links, and the search for another copy when YouTube blocks the server, play again. When SoundCloud only offers a preview of a track, or only a DRM-protected copy, the disc is made from the same song on YouTube or another SoundCloud upload instead.
+- A disc whose link stops working later (made private, region-locked, age-restricted, or blocked for one player) now plays the same song from another source instead of failing.
+- When YouTube briefly refuses a player, the disc keeps trying for up to 30 seconds and then plays, instead of failing on the first refusal.
+- When YouTube blocks the server and no other copy of the song is found, the disc is now made from the link as entered, using the details the player's own game reads from YouTube.
+- Local audio files can now be up to 2 hours long. Files over about 77 minutes are stored at a lower sample rate so they still fit in 32 MiB.
+- A search whose first result is a SoundCloud preview, and a SoundCloud track with no artist or title, now look for the same song elsewhere. A Spotify page that fails to load is tried again.
 
 Use the same Music Disc Maker version on the server and all clients.
 

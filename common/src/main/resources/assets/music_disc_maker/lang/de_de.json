@@ -132,7 +132,7 @@
   "gui.music_disc_maker.local.expired": "Abgelaufen; Datei neu wählen",
   "gui.music_disc_maker.local.unsupported": "Kein lesbarer Ton",
   "gui.music_disc_maker.local.too_large": "Datei ist zu groß",
-  "gui.music_disc_maker.local.too_long": "Ton ist länger als 60 Minuten",
+  "gui.music_disc_maker.local.too_long": "Ton ist länger als 2 Stunden",
   "gui.music_disc_maker.local.unavailable": "Tonumwandlung nicht verfügbar",
   "gui.music_disc_maker.local.picker_title": "Audio- oder Videodatei wählen",
   "gui.music_disc_maker.local.filter_desc": "Audio-/Videodateien",
