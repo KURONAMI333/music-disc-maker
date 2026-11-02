@@ -285,6 +285,28 @@ public final class OversizeMediaRecoveryGameTests {
         helper.succeed();
     }
 
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8")
+    *///?}
+    public static void openAfterReductionKeepsEveryDisc(GameTestHelper helper) {
+        final FakePlayer player = player(helper);
+        final ItemStack album = oversizedAlbum(200);
+        player.setItemInHand(InteractionHand.MAIN_HAND, album);
+        final AlbumStorageBudget.Result sync = AlbumMenu.inspectInitialMenuSync(player.getInventory(),
+                BoomboxSource.held(InteractionHand.MAIN_HAND));
+        helper.assertTrue(!sync.fits(), "過大Album fixtureが初回同期拒否域に入っていない");
+        helper.assertTrue(OversizeMediaRecovery.openAfterReduction(player, sync, album),
+                "容量超過のAlbumを縮めて開けなかった");
+        helper.assertTrue(ordered(AlbumItem.contents(album), 202, 203),
+                "収まる分として保存順の末尾が残っていない");
+        final List<String> returned = returnedDiscTitles(player, helper);
+        returned.sort(String::compareTo);
+        helper.assertTrue(returned.equals(List.of("track-200", "track-201")),
+                "外した盤が持ち物にも足元にも無い/重複している: " + returned);
+        helper.succeed();
+    }
+
     private static final class ThrowingBoombox extends BoomboxBlockEntity {
         boolean armed;
         boolean reached;
@@ -385,5 +407,27 @@ public final class OversizeMediaRecoveryGameTests {
 
     private static boolean orderedStacks(List<ItemStack> stacks, int... ids) {
         return ordered(new AlbumContents(stacks), ids);
+    }
+
+    /** 外した盤が持ち物か足元のどちらかに存在する時、その表示名を集める。 */
+    private static List<String> returnedDiscTitles(FakePlayer player, GameTestHelper helper) {
+        final List<String> titles = new ArrayList<>();
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            addDiscTitle(player.getInventory().getItem(i), titles);
+        }
+        final net.minecraft.world.phys.Vec3 center = net.minecraft.world.phys.Vec3.atCenterOf(
+                helper.absolutePos(net.minecraft.core.BlockPos.ZERO));
+        final net.minecraft.world.phys.AABB area = new net.minecraft.world.phys.AABB(
+                center.x - 8.0, center.y - 8.0, center.z - 8.0,
+                center.x + 8.0, center.y + 8.0, center.z + 8.0);
+        for (final ItemEntity entity : helper.getLevel().getEntitiesOfClass(ItemEntity.class, area)) {
+            if (!entity.isRemoved()) addDiscTitle(entity.getItem(), titles);
+        }
+        return titles;
+    }
+
+    private static void addDiscTitle(ItemStack stack, List<String> titles) {
+        final CustomTrackData track = stack.get(ModDataComponents.CUSTOM_TRACK.get());
+        if (track != null) titles.add(track.title());
     }
 }

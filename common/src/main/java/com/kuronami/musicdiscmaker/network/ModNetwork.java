@@ -304,8 +304,8 @@ public final class ModNetwork {
         if (current == null || current.stack() != stack || BoomboxCarry.idOf(current.stack()) != id) return;
         final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
         if (!syncBudget.fits()) {
-            player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
-                    syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
+            // 装備中の機体は手元に無いので保存値を書き換えられない。容量超過は文を出さずに開かない。
+            com.kuronami.musicdiscmaker.item.OversizeMediaRecovery.refuseOpen(player, syncBudget);
             return;
         }
         Services.MENU.openBoomboxMenu(player, source);

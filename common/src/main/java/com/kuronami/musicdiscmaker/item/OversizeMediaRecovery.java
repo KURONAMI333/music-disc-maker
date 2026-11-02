@@ -8,6 +8,7 @@ import com.kuronami.musicdiscmaker.block.BoomboxBlockEntity;
 import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.component.AlbumStorageBudget;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
+import com.kuronami.musicdiscmaker.component.StorageOverflow;
 import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 import com.kuronami.musicdiscmaker.menu.AlbumMenu;
 import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
@@ -15,19 +16,23 @@ import com.kuronami.musicdiscmaker.menu.BoomboxSource;
 //? if >=1.21 {
 import com.kuronami.musicdiscmaker.register.ModDataComponents;
 //?}
-import com.kuronami.musicdiscmaker.register.ModItems;
-
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
-/** 初回menu同期を安全に送れない既存媒体を、個別同期可能なdropへ回収するserver側の経路。 */
+/**
+ * 初回 menu 同期の上限を超えた保存値を、<b>収まる分だけ残して残りをプレイヤーへ返す</b>server側の経路。
+ *
+ * <p>返す分はまず持ち物へ入り、入らなかった分だけ足元へ落ちる。プレイヤーへ文は出さない
+ * (2026-11-02 本人指示「文を出すべきではない というか、文を出さないとわからないのがおかしい」)。
+ * 収まる分の選び方は {@link StorageOverflow#split} が持つ。
+ */
 public final class OversizeMediaRecovery {
     public enum Result {
         RECOVERED,
@@ -50,22 +55,51 @@ public final class OversizeMediaRecovery {
 
     private OversizeMediaRecovery() { }
 
-    public static Result recoverAlbum(ServerPlayer player, ItemStack album) {
-        return recoverAlbum(player, album, ServerLevel::addFreshEntity);
+    /**
+     * 開く前の上限確認に失敗した時の共通の入口。容量超過は文を出さずに保存値を縮め、
+     * 縮められた時だけ {@code true} を返す。encode/decode の失敗は縮められないので、
+     * 従来どおり文言を出して {@code false}。
+     */
+    public static boolean openAfterReduction(ServerPlayer player, AlbumStorageBudget.Result sync, ItemStack album) {
+        return reduce(player, sync) && isReduced(recoverAlbum(player, album));
     }
 
-    public static void notify(ServerPlayer player, Result result) {
-        final String suffix = switch (result) {
-            case RECOVERED -> "complete";
-            case RECOVERED_BUT_INVENTORY_TOO_LARGE -> "inventory_too_large";
-            case NOT_SOURCE_TOO_LARGE -> "inventory_only";
-            case NOTHING_TO_RECOVER -> "nothing";
-            case ITEM_TOO_LARGE -> "item_too_large";
-            case NO_SAFE_REDUCTION -> "no_safe_path";
-            case SPAWN_FAILED -> "retry";
-            case STALE_SOURCE -> "stale";
-        };
-        player.sendSystemMessage(Component.translatable("message.music_disc_maker.recovery." + suffix), true);
+    public static boolean openAfterReductionHeldBoombox(ServerPlayer player, AlbumStorageBudget.Result sync,
+            ItemStack boombox) {
+        return reduce(player, sync) && isReduced(recoverHeldBoombox(player, boombox));
+    }
+
+    public static boolean openAfterReductionPlacedBoombox(ServerPlayer player, AlbumStorageBudget.Result sync,
+            ServerLevel level, BlockPos pos, BoomboxBlockEntity be) {
+        return reduce(player, sync) && isReduced(recoverPlacedBoombox(player, level, pos, be));
+    }
+
+    /**
+     * 縮められない機器 (Curios 装備の機体) 用。同期形式の失敗だけ文言を出して開かない。
+     * 装備中の機体は手に持っていないので、保存値の書き換え経路を持たない。
+     */
+    public static void refuseOpen(ServerPlayer player, AlbumStorageBudget.Result sync) {
+        final String key = sync.failureKey();
+        if (key != null) player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(key), true);
+    }
+
+    /** false の時点で文言は出し終えている (容量超過は何も出さない)。 */
+    private static boolean reduce(ServerPlayer player, AlbumStorageBudget.Result sync) {
+        final String key = sync.failureKey();
+        if (key != null) {
+            player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(key), true);
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isReduced(Result result) {
+        // 所持品の大きさは初回packetに入らないため、ここでは開けるかだけを見る。
+        return result == Result.RECOVERED || result == Result.RECOVERED_BUT_INVENTORY_TOO_LARGE;
+    }
+
+    public static Result recoverAlbum(ServerPlayer player, ItemStack album) {
+        return recoverAlbum(player, album, ServerLevel::addFreshEntity);
     }
 
     public static Result recoverAlbum(ServerPlayer player, ItemStack album, EntitySpawner spawner) {
@@ -73,7 +107,7 @@ public final class OversizeMediaRecovery {
         if (hand == null) return Result.STALE_SOURCE;
         closeMediaMenu(player);
         final RegistryAccess registries = registryAccess((ServerLevel) player.level());
-        // 初回同期はAlbumの内部枠だけを測る。空Albumには取り出すべき媒体がない。
+        // 初回同期はAlbumの内部枠だけを測る。空Albumには返すべき媒体がない。
         if (AlbumItem.contents(album).isEmpty()) return Result.NOTHING_TO_RECOVER;
         if (albumCleanSyncFits(album, registries)) return Result.NOT_SOURCE_TOO_LARGE;
         final AlbumPlan plan = albumPlan(album, registries);
@@ -106,7 +140,7 @@ public final class OversizeMediaRecovery {
         final RegistryAccess registries = registryAccess((ServerLevel) player.level());
         final BoomboxContents before = contentsOf(boombox);
         final ItemStack original = boombox.copy();
-        // 初回同期はBoomboxの媒体枠だけを測る。空の媒体枠には回収対象がない。
+        // 初回同期はBoomboxの媒体枠だけを測る。空の媒体枠には返す対象がない。
         if (before.disc().isEmpty()) return Result.NOTHING_TO_RECOVER;
         if (boomboxCleanSyncFits(boombox, registries)) return Result.NOT_SOURCE_TOO_LARGE;
         final BoomboxPlan plan = boomboxPlan(boombox, before, registries);
@@ -162,23 +196,17 @@ public final class OversizeMediaRecovery {
                 ? Result.RECOVERED : Result.RECOVERED_BUT_INVENTORY_TOO_LARGE;
     }
 
-    /** Album単体を安全なopen最小構成まで縮める先頭prefixを探す。 */
+    /** Album単体を、保存順の先頭から最小件数だけ外した最小構成へ縮める。 */
     private static AlbumPlan albumPlan(ItemStack album, RegistryAccess registries) {
         final List<ItemStack> all = AlbumItem.contents(album).discs();
-        final List<ItemStack> drops = new ArrayList<>();
-        for (int count = 1; count <= all.size(); count++) {
-            final ItemStack extracted = all.get(count - 1).copy();
-            if (!fits(extracted, registries)) return null;
-            drops.add(extracted);
-            final AlbumContents remaining = remaining(all, count);
-            final ItemStack candidate = album.copy();
-            AlbumItem.setContents(candidate, remaining);
-            if (albumCleanSyncFits(candidate, registries)) return new AlbumPlan(List.copyOf(drops), remaining);
-        }
-        return null;
+        final StorageOverflow.Split split = StorageOverflow.split(all.size(),
+                kept -> albumCleanSyncFits(withRemaining(album, all, kept), registries),
+                index -> fits(all.get(index).copy(), registries));
+        if (split == null) return null;
+        return new AlbumPlan(dropsFrom(all, split), remaining(all, split.kept()));
     }
 
-    /** Boombox内Albumも、外側Boomboxを含む最小同期構成まで先頭prefixを回収する。 */
+    /** Boombox内Albumも、外側Boomboxを含む最小同期構成まで縮める。 */
     private static BoomboxPlan boomboxPlan(ItemStack boombox, BoomboxContents before, RegistryAccess registries) {
         final ItemStack medium = before.disc();
         if (medium.isEmpty()) return null;
@@ -190,22 +218,35 @@ public final class OversizeMediaRecovery {
                     ? new BoomboxPlan(List.of(medium.copy()), ItemStack.EMPTY) : null;
         }
         final List<ItemStack> all = AlbumItem.contents(medium).discs();
-        final List<ItemStack> drops = new ArrayList<>();
-        for (int count = 1; count <= all.size(); count++) {
-            final ItemStack extracted = all.get(count - 1).copy();
-            if (!fits(extracted, registries)) return null;
-            drops.add(extracted);
-            final ItemStack reducedAlbum = medium.copy();
-            AlbumItem.setContents(reducedAlbum, remaining(all, count));
-            final ItemStack candidate = boombox.copy();
-            storeContents(candidate, before.withDisc(reducedAlbum));
-            if (boomboxCleanSyncFits(candidate, registries)) return new BoomboxPlan(List.copyOf(drops), reducedAlbum);
-        }
-        return null;
+        final StorageOverflow.Split split = StorageOverflow.split(all.size(),
+                kept -> boomboxCleanSyncFits(withMedium(boombox, before.withDisc(withRemaining(medium, all, kept))),
+                        registries),
+                index -> fits(all.get(index).copy(), registries));
+        if (split == null) return null;
+        return new BoomboxPlan(dropsFrom(all, split), withRemaining(medium, all, split.kept()));
     }
 
-    private static AlbumContents remaining(List<ItemStack> all, int count) {
-        return count == all.size() ? AlbumContents.EMPTY : new AlbumContents(all.subList(count, all.size()));
+    /** 保存順の先頭から外へ出す分を、元の順序のまま取り出す。 */
+    private static List<ItemStack> dropsFrom(List<ItemStack> all, StorageOverflow.Split split) {
+        final List<ItemStack> drops = new ArrayList<>(split.returned());
+        for (int i = 0; i < split.returned(); i++) drops.add(all.get(i).copy());
+        return List.copyOf(drops);
+    }
+
+    private static ItemStack withRemaining(ItemStack machine, List<ItemStack> all, int kept) {
+        final ItemStack candidate = machine.copy();
+        AlbumItem.setContents(candidate, remaining(all, kept));
+        return candidate;
+    }
+
+    private static ItemStack withMedium(ItemStack boombox, BoomboxContents contents) {
+        final ItemStack candidate = boombox.copy();
+        storeContents(candidate, contents);
+        return candidate;
+    }
+
+    private static AlbumContents remaining(List<ItemStack> all, int kept) {
+        return kept == 0 ? AlbumContents.EMPTY : new AlbumContents(all.subList(all.size() - kept, all.size()));
     }
 
     private static boolean albumCleanSyncFits(ItemStack album, RegistryAccess registries) {
@@ -228,7 +269,10 @@ public final class OversizeMediaRecovery {
         return !medium.isEmpty() && !fits(medium, registries) ? Result.ITEM_TOO_LARGE : Result.NO_SAFE_REDUCTION;
     }
 
-    /** spawn済みentityもcommit失敗時にdiscardし、原本変更とdropを同じtransactionにする。 */
+    /**
+     * 返す分を持ち物へ入れてから、入らなかった分だけを足元のentityとして残す。
+     * entityのspawnに失敗した時は、まだどの保存値も変えていないので何も残さない。
+     */
     private static Result spawnAndCommit(ServerPlayer player, List<ItemStack> drops, EntitySpawner spawner,
             Supplier<Result> commit) {
         final ServerLevel level = (ServerLevel) player.level();
@@ -244,11 +288,34 @@ public final class OversizeMediaRecovery {
                 }
             }
             final Result result = commit.get();
-            if (result != Result.RECOVERED) discardAll(spawned);
+            if (result != Result.RECOVERED) {
+                discardAll(spawned);
+                return result;
+            }
+            // 保存値の書き換えが確定してから、返す分を持ち物へ移す。入らない分だけが地面に残る。
+            collect(player, spawned);
             return result;
         } catch (RuntimeException failure) {
             discardAll(spawned);
             return Result.SPAWN_FAILED;
+        }
+    }
+
+    /** 足元へ出した分のうち、持ち物に入る分だけを移してentityを片付ける。 */
+    private static void collect(ServerPlayer player, List<ItemEntity> spawned) {
+        final Inventory inventory = player.getInventory();
+        for (final ItemEntity entity : spawned) {
+            try {
+                final ItemStack remaining = entity.getItem().copy();
+                if (remaining.isEmpty()) continue;
+                if (inventory.add(remaining)) {
+                    entity.discard();
+                } else if (remaining.getCount() != entity.getItem().getCount()) {
+                    entity.setItem(remaining);
+                }
+            } catch (RuntimeException ignored) {
+                // 移せない分は足元の entity のまま残す。ここで例外が出ても媒体は消さない。
+            }
         }
     }
 
@@ -263,11 +330,15 @@ public final class OversizeMediaRecovery {
         if (player.containerMenu instanceof AlbumMenu || player.containerMenu instanceof BoomboxMenu) player.closeContainer();
     }
 
-    private static boolean fitsInitial(List<ItemStack> stacks, RegistryAccess registries) {
+    /** 初回packetと同じ形 (内部枠 + 空の所持品) で測る。menu 側の判定と1 byte も違えない。 */
+    private static boolean fitsInitial(List<ItemStack> internal, RegistryAccess registries) {
+        final List<ItemStack> slots = new ArrayList<>(internal.size() + Inventory.INVENTORY_SIZE);
+        slots.addAll(internal);
+        for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) slots.add(ItemStack.EMPTY);
         //? if >=1.21 {
-        return AlbumStorageBudget.fitsInitialMenuSync(stacks, ItemStack.EMPTY, registries);
+        return AlbumStorageBudget.fitsInitialMenuSync(slots, ItemStack.EMPTY, registries);
         //?} else {
-        /*return AlbumStorageBudget.fitsInitialMenuSync(stacks, ItemStack.EMPTY);
+        /*return AlbumStorageBudget.fitsInitialMenuSync(slots, ItemStack.EMPTY);
         *///?}
     }
 

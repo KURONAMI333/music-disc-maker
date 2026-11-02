@@ -125,6 +125,7 @@ public final class MdmGameTestRegistration {
         register(event, "oversize_single_disc_and_placed_guards", OversizeMediaRecoveryGameTests::oversizedDiscAndPlacedBoomboxAreUntouched, empty, 400);
         register(event, "oversize_album_recovery_order_and_rollback", OversizeMediaRecoveryGameTests::albumRecoveryPreservesOrderAndSpawnFailurePreservesSource, empty, 400);
         register(event, "oversize_boombox_album_recovery_and_empty_media_noop", OversizeMediaRecoveryGameTests::boomboxAlbumRecoveryAndEmptyMediaNoop, empty, 400);
+        register(event, "oversize_open_returns_overflow_to_player", OversizeMediaRecoveryGameTests::openAfterReductionKeepsEveryDisc, empty, 400);
         register(event, "boombox_contents_legacy_defaults_roundtrip", BoomboxControlGameTests::legacyContentsDefaultAndExtendedStateRoundTrip, empty, 100);
         register(event, "boombox_menu_stores_and_takes_single_medium", BoomboxMenuGameTests::storesAndTakesSingleMedium, empty, 200);
         register(event, "boombox_menu_inserting_medium_starts_carried_and_placed",
