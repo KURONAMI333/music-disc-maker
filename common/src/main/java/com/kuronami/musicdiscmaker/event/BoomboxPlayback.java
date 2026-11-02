@@ -602,6 +602,31 @@ public final class BoomboxPlayback {
         return replaced;
     }
 
+    /**
+     * 保存値を縮めた時の媒体差し替え (持ち歩き)。<b>開いただけで再生状態を変えない</b>:
+     * 元が鳴っていれば同じ機体で鳴らし直し、止まっていた (停止・一時停止) なら止まったままにする。
+     */
+    public static boolean replaceMediaCarriedKeepingPlayback(ServerPlayer player, ItemStack stack, ItemStack disc,
+            long expectedGeneration) {
+        final boolean wasPlaying = isPlaying(contentsOf(stack).id());
+        final boolean replaced = replaceMedia(carriedContext(player, stack), disc, expectedGeneration);
+        if (replaced && wasPlaying && !disc.isEmpty()) {
+            startCarried(player, stack);
+        }
+        return replaced;
+    }
+
+    /** 設置機体の同じ口。 */
+    public static boolean replaceMediaPlacedKeepingPlayback(ServerLevel level, BlockPos pos, BoomboxBlockEntity be,
+            ItemStack disc, long expectedGeneration) {
+        final boolean wasPlaying = isPlaying(contentsOf(be.getStored()).id());
+        final boolean replaced = replaceMedia(placedContext(level, pos, be), disc, expectedGeneration);
+        if (replaced && wasPlaying && !disc.isEmpty()) {
+            startPlaced(level, pos, be);
+        }
+        return replaced;
+    }
+
     private static boolean matchesGeneration(BoomboxContents contents, long expectedGeneration) {
         return contents.cursor().generation() == expectedGeneration;
     }

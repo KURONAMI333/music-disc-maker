@@ -122,7 +122,9 @@ public final class MdmGameTestRegistration {
         register(event, "oversize_placed_commit_exception", OversizeMediaRecoveryGameTests::placedCommitExceptionRestoresMedia, empty, 400);
         register(event, "oversize_album_content_change_rollback", OversizeMediaRecoveryGameTests::albumContentChangeDiscardsSpawnedEntities, empty, 400);
         register(event, "oversize_recovery_stale_commit_rollback", OversizeMediaRecoveryGameTests::recoveryStaleCommitDiscardsSpawnedEntities, empty, 400);
-        register(event, "oversize_single_disc_and_placed_guards", OversizeMediaRecoveryGameTests::oversizedDiscAndPlacedBoomboxAreUntouched, empty, 400);
+        register(event, "oversize_single_disc_and_placed_guards", OversizeMediaRecoveryGameTests::oversizedDiscIsReturnedAndPlacedBoomboxIsGuarded, empty, 400);
+        register(event, "oversize_single_medium_opens_empty_machine", OversizeMediaRecoveryGameTests::singleOversizedMediumIsReturnedAndTheMachineOpens, empty, 400);
+        register(event, "oversize_boombox_playback_state_kept", OversizeMediaRecoveryGameTests::boomboxRecoveryKeepsPlaybackState, empty, 400);
         register(event, "oversize_album_recovery_order_and_rollback", OversizeMediaRecoveryGameTests::albumRecoveryPreservesOrderAndSpawnFailurePreservesSource, empty, 400);
         register(event, "oversize_boombox_album_recovery_and_empty_media_noop", OversizeMediaRecoveryGameTests::boomboxAlbumRecoveryAndEmptyMediaNoop, empty, 400);
         register(event, "oversize_open_returns_overflow_to_player", OversizeMediaRecoveryGameTests::openAfterReductionKeepsEveryDisc, empty, 400);
@@ -138,6 +140,7 @@ public final class MdmGameTestRegistration {
         register(event, "curios_equipped_duplicate_separation", CuriosBoomboxGameTests::duplicateIdInInventoryIsSeparatedFromEquipped, empty, 200);
         register(event, "curios_equipped_carry_continuity", CuriosBoomboxGameTests::equippedStackStaysCarriedAcrossMove, empty, 100);
         register(event, "curios_absent_provider_noop", CuriosBoomboxGameTests::absentProviderKeepsVanillaBehavior, empty, 100);
+        register(event, "curios_equipped_oversize_open", CuriosBoomboxGameTests::equippedOversizedBoomboxIsReducedAndOpened, empty, 200);
         // provider と NETWORK の global を交換する lifecycle test は固有 environment で直列隔離する。
         register(event, "curios_equipped_move_disconnect_lifecycle",
                 CuriosBoomboxGameTests::equippedMoveAndDisconnectPreserveOnlyTheOwnedLifecycle,

@@ -3,6 +3,7 @@ package com.kuronami.musicdiscmaker.gametest;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.kuronami.musicdiscmaker.component.AlbumStorageBudget;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
@@ -270,6 +271,44 @@ public final class CuriosBoomboxGameTests {
         helper.assertTrue(!(player.containerMenu instanceof BoomboxMenu),
                 "Curios 未導入相当で open 要求が menu を開いた");
         player.discard();
+        helper.succeed();
+    }
+
+    /** 装備中の過大媒体も、手に持つ場合と同じく収まる分だけ残して開く。 */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = "empty8x3x8", timeoutTicks = 200)
+    *///?}
+    public static void equippedOversizedBoomboxIsReducedAndOpened(GameTestHelper helper) {
+        final ServerPlayer player = networkedPlayer(helper);
+        final long id = BoomboxContents.mintId();
+        final ItemStack box = new ItemStack(ModItems.BOOMBOX.get());
+        box.set(ModDataComponents.BOOMBOX_CONTENTS.get(),
+                new BoomboxContents(OversizeMediaRecoveryGameTests.oversizedAlbum(600), id));
+        final AtomicReference<List<CuriosEquipmentAccess.Entry>> slot =
+                new AtomicReference<>(List.of(new CuriosEquipmentAccess.Entry("boombox", 0, box)));
+        withProvider(slot, () -> {
+            final AlbumStorageBudget.Result sync = BoomboxMenu.inspectInitialMenuSync(player.getInventory(),
+                    BoomboxSource.equipped("boombox", 0, id));
+            helper.assertTrue(!sync.fits() && sync.capacityExceeded(),
+                    "過大媒体の装備機体が容量超過の初期同期拒否域に入っていない: " + sync);
+            ModNetwork.handleOpenEquippedBoombox(new OpenEquippedBoomboxPayload("boombox", 0, id), player);
+            helper.assertTrue(player.containerMenu instanceof BoomboxMenu,
+                    "過大媒体の装備機体を縮めて開けなかった: sync=" + sync);
+            final BoomboxMenu menu = (BoomboxMenu) player.containerMenu;
+            helper.assertTrue(menu.currentStack() == box && menu.stillValid(player),
+                    "開いた menu が装備中の実物を指していない");
+            final BoomboxContents reduced = box.getOrDefault(
+                    ModDataComponents.BOOMBOX_CONTENTS.get(), BoomboxContents.EMPTY);
+            helper.assertTrue(com.kuronami.musicdiscmaker.item.AlbumItem.isAlbum(reduced.disc())
+                            && OversizeMediaRecoveryGameTests.ordered(
+                                    com.kuronami.musicdiscmaker.item.AlbumItem.contents(reduced.disc()), 601, 602),
+                    "装備機体の媒体が収まる分だけ残っていない");
+            final List<String> returned = OversizeMediaRecoveryGameTests.returnedDiscTitles(player, helper);
+            returned.sort(String::compareTo);
+            helper.assertTrue(returned.equals(List.of("track-600")),
+                    "外した盤が持ち物にも足元にも無い/重複している: " + returned);
+        }, player);
         helper.succeed();
     }
 

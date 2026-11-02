@@ -33,8 +33,9 @@ public final class StorageOverflow {
      * (先頭から1件ずつ外して試し、最初に収まった所で止める) をそのまま規則にしたもの。
      * 全部そのまま収まるなら何も外さない。
      *
-     * <p>1件も収まらなければ全件を外へ出し、空でも収まらなければ {@code null}。外へ出す1件ずつは
-     * 単独でプレイヤーへ渡せなければならない (同期できない1件を無理に外すと、その1件ごと壊れる)。
+     * <p>1件ずつ外して試し、空 (全件を外へ出す) まで試す。外へ出す1件ずつは単独でプレイヤーへ
+     * 渡せなければならない (同期できない1件を無理に外すと、その1件ごと壊れる)。渡せない1件が
+     * 出てきた時点で {@code null}。
      *
      * @param entries   保存件数
      * @param fits      <b>末尾</b> {@code kept} 件を残した機器が同期予算に収まるか
@@ -46,10 +47,10 @@ public final class StorageOverflow {
         if (fits.test(entries)) return new Split(entries, 0);
         for (int returned = 1; returned <= entries; returned++) {
             if (!droppable.test(returned - 1)) return null;
+            // returned == entries では空の機器 (kept == 0) も判定する。
             if (fits.test(entries - returned)) return new Split(entries - returned, returned);
         }
-        // 全件を外した空の機器が予算に収まる時だけ、全件返す。
-        return fits.test(0) ? new Split(0, entries) : null;
+        return null;
     }
 
     /**

@@ -303,9 +303,9 @@ public final class ModNetwork {
                 player, payload.slotId(), payload.slotIndex());
         if (current == null || current.stack() != stack || BoomboxCarry.idOf(current.stack()) != id) return;
         final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
-        if (!syncBudget.fits()) {
-            // 装備中の機体は手元に無いので保存値を書き換えられない。容量超過は文を出さずに開かない。
-            com.kuronami.musicdiscmaker.item.OversizeMediaRecovery.refuseOpen(player, syncBudget);
+        if (!syncBudget.fits() && !com.kuronami.musicdiscmaker.item.OversizeMediaRecovery
+                .openAfterReductionEquippedBoombox(player, syncBudget, payload.slotId(), payload.slotIndex(), stack)) {
+            // 同期形式の失敗だけ文言を出して開かない。容量超過は縮めて開く。
             return;
         }
         Services.MENU.openBoomboxMenu(player, source);
