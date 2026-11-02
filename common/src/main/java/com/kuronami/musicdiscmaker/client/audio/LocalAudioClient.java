@@ -83,8 +83,15 @@ public final class LocalAudioClient {
         Upload u = SESSION.upload;
         return u == null ? "" : u.name;
     }
-    /** 待機中以外の案内文がある時だけ画面へ出す (idle の "select" は行を空ける)。 */
-    public static boolean hasStatus() { return SESSION.upload != null || !"select".equals(status); }
+    /**
+     * 待機中以外の案内文がある時だけ画面へ出す。idle の "select" に加え、盤待ち ("disc") と
+     * 完了 ("done") も文字を出さない — 盤待ちは入力スロットの盤の影、完了は出力スロットに出た
+     * 盤そのもので分かる (2026-11-02)。
+     */
+    public static boolean hasStatus() {
+        if ("disc".equals(status) || "done".equals(status)) return false;
+        return SESSION.upload != null || !"select".equals(status);
+    }
     /** OS選択は画面スレッド、ファイル検査・変換は専用ワーカー。選択後の共有曲名を確認してから開始する。 */
     //? if >=26.3 {
     /*private static final ConcurrentMap<Long, SdlPicker> PICKERS = new ConcurrentHashMap<>();

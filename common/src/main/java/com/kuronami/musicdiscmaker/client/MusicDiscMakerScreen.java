@@ -84,6 +84,25 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     private static final int ERROR = 0xB02020;
     *///?}
 
+    /**
+     * 入力スロットが空の時に置く白紙の盤の影 (2026-11-02)。入れ方を文字で書かず、盤の形で示す。
+     * バニラの鍛冶台と同じく、GUI の画像を空スロットへ重ねるだけなので、リソースパックがこの
+     * パスを差し替えれば見た目を変えられる。
+     */
+    //? if >=1.21.11 {
+    private static final Identifier EMPTY_DISC_SHADOW =
+            Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID,
+                    "textures/gui/music_disc_maker/blank_disc_slot.png");
+    //?} elif >=1.21 {
+    /*private static final ResourceLocation EMPTY_DISC_SHADOW =
+            ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID,
+                    "textures/gui/music_disc_maker/blank_disc_slot.png");
+    *///?} else {
+    /*private static final ResourceLocation EMPTY_DISC_SHADOW =
+            new ResourceLocation(MusicDiscMaker.MODID,
+                    "textures/gui/music_disc_maker/blank_disc_slot.png");
+    *///?}
+
     private EditBox urlField;
     private IconButton pasteButton;
     private IconButton folderButton;
@@ -139,6 +158,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
                 Component.translatable("gui.music_disc_maker.url_placeholder"));
         this.urlField.setMaxLength(2048);
         this.urlField.setBordered(false);
+        // 取込中はファイル名を出すため欄を編集不可にする。既定の編集不可色 (0x707070) は影と
+        // 重なって潰れるので、編集できる時と同じ文字色で描く (2026-11-02 本人の実画面指摘)。
+        // 値は EditBox 自身の既定色を使う (1.21.4 以前は 0xE0E0E0、1.21.11 以降は 0xFFE0E0E0 と
+        // ARGB の持ち方が違うため、直書きせず各版の定数に合わせる)。
+        this.urlField.setTextColorUneditable(EditBox.DEFAULT_TEXT_COLOR);
         //? if >=1.21.11 {
         // 26.1: EditBox の hint 既定色が DARK_GRAY になり濃く見えるので、従来の薄いグレーを明示する。
         this.urlField.setHint(Component.translatable("gui.music_disc_maker.url_placeholder")
@@ -399,6 +423,23 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         VanillaPlayerInventoryBackground.draw(g, leftPos + 3, topPos + 84,
                 3.0F, 126.0F, 170, 92);
     *///?}
+        // 入力スロットが空の間は、白紙の盤の影を置く。入れ方を文字で案内しない代わりに、
+        // ここへ何を入れるかを形で示す (2026-11-02)。
+        if (menu.getSlot(com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity.SLOT_INPUT)
+                .getItem().isEmpty()) {
+            final int ghostX = leftPos + MusicDiscMakerLayout.INPUT_X;
+            final int ghostY = topPos + MusicDiscMakerLayout.INPUT_Y;
+            //? if >=26.1 {
+            graphics.blit(RenderPipelines.GUI_TEXTURED, EMPTY_DISC_SHADOW, ghostX, ghostY,
+                    0.0F, 0.0F, 16, 16, 16, 16);
+            //?} elif >=1.21.11 {
+            /*g.blit(RenderPipelines.GUI_TEXTURED, EMPTY_DISC_SHADOW, ghostX, ghostY,
+                    0.0F, 0.0F, 16, 16, 16, 16);
+            *///?} else {
+            /*GuiTextureBlit.blit(g, EMPTY_DISC_SHADOW, ghostX, ghostY,
+                    0.0F, 0.0F, 16, 16, 16, 16);
+            *///?}
+        }
     }
 
     // 取得中スピナー: 4 分の 1 回転を 120ms ごとに進める点棒。
