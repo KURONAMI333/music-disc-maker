@@ -49,11 +49,6 @@ public final class MusicDiscMakerLayout {
     public static final int STATUS_MAX_W = 160;
     public static final int STATUS_MAX_LINES = 2;
 
-    /** URL解決失敗の小さな警告印。URL 欄の右端、入力文字の後ろに置く。 */
-    public static final int WARNING_X = 104;
-    public static final int WARNING_Y = 27;
-    public static final int WARNING_SIZE = 8;
-
     private MusicDiscMakerLayout() {
     }
 }

@@ -68,13 +68,4 @@ class MusicDiscMakerLayoutTest {
         assertTrue(MusicDiscMakerLayout.STATUS_X + MusicDiscMakerLayout.STATUS_MAX_W
                 <= MusicDiscMakerLayout.PANEL_WIDTH - 8);
     }
-
-    @Test
-    void warningSitsInsideTheUrlFieldAfterItsText() {
-        assertTrue(MusicDiscMakerLayout.WARNING_X >= MusicDiscMakerLayout.URL_X + MusicDiscMakerLayout.URL_W);
-        assertTrue(MusicDiscMakerLayout.WARNING_X + MusicDiscMakerLayout.WARNING_SIZE
-                <= MusicDiscMakerLayout.TOOL_PASTE_X);
-        assertTrue(MusicDiscMakerLayout.WARNING_Y >= MusicDiscMakerLayout.URL_Y
-                && MusicDiscMakerLayout.WARNING_Y + 8 <= MusicDiscMakerLayout.URL_Y + MusicDiscMakerLayout.URL_H + 2);
-    }
 }

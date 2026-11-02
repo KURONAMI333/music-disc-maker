@@ -75,7 +75,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
             new ResourceLocation(MusicDiscMaker.MODID, "textures/gui/music_disc_maker.png");
     private static final int TEXT = 0x404040;
     *///?}
-    // 解決失敗は、主経路から外した小さな警告印とホバー詳細で示す。
+    // 取得失敗の理由を帯に出す時の文字色。
     //? if >=1.21.11 {
     // 出所: 正リポ mod-047 branding/b1-legibility (design review 却下後の候補シート「配置B・色4」)。
     private static final int ERROR = 0xFFB02020;
@@ -456,18 +456,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     /*protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY); // title + Inventory ラベル (矢印はテクスチャ側)
     *///?}
-        // 欄に入力している間は「!」を出さない (満杯の欄の末尾のカーソルと重なるため)。
-        if (menu.getBlockEntity().isResolveFailed() && !menu.getBlockEntity().isResolving() && !urlField.isFocused()) {
-            // 固定文で主経路を説明しない。詳細は同じ座標のホバーで出す。
-            //? if >=26.1 {
-            graphics.text(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
-            //?} elif >=1.21.11 {
-            /*graphics.drawString(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
-            *///?} else {
-            /*g.drawString(font, "!", MusicDiscMakerLayout.WARNING_X, MusicDiscMakerLayout.WARNING_Y, ERROR, false);
-            *///?}
-        }
-        // ローカル取込の状態 (無ければ URL の取得中表示) は入出力の下の帯へ。最大2行で折り返す。
+        // ローカル取込の状態・URL の取得失敗の理由 (無ければ取得中表示) は入出力の下の帯へ。最大2行で折り返す。
+        // 失敗の理由は印やホバーに隠さず、ここに文で出す (2026-11-02 本人「”！”マークなんて無くね？それは俺が以前却下した機能のはず」)。
         final List<FormattedCharSequence> statusLines = statusLines();
         final int statusY = statusLines.size() > 1
                 ? MusicDiscMakerLayout.STATUS_TWO_LINE_Y : MusicDiscMakerLayout.STATUS_Y;
@@ -480,13 +470,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         for (int i = 0; i < statusLines.size(); i++) {
             //? if >=26.1 {
             graphics.text(font, statusLines.get(i), statusX, statusY + i * font.lineHeight,
-                    TEXT, false);
+                    showingFailure() ? ERROR : TEXT, false);
             //?} elif >=1.21.11 {
             /*graphics.drawString(font, statusLines.get(i), statusX,
-                    statusY + i * font.lineHeight, TEXT, false);
+                    statusY + i * font.lineHeight, showingFailure() ? ERROR : TEXT, false);
             *///?} else {
             /*g.drawString(font, statusLines.get(i), statusX,
-                    statusY + i * font.lineHeight, TEXT, false);
+                    statusY + i * font.lineHeight, showingFailure() ? ERROR : TEXT, false);
             *///?}
         }
     }
@@ -498,11 +488,20 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         if (LocalAudioClient.hasStatus()) {
             return LocalAudioClient.status();
         }
+        if (showingFailure()) {
+            return failedMessage(menu.getBlockEntity().getFailureReason());
+        }
         if (menu.getBlockEntity().isResolving()) {
             final String spin = SPINNER[(int) ((System.currentTimeMillis() / 120L) % SPINNER.length)];
             return Component.translatable("gui.music_disc_maker.fetching").copy().append(" " + spin);
         }
         return null;
+    }
+
+    /** URL の取得に失敗して、ローカル取込の状態も出ていない時。帯に理由を赤で出す。 */
+    private boolean showingFailure() {
+        return !LocalAudioClient.hasStatus() && menu.getBlockEntity().isResolveFailed()
+                && !menu.getBlockEntity().isResolving();
     }
 
     private List<FormattedText> statusParts() {
@@ -524,7 +523,7 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     private boolean statusOverflows() {
-        return LocalAudioClient.hasStatus() && statusParts().size() > MusicDiscMakerLayout.STATUS_MAX_LINES;
+        return statusParts().size() > MusicDiscMakerLayout.STATUS_MAX_LINES;
     }
 
     private boolean overStatus(int mouseX, int mouseY) {
@@ -573,27 +572,11 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     *///?}
         if (statusOverflows() && overStatus(mouseX, mouseY)) {
             //? if >=1.21.11 {
-            graphics.setTooltipForNextFrame(font.split(LocalAudioClient.status(), 200), mouseX, mouseY);
+            graphics.setTooltipForNextFrame(font.split(statusMessage(), 200), mouseX, mouseY);
             //?} else {
-            /*g.renderTooltip(font, font.split(LocalAudioClient.status(), 200), mouseX, mouseY);
+            /*g.renderTooltip(font, font.split(statusMessage(), 200), mouseX, mouseY);
             *///?}
             return;
-        }
-        if (!menu.getBlockEntity().isResolveFailed() || menu.getBlockEntity().isResolving() || urlField.isFocused()) {
-            return;
-        }
-        final FailureReason reason = menu.getBlockEntity().getFailureReason();
-        final int left = leftPos + MusicDiscMakerLayout.WARNING_X;
-        final int top = topPos + MusicDiscMakerLayout.WARNING_Y;
-        if (mouseX >= left && mouseX < left + MusicDiscMakerLayout.WARNING_SIZE
-                && mouseY >= top && mouseY < top + MusicDiscMakerLayout.WARNING_SIZE) {
-            //? if >=1.21.11 {
-            graphics.setTooltipForNextFrame(
-                    font.split(failedMessage(reason), 200),
-                    mouseX, mouseY);
-            //?} else {
-            /*g.renderTooltip(font, font.split(failedTooltip(reason), 200), mouseX, mouseY);
-            *///?}
         }
     }
 
