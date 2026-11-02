@@ -380,7 +380,9 @@ public final class OversizeMediaRecoveryGameTests {
             final PlaybackCursor afterPlaying = contents(playing).cursor();
             helper.assertTrue(BoomboxPlayback.isPlaying(5_002L)
                             && afterPlaying.state() == PlaybackCursor.State.PLAYING
-                            && afterPlaying.discIndex() == 1 && afterPlaying.trackIndex() == 0,
+                            && afterPlaying.discIndex() == 1 && afterPlaying.trackIndex() == 0
+                            && orderedStacks(List.of(AlbumItem.contents(contents(playing).disc())
+                                    .discAt(afterPlaying.discIndex())), 312),
                     "縮小で鳴っていた曲が変わった/止まった: " + afterPlaying);
             BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), 5_002L);
 

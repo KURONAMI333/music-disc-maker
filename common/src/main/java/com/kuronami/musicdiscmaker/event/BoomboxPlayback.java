@@ -632,7 +632,10 @@ public final class BoomboxPlayback {
         final long offset = session == null ? 0L
                 : Math.max(0L, playbackTimeMs(context.level()) - session.startMillis);
         stop(context.level(), context.chunk(), id);
-        final BoomboxContents reduced = contents.withLeadingDiscsRemoved(disc, removedLeading);
+        final BoomboxContents shrunk = contents.withLeadingDiscsRemoved(disc, removedLeading);
+        // session の無い PLAYING (再読込後の古い保存値) は、実態に合わせて止めた状態で保存する。
+        final BoomboxContents reduced = session == null && shrunk.cursor().state() == PlaybackCursor.State.PLAYING
+                ? shrunk.withPlayback(shrunk.cursor().stop(), 0L) : shrunk;
         storeContents(context.stack(), reduced);
         context.changed().run();
         if (session == null || !reduced.hasDisc()) {
