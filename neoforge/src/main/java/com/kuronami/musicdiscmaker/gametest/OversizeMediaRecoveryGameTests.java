@@ -351,8 +351,13 @@ public final class OversizeMediaRecoveryGameTests {
     *///?}
     public static void boomboxRecoveryKeepsPlaybackState(GameTestHelper helper) {
         final ServerPlayer player = networkedPlayer(helper);
+        // oversizedAlbum は先頭1枚 (first) を外すと収まる。残るのは first+1, first+2 で、添字は1つずれる。
         final ItemStack stopped = boomboxWith(oversizedAlbum(300), 5_001L);
-        final ItemStack playing = boomboxWith(oversizedAlbum(310), 5_002L);
+        final ItemStack playing = boomboxAt(oversizedAlbum(310), 5_002L,
+                new PlaybackCursor(2, 0, PlaybackCursor.State.STOPPED, 3L), 0L, false);
+        final ItemStack paused = boomboxAt(oversizedAlbum(320), 5_003L,
+                new PlaybackCursor(1, 0, PlaybackCursor.State.PAUSED, 4L), 7_500L, true);
+        final ItemStack playingRemoved = boomboxWith(oversizedAlbum(330), 5_004L);
         withCapturedNetwork(player, () -> {
             // 止まっていた機体は、開いただけでは鳴り出さない。
             player.setItemInHand(InteractionHand.MAIN_HAND, stopped);
@@ -364,22 +369,58 @@ public final class OversizeMediaRecoveryGameTests {
                             && !BoomboxPlayback.isPlaying(5_001L),
                     "開いただけの機体が再生を始めた");
 
-            // 鳴っていた機体は、縮小後も同じ機体として鳴り続ける。
+            // 残った盤を鳴らしていた機体は、同じ盤 (添字は1つ前へ) のまま鳴り続ける。
             player.setItemInHand(InteractionHand.MAIN_HAND, playing);
             helper.assertTrue(BoomboxPlayback.startCarried(player, playing), "再生fixtureを開始できなかった");
-            final long before = BoomboxPlayback.stateOf(playing).cursor().generation();
-            helper.assertTrue(BoomboxPlayback.isPlaying(5_002L), "再生fixtureのsessionがliveでない");
+            helper.assertTrue(contents(playing).cursor().discIndex() == 2, "再生fixtureが3枚目から始まっていない");
             helper.assertTrue(OversizeMediaRecovery.recoverHeldBoombox(player, playing)
                             == OversizeMediaRecovery.Result.RECOVERED
                             && ordered(AlbumItem.contents(contents(playing).disc()), 311, 312),
                     "再生中の機体の媒体を縮小できなかった");
+            final PlaybackCursor afterPlaying = contents(playing).cursor();
             helper.assertTrue(BoomboxPlayback.isPlaying(5_002L)
-                            && BoomboxPlayback.stateOf(playing).cursor().state() == PlaybackCursor.State.PLAYING
-                            && BoomboxPlayback.stateOf(playing).cursor().generation() > before,
-                    "開いた時の縮小で再生状態が止まった/世代が進まなかった");
+                            && afterPlaying.state() == PlaybackCursor.State.PLAYING
+                            && afterPlaying.discIndex() == 1 && afterPlaying.trackIndex() == 0,
+                    "縮小で鳴っていた曲が変わった/止まった: " + afterPlaying);
             BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), 5_002L);
+
+            // 一時停止中の機体は、位置・一時停止位置・シャッフルを保って止まったまま。
+            player.setItemInHand(InteractionHand.MAIN_HAND, paused);
+            helper.assertTrue(OversizeMediaRecovery.recoverHeldBoombox(player, paused)
+                            == OversizeMediaRecovery.Result.RECOVERED,
+                    "一時停止中の機体の媒体を縮小できなかった");
+            final BoomboxContents afterPaused = contents(paused);
+            helper.assertTrue(!BoomboxPlayback.isPlaying(5_003L)
+                            && afterPaused.cursor().state() == PlaybackCursor.State.PAUSED
+                            && afterPaused.cursor().discIndex() == 0
+                            && afterPaused.pausedOffsetMs() == 7_500L
+                            && afterPaused.shuffle() && afterPaused.shuffleSeed() == 42L
+                            && afterPaused.shuffleAnchorDisc() == 0,
+                    "縮小で一時停止の位置・offset・シャッフルが消えた: " + afterPaused.cursor()
+                            + " offset=" + afterPaused.pausedOffsetMs() + " shuffle=" + afterPaused.shuffle());
+
+            // 鳴っていた盤そのものが外へ出た時は、残った先頭から鳴り続ける。
+            player.setItemInHand(InteractionHand.MAIN_HAND, playingRemoved);
+            helper.assertTrue(BoomboxPlayback.startCarried(player, playingRemoved), "再生fixture2を開始できなかった");
+            helper.assertTrue(OversizeMediaRecovery.recoverHeldBoombox(player, playingRemoved)
+                            == OversizeMediaRecovery.Result.RECOVERED,
+                    "先頭を鳴らしていた機体の媒体を縮小できなかった");
+            final PlaybackCursor afterRemoved = contents(playingRemoved).cursor();
+            helper.assertTrue(BoomboxPlayback.isPlaying(5_004L)
+                            && afterRemoved.state() == PlaybackCursor.State.PLAYING && afterRemoved.discIndex() == 0,
+                    "鳴っていた盤を返した後に残りから鳴り続けない: " + afterRemoved);
+            BoomboxPlayback.stop(helper.getLevel(), player.chunkPosition(), 5_004L);
         });
         helper.succeed();
+    }
+
+    private static ItemStack boomboxAt(ItemStack medium, long id, PlaybackCursor cursor, long pausedOffsetMs,
+            boolean shuffle) {
+        final ItemStack box = new ItemStack(ModItems.BOOMBOX.get());
+        box.set(ModDataComponents.BOOMBOX_CONTENTS.get(), new BoomboxContents(medium, id, cursor, pausedOffsetMs,
+                false, shuffle, shuffle ? 42L : 0L, shuffle ? 1 : PlaybackCursor.NO_INDEX,
+                shuffle ? 0 : PlaybackCursor.NO_INDEX, 100));
+        return box;
     }
 
     private static final class ThrowingBoombox extends BoomboxBlockEntity {

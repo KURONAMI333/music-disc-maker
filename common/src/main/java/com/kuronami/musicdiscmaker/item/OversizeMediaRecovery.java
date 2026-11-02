@@ -35,12 +35,13 @@ import net.minecraft.world.phys.Vec3;
  * (2026-11-02 本人指示「文を出すべきではない というか、文を出さないとわからないのがおかしい」)。
  * 収まる分の選び方は {@link StorageOverflow#split} が持つ。
  *
- * <p><b>縮めても収まらない時も開ける。</b>1枚が単独で挿入上限を超える等、外へ出せる分割が無い時は
- * 媒体を1枚ずつ全部返して機器を空にする (空の機器は必ず初期同期に収まる)。取り出せないまま
- * 開けない状態を残さない。
+ * <p><b>縮めても収まらない時も開ける。</b>単独で挿入上限を超える盤も、外す範囲に入れば
+ * そのまま返す。空にしても収まらない時は媒体を1枚ずつ全部返して機器を空にする。
+ * 取り出せないまま開けない状態を残さない。
  *
  * <p>差し替えは {@link BoomboxPlayback#replaceMediaCarriedKeepingPlayback} を使う。
- * 開いただけでは再生状態を変えず、鳴っていた機体は鳴ったまま、止まっていた機体は止まったまま。
+ * 開いただけでは再生状態を変えず、鳴っていた機体は同じ曲の同じ位置で鳴ったまま、止まっていた
+ * (一時停止を含む) 機体は位置を保って止まったまま。
  */
 public final class OversizeMediaRecovery {
     public enum Result {
@@ -70,7 +71,7 @@ public final class OversizeMediaRecovery {
     }
 
     private record AlbumPlan(List<ItemStack> drops, AlbumContents remaining) { }
-    private record BoomboxPlan(List<ItemStack> drops, ItemStack remainingMedium) { }
+    private record BoomboxPlan(List<ItemStack> drops, ItemStack remainingMedium, int removedLeading) { }
 
     private OversizeMediaRecovery() { }
 
@@ -184,7 +185,7 @@ public final class OversizeMediaRecovery {
             if (!origin.stillSame(boombox) || !ItemStack.matches(boombox, original)) return Result.STALE_SOURCE;
             try {
                 return BoomboxPlayback.replaceMediaCarriedKeepingPlayback(player, boombox, plan.remainingMedium(),
-                        before.cursor().generation()) ? Result.RECOVERED : Result.STALE_SOURCE;
+                        plan.removedLeading(), before.cursor().generation()) ? Result.RECOVERED : Result.STALE_SOURCE;
             } catch (RuntimeException failure) {
                 storeContents(boombox, before);
                 return Result.SPAWN_FAILED;
@@ -218,7 +219,7 @@ public final class OversizeMediaRecovery {
                     || !ItemStack.matches(boombox, original)) return Result.STALE_SOURCE;
             try {
                 return BoomboxPlayback.replaceMediaPlacedKeepingPlayback(level, pos, be, plan.remainingMedium(),
-                        before.cursor().generation()) ? Result.RECOVERED : Result.STALE_SOURCE;
+                        plan.removedLeading(), before.cursor().generation()) ? Result.RECOVERED : Result.STALE_SOURCE;
             } catch (RuntimeException failure) {
                 // setChanged can fail after the contents write. Restore the original
                 // component before spawnAndCommit removes the extracted item entities.
@@ -234,15 +235,14 @@ public final class OversizeMediaRecovery {
     /**
      * Album単体を、保存順の先頭から最小件数だけ外した最小構成へ縮める。
      *
-     * <p>1枚が単独で挿入上限を超える等、外へ出せる分割が無い時 ({@link StorageOverflow#split} が
-     * {@code null}) は全枚を1枚ずつ返して空にする。空のAlbumは必ず初期同期に収まるので、
-     * 中身を取り出せないまま開けない状態を残さない。
+     * <p>外へ出す盤に単独で挿入上限を超える物が混ざっていても、そこで諦めずに外して返す
+     * (返した盤は持ち物か足元に残り、収まる分はAlbumに残る)。空にしても収まらない時
+     * ({@link StorageOverflow#split} が {@code null}) は全枚を1枚ずつ返して空にする。
      */
     private static AlbumPlan albumPlan(ItemStack album, RegistryAccess registries) {
         final List<ItemStack> all = AlbumItem.contents(album).discs();
         final StorageOverflow.Split split = StorageOverflow.split(all.size(),
-                kept -> albumCleanSyncFits(withRemaining(album, all, kept), registries),
-                index -> fits(all.get(index).copy(), registries));
+                kept -> albumCleanSyncFits(withRemaining(album, all, kept), registries));
         if (split == null) return new AlbumPlan(copies(all), AlbumContents.EMPTY);
         return new AlbumPlan(dropsFrom(all, split), remaining(all, split.kept()));
     }
@@ -255,15 +255,14 @@ public final class OversizeMediaRecovery {
         final ItemStack medium = before.disc();
         if (!AlbumItem.isAlbum(medium)) {
             // 1枚の媒体そのものが挿入上限を超えていても、外へ出せば空の機体は初期同期に収まる。
-            return new BoomboxPlan(List.of(medium.copy()), ItemStack.EMPTY);
+            return new BoomboxPlan(List.of(medium.copy()), ItemStack.EMPTY, 1);
         }
         final List<ItemStack> all = AlbumItem.contents(medium).discs();
         final StorageOverflow.Split split = StorageOverflow.split(all.size(),
                 kept -> boomboxCleanSyncFits(withMedium(boombox, before.withDisc(withRemaining(medium, all, kept))),
-                        registries),
-                index -> fits(all.get(index).copy(), registries));
-        if (split == null) return new BoomboxPlan(copies(all), withRemaining(medium, all, 0));
-        return new BoomboxPlan(dropsFrom(all, split), withRemaining(medium, all, split.kept()));
+                        registries));
+        if (split == null) return new BoomboxPlan(copies(all), withRemaining(medium, all, 0), all.size());
+        return new BoomboxPlan(dropsFrom(all, split), withRemaining(medium, all, split.kept()), split.returned());
     }
 
     /** 保存順の先頭から外へ出す分を、元の順序のまま取り出す。 */
@@ -421,14 +420,6 @@ public final class OversizeMediaRecovery {
         return level.registryAccess();
         //?} else {
         /*return null;
-        *///?}
-    }
-
-    private static boolean fits(ItemStack stack, RegistryAccess registries) {
-        //? if >=1.21 {
-        return AlbumStorageBudget.fits(stack, registries);
-        //?} else {
-        /*return AlbumStorageBudget.fits(stack);
         *///?}
     }
 

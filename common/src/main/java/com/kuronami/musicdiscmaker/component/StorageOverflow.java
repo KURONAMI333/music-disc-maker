@@ -33,20 +33,17 @@ public final class StorageOverflow {
      * (先頭から1件ずつ外して試し、最初に収まった所で止める) をそのまま規則にしたもの。
      * 全部そのまま収まるなら何も外さない。
      *
-     * <p>1件ずつ外して試し、空 (全件を外へ出す) まで試す。外へ出す1件ずつは単独でプレイヤーへ
-     * 渡せなければならない (同期できない1件を無理に外すと、その1件ごと壊れる)。渡せない1件が
-     * 出てきた時点で {@code null}。
+     * <p>1件ずつ外して試し、空 (全件を外へ出す) まで試す。外へ出す分は単独で挿入上限を超える
+     * 物も含めてプレイヤーへ返す (返さずに残すと、その機器が開けないままになる)。
      *
-     * @param entries   保存件数
-     * @param fits      <b>末尾</b> {@code kept} 件を残した機器が同期予算に収まるか
-     * @param droppable {@code index} 番目を単独でプレイヤーへ渡せるか
-     * @return 分割。縮められる分割が無ければ {@code null}
+     * @param entries 保存件数
+     * @param fits    <b>末尾</b> {@code kept} 件を残した機器が同期予算に収まるか
+     * @return 分割。空にしても収まらなければ {@code null}
      */
-    public static @Nullable Split split(int entries, IntPredicate fits, IntPredicate droppable) {
+    public static @Nullable Split split(int entries, IntPredicate fits) {
         if (entries < 0) throw new IllegalArgumentException("negative entries");
         if (fits.test(entries)) return new Split(entries, 0);
         for (int returned = 1; returned <= entries; returned++) {
-            if (!droppable.test(returned - 1)) return null;
             // returned == entries では空の機器 (kept == 0) も判定する。
             if (fits.test(entries - returned)) return new Split(entries - returned, returned);
         }

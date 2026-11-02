@@ -604,27 +604,66 @@ public final class BoomboxPlayback {
 
     /**
      * 保存値を縮めた時の媒体差し替え (持ち歩き)。<b>開いただけで再生状態を変えない</b>:
-     * 元が鳴っていれば同じ機体で鳴らし直し、止まっていた (停止・一時停止) なら止まったままにする。
+     * 残った盤を指していた位置・一時停止位置・順序設定はそのまま保ち、鳴っていれば同じ曲の同じ
+     * 位置から鳴らし直す。鳴っていた曲が外へ出た時だけ、残った先頭から鳴らす。
+     *
+     * @param removedLeading 保存順の先頭から外した盤の枚数
      */
     public static boolean replaceMediaCarriedKeepingPlayback(ServerPlayer player, ItemStack stack, ItemStack disc,
-            long expectedGeneration) {
-        final boolean wasPlaying = isPlaying(contentsOf(stack).id());
-        final boolean replaced = replaceMedia(carriedContext(player, stack), disc, expectedGeneration);
-        if (replaced && wasPlaying && !disc.isEmpty()) {
-            startCarried(player, stack);
-        }
-        return replaced;
+            int removedLeading, long expectedGeneration) {
+        return replaceMediaKeepingPlayback(carriedContext(player, stack), disc, removedLeading, expectedGeneration);
     }
 
     /** 設置機体の同じ口。 */
     public static boolean replaceMediaPlacedKeepingPlayback(ServerLevel level, BlockPos pos, BoomboxBlockEntity be,
-            ItemStack disc, long expectedGeneration) {
-        final boolean wasPlaying = isPlaying(contentsOf(be.getStored()).id());
-        final boolean replaced = replaceMedia(placedContext(level, pos, be), disc, expectedGeneration);
-        if (replaced && wasPlaying && !disc.isEmpty()) {
-            startPlaced(level, pos, be);
+            ItemStack disc, int removedLeading, long expectedGeneration) {
+        return replaceMediaKeepingPlayback(placedContext(level, pos, be), disc, removedLeading, expectedGeneration);
+    }
+
+    private static boolean replaceMediaKeepingPlayback(ControlContext context, ItemStack disc, int removedLeading,
+            long expectedGeneration) {
+        // context を作った後 (重複の分離が済んだ後) の識別子で鳴っていたかを見る。
+        final BoomboxContents contents = contentsOf(context.stack());
+        if (!matchesGeneration(contents, expectedGeneration)) {
+            return false;
         }
-        return replaced;
+        final long id = contents.id();
+        final Session session = isPlaying(id) ? SESSIONS.get(id) : null;
+        final long offset = session == null ? 0L
+                : Math.max(0L, playbackTimeMs(context.level()) - session.startMillis);
+        stop(context.level(), context.chunk(), id);
+        final BoomboxContents reduced = contents.withLeadingDiscsRemoved(disc, removedLeading);
+        storeContents(context.stack(), reduced);
+        context.changed().run();
+        if (session == null || !reduced.hasDisc()) {
+            return true;
+        }
+        try {
+            final PlaybackCursor cursor = reduced.cursor();
+            final boolean resumed = cursor.hasPosition() && startAt(context, reduced,
+                    new MediaSequence.Position(cursor.discIndex(), cursor.trackIndex()), offset);
+            if (!resumed && !startFromBeginning(context)) {
+                storeContents(context.stack(), contentsOf(context.stack()).withPlayback(cursor.stop(), 0L));
+                context.changed().run();
+            }
+        } catch (RuntimeException failure) {
+            // 呼び出し側は保存値を元へ戻す。鳴らし直しかけた session を残さない。
+            stop(context.level(), context.chunk(), contentsOf(context.stack()).id());
+            throw failure;
+        }
+        return true;
+    }
+
+    /** 位置を持たない機体を、並びの先頭から鳴らす。 */
+    private static boolean startFromBeginning(ControlContext context) {
+        final Started started = begin(context.stack(), context.level(), context.chunk(), context.placedPos());
+        if (started == null) {
+            return false;
+        }
+        context.changed().run();
+        send(context.level(), context.chunk(), context.payload().create(started.sound(), started.offset(),
+                started.session().audioGeneration, started.contents().volumePercent()));
+        return true;
     }
 
     private static boolean matchesGeneration(BoomboxContents contents, long expectedGeneration) {

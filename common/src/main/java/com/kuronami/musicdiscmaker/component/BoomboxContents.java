@@ -247,6 +247,29 @@ public record BoomboxContents(ItemStack disc, long id, PlaybackCursor cursor, lo
                 PlaybackCursor.NO_INDEX, PlaybackCursor.NO_INDEX, volumePercent);
     }
 
+    /**
+     * 保存順の先頭 {@code removed} 枚を外した媒体へ差し替えた複製 (容量超過の縮小)。
+     * 残った盤を指す位置・一時停止位置・順序設定は添字をずらして保ち、外した盤を指していた
+     * 位置だけを消す。どちらの場合も遅れた操作を失効させるため世代は進める。
+     *
+     * @param value   縮めた後の媒体。空なら {@link #withDisc} と同じ
+     * @param removed 先頭から外した盤の枚数
+     */
+    public BoomboxContents withLeadingDiscsRemoved(ItemStack value, int removed) {
+        if (value.isEmpty() || removed < 0) {
+            return withDisc(value);
+        }
+        final boolean keepsPosition = cursor.hasPosition() && cursor.discIndex() >= removed;
+        final PlaybackCursor moved = keepsPosition
+                ? new PlaybackCursor(cursor.discIndex() - removed, cursor.trackIndex(), cursor.state(),
+                        cursor.generation()).invalidate()
+                : cursor.clear().invalidate();
+        final boolean keepsAnchor = shuffleAnchorDisc >= removed && shuffleAnchorTrack >= 0;
+        return new BoomboxContents(value.copy(), id, moved, keepsPosition ? pausedOffsetMs : 0L, repeat, shuffle,
+                shuffleSeed, keepsAnchor ? shuffleAnchorDisc - removed : PlaybackCursor.NO_INDEX,
+                keepsAnchor ? shuffleAnchorTrack : PlaybackCursor.NO_INDEX, volumePercent);
+    }
+
     /** 識別子だけ差し替えた複製 (採番・重複の振り直し)。 */
     public BoomboxContents withId(long value) {
         return new BoomboxContents(disc, value, cursor, pausedOffsetMs, repeat, shuffle, shuffleSeed,
