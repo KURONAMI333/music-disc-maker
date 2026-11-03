@@ -51,6 +51,11 @@ public class NeoForgeConfigHelper implements IConfigHelper {
             .comment("Show the album art in custom disc tooltips.")
             .define("showAlbumArt", true);
 
+    public static final ModConfigSpec.BooleanValue MUTE_MUSIC_DURING_DISCS = BUILDER
+            .comment("Pause the background music while you can hear a music disc (any jukebox, Boombox or Speaker,",
+                    "including vanilla jukeboxes and other mods), and resume it where it left off when the song stops.")
+            .define("muteMusicDuringDiscs", true);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     @Override
@@ -84,6 +89,11 @@ public class NeoForgeConfigHelper implements IConfigHelper {
     @Override
     public boolean showAlbumArt() {
         return SHOW_ALBUM_ART.get();
+    }
+
+    @Override
+    public boolean muteMusicDuringDiscs() {
+        return MUTE_MUSIC_DURING_DISCS.get();
     }
 
     @Override

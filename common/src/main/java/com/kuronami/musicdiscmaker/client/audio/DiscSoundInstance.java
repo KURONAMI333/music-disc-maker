@@ -481,6 +481,11 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         return Config.playbackRange();
     }
 
+    /** 聞き手の位置が音源の実効範囲内か (盤の曲の間 BGM を止める {@link MusicDucking} の判定)。 */
+    public boolean isInRangeOf(Vec3 ear) {
+        return ear.distanceTo(anchor.worldPos(1.0F)) <= effectiveRange();
+    }
+
     /**
      * このインスタンスの現在の可聴範囲 (ブロック)。0 = per-block 設定なし。
      * {@link #tick} が client 側 BE から追従させ、変化時に {@link #applyLinearAttenuation} で

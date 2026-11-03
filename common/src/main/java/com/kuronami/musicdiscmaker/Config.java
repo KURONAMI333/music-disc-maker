@@ -62,4 +62,8 @@ public final class Config {
     public static boolean showAlbumArt() {
         return Services.CONFIG.showAlbumArt();
     }
+
+    public static boolean muteMusicDuringDiscs() {
+        return Services.CONFIG.muteMusicDuringDiscs();
+    }
 }

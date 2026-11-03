@@ -48,4 +48,10 @@ public interface IConfigHelper {
      * 画像が邪魔な人がプレイヤーごとに消せる。サーバー側の設定は要らない。
      */
     boolean showAlbumArt();
+
+    /**
+     * 盤の曲 (MDM の機器・バニラのジュークボックス・他 MOD) が聞こえている間、BGM を一時停止し、
+     * 曲が止んだら同じ BGM を続きから鳴らすか。既定は有効。
+     */
+    boolean muteMusicDuringDiscs();
 }
