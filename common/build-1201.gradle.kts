@@ -25,6 +25,9 @@ legacyForge {
 
 repositories {
     mavenCentral()
+    maven("https://maven.blamejared.com") {
+        content { includeGroup("mezz.jei") }
+    }
 }
 
 dependencies {
@@ -33,6 +36,7 @@ dependencies {
     compileOnly("org.spongepowered:mixin:0.8.5")
     compileOnly("com.google.code.findbugs:jsr305:3.0.1")
     compileOnly("org.jetbrains:annotations:24.1.0")
+    compileOnly("mezz.jei:jei-1.20.1-common-api:15.74.0.234") { isTransitive = false }
 }
 
 tasks.register("printJavaVersion") {

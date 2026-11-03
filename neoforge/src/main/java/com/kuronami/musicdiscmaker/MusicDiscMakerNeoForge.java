@@ -117,7 +117,7 @@ public class MusicDiscMakerNeoForge {
     private void buildCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
         // common は tab の identity のみ作る (26.2 の Output が protected)。中身はここで表示順に流し込む。
         if (event.getTab() == ModCreativeTab.MAIN.get()) {
-            ModCreativeTab.TAB_ITEMS.forEach(holder -> event.accept(holder.get()));
+            ModCreativeTab.displayStacks().forEach(stack -> event.accept(stack));
         }
     }
     //?}

@@ -62,7 +62,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.ItemStack;
 //?} else {
 //?}
 
@@ -286,10 +285,10 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), ctx.player())));
 
         // creative タブ内容: common は tab の identity のみ作る (26.2 の Output が protected)。
-        // 26.2 fabric-api は旧 ItemGroupEvents を廃し CreativeModeTabEvents に統合。表示順で TAB_ITEMS を流す。
+        // 26.2 fabric-api は旧 ItemGroupEvents を廃し CreativeModeTabEvents に統合。表示順で displayStacks() を流す。
         CreativeModeTabEvents.modifyOutputEvent(
                         ResourceKey.create(Registries.CREATIVE_MODE_TAB, ModCreativeTab.MAIN.getId()))
-                .register(output -> ModCreativeTab.TAB_ITEMS.forEach(holder -> output.accept(new ItemStack(holder.get()))));
+                .register(output -> ModCreativeTab.displayStacks().forEach(stack -> output.accept(stack)));
 
         // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
         // AA の型に触れるのはガード通過後の呼び出しだけ (AlbumProvider がこの時点で初めて class-load される)。
@@ -298,7 +297,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         }
         //?} elif >=1.21.2 {
         /*        // creative タブ内容: common は tab の identity のみ作る。fabric-item-group の
-        // ItemGroupEvents.modifyEntriesEvent で表示順に TAB_ITEMS を流す。
+        // ItemGroupEvents.modifyEntriesEvent で表示順に displayStacks() を流す。
         // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
         // AA の型に触れるのはガード通過後の呼び出しだけ (AlbumProvider がこの時点で初めて class-load される)。
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.SeekJukebox.TYPE,
@@ -314,7 +313,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
 
         ItemGroupEvents.modifyEntriesEvent(
                         ResourceKey.create(Registries.CREATIVE_MODE_TAB, ModCreativeTab.MAIN.getId()))
-                .register(output -> ModCreativeTab.TAB_ITEMS.forEach(holder -> output.accept(new ItemStack(holder.get()))));
+                .register(output -> ModCreativeTab.displayStacks().forEach(stack -> output.accept(stack)));
 
         if (Services.PLATFORM.isModLoaded("additionaladditions")) {
             com.kuronami.musicdiscmaker.compat.additionaladditions.AlbumProvider.install();

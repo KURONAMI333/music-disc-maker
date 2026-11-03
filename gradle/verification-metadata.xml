@@ -11199,5 +11199,225 @@
             <sha256 value="1fd00c4db2d5b0e1039dc806ea347a600ad029b0754d67966c73cb746fa71add" origin="Downloaded from Maven Central and recorded by hand (ALAC direct decode support)"/>
          </artifact>
       </component>
+      <component group="mezz.jei" name="jei-1.20.1-fabric" version="15.74.0.234">
+         <artifact name="jei-1.20.1-fabric-15.74.0.234.jar">
+            <sha256 value="f4d7ff99733b191a4d83babd71432ee04c037d469a176b2412bebee55f3a9212" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.20.1-fabric-15.74.0.234.pom">
+            <sha256 value="108f7d15dc26f50ffe7a8c727ad4e254d6e1ab599d35f0c015c2199714b6399a" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.20.1-fabric-15.74.0.234-sources.jar">
+            <sha256 value="567c0ebfa97750e75fb84b18db309cd98f73ee1eceebecd08027bfe9a3e1c76b" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.1-fabric" version="19.70.0.469">
+         <artifact name="jei-1.21.1-fabric-19.70.0.469.jar">
+            <sha256 value="db55faf899b5765b8d2577214d542b62643b6a0f1885eb94c190744c7aabaa55" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.1-fabric-19.70.0.469.pom">
+            <sha256 value="a0e9612928cbaaeb1f5fad47bd61f30996ee03239cf6bb0e937bffb148722a65" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.1-fabric-19.70.0.469-sources.jar">
+            <sha256 value="f1b2638085c70ee9e3aab3cd032970a6b881b7b1d3ca928743e2b20feb837741" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.11-fabric" version="27.54.0.116">
+         <artifact name="jei-1.21.11-fabric-27.54.0.116.jar">
+            <sha256 value="cd23e88a44ccc74f18286d2698aba1d40093a622a30e9e72dda21f01493518c7" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.11-fabric-27.54.0.116.pom">
+            <sha256 value="8d96bd7cd983e8560ba4974283e54d4a79478f292c3069a5ee39618c4c1bb6c7" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.11-fabric-27.54.0.116-sources.jar">
+            <sha256 value="a3b5e9966def864f1bb245527b694353bbd9e4c04946a0469fd2ce78ee300bb1" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.1.2-fabric" version="29.53.0.115">
+         <artifact name="jei-26.1.2-fabric-29.53.0.115.jar">
+            <sha256 value="d944695fc93be297592efd33ea94fc22ac5d7add2124476a08e8cdb44fadb770" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.1.2-fabric-29.53.0.115.pom">
+            <sha256 value="63e9cd78af0e796d847206577096a52092cfcccb16ee0b4ff09a9e6c707c1df1" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.1.2-fabric-29.53.0.115-sources.jar">
+            <sha256 value="e50e5dcf4502e7aa15bf71b9fa19ce4214a20efaae3107bb7cced7002c8fc5f5" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.2-fabric" version="30.48.0.244">
+         <artifact name="jei-26.2-fabric-30.48.0.244.jar">
+            <sha256 value="0f4adcbd1cfc69288d62cee490ce2a28a7794e28d694f21dbd24596c76a15a96" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.2-fabric-30.48.0.244.pom">
+            <sha256 value="3723306be03c78e7a40066bd419e70d595afdeae63a8237829be717bf01321f1" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.2-fabric-30.48.0.244-sources.jar">
+            <sha256 value="22b693d9b145ecc814f4c14bc9981c19ffd0f8af7c380de954f44a73c4873346" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.3-fabric" version="31.17.0.108">
+         <artifact name="jei-26.3-fabric-31.17.0.108.jar">
+            <sha256 value="93bd24706c6b24b5bf95c2af17e0b90275070187304d96c44b04352ebfff38fc" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.3-fabric-31.17.0.108.pom">
+            <sha256 value="dac241d28f4eb91e10f339faf236bfd8016238fb3b8e083ec1d912ae42281438" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.3-fabric-31.17.0.108-sources.jar">
+            <sha256 value="4b06008308d7289df8645e54d40b2c4f64ec2bed0165d8e13a1cdf8f58e3f553" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.20.1-forge" version="15.74.0.234">
+         <artifact name="jei-1.20.1-forge-15.74.0.234.jar">
+            <sha256 value="0bbd27c886b974be6906fe16f5e5e3ace8a87350b32e4361cca0213df1e7e86e" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.20.1-forge-15.74.0.234.pom">
+            <sha256 value="d6b2d16b68bf3bb82a9f6124b47e86ed924fbab04f02b469f84f8ba3da550fe7" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.20.1-forge-15.74.0.234-sources.jar">
+            <sha256 value="a019486aa5a35889481ac705d57465bc9bf6c5258c3f79b7ce3c61ce2faa1b71" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.1-neoforge" version="19.70.0.469">
+         <artifact name="jei-1.21.1-neoforge-19.70.0.469.jar">
+            <sha256 value="9ab82d9bdbc8d9a08b80bc2023e1d886f6335b92f937d3afac878c9ea995dc33" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.1-neoforge-19.70.0.469.pom">
+            <sha256 value="9c16bca42d25a34255de15e56938ee3a9e1139e5a2432cd679cfabd241c87b52" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.1-neoforge-19.70.0.469-sources.jar">
+            <sha256 value="63b326fa31e91ec0428f7b14f23a6aa5f8a7be3bb4fad5475d6de41c88a3b3b2" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.4-neoforge" version="20.0.0.4">
+         <artifact name="jei-1.21.4-neoforge-20.0.0.4.jar">
+            <sha256 value="74d7fd2b2f199c688b2f85b26996d239197c009fd2214180f244342c76f6828b" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.4-neoforge-20.0.0.4.pom">
+            <sha256 value="1d8c73fbaf6388b007c8b73ec574d14fa74955e1ff90d6c9760b53b1f709d6cc" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.4-neoforge-20.0.0.4-sources.jar">
+            <sha256 value="aae0a675b983021e46901d803dee1fc018cb7bda9cc0a664dd5565c199aec518" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.11-neoforge" version="27.54.0.116">
+         <artifact name="jei-1.21.11-neoforge-27.54.0.116.jar">
+            <sha256 value="0c16fea272c12f29d17d81987c1779f0e15719850b35bee0aecc38d43232ca93" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.11-neoforge-27.54.0.116.pom">
+            <sha256 value="9020e909803f2ddac81ce6aa3d6598399ca2b78ab80e993fe0e3c89a776bc9fe" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.11-neoforge-27.54.0.116-sources.jar">
+            <sha256 value="30e8b4e54c41326c67b6e2c5bd3ee81ed4e3a1030a49cdf2cad7fdf34024d51e" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.1.2-neoforge" version="29.53.0.115">
+         <artifact name="jei-26.1.2-neoforge-29.53.0.115.jar">
+            <sha256 value="ff87c80d1b1b87c2f1db8003b6f4709e2aa47aa4c20d8199a602b9aa5366703a" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.1.2-neoforge-29.53.0.115.pom">
+            <sha256 value="4bfe189cf434e05141fc06e23f44b717bfa4236b78863451f1e6dc44c3844aaf" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.1.2-neoforge-29.53.0.115-sources.jar">
+            <sha256 value="fe636940afa684eda308bf60d18495ffdd701b70d62093cf3915562efb05d9b3" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.2-neoforge" version="30.48.0.244">
+         <artifact name="jei-26.2-neoforge-30.48.0.244.jar">
+            <sha256 value="ae38959f21743ef9516511120f68ea44bc89cf7c3926a2710629fc8bb99d4e67" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.2-neoforge-30.48.0.244.pom">
+            <sha256 value="bdb78fdc88586ee6504c470488587bf431971fbac28885c061ec59f666a96c24" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.2-neoforge-30.48.0.244-sources.jar">
+            <sha256 value="66aa9bc488e14fe29217cc1fffa806da71bb0f6705fe33c919a476536d06a607" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.3-neoforge" version="31.17.0.108">
+         <artifact name="jei-26.3-neoforge-31.17.0.108.jar">
+            <sha256 value="fa0c46fb06ec8a00cb1398cc2a289db9fa95b1c7cca3df72f7617e050723f1a8" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.3-neoforge-31.17.0.108.pom">
+            <sha256 value="69e5b75a1dd4725004a30be4980af1bf3a278ab4c567e63dc6146387f919457d" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.3-neoforge-31.17.0.108-sources.jar">
+            <sha256 value="9eac237a00a5056e870e3355c378e8b369dd44613abd55eb664487cd77d44fd0" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.20.1-common-api" version="15.74.0.234">
+         <artifact name="jei-1.20.1-common-api-15.74.0.234.jar">
+            <sha256 value="1ea63bfba7d2cd183002d2d35d90eb0d47ab15443e80ec1f39ffbc83c41d4802" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.20.1-common-api-15.74.0.234.pom">
+            <sha256 value="a42a7b06ff9d5f5de21f58a88f001c547deb229f359246512ccadc90972f8bf5" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.20.1-common-api-15.74.0.234-sources.jar">
+            <sha256 value="e299ea854aed0cbc6f7b9abb8049b72aea35622d71c26ff04402fd61043d3fe3" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.1-common-api" version="19.70.0.469">
+         <artifact name="jei-1.21.1-common-api-19.70.0.469.jar">
+            <sha256 value="9c7d7fc48bf177f963f2d463527f97a175b05046c047d85804cc202f6264cbb8" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.1-common-api-19.70.0.469.pom">
+            <sha256 value="6d710afba4c50d745e0a5693a7649d4487489f4a683dd3ea3e2e83af2b8d61c0" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.1-common-api-19.70.0.469-sources.jar">
+            <sha256 value="1220a6c7b995f148afdaf52e23b46c1e8b3c88295f1f368dc9852eda34c4f246" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.4-common-api" version="20.0.0.4">
+         <artifact name="jei-1.21.4-common-api-20.0.0.4.jar">
+            <sha256 value="0ef8136262a8bcf8c75812b7cf60cda81c243bf3c5f587289ac2f505c047b944" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.4-common-api-20.0.0.4.pom">
+            <sha256 value="502d3594ce975e96456324a0325289954b01227b3392bc2b747968453fc88c83" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.4-common-api-20.0.0.4-sources.jar">
+            <sha256 value="38ed2f2b43c35c0c80d952bd4e095df145a30ea8e0a7c71c980830eada3949b6" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-1.21.11-common-api" version="27.54.0.116">
+         <artifact name="jei-1.21.11-common-api-27.54.0.116.jar">
+            <sha256 value="e0222d9e928917d22a3284c20554f3bc89be2999e38346f238ad02bf8ec6bbac" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.11-common-api-27.54.0.116.pom">
+            <sha256 value="96a6a4205dfc4d96250f6f2943ecd194b851ce6ca0d2f628d7801ff1cb541936" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-1.21.11-common-api-27.54.0.116-sources.jar">
+            <sha256 value="de47bf361e3b1223f6be4a3173e26d80496c3c0e8cd083658efbec7a1484e81a" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.1.2-common-api" version="29.53.0.115">
+         <artifact name="jei-26.1.2-common-api-29.53.0.115.jar">
+            <sha256 value="0b70abefec1661f2952d82e2414adf092dfaf00f5b2fe324f6b7c5440b0358f6" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.1.2-common-api-29.53.0.115.pom">
+            <sha256 value="79167d1e567b75efb4f7f2f3ed764174b7cdba50c63ea164e249e1fb8b69765c" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.1.2-common-api-29.53.0.115-sources.jar">
+            <sha256 value="57f7a1d91a82b2cac0ab8f904d0a6bdc27591a85d3c921fa1e4aace12afc5d2f" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.2-common-api" version="30.48.0.244">
+         <artifact name="jei-26.2-common-api-30.48.0.244.jar">
+            <sha256 value="39f89a5c8d3176f69138a2b24370d3206ba3e39b111e97bc3be30079cc9b56ae" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.2-common-api-30.48.0.244.pom">
+            <sha256 value="8ae89814ee2bd562d384b5ff57cab3f569b7bc2c2ef8f0812b8daa064c9b5f14" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.2-common-api-30.48.0.244-sources.jar">
+            <sha256 value="5406da581518b9a21274e2b6fdf680c07baa86a25748d0e3f072e934179400b4" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
+      <component group="mezz.jei" name="jei-26.3-common-api" version="31.17.0.108">
+         <artifact name="jei-26.3-common-api-31.17.0.108.jar">
+            <sha256 value="cfc41e892b117750e8a62d51ed96e17ece728217d79a03ec8a561968152697d4" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.3-common-api-31.17.0.108.pom">
+            <sha256 value="f5ad11c68558ea23d9d0e4908c60883631fa57008a3174550e83b88107324acc" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+         <artifact name="jei-26.3-common-api-31.17.0.108-sources.jar">
+            <sha256 value="686cb006f1e1bfd2efd18d8b0fa0452e142cd77187266a9cf55d24b51228f5b5" origin="Downloaded from maven.blamejared.com and recorded by hand"/>
+         </artifact>
+      </component>
    </components>
 </verification-metadata>

@@ -102,7 +102,7 @@ public final class ClientPlaybackManager {
      * <p>そこで<b>口だけを全帯共通にし、実装は loader entry が
      * {@link #setShipAnchorResolver} で差し込む</b>。差し込みが無い帯では {@link #shipAnchor} が
      * 常に {@code null} を返し、従来の {@link StaticAnchor} 再生になる。
-     * 口は関数型なので<b>実装側の名前をコンパイラが見る</b> ({@code TAB_ITEMS} や
+     * 口は関数型なので<b>実装側の名前をコンパイラが見る</b> ({@code displayStacks} や
      * {@code INetworkHelper} と同じで、名前を変えれば登録側のコンパイルが落ちる)。
      */
     private static BiFunction<ClientLevel, BlockPos, DiscAnchor> shipAnchorResolver;

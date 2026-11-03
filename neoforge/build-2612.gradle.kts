@@ -29,6 +29,9 @@ java {
 
 repositories {
     mavenCentral()
+    maven("https://maven.blamejared.com") {
+        content { includeGroup("mezz.jei") }
+    }
 }
 
 neoForge {
@@ -53,6 +56,9 @@ val commonMain = commonProject.extensions.getByType<SourceSetContainer>()["main"
 val commonGenerate = commonProject.tasks.named("stonecutterGenerate")
 
 dependencies {
+
+    // JEI の API だけをコンパイル時に参照する (実行時は JEI 導入者だけが持つ)。
+    compileOnly("mezz.jei:jei-26.1.2-common-api:29.53.0.115") { isTransitive = false }
 
     // 互換 mod (ソフト依存・compileOnly = 公開 jar には含めない)
     compileOnly(files(fileTree(compatLibsDir) { include("*.jar") }))
