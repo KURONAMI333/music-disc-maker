@@ -461,13 +461,16 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         final List<FormattedCharSequence> statusLines = statusLines();
         final int statusY = statusLines.size() > 1
                 ? MusicDiscMakerLayout.STATUS_TWO_LINE_Y : MusicDiscMakerLayout.STATUS_Y;
-        // URL の取得中は矢印の下に中央揃え (2026-10-10 本人指示)。回る記号で幅が変わって揺れないよう、
-        // 記号を除いた文の幅で位置を決める。ローカル取込の状態は従来どおり左寄せ。
-        final int statusX = !LocalAudioClient.hasStatus() && menu.getBlockEntity().isResolving()
-                ? MusicDiscMakerLayout.ARROW_CENTER_X
-                        - font.width(Component.translatable("gui.music_disc_maker.fetching")) / 2
-                : MusicDiscMakerLayout.STATUS_X;
+        // 帯の文はすべて矢印の下に中央揃え (URL の取得中は 2026-10-10、ローカル取込の状態と失敗の理由も
+        // 2026-11-03 本人「真ん中に統一すべき」)。行ごとに自分の幅で揃える。URL の取得中だけは
+        // 回る記号で幅が変わって揺れないよう、記号を除いた文の幅で位置を決める。
+        final boolean fetching = !LocalAudioClient.hasStatus() && !showingFailure()
+                && menu.getBlockEntity().isResolving();
+        final int fetchingX = MusicDiscMakerLayout.ARROW_CENTER_X
+                - font.width(Component.translatable("gui.music_disc_maker.fetching")) / 2;
         for (int i = 0; i < statusLines.size(); i++) {
+            final int statusX = fetching ? fetchingX
+                    : MusicDiscMakerLayout.ARROW_CENTER_X - font.width(statusLines.get(i)) / 2;
             //? if >=26.1 {
             graphics.text(font, statusLines.get(i), statusX, statusY + i * font.lineHeight,
                     showingFailure() ? ERROR : TEXT, false);
@@ -527,7 +530,8 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     private boolean overStatus(int mouseX, int mouseY) {
-        final int left = leftPos + MusicDiscMakerLayout.STATUS_X;
+        // 帯の文は矢印の下に中央揃えなので、ホバーの範囲も同じ中心から最大幅ぶん取る。
+        final int left = leftPos + MusicDiscMakerLayout.ARROW_CENTER_X - MusicDiscMakerLayout.STATUS_MAX_W / 2;
         final int top = topPos + MusicDiscMakerLayout.STATUS_TWO_LINE_Y;
         return mouseX >= left && mouseX < left + MusicDiscMakerLayout.STATUS_MAX_W
                 && mouseY >= top && mouseY < top + font.lineHeight * MusicDiscMakerLayout.STATUS_MAX_LINES;
@@ -545,13 +549,13 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
     }
 
     //? if >=26.1 {
-    /** 小さな警告印へホバーした時だけ、失敗理由を予約する。 */
+    /** 帯の文が 2 行に収まらない時、帯へホバーすると全文を予約する。 */
     @Override
     protected void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         super.extractTooltip(graphics, mouseX, mouseY);
     //?} elif >=1.21.11 {
     /*/^*
-     * 小さな警告印へホバーした時だけ、失敗理由を描く。hover ツールチップのフックは
+     * 帯の文が 2 行に収まらない時、帯へホバーすると全文を描く。hover ツールチップのフックは
      * renderTooltip。
      ^/
     @Override
@@ -559,14 +563,14 @@ public class MusicDiscMakerScreen extends AbstractContainerScreen<MusicDiscMaker
         super.renderTooltip(graphics, mouseX, mouseY);
     *///?} else {
     /*/^*
-     * 小さな警告印にホバーした時の詳細。失敗原因は常設文を置かず、ここから必ず読める。
+     * 失敗理由の文 (帯に出すものと同じ)。
      ^/
     private Component failedTooltip(FailureReason reason) {
         return failedMessage(reason);
     }
 
     /^*
-     * 警告印の上にマウスがあれば詳細を描く (screen 座標で判定)。
+     * 帯の文が 2 行に収まらない時、帯の上にマウスがあれば全文を描く (screen 座標で判定)。
      ^/
     private void renderFailedTooltip(GuiGraphics g, int mouseX, int mouseY) {
     *///?}

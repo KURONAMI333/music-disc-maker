@@ -67,5 +67,10 @@ class MusicDiscMakerLayoutTest {
         assertTrue(MusicDiscMakerLayout.STATUS_Y >= MusicDiscMakerLayout.STATUS_TWO_LINE_Y);
         assertTrue(MusicDiscMakerLayout.STATUS_X + MusicDiscMakerLayout.STATUS_MAX_W
                 <= MusicDiscMakerLayout.PANEL_WIDTH - 8);
+        // 矢印の下に中央揃えした最長の行も、左右の余白 8 の内側に収まる。
+        assertTrue(MusicDiscMakerLayout.ARROW_CENTER_X - MusicDiscMakerLayout.STATUS_MAX_W / 2
+                >= MusicDiscMakerLayout.STATUS_X);
+        assertTrue(MusicDiscMakerLayout.ARROW_CENTER_X + MusicDiscMakerLayout.STATUS_MAX_W / 2
+                <= MusicDiscMakerLayout.PANEL_WIDTH - 8);
     }
 }
