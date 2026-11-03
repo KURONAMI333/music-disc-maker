@@ -98,10 +98,26 @@ public final class AlbumDyeingGameTests {
         helper.assertTrue(red.matches(recolor, helper.getLevel()), "別の色へ染め直せない");
         helper.assertTrue(AlbumItem.getColor(assemble(red, recolor, helper)) == DyeColor.RED,
                 "染め直した結果が赤にならない");
+
+        // 金のアルバムは金のアルバム用のレシピだけで染まり、金のアルバムのまま出てくる。
+        final AlbumDyeRecipe goldenRed = recipe(helper, "golden_album_dyeing_red");
+        final ItemStack golden = new ItemStack(ModItems.GOLDEN_ALBUM.get());
+        helper.assertTrue(!red.matches(CraftingInput.of(2, 1,
+                        List.of(golden, dye(DyeColor.RED))), helper.getLevel()),
+                "通常アルバムの染色レシピが金のアルバムを受け入れた");
+        helper.assertTrue(!goldenRed.matches(CraftingInput.of(2, 1,
+                        List.of(populatedAlbum(), dye(DyeColor.RED))), helper.getLevel()),
+                "金のアルバムの染色レシピが通常アルバムを受け入れた");
+        final CraftingInput goldenInput = CraftingInput.of(2, 1, List.of(golden, dye(DyeColor.RED)));
+        helper.assertTrue(goldenRed.matches(goldenInput, helper.getLevel()), "金のアルバムを染められない");
+        final ItemStack goldenDyed = assemble(goldenRed, goldenInput, helper);
+        helper.assertTrue(goldenDyed.is(ModItems.GOLDEN_ALBUM.get())
+                        && AlbumItem.getColor(goldenDyed) == DyeColor.RED,
+                "金のアルバムを染めた結果が赤い金のアルバムにならない");
         helper.succeed();
     }
 
-    /** 16色すべてが通常の shapeless として読み込まれ、1本の advancement から解放されること。 */
+    /** アルバムと金のアルバムの16色ずつが通常の shapeless として読み込まれ、1本の advancement から解放されること。 */
     //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
     @GameTest(template = TEMPLATE)
@@ -109,6 +125,7 @@ public final class AlbumDyeingGameTests {
     public static void everyAlbumDyeingColorLoadsAndUnlocks(GameTestHelper helper) {
         for (final DyeColor color : DyeColor.values()) {
             recipe(helper, "album_dyeing_" + color.getName());
+            recipe(helper, "golden_album_dyeing_" + color.getName());
         }
 
         //? if >=1.21.11 {
@@ -131,11 +148,13 @@ public final class AlbumDyeingGameTests {
         assertUnlockedBy(helper, advancement, "has_golden_album", new ItemStack(ModItems.GOLDEN_ALBUM.get()));
 
         final var rewards = advancement.rewards().recipes();
-        helper.assertTrue(rewards.size() == 16, "Album 染色の解放レシピが16本ではない: " + rewards.size());
+        helper.assertTrue(rewards.size() == 32, "Album 染色の解放レシピが32本ではない: " + rewards.size());
         for (final DyeColor color : DyeColor.values()) {
-            final String expected = "music_disc_maker:album_dyeing_" + color.getName();
-            helper.assertTrue(rewards.stream().anyMatch(reward -> reward.toString().contains(expected)),
-                    "Album 染色の解放に " + expected + " が無い");
+            for (final String prefix : List.of("album_dyeing_", "golden_album_dyeing_")) {
+                final String expected = "music_disc_maker:" + prefix + color.getName();
+                helper.assertTrue(rewards.stream().anyMatch(reward -> reward.toString().contains(expected)),
+                        "Album 染色の解放に " + expected + " が無い");
+            }
         }
         helper.succeed();
     }
