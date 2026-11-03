@@ -35,6 +35,14 @@ Best-effort summary — verify against each project before redistribution:
       Public Domain
   annotations (org.jetbrains)
       Apache License 2.0
+  concentus (io.github.jaredmdobson; pure-Java Opus, used when LavaPlayer natives cannot load)
+      BSD 3-Clause License
+  jlayer (javazoom; pure-Java MP3, same fallback)
+      GNU Lesser General Public License 2.1
+  jaad (de.sfuhrm; pure-Java AAC, same fallback)
+      Public Domain
+  jorbis (org.jcraft; pure-Java Vorbis, same fallback)
+      GNU Lesser General Public License 2.0
 
 Full license texts are available from each library's project page. This file
 is a redistribution attribution summary, not the authoritative license source.
