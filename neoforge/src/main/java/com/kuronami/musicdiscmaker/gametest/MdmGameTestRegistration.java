@@ -212,6 +212,8 @@ public final class MdmGameTestRegistration {
                 AlbumDyeingGameTests::dyeingKeepsAlbumMetadataAndContents, empty, 100);
         register(event, "album_dyeing_rejects_extra_wrong_and_same_color",
                 AlbumDyeingGameTests::dyeingRejectsExtraWrongAndSameColorInputs, empty, 100);
+        register(event, "album_dyeing_every_color_loads_and_unlocks",
+                AlbumDyeingGameTests::everyAlbumDyeingColorLoadsAndUnlocks, empty, 100);
         register(event, "stack_copies_do_not_share_mutable_ownership", AlbumContentsGameTests::stackCopiesDoNotShareMutableOwnership, empty, 100);
         register(event, "nested_album_is_rejected_before_recursive_codec_expansion", AlbumContentsGameTests::nestedAlbumIsRejectedBeforeRecursiveCodecExpansion, empty, 100);
         register(event, "album_storage_defense_limit_remains_256",

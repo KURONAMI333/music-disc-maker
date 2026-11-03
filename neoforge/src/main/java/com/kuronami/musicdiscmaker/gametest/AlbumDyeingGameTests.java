@@ -29,6 +29,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.ShapelessRecipe;
 //? if <1.21.11 {
 /*import net.minecraft.gametest.framework.GameTest;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -52,7 +53,7 @@ public final class AlbumDyeingGameTests {
         final ItemStack album = populatedAlbum();
         helper.assertTrue(AlbumItem.getColor(album) == null, "旧無色 Album が既定色componentを持っている");
 
-        final AlbumDyeRecipe recipe = recipe(helper);
+        final AlbumDyeRecipe recipe = recipe(helper, "album_dyeing_blue");
         final CraftingInput input = CraftingInput.of(2, 1, List.of(album, dye(DyeColor.BLUE)));
         helper.assertTrue(recipe.matches(input, helper.getLevel()), "Album 1冊と染料1個を受け入れなかった");
         final ItemStack dyed = assemble(recipe, input, helper);
@@ -72,19 +73,81 @@ public final class AlbumDyeingGameTests {
     @GameTest(template = TEMPLATE)
     *///?}
     public static void dyeingRejectsExtraWrongAndSameColorInputs(GameTestHelper helper) {
-        final AlbumDyeRecipe recipe = recipe(helper);
+        final AlbumDyeRecipe blue = recipe(helper, "album_dyeing_blue");
+        final AlbumDyeRecipe red = recipe(helper, "album_dyeing_red");
         final ItemStack album = populatedAlbum();
-        helper.assertTrue(!recipe.matches(CraftingInput.of(3, 1,
+        helper.assertTrue(!blue.matches(CraftingInput.of(3, 1,
                         List.of(album, dye(DyeColor.RED), dye(DyeColor.BLUE))), helper.getLevel()),
                 "染料2個を受け入れた");
-        helper.assertTrue(!recipe.matches(CraftingInput.of(2, 1,
+        helper.assertTrue(!blue.matches(CraftingInput.of(2, 1,
                         List.of(album, new ItemStack(Items.STONE))), helper.getLevel()),
                 "Album と無関係な材料を受け入れた");
-
-        AlbumItem.setColor(album, DyeColor.RED);
-        helper.assertTrue(!recipe.matches(CraftingInput.of(2, 1,
+        helper.assertTrue(!blue.matches(CraftingInput.of(2, 1,
                         List.of(album, dye(DyeColor.RED))), helper.getLevel()),
+                "レシピと違う色の染料を受け入れた");
+
+        final ItemStack redAlbum = populatedAlbum();
+        AlbumItem.setColor(redAlbum, DyeColor.RED);
+        helper.assertTrue(!red.matches(CraftingInput.of(2, 1,
+                        List.of(redAlbum, dye(DyeColor.RED))), helper.getLevel()),
                 "同色染料で無駄に再クラフトできた");
+
+        final ItemStack blueAlbum = populatedAlbum();
+        AlbumItem.setColor(blueAlbum, DyeColor.BLUE);
+        final CraftingInput recolor = CraftingInput.of(2, 1, List.of(blueAlbum, dye(DyeColor.RED)));
+        helper.assertTrue(red.matches(recolor, helper.getLevel()), "別の色へ染め直せない");
+        helper.assertTrue(AlbumItem.getColor(assemble(red, recolor, helper)) == DyeColor.RED,
+                "染め直した結果が赤にならない");
+        helper.succeed();
+    }
+
+    /** 16色すべてが通常の shapeless として読み込まれ、1本の advancement から解放されること。 */
+    //? if <1.21.11 {
+    /*@PrefixGameTestTemplate(false)
+    @GameTest(template = TEMPLATE)
+    *///?}
+    public static void everyAlbumDyeingColorLoadsAndUnlocks(GameTestHelper helper) {
+        for (final DyeColor color : DyeColor.values()) {
+            recipe(helper, "album_dyeing_" + color.getName());
+        }
+
+        //? if >=1.21.11 {
+        final var id = Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "recipes/misc/album_dyeing");
+        //?} else {
+        /*final var id = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "recipes/misc/album_dyeing");
+        *///?}
+        final var holder = helper.getLevel().getServer().getAdvancements().get(id);
+        helper.assertTrue(holder != null, "RecipeManager に album_dyeing の advancement が読み込まれていない");
+        final var advancement = holder.value();
+        helper.assertTrue(advancement.criteria().keySet().containsAll(List.of("has_material", "has_the_recipe")),
+                "Album 染色の advancement に material/recipe criterion が無い");
+
+        //? if >=26.2 {
+        final var trigger = (net.minecraft.advancements.triggers.InventoryChangeTrigger.TriggerInstance)
+                advancement.criteria().get("has_material").triggerInstance();
+        //?} elif >=1.21.11 {
+        /*final var trigger = (net.minecraft.advancements.criterion.InventoryChangeTrigger.TriggerInstance)
+                advancement.criteria().get("has_material").triggerInstance();
+        *///?} else {
+        /*final var trigger = (net.minecraft.advancements.critereon.InventoryChangeTrigger.TriggerInstance)
+                advancement.criteria().get("has_material").triggerInstance();
+        *///?}
+        for (final ItemStack material : List.of(new ItemStack(ModItems.ALBUM.get()),
+                new ItemStack(ModItems.GOLDEN_ALBUM.get()))) {
+            helper.assertTrue(trigger.items().stream().anyMatch(predicate -> predicate.test(material)),
+                    "Album 染色の解放条件が " + material + " を受け付けない");
+        }
+        helper.assertTrue(trigger.items().stream()
+                        .noneMatch(predicate -> predicate.test(new ItemStack(Items.STONE))),
+                "無関係な石が Album 染色を解放する");
+
+        final var rewards = advancement.rewards().recipes();
+        helper.assertTrue(rewards.size() == 16, "Album 染色の解放レシピが16本ではない: " + rewards.size());
+        for (final DyeColor color : DyeColor.values()) {
+            final String expected = "music_disc_maker:album_dyeing_" + color.getName();
+            helper.assertTrue(rewards.stream().anyMatch(reward -> reward.toString().contains(expected)),
+                    "Album 染色の解放に " + expected + " が無い");
+        }
         helper.succeed();
     }
 
@@ -118,23 +181,25 @@ public final class AlbumDyeingGameTests {
         return new ItemStack(item);
     }
 
-    /** datapackへ実際に読まれた special recipe を取得する。 */
-    private static AlbumDyeRecipe recipe(GameTestHelper helper) {
+    /** datapackへ実際に読まれた染色レシピを取得する。 */
+    private static AlbumDyeRecipe recipe(GameTestHelper helper, String path) {
         //? if >=1.21.11 {
         final var id = ResourceKey.<net.minecraft.world.item.crafting.Recipe<?>>create(
-                Registries.RECIPE, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dyeing"));
+                Registries.RECIPE, Identifier.fromNamespaceAndPath(MusicDiscMaker.MODID, path));
         final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
         //?} elif >=1.21.2 {
         /*final var id = ResourceKey.<net.minecraft.world.item.crafting.Recipe<?>>create(
-                Registries.RECIPE, ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dyeing"));
+                Registries.RECIPE, ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, path));
         final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
         *///?} else {
-        /*final var id = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, "album_dyeing");
+        /*final var id = ResourceLocation.fromNamespaceAndPath(MusicDiscMaker.MODID, path);
         final var holder = helper.getLevel().getServer().getRecipeManager().byKey(id).orElse(null);
         *///?}
-        helper.assertTrue(holder != null, "RecipeManager に album_dyeing が読み込まれていない");
+        helper.assertTrue(holder != null, "RecipeManager に " + path + " が読み込まれていない");
+        helper.assertTrue(holder != null && holder.value() instanceof ShapelessRecipe,
+                "RecipeManager の " + path + " が通常の shapeless レシピではない");
         helper.assertTrue(holder != null && holder.value() instanceof AlbumDyeRecipe,
-                "RecipeManager の album_dyeing が AlbumDyeRecipe ではない");
+                "RecipeManager の " + path + " が AlbumDyeRecipe ではない");
         return (AlbumDyeRecipe) holder.value();
     }
 

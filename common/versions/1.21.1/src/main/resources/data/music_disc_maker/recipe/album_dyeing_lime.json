@@ -1,0 +1,20 @@
+{
+  "type": "music_disc_maker:album_dyeing",
+  "category": "misc",
+  "group": "album_dyeing",
+  "ingredients": [
+    {
+      "tag": "music_disc_maker:albums"
+    },
+    {
+      "item": "minecraft:lime_dye"
+    }
+  ],
+  "result": {
+    "id": "music_disc_maker:album",
+    "count": 1,
+    "components": {
+      "music_disc_maker:album_color": "lime"
+    }
+  }
+}

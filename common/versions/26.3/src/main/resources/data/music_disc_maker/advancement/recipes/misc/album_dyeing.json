@@ -1,0 +1,50 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_material": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "music_disc_maker:album"
+          },
+          {
+            "items": "music_disc_maker:golden_album"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipes": "music_disc_maker:album_dyeing_white"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_material",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "music_disc_maker:album_dyeing_white",
+      "music_disc_maker:album_dyeing_orange",
+      "music_disc_maker:album_dyeing_magenta",
+      "music_disc_maker:album_dyeing_light_blue",
+      "music_disc_maker:album_dyeing_yellow",
+      "music_disc_maker:album_dyeing_lime",
+      "music_disc_maker:album_dyeing_pink",
+      "music_disc_maker:album_dyeing_gray",
+      "music_disc_maker:album_dyeing_light_gray",
+      "music_disc_maker:album_dyeing_cyan",
+      "music_disc_maker:album_dyeing_purple",
+      "music_disc_maker:album_dyeing_blue",
+      "music_disc_maker:album_dyeing_brown",
+      "music_disc_maker:album_dyeing_green",
+      "music_disc_maker:album_dyeing_red",
+      "music_disc_maker:album_dyeing_black"
+    ]
+  }
+}
