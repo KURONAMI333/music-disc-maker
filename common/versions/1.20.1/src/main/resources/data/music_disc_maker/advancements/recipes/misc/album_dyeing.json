@@ -1,7 +1,7 @@
 {
   "parent": "minecraft:recipes/root",
   "criteria": {
-    "has_material": {
+    "has_album": {
       "trigger": "minecraft:inventory_changed",
       "conditions": {
         "items": [
@@ -9,7 +9,14 @@
             "items": [
               "music_disc_maker:album"
             ]
-          },
+          }
+        ]
+      }
+    },
+    "has_golden_album": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
           {
             "items": [
               "music_disc_maker:golden_album"
@@ -27,7 +34,8 @@
   },
   "requirements": [
     [
-      "has_material",
+      "has_album",
+      "has_golden_album",
       "has_the_recipe"
     ]
   ],

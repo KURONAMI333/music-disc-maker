@@ -239,7 +239,19 @@ public final class AlbumDyeRecipe extends ShapelessRecipe {
     public static final class Serializer implements RecipeSerializer<AlbumDyeRecipe> {
         @Override
         public AlbumDyeRecipe fromJson(ResourceLocation id, JsonObject json) {
-            return of(RecipeSerializer.SHAPELESS_RECIPE.fromJson(id, json));
+            // バニラ 1.20.1 の結果の読み取りは item と count だけで、nbt は Forge だけが読む。
+            // Fabric でも色付きの見本になるよう、結果の色は JSON から自分で読んで付ける。
+            final ShapelessRecipe base = RecipeSerializer.SHAPELESS_RECIPE.fromJson(id, json);
+            final ItemStack result = base.getResultItem(null).copy();
+            final JsonObject resultJson = json.getAsJsonObject("result");
+            if (resultJson != null && resultJson.has("nbt") && resultJson.get("nbt").isJsonObject()
+                    && resultJson.getAsJsonObject("nbt").has("album_color")) {
+                final DyeColor dye = DyeColor.byName(
+                        resultJson.getAsJsonObject("nbt").get("album_color").getAsString(), null);
+                if (dye != null) AlbumItem.setColor(result, dye);
+            }
+            return new AlbumDyeRecipe(base.getId(), base.getGroup(), base.category(), result,
+                    base.getIngredients());
         }
 
         @Override

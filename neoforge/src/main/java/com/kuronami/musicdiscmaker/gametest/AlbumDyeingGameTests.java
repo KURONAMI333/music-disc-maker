@@ -119,27 +119,16 @@ public final class AlbumDyeingGameTests {
         final var holder = helper.getLevel().getServer().getAdvancements().get(id);
         helper.assertTrue(holder != null, "RecipeManager に album_dyeing の advancement が読み込まれていない");
         final var advancement = holder.value();
-        helper.assertTrue(advancement.criteria().keySet().containsAll(List.of("has_material", "has_the_recipe")),
-                "Album 染色の advancement に material/recipe criterion が無い");
-
-        //? if >=26.2 {
-        final var trigger = (net.minecraft.advancements.triggers.InventoryChangeTrigger.TriggerInstance)
-                advancement.criteria().get("has_material").triggerInstance();
-        //?} elif >=1.21.11 {
-        /*final var trigger = (net.minecraft.advancements.criterion.InventoryChangeTrigger.TriggerInstance)
-                advancement.criteria().get("has_material").triggerInstance();
-        *///?} else {
-        /*final var trigger = (net.minecraft.advancements.critereon.InventoryChangeTrigger.TriggerInstance)
-                advancement.criteria().get("has_material").triggerInstance();
-        *///?}
-        for (final ItemStack material : List.of(new ItemStack(ModItems.ALBUM.get()),
-                new ItemStack(ModItems.GOLDEN_ALBUM.get()))) {
-            helper.assertTrue(trigger.items().stream().anyMatch(predicate -> predicate.test(material)),
-                    "Album 染色の解放条件が " + material + " を受け付けない");
-        }
-        helper.assertTrue(trigger.items().stream()
-                        .noneMatch(predicate -> predicate.test(new ItemStack(Items.STONE))),
-                "無関係な石が Album 染色を解放する");
+        helper.assertTrue(advancement.criteria().keySet()
+                        .containsAll(List.of("has_album", "has_golden_album", "has_the_recipe")),
+                "Album 染色の advancement に album/golden_album/recipe criterion が無い");
+        // どちらか一方を持つだけで解放される (1つの inventory_changed に2つ並べると両方必要になる)。
+        helper.assertTrue(advancement.requirements().requirements().size() == 1
+                        && advancement.requirements().requirements().get(0)
+                                .containsAll(List.of("has_album", "has_golden_album")),
+                "Album 染色の解放がアルバムと金のアルバムのどちらか一方で満たされない");
+        assertUnlockedBy(helper, advancement, "has_album", new ItemStack(ModItems.ALBUM.get()));
+        assertUnlockedBy(helper, advancement, "has_golden_album", new ItemStack(ModItems.GOLDEN_ALBUM.get()));
 
         final var rewards = advancement.rewards().recipes();
         helper.assertTrue(rewards.size() == 16, "Album 染色の解放レシピが16本ではない: " + rewards.size());
@@ -149,6 +138,25 @@ public final class AlbumDyeingGameTests {
                     "Album 染色の解放に " + expected + " が無い");
         }
         helper.succeed();
+    }
+
+    /** その criterion の条件が、渡した1個だけで満たされ、無関係な石では満たされない。 */
+    private static void assertUnlockedBy(GameTestHelper helper, net.minecraft.advancements.Advancement advancement,
+            String criterion, ItemStack material) {
+        //? if >=26.2 {
+        final var trigger = (net.minecraft.advancements.triggers.InventoryChangeTrigger.TriggerInstance)
+                advancement.criteria().get(criterion).triggerInstance();
+        //?} elif >=1.21.11 {
+        /*final var trigger = (net.minecraft.advancements.criterion.InventoryChangeTrigger.TriggerInstance)
+                advancement.criteria().get(criterion).triggerInstance();
+        *///?} else {
+        /*final var trigger = (net.minecraft.advancements.critereon.InventoryChangeTrigger.TriggerInstance)
+                advancement.criteria().get(criterion).triggerInstance();
+        *///?}
+        helper.assertTrue(trigger.items().size() == 1 && trigger.items().get(0).test(material),
+                criterion + " が " + material + " 1個で満たされない");
+        helper.assertTrue(!trigger.items().get(0).test(new ItemStack(Items.STONE)),
+                "無関係な石が " + criterion + " を満たす");
     }
 
     private static ItemStack populatedAlbum() {
