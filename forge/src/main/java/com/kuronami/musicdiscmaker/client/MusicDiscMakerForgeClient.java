@@ -158,6 +158,11 @@ public final class MusicDiscMakerForgeClient {
         event.registerBlockEntityRenderer(ModBlockEntities.DISC_PEDESTAL.get(), DiscPedestalRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.SPEAKER.get(), SpeakerBlockRenderer::new);
         event.registerEntityRenderer(ModEntities.GOLDEN_JUKEBOX_MINECART.get(), GoldenJukeboxMinecartRenderer::new);
+        // Amendments 導入時だけ、金のジュークボックスの上にもバニラのジュークボックスと同じ回る盤を出す。
+        if (com.kuronami.musicdiscmaker.compat.amendments.AmendmentsCompat.isActive()) {
+            event.registerBlockEntityRenderer(ModBlockEntities.GOLDEN_JUKEBOX.get(),
+                    com.kuronami.musicdiscmaker.client.render.GoldenJukeboxDiscRenderer::new);
+        }
     }
 
     /** ツールチップのジャケット画像: JacketTooltip → JacketClientTooltip に変換する factory を登録。 */

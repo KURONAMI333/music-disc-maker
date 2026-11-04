@@ -12,6 +12,7 @@
 - Fixed discs made from local audio files sometimes failing to load when played from a disc the player carries or has open in a container.
 - The Boombox no longer leaves about 8 seconds of silence between songs.
 - Fixed the "could not be opened" message appearing for every song when an Album's discs cannot be played. The same music source now shows it once, until a song actually starts.
+- Amendments compatibility (Minecraft 1.20.1, 1.21.1 and 26.1.2): Custom Music Discs on top of a jukebox now show their colors in the same disc shape as other discs instead of appearing black, and the Golden Jukebox and the Minecart with Golden Jukebox show the spinning disc on top too. Amendments is still optional.
 
 Use the same Music Disc Maker version on the server and all clients.
 

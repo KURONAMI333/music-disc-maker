@@ -296,6 +296,19 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         BlockEntityRendererRegistry.register(ModBlockEntities.DISC_PEDESTAL.get(), DiscPedestalRenderer::new);
         BlockEntityRendererRegistry.register(ModBlockEntities.SPEAKER.get(), SpeakerBlockRenderer::new);
         EntityRendererRegistry.register(ModEntities.GOLDEN_JUKEBOX_MINECART.get(), GoldenJukeboxMinecartRenderer::new);
+        // Amendments 導入時だけ、金のジュークボックスの上にもバニラのジュークボックスと同じ回る盤を出す
+        // (Amendments が出ている 1.20.1 / 1.21.1 / 26.1.2 だけ。他の版には描き手の class 自体が無い)。
+        //? if <1.21.2 {
+        /*if (com.kuronami.musicdiscmaker.compat.amendments.AmendmentsCompat.isActive()) {
+            BlockEntityRendererRegistry.register(ModBlockEntities.GOLDEN_JUKEBOX.get(),
+                    com.kuronami.musicdiscmaker.client.render.GoldenJukeboxDiscRenderer::new);
+        }
+        *///?} elif >=26.1 && <26.2 {
+        /*if (com.kuronami.musicdiscmaker.compat.amendments.AmendmentsCompat.isActive()) {
+            BlockEntityRendererRegistry.register(ModBlockEntities.GOLDEN_JUKEBOX.get(),
+                    com.kuronami.musicdiscmaker.client.render.GoldenJukeboxDiscRenderer::new);
+        }
+        *///?}
         //? if >=26.1 {
         LevelRenderEvents.COLLECT_SUBMITS.register(context -> SpeakerLinkOutlineRenderer.submitModern(
                 context.poseStack(), context.submitNodeCollector(), context.levelState().cameraRenderState.pos));

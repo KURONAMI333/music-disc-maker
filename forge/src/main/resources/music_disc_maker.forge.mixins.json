@@ -14,7 +14,8 @@
         "MixinSoundEngineChannels",
         "LegacySophisticatedPlayDiscMixin",
         "SophisticatedStopDiscMixin",
-        "TravelersBackpackJukeboxMixin"
+        "TravelersBackpackJukeboxMixin",
+        "AmendmentsJukeboxRendererMixin"
     ],
     "server": [
     ],

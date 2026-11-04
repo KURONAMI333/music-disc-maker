@@ -40,6 +40,7 @@ URL audio streams from their source each time they play, so URL playback needs a
 - Create: Steam 'n' Rails Minecart with Jukebox on 1.20.1 and NeoForge 1.21.1
 - Create moving contraptions on NeoForge 1.21.1 and Forge 1.20.1; Create Aeronautics physics airships on NeoForge 1.21.1
 - Valkyrien Skies 2, Eureka!, and Clockwork ships on 1.20.1
+- Amendments on 1.20.1, 1.21.1, and 26.1.2: Custom Music Discs show their colors on top of the jukebox, and the Golden Jukebox and Minecart with Golden Jukebox show the same spinning disc. Amendments is optional.
 - Optional Curios Boombox slot on NeoForge 1.21.1, 1.21.11, 26.1.2, and 26.2, and Forge 1.20.1. Curios is not needed for other features.
 
 ### Minecraft and loader versions

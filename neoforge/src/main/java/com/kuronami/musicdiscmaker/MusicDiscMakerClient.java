@@ -195,6 +195,13 @@ public class MusicDiscMakerClient {
         // (EntityRenderDispatcher は未登録型で null を返し、そのまま使う)。
         event.registerEntityRenderer(com.kuronami.musicdiscmaker.register.ModEntities.GOLDEN_JUKEBOX_MINECART.get(),
                 com.kuronami.musicdiscmaker.client.render.GoldenJukeboxMinecartRenderer::new);
+        //? if >=26.1 && <26.2 {
+        /*// Amendments 導入時だけ、金のジュークボックスの上にもバニラのジュークボックスと同じ回る盤を出す。
+        if (com.kuronami.musicdiscmaker.compat.amendments.AmendmentsCompat.isActive()) {
+            event.registerBlockEntityRenderer(ModBlockEntities.GOLDEN_JUKEBOX.get(),
+                    com.kuronami.musicdiscmaker.client.render.GoldenJukeboxDiscRenderer::new);
+        }
+        *///?}
     }
 
     /**
