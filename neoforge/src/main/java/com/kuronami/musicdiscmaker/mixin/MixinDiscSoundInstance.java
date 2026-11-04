@@ -1,6 +1,5 @@
 package com.kuronami.musicdiscmaker.mixin;
 
-//? if >=1.21.2 {
 import java.util.concurrent.CompletableFuture;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -24,6 +23,11 @@ import net.minecraft.client.sounds.SoundBufferLibrary;
  * Fabric 側の {@link MixinDiscSoundInstance 相当}({@code FabricSoundInstance#getAudioStream} override)
  * と同型になる。common の {@link DiscSoundInstance} は vanilla neoForm classpath でこの patch メソッドが
  * 見えないため、override は loader 層 (ここ) に置く。
+ *
+ * <p>1.21.1 でもこの default は存在する (NeoForge 21.1.227 の {@code SoundInstance} を javap で確認)。
+ * 加えて 1.21.1 だけは {@code SoundEngine} の @Redirect も残っているが、二重には生成されない
+ * (直再生は redirect が先に返し、Sound Physics の包み経由の再生は redirect の判定を外れて包みが
+ * 元インスタンスのこの override へ委譲する)。
  */
 @Mixin({DiscSoundInstance.class, VanillaSpeakerSoundInstance.class})
 public abstract class MixinDiscSoundInstance {
@@ -32,6 +36,3 @@ public abstract class MixinDiscSoundInstance {
         return ((CustomAudioStreamProvider) this).createAudioStream(buffers, sound, looping);
     }
 }
-
-//?} else {
-//?}
