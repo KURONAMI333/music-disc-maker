@@ -20,6 +20,10 @@
 - Local M4A files encoded with Apple Lossless (ALAC), and MKV files with FLAC audio, can now be imported. Previously they were rejected as unreadable files.
 - Choosing a local audio file before inserting a Blank Disc no longer makes you choose it again: the import starts as soon as the disc is in. When the server is busy with other transfers, the import waits and tries again instead of stopping, and a transfer the server drops no longer leaves the screen stuck at "Sending audio".
 - A disc made from a local file in another world now plays for everyone: a player who still has the original audio sends it to the server, and players who could not play it yet start hearing it once it arrives.
+- Custom discs now play with Sound Physics Perfected installed on Forge 1.20.1 and NeoForge 1.21.1. Previously every song stayed silent.
+- Dyeing an Album or a Golden Album now shows up in the recipe book and JEI, and the creative tab and JEI list both Albums in every color.
+- The Music Disc Maker shows why a link failed right under the arrow, and an empty input slot shows the outline of a disc.
+- An Album or Boombox that holds more than it can send now opens with the discs that fit and gives the rest back to you, instead of refusing to open.
 
 Use the same Music Disc Maker version on the server and all clients.
 
