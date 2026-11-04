@@ -43,7 +43,7 @@ public final class ModCreativeTab {
                     .build());
 
     /**
-     * タブに載せるアイテムを表示順で返す。無色の Album の直後に 16 色を DyeColor の定義順で置く。
+     * タブに載せるアイテムを表示順で返す。アルバム群 (無色の直後に 16 色を DyeColor の定義順) は末尾にまとめる。
      * 各ローダーのタブ内容イベントと、1.21.1 / 1.20.1 の displayItems generator が共有する。
      */
     public static List<ItemStack> displayStacks() {
@@ -54,10 +54,10 @@ public final class ModCreativeTab {
         stacks.add(new ItemStack(ModItems.DISC_DYEING_TABLE.get()));
         stacks.add(new ItemStack(ModItems.DISC_PEDESTAL.get()));
         stacks.add(new ItemStack(ModItems.SPEAKER.get()));
-        addAlbumAndColors(stacks, ModItems.ALBUM.get());
-        addAlbumAndColors(stacks, ModItems.GOLDEN_ALBUM.get());
         stacks.add(new ItemStack(ModItems.BOOMBOX.get()));
         stacks.add(new ItemStack(ModItems.GOLDEN_JUKEBOX_MINECART.get()));
+        addAlbumAndColors(stacks, ModItems.ALBUM.get());
+        addAlbumAndColors(stacks, ModItems.GOLDEN_ALBUM.get());
         return stacks;
     }
 

@@ -61,6 +61,14 @@ public final class CreativeTabOrderGameTests {
                     "Golden Album の色順が DyeColor の定義順と違う: " + i);
         }
 
+        // アルバム群はブームボックスと金のジュークボックス付きトロッコより後ろ、タブの末尾にまとめる。
+        final int boombox = indexOfUncolored(stacks, ModItems.BOOMBOX.get());
+        final int cart = indexOfUncolored(stacks, ModItems.GOLDEN_JUKEBOX_MINECART.get());
+        helper.assertTrue(boombox >= 0 && cart >= 0 && boombox < album && cart < album,
+                "ブームボックスかトロッコがアルバム群より後ろにある");
+        helper.assertTrue(golden == album + 1 + colors.length && golden + 1 + colors.length == stacks.size(),
+                "アルバム群がタブの末尾にまとまっていない");
+
         // 10 個の通常項目 + 16 色 x 2。無色の直後以外に色付きが混ざっていないことも兼ねる。
         helper.assertTrue(stacks.size() == 10 + colors.length * 2,
                 "表示順の総数が想定と違う: " + stacks.size());
