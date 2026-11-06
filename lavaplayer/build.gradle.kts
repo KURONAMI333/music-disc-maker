@@ -53,6 +53,13 @@ dependencies {
         isTransitive = false
     }
 
+    // native libconnector を load できない環境 (Android = Bionic libc) 用の pure-Java codec。
+    // com.sedmelluq...natives の差し替えクラスが NativeCodecs の判定でこちらへ切り替える。
+    library("io.github.jaredmdobson:concentus:1.0.2") // Opus decode / encode (BSD-3-Clause)
+    library("javazoom:jlayer:1.0.1")                  // MP3 (LGPL-2.1)
+    library("de.sfuhrm:jaad:0.8.7")                   // AAC (Public Domain)
+    library("org.jcraft:jorbis:0.0.17")               // Vorbis (LGPL-2.0)
+
     // 橋渡し interface (mod classloader 側に置かれるので packed には含めない)
     implementation(project(":lavaplayer-api"))
 
@@ -66,6 +73,8 @@ dependencies {
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
+    // -Dmusicdiscmaker.javaCodecs=true で pure-Java codec (Android 経路) のままテストを回せる
+    providers.systemProperty("musicdiscmaker.javaCodecs").orNull?.let { systemProperty("musicdiscmaker.javaCodecs", it) }
     testLogging {
         events("passed", "failed", "skipped")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
@@ -100,6 +109,33 @@ val repackAlac = tasks.register<Jar>("repackAlac") {
     destinationDirectory.set(layout.buildDirectory.dir("repacked"))
 }
 
+// src/main/java/com/sedmelluq/.../natives に同名の差し替えを置いた LavaPlayer の native wrapper。
+// 隔離 classloader は jar を名前順に並べるだけなので、同名クラスが 2 つあると勝ち負けが
+// 名前次第になる。元の lavaplayer jar から抜いた版を同梱して、差し替え側だけが存在するようにする。
+val nativeWrapperOverrides = listOf(
+    "opus/OpusDecoder", "opus/OpusEncoder", "mp3/Mp3Decoder",
+    "aac/AacDecoder", "vorbis/VorbisDecoder", "samplerate/SampleRateConverter")
+val lavaplayerJarName = Regex("""lavaplayer-\d.*\.jar""")
+val packedLibraries = library.copyRecursive().apply {
+    exclude(mapOf("group" to "org.slf4j", "module" to "slf4j-api"))
+    exclude(mapOf("group" to "com.tianscar.javasound", "module" to "javasound-alac"))
+}
+
+val repackLavaplayer = tasks.register<Jar>("repackLavaplayer") {
+    val lavaplayerJar = packedLibraries.filter { lavaplayerJarName.matches(it.name) }
+    from({ lavaplayerJar.map { zipTree(it) } }) {
+        nativeWrapperOverrides.forEach {
+            exclude("com/sedmelluq/discord/lavaplayer/natives/$it.class")
+            exclude("com/sedmelluq/discord/lavaplayer/natives/$it\$*.class")
+        }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    archiveFileName = provider { lavaplayerJar.singleFile.name }
+    destinationDirectory = layout.buildDirectory.dir("repacked")
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
+
 // LavaPlayer 依存を build/dependencies/*.jar.packed に書き出す。
 // slf4j-api だけは mod 側提供なので除外。
 // javasound-alac は生の jar を入れず、上の repackAlac (SPI 除去後) だけを入れる。
@@ -107,10 +143,8 @@ val repackAlac = tasks.register<Jar>("repackAlac") {
 // 残ると隔離 classloader が両版を二重ロードするため、Copy ではなく Sync を使う。
 tasks.register<Sync>("copyDependencies") {
     from(repackAlac)
-    from(library.copyRecursive().apply {
-        exclude(mapOf("group" to "org.slf4j", "module" to "slf4j-api"))
-        exclude(mapOf("group" to "com.tianscar.javasound", "module" to "javasound-alac"))
-    })
+    from(repackLavaplayer)
+    from(packedLibraries.filter { !lavaplayerJarName.matches(it.name) })
     into(layout.buildDirectory.dir("dependencies"))
     rename { it + ".packed" }
 }
