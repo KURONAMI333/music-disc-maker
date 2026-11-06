@@ -15,6 +15,10 @@ import net.minecraft.core.HolderLookup;
 //?}
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+//? if >=1.21.11 {
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Containers;
+//?}
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -78,6 +82,24 @@ public class DiscPedestalBlockEntity extends BlockEntity {
     public NonNullList<ItemStack> contentsForDrop() {
         return stored;
     }
+
+    /**
+     * 飾ってあるディスクを、BlockEntity が level から外れる前に落とす (1.21.11 以降)。
+     *
+     * <p>1.21.5+ の {@code LevelChunk#setBlockState} は preRemoveSideEffects → BE 除去 →
+     * {@code BlockState#affectNeighborsAfterRemoval} の順に走る。このクラスは
+     * {@link net.minecraft.world.Container} を実装していないので、後者の時点では BE も中身も
+     * 引けず、Block 側の撤去フックだけではディスクが消える。
+     */
+    //? if >=1.21.11 {
+    @Override
+    public void preRemoveSideEffects(BlockPos pos, BlockState state) {
+        if (level instanceof ServerLevel serverLevel) {
+            Containers.dropContents(serverLevel, pos, contentsForDrop());
+        }
+        super.preRemoveSideEffects(pos, state);
+    }
+    //?}
 
     /**
      * 台の下に出す曲名。<b>飾っていない / 曲メタを持たないディスクなら空文字</b>。

@@ -4,7 +4,6 @@ import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Containers;
 //? if >=1.21.2 {
@@ -233,15 +232,10 @@ player.drop(previous, false);
     *///?}
 
     // 撤去時に飾ってあるディスクを落とす。loot table が返すのは台座そのものだけ。
-    @Override
+    // >=1.21.11 は BlockEntity#preRemoveSideEffects の担当 (DiscPedestalBlockEntity)。
+    // ここ (affectNeighborsAfterRemoval) へ来る時点で BE は level から外れており、
+    // getBlockEntity は null になるため、このフックでは落とせない。
     //? if >=1.21.11 {
-    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos,
-            boolean movedByPiston) {
-        if (level.getBlockEntity(pos) instanceof DiscPedestalBlockEntity pedestal) {
-            Containers.dropContents(level, pos, pedestal.contentsForDrop());
-        }
-        super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
-    }
     //?} elif >=1.21 {
     /*protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState,
             boolean movedByPiston) {

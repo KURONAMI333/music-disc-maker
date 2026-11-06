@@ -115,6 +115,11 @@ public final class MdmGameTestRegistration {
         register(event, "pedestal_full_inventory_swap", com.kuronami.musicdiscmaker.block.DiscPedestalInteractionGameTests::fullInventoryDropsPreviousExactlyOnce, empty, 100);
         register(event, "pedestal_empty_hand_creative", com.kuronami.musicdiscmaker.block.DiscPedestalInteractionGameTests::emptyHandAndCreativeKeepExistingSemantics, empty, 100);
         register(event, "pedestal_outline_and_track_metadata", com.kuronami.musicdiscmaker.block.DiscPedestalInteractionGameTests::selectionOutlineIsWholeAndTrackMetadataFollowsSwap, empty, 100);
+        register(event, "break_maker_drops_contents", BlockBreakDropsGameTests::breakingTheMakerDropsItsContents, empty, 100);
+        register(event, "break_dyeing_table_drops_contents", BlockBreakDropsGameTests::breakingTheDyeingTableDropsItsContents, empty, 100);
+        register(event, "break_golden_jukebox_drops_contents", BlockBreakDropsGameTests::breakingTheGoldenJukeboxDropsItsContents, empty, 100);
+        register(event, "break_boombox_drops_contents", BlockBreakDropsGameTests::breakingTheBoomboxDropsItsContents, empty, 100);
+        register(event, "break_pedestal_drops_contents", BlockBreakDropsGameTests::breakingThePedestalDropsItsContents, empty, 100);
         register(event, "golden_media_live_repeat_pause", GoldenMediaSequenceGameTests::liveManualNextRepeatTailAndPausedPreviousAreDistinct, empty, 400);
         register(event, "golden_media_album_reload", GoldenMediaSequenceGameTests::albumDiscAndTrackPositionSurviveReload, empty, 400);
         register(event, "golden_shuffle_reload_transport", GoldenMediaSequenceGameTests::shufflePreservesPositionOffsetAndFixedTransportAfterReload, empty, 400);
