@@ -14,18 +14,19 @@ import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * Fabric 実装: client 設定。Fabric には config 画面を設けないため既定値を返す
- * (NeoForge の ModConfigSpec 既定値と一致させる)。Now Playing とジャケット画像の表示だけは
+ * (NeoForge の ModConfigSpec 既定値と一致させる)。Now Playing とジャケット画像の表示、盤の曲の間の BGM 停止だけは
  * {@code config/music_disc_maker-client.properties} で変えられる。再生は client 側のみなので参照も client 経路から。
  */
 public class FabricConfigHelper implements IConfigHelper {
 
     /**
-     * Fabric で利用者が変えられる設定 ({@link #showNowPlaying()}・{@link #showAlbumArt()}) の置き場。設定画面を持たないので
+     * Fabric で利用者が変えられる設定 ({@link #showNowPlaying()}・{@link #showAlbumArt()}・{@link #muteMusicDuringDiscs()}) の置き場。設定画面を持たないので
      * 小さな properties にし、無ければ既定値で書き出す (開いて書き換えられるように)。
      */
     private static final String FILE_NAME = "music_disc_maker-client.properties";
     private static final String SHOW_NOW_PLAYING = "showNowPlaying";
     private static final String SHOW_ALBUM_ART = "showAlbumArt";
+    private static final String MUTE_MUSIC_DURING_DISCS = "muteMusicDuringDiscs";
 
     private static volatile Properties loaded;
     /** 読んだ時のファイルの更新時刻と、次に更新時刻を見てよい時刻 (ms)。書き換えをゲーム中に拾う。 */
@@ -65,6 +66,11 @@ public class FabricConfigHelper implements IConfigHelper {
         return Boolean.parseBoolean(properties().getProperty(SHOW_ALBUM_ART, "true").trim());
     }
 
+    @Override
+    public boolean muteMusicDuringDiscs() {
+        return Boolean.parseBoolean(properties().getProperty(MUTE_MUSIC_DURING_DISCS, "true").trim());
+    }
+
     /** 設定ファイルを書き換えたら、ゲームを再起動しなくても1秒以内に効く (2026-10-10)。 */
     private static Properties properties() {
         final long now = System.currentTimeMillis();
@@ -98,6 +104,7 @@ public class FabricConfigHelper implements IConfigHelper {
         final Properties properties = new Properties();
         properties.setProperty(SHOW_NOW_PLAYING, "false");
         properties.setProperty(SHOW_ALBUM_ART, "true");
+        properties.setProperty(MUTE_MUSIC_DURING_DISCS, "true");
         try {
             boolean missingKey = true;
             if (Files.exists(file)) {
@@ -105,7 +112,8 @@ public class FabricConfigHelper implements IConfigHelper {
                 try (Reader reader = Files.newBufferedReader(file)) {
                     stored.load(reader);
                 }
-                missingKey = !stored.containsKey(SHOW_NOW_PLAYING) || !stored.containsKey(SHOW_ALBUM_ART);
+                missingKey = !stored.containsKey(SHOW_NOW_PLAYING) || !stored.containsKey(SHOW_ALBUM_ART)
+                        || !stored.containsKey(MUTE_MUSIC_DURING_DISCS);
                 properties.putAll(stored);
             }
             // 無い時と、後の版で足した設定の行が無い時は書き出す (書き換えた値は残す)。設定画面が無いので、
@@ -115,7 +123,8 @@ public class FabricConfigHelper implements IConfigHelper {
                 try (Writer writer = Files.newBufferedWriter(file)) {
                     properties.store(writer, "Music Disc Maker client settings. "
                             + "showNowPlaying: show \"Now Playing\" when a music disc starts, for every disc and every mod. "
-                            + "showAlbumArt: show the album art in custom disc tooltips.");
+                            + "showAlbumArt: show the album art in custom disc tooltips. "
+                            + "muteMusicDuringDiscs: pause the background music while a music disc can be heard.");
                 }
             }
         } catch (final IOException | IllegalArgumentException e) {

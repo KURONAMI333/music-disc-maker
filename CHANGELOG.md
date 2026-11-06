@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The background music now pauses while you can hear a music disc from any jukebox, Boombox or Speaker, including vanilla jukeboxes, and picks up where it left off when the song stops. Turn it off with the client setting `muteMusicDuringDiscs`.
+
 ## 3.1.3
 
 - Choosing a local audio file now starts the import right after the file check, without pressing the same button a second time.

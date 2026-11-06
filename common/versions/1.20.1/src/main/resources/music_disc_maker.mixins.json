@@ -21,7 +21,9 @@
     "IntegratedServerPlaybackClockMixin",
     "BoomboxShoulderPoseMixin",
     "MixinChannelPlayback",
-    "MixinSoundEngineReload"
+    "MixinSoundEngineReload",
+    "MixinSoundEngineMusicDucking",
+    "MixinMusicManagerDucking"
   ],
   "server": [],
   "injectors": {
