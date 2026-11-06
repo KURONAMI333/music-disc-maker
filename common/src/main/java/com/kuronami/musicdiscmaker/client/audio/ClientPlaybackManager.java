@@ -8,6 +8,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.HashMap;
 import java.util.Map;
+import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
 
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
@@ -63,8 +64,32 @@ public final class ClientPlaybackManager {
     /** A transient regular finite-track network open gets two short local retries. */
     private static final int FINITE_OPEN_RETRIES = 2;
     private static final long FINITE_OPEN_RETRY_DELAY_MS = 1_500L;
+    /**
+     * 上の即時再試行を使い切った後に、時間を置いて開き直す上限。
+     *
+     * <p>間隔を {@code YoutubeTokenSession#REFILL_INTERVAL_MS} と同じ 7.5 秒にしてあるのは、
+     * bot 判定が visitorId 単位で変わるため。それより短く叩いても同じ visitorId で同じ答えが
+     * 返るだけで、相手に余計な要求を積む。予算 30 秒は「盤を入れてから鳴り出すまで」として
+     * 待てる上限で、試行は 7.5 / 15 / 22.5 / 30 秒の 4 回になる (最初の試行の前にも間隔を
+     * 置くので、即時再試行の直後に空打ちしない)。回数上限 6 は予算が先に尽きるので実際には
+     * 効かない (予算側だけを動かした時に回数が暴れないための歯止め)。
+     */
+    private static final TransientOpenRetry.Policy SLOW_OPEN_RETRY =
+            new TransientOpenRetry.Policy(30_000L, 7_500L, 6);
+    /** 再試行の間隔を待つ手段。中断されたら諦める (pool thread が畳まれる時に待ち続けない)。 */
+    private static final TransientOpenRetry.Sleeper SLEEPER = ms -> {
+        try {
+            Thread.sleep(ms);
+            return true;
+        } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    };
     /** 有限曲が再生途中で途切れた時、現在位置から開き直すまでの間隔 (ms)。位置は開く時に補正される。 */
     private static final long FINITE_RESUME_DELAY_MS = 1_500L;
+    /** engine が枯渇で拒否した時、play をやり直すまでの待ち (1 tick = 50ms)。 */
+    private static final long SOUND_ENGINE_RETRY_DELAY_MS = 50L;
 
     /**
      * 音源座標の決定を compat へ開く口。
@@ -77,7 +102,7 @@ public final class ClientPlaybackManager {
      * <p>そこで<b>口だけを全帯共通にし、実装は loader entry が
      * {@link #setShipAnchorResolver} で差し込む</b>。差し込みが無い帯では {@link #shipAnchor} が
      * 常に {@code null} を返し、従来の {@link StaticAnchor} 再生になる。
-     * 口は関数型なので<b>実装側の名前をコンパイラが見る</b> ({@code TAB_ITEMS} や
+     * 口は関数型なので<b>実装側の名前をコンパイラが見る</b> ({@code displayStacks} や
      * {@code INetworkHelper} と同じで、名前を変えれば登録側のコンパイルが落ちる)。
      */
     private static BiFunction<ClientLevel, BlockPos, DiscAnchor> shipAnchorResolver;
@@ -488,7 +513,8 @@ public final class ClientPlaybackManager {
                     resolverSettled.remove(immutableExtensionId, resolverCompletion));
         }
         pool.submit(() -> {
-            boolean completionFollowsCleanupAck = false;
+            final java.util.concurrent.atomic.AtomicBoolean completionFollowsCleanupAck =
+                    new java.util.concurrent.atomic.AtomicBoolean();
             try {
             if (delayMs > 0L) {
                 try {
@@ -501,8 +527,6 @@ public final class ClientPlaybackManager {
             if (!sessions.isLive(immutableKey, immutableToken)) {
                 return; // 遅延中に停止/撤去/差し替えされた
             }
-            IAudioSource source = null;
-            PlaybackFailure failure = null;
             //? if >=1.21.2 {
             timing.beginResolve();
             //?} elif >=1.21 {
@@ -510,15 +534,17 @@ public final class ClientPlaybackManager {
             */
             //?} else {
             //?}
-            long openOffsetMs = startOffsetMs;
+            // 開く位置は試行ごとに進める。待つ間も server 側の曲は進むので、配列で持つ
+            // (再試行のラムダからも書き換えるため)。
+            final long[] openOffsetMs = { startOffsetMs };
             if (delayMs > 0L && !immutableTrack.radio() && !immutableTrack.isLocal() && immutableTrack.durationMs() > 0L) {
                 // 待っている間も server の曲は進む。ネット音源の open は要求時刻で位置を補正しないので、
                 // 待った分をここで足す (足さないと、開き直した client だけ待機時間ぶん遅れて鳴る)。
-                final long waited = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
-                openOffsetMs = Math.max(0L, startOffsetMs) + Math.min(waited, Long.MAX_VALUE - Math.max(0L, startOffsetMs));
+                openOffsetMs[0] = openOffsetAt(startOffsetMs, requestedAtMs);
             }
-            for (int retry = 0; ; retry++) {
-                if (!sessions.isLive(immutableKey, immutableToken)) return;
+            // 1 回開く本文。即時の再試行と時間を置いた再試行で同じ本文を通す (分類を 2 箇所に
+            // 書くと、片方だけ直した時に同じ失敗が経路によって別の分類になる)。
+            final java.util.function.Supplier<TransientOpenRetry.Outcome> openOnce = () -> {
                 try {
                     // SSRF 遮断: 悪意ある disc データ (内部 IP URL) で他プレイヤーの client を踏み台にさせない
                     if (!immutableTrack.isLocal()) UrlGuard.enforce(immutableTrack.url());
@@ -527,36 +553,43 @@ public final class ClientPlaybackManager {
                                     immutableExtensionId, PlaybackFailure.thrown(fault)));
                     final OpenStreamResult result = immutableRegularOnly
                             ? com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSynced(
-                                    immutableTrack, openOffsetMs, requestedAtMs)
+                                    immutableTrack, openOffsetMs[0], requestedAtMs)
                             : com.kuronami.musicdiscmaker.client.audio.TrackAudioResolver.openSyncedForPlayback(
-                                    immutableTrack, openOffsetMs, requestedAtMs, immutableExtensionId,
+                                    immutableTrack, openOffsetMs[0], requestedAtMs, immutableExtensionId,
                                     immutableSourceContext, immutableSelection, providerFaultSink,
                                     // ローカル音源・拡張なしでは session id が null (select が none)。
                                     // その時は再生の生存だけを見る (共有音源の取得待ちの打ち切り判定にも使われる)。
                                     () -> sessions.isLive(immutableKey, immutableToken)
                                             && (immutableExtensionId == null
                                                     || immutableExtensionId.equals(extensionIds.get(immutableKey))));
-                    source = result.source();
-                    failure = result.isOk() ? null
-                            : PlaybackFailure.ofReason(result.reason(), result.detail());
+                    return result.isOk()
+                            ? TransientOpenRetry.Outcome.ok(result.source())
+                            : TransientOpenRetry.Outcome.failed(
+                                    PlaybackFailure.ofReason(result.reason(), result.detail()));
                 } catch (final UrlBlockedException blocked) {
-                    failure = PlaybackFailure.blocked(blocked.reason());
+                    return TransientOpenRetry.Outcome.failed(PlaybackFailure.blocked(blocked.reason()));
                 } catch (final PlaybackSessionRegistry.CleanupIncompleteException cleanup) {
                     // Never turn an unacknowledged AV cleanup into a regular retry or a second voice.
-                    failure = PlaybackFailure.thrown(cleanup);
-                    completionFollowsCleanupAck = true;
+                    completionFollowsCleanupAck.set(true);
                     cleanup.cleanupAcknowledged().whenComplete((ignored, cleanupFailure) -> {
                         if (cleanupFailure == null) resolverCompletion.complete(null);
                         else resolverCompletion.completeExceptionally(cleanupFailure);
                     });
+                    return TransientOpenRetry.Outcome.failed(PlaybackFailure.thrown(cleanup));
                 } catch (final Throwable t) {
-                    failure = PlaybackFailure.thrown(t);
+                    return TransientOpenRetry.Outcome.failed(PlaybackFailure.thrown(t));
                 }
-                if (source != null || retry >= FINITE_OPEN_RETRIES || failure == null
+            };
+            // 即時の再試行 (回線の瞬断向け)。待たずに短い間隔で 2 回まで。
+            TransientOpenRetry.Outcome outcome = null;
+            for (int retry = 0; ; retry++) {
+                if (!sessions.isLive(immutableKey, immutableToken)) return;
+                outcome = openOnce.get();
+                if (outcome.isOk() || retry >= FINITE_OPEN_RETRIES || outcome.failure() == null
                         || !FiniteOpenRetryPolicy.mayRetry(immutableTrack.radio(), immutableTrack.isLocal(),
                                 immutableSelection.selected(), immutableRegularOnly,
-                                (failure.kind() == PlaybackFailure.Kind.NETWORK
-                                        || failure.kind() == PlaybackFailure.Kind.STREAM_UNAVAILABLE))) break;
+                                (outcome.failure().kind() == PlaybackFailure.Kind.NETWORK
+                                        || outcome.failure().kind() == PlaybackFailure.Kind.STREAM_UNAVAILABLE))) break;
                 try {
                     Thread.sleep(FINITE_OPEN_RETRY_DELAY_MS * (retry + 1));
                 } catch (final InterruptedException ex) {
@@ -564,15 +597,29 @@ public final class ClientPlaybackManager {
                     return;
                 }
                 if (!sessions.isLive(immutableKey, immutableToken)) return;
-                final long elapsed = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
-                final long baseOffset = Math.max(0L, startOffsetMs);
-                openOffsetMs = baseOffset + Math.min(elapsed, Long.MAX_VALUE - baseOffset);
-                if (immutableTrack.durationMs() > 0L && openOffsetMs >= immutableTrack.durationMs()) break;
+                openOffsetMs[0] = openOffsetAt(startOffsetMs, requestedAtMs);
+                if (immutableTrack.durationMs() > 0L && openOffsetMs[0] >= immutableTrack.durationMs()) break;
             }
-            final IAudioSource resolved = source;
-            final long actualStartMs = TrackAudioResolver.actualOffset(resolved, openOffsetMs);
+            // それでも駄目なら、時間を置いて開き直す。bot 判定は同じ URL でも時機と visitorId で
+            // 結果が変わるので、1 回の失敗で確定させない。待つ間に盤が抜かれた・別の曲へ
+            // 差し替えられたら止める (待つ・止めるの判断は TransientOpenRetry 側に閉じてある)。
+            if (!outcome.isOk() && !pastTrackEnd(immutableTrack, startOffsetMs, requestedAtMs)
+                    && FiniteOpenRetryPolicy.mayRetry(immutableTrack.radio(), immutableTrack.isLocal(),
+                            immutableSelection.selected(), immutableRegularOnly,
+                            TransientOpenRetry.isTransient(outcome.failure(), immutableTrack.url()))) {
+                outcome = TransientOpenRetry.run(SLOW_OPEN_RETRY, MONOTONIC_MS, SLEEPER,
+                        () -> sessions.isLive(immutableKey, immutableToken)
+                                && !pastTrackEnd(immutableTrack, startOffsetMs, requestedAtMs),
+                        immutableTrack.url(), outcome,
+                        () -> {
+                            openOffsetMs[0] = openOffsetAt(startOffsetMs, requestedAtMs);
+                            return openOnce.get();
+                        });
+            }
+            final IAudioSource resolved = outcome.source();
+            final long actualStartMs = TrackAudioResolver.actualOffset(resolved, openOffsetMs[0]);
             final long dedupOffsetMs = immutableTrack.isLocal() ? actualStartMs : startOffsetMs;
-            final PlaybackFailure reported = failure;
+            final PlaybackFailure reported = outcome.failure();
             //? if >=1.21.2 {
             timing.resolved();
             //?} elif >=1.21 {
@@ -602,9 +649,35 @@ public final class ClientPlaybackManager {
             */
             //?}
             } finally {
-                if (!completionFollowsCleanupAck) resolverCompletion.complete(null);
+                if (!completionFollowsCleanupAck.get()) resolverCompletion.complete(null);
             }
         });
+    }
+
+    /**
+     * 要求時刻から今までに進んだ分を足した、開き直す位置。
+     *
+     * <p>待つ間も server 側の曲は進む。ネット音源の open は要求時刻で位置を補正しないので、
+     * ここで足さないと、開き直した client だけ待った分遅れて鳴る。
+     *
+     * @param startOffsetMs 元の開始位置
+     * @param requestedAtMs 再生を要求された時刻
+     * @return 開き直す位置 (ms)
+     */
+    private static long openOffsetAt(long startOffsetMs, long requestedAtMs) {
+        final long elapsed = Math.max(0L, TrackAudioResolver.playbackClockMs() - requestedAtMs);
+        final long base = Math.max(0L, startOffsetMs);
+        return base + Math.min(elapsed, Long.MAX_VALUE - base);
+    }
+
+    /**
+     * 待っている間に曲末を越えたか。越えたら開き直しても鳴る余地が無いので再試行しない。
+     *
+     * <p>ラジオ (長さ不定) とローカル音源 (時間で進まない) は対象外。
+     */
+    private static boolean pastTrackEnd(CustomTrackData track, long startOffsetMs, long requestedAtMs) {
+        if (track.radio() || track.isLocal() || track.durationMs() <= 0L) return false;
+        return openOffsetAt(startOffsetMs, requestedAtMs) >= track.durationMs();
     }
 
     private static boolean retryFiniteOpen(CustomTrackData track, PlaybackFailure failure) {
@@ -1068,13 +1141,15 @@ public final class ClientPlaybackManager {
         // directionalを入れるため、ここで最新集合の値を上書きしないと最初の一瞬だけ旧設定になる。
         //? if >=1.21 {
         if (anchor instanceof LiveAudioConfig audioConfig) {
-            instance.setVolumePercent(audioConfig.volumePercent());
+            instance.setLiveVolumePercent(audioConfig.volumePercent());
+            instance.setConfiguredVolumePercent(audioConfig.configuredVolumePercent());
             instance.setRangeBlocks(audioConfig.rangeBlocks());
             instance.setDirectional(audioConfig.directional());
         }
         //?} else {
 /*        if (anchor instanceof LiveAudioConfig audioConfig) {
-            instance.setVolumePercent(audioConfig.volumePercent());
+            instance.setLiveVolumePercent(audioConfig.volumePercent());
+            instance.setConfiguredVolumePercent(audioConfig.configuredVolumePercent());
             instance.setDirectional(audioConfig.directional());
         }
 */
@@ -1082,53 +1157,20 @@ public final class ClientPlaybackManager {
         //? if >=26.2 {
         // 他MODが一度取り消して同じinstanceを後から再投入する経路もある。
         // 受理されなくても即座には閉じず、実PCMが来ない場合だけ期限で解放する。
-        armFirstAudioDeadline(key, token, track);
-        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
-            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
-            if (show != null) {
-                failures.record(key, show);
-                PlaybackFailureReport.report(track, show);
-            }
-        })) {
+        armFirstAudioDeadline(key, token, track, instance);
+        if (startVoice(key, token, track, instance, playback, speakerSet) != VoiceStart.ACCEPTED) {
             return;
-        }
-        sessions.engineAccepted(key);
-        if (playback instanceof SpeakerVoiceGroup group) {
-            // The accepted Golden master must exist before child branches can prefill/read PCM.
-            group.update(speakerSet);
         }
         //?} elif >=1.21.2 {
-/*        armFirstAudioDeadline(key, token, track);
-        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
-            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
-            if (show != null) {
-                failures.record(key, show);
-                PlaybackFailureReport.report(track, show);
-            }
-        })) {
+/*        armFirstAudioDeadline(key, token, track, instance);
+        if (startVoice(key, token, track, instance, playback, speakerSet) != VoiceStart.ACCEPTED) {
             return;
-        }
-        sessions.engineAccepted(key);
-        if (playback instanceof SpeakerVoiceGroup group) {
-            // The accepted Golden master must exist before child branches can prefill/read PCM.
-            group.update(speakerSet);
         }
 */
         //?} elif >=1.21 {
-/*        armFirstAudioDeadline(key, token, track);
-        if (!SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE, rejected -> {
-            final PlaybackFailure show = sessions.engineRejected(key, token, rejected);
-            if (show != null) {
-                failures.record(key, show);
-                PlaybackFailureReport.report(track, key, token, show);
-            }
-        })) {
-            return;
-         }
-         sessions.engineAccepted(key); // engine が受理した。拒否の記憶を捨てる唯一の点
-         if (playback instanceof SpeakerVoiceGroup group) {
-             // The accepted Golden master must exist before child streams prefill on every supported band.
-             group.update(speakerSet);
+/*        armFirstAudioDeadline(key, token, track, instance);
+         if (startVoice(key, token, track, instance, playback, speakerSet) != VoiceStart.ACCEPTED) {
+             return;
          }
          */
         //?} else {
@@ -1176,21 +1218,47 @@ public final class ClientPlaybackManager {
     //?} elif >=1.21 {
 /*    }
 
-    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
         CompletableFuture.delayedExecutor(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, TimeUnit.MILLISECONDS)
                 .execute(() -> Minecraft.getInstance()
-                        .execute(() -> onFirstAudioDeadline(key, token, track)));
+                        .execute(() -> onFirstAudioDeadline(key, token, track, instance)));
     }
 
-    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
         if (!sessions.firstAudioOverdue(key, token)) {
             return; // 鳴り始めた / 停止済み / 差し替え済み
         }
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
                 PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
         if (track.radio()) {
+            // 保留中の拒否は radioStreamEnded が再接続のために捨てる。先に解決して、
+            // 諦めた時の理由として持ち越す (本当の拒否を SOUND_ENGINE として残す)。
+            final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+            sessions.holdRadioEngineRejection(key, token, engineActive);
             releaseOnFirstAudioDeadline(sessions, prefetch, key, true);
             onRadioStreamEnded(key, token);
+            return;
+        }
+        // 拒否された直後に遅れて開栓した音源は、ここでは engine が保持している (KEEP_UNTIL_DEADLINE)。
+        // 鳴っている以上、保留していた拒否は誤りなので報告しない (#7-1)。
+        final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+        final PlaybackFailure rejected = sessions.resolveHeldEngineRejection(key, token, engineActive);
+        if (engineActive) {
+            sessions.engineAccepted(key); // 遅れて受理された。拒否の頻度抑止も解く
+            return;
+        }
+        if (rejected != null) {
+            failures.record(key, rejected);
+            PlaybackFailureReport.report(track, key, token, rejected);
+            releaseOnFirstAudioDeadline(sessions, prefetch, key, false);
+            return;
+        }
+        if (sessions.mutedAlreadyReported(key, token)) {
+            // MUTED は報告済み。期限で「ストリームが届かない」に化けると、ミュートされただけの
+            // 再生へ誤った理由が付く。
+            releaseOnFirstAudioDeadline(sessions, prefetch, key, false);
             return;
         }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
@@ -1217,21 +1285,158 @@ public final class ClientPlaybackManager {
     //?}
     }
 
-    //? if >=1.21.2 {
-    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
-        CompletableFuture.delayedExecutor(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, TimeUnit.MILLISECONDS)
-                .execute(() -> Minecraft.getInstance()
-                        .execute(() -> onFirstAudioDeadline(key, token, track)));
+    /** engine へ音を渡した結果。 */
+    private enum VoiceStart {
+        ACCEPTED,
+        REJECTED,
+        RETRY_SCHEDULED
     }
 
-    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track) {
+    /**
+     * 音を engine へ渡し、受理されなかった時の次の一手まで決める。
+     *
+     * <p>枯渇による拒否だけは 1 tick 後に 1 回やり直す。他の音が抜けて枠が空くのを待つ価値があり、
+     * 待たずに「再生拒否」を出すと、実際には次の tick で鳴った盤へ失敗を付ける。
+     * 再試行しても拒否なら、既存の期限付き保留 (#7-1) へ渡す。
+     */
+    private VoiceStart startVoice(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance, PlaybackVoice playback, SpeakerSetPayload speakerSet) {
+        final PlaybackFailure[] rejected = new PlaybackFailure[1];
+        if (SoundEngineAcceptance.start(instance, SoundEngineAcceptance.KEEP_UNTIL_DEADLINE,
+                failure -> rejected[0] = failure)) {
+            sessions.engineAccepted(key);
+            if (playback instanceof SpeakerVoiceGroup group) {
+                // The accepted Golden master must exist before child branches can prefill/read PCM.
+                group.update(speakerSet);
+            }
+            return VoiceStart.ACCEPTED;
+        }
+        return afterVoiceRejection(key, token, track, instance, playback, speakerSet,
+                rejected[0], 0);
+    }
+
+    private VoiceStart afterVoiceRejection(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance, PlaybackVoice playback, SpeakerSetPayload speakerSet,
+            PlaybackFailure rejected, int retriesSoFar) {
+        final PlaybackFailure failure = rejected == null
+                ? PlaybackFailure.soundEngineRejected() : rejected;
+        // 音量 0 は遅れて開栓しない。利用者が直せる唯一の理由なので、その場で返す。
+        if (failure.kind() == PlaybackFailure.Kind.MUTED) {
+            reportRejected(track, key, token, failure);
+            return VoiceStart.REJECTED;
+        }
+        final int used;
+        final int limit;
+        try {
+            used = Config.engineStreamingUsed();
+            limit = Config.engineStreamingLimit();
+        } catch (final Throwable t) {
+            // engine の状態を読めない時に枯渇を推測しない。従来どおり期限付き保留へ回す。
+            reportRejected(track, key, token, failure);
+            return VoiceStart.REJECTED;
+        }
+        final PlaybackFailure detailed = failure.withPoolUsage(used, limit);
+        if (StreamingChannelPool.afterPlayRejection(
+                StreamingChannelPool.exhausted(used, limit), retriesSoFar)
+                == StreamingChannelPool.PlayRetry.RETRY) {
+            scheduleVoiceRetry(key, token, track, instance, playback, speakerSet,
+                    retriesSoFar + 1);
+            return VoiceStart.RETRY_SCHEDULED;
+        }
+        reportRejected(track, key, token, detailed);
+        return VoiceStart.REJECTED;
+    }
+
+    private void reportRejected(CustomTrackData track, BlockPos key, int token,
+            PlaybackFailure failure) {
+        final PlaybackFailure show = sessions.engineRejected(key, token, failure);
+        if (show != null) {
+            failures.record(key, show);
+            // 帯で 1 つの実装を共有するので、座標と世代を添える 4 引数版に揃える (ログ行だけの差)。
+            PlaybackFailureReport.report(track, key, token, show);
+        }
+    }
+
+    private void scheduleVoiceRetry(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance, PlaybackVoice playback, SpeakerSetPayload speakerSet,
+            int retriesSoFar) {
+        CompletableFuture.delayedExecutor(SOUND_ENGINE_RETRY_DELAY_MS, TimeUnit.MILLISECONDS)
+                .execute(() -> Minecraft.getInstance().execute(() -> {
+                    if (!sessions.isLive(key, token) || sessions.activeVoice(key) != playback) {
+                        return;
+                    }
+                    // 最初の play が遅れて開栓していたら (KEEP_UNTIL_DEADLINE)、もう一度 play すると
+                    // 同じ instance が二重に登録され、片方の channel を誰も閉じなくなる。受理として扱う。
+                    final boolean openedLate =
+                            Minecraft.getInstance().getSoundManager().isActive(instance);
+                    final PlaybackFailure[] rejected = new PlaybackFailure[1];
+                    if (openedLate || SoundEngineAcceptance.start(instance,
+                            SoundEngineAcceptance.KEEP_UNTIL_DEADLINE,
+                            failure -> rejected[0] = failure)) {
+                        sessions.engineAccepted(key);
+                        if (playback instanceof SpeakerVoiceGroup group) {
+                            group.update(speakerSet);
+                        }
+                        failures.clear(key);
+                        announceNowPlaying(key, token, track);
+                        return;
+                    }
+                    afterVoiceRejection(key, token, track, instance, playback, speakerSet,
+                            rejected[0], retriesSoFar);
+                }));
+    }
+
+    private void announceNowPlaying(BlockPos key, int token, CustomTrackData track) {
+        final String desc = (track.author() != null && !track.author().isBlank())
+                ? track.author() + " - " + track.title()
+                : track.title();
+        if (desc != null && !desc.isBlank() && mayAnnounce(key, token)) {
+            com.kuronami.musicdiscmaker.client.NowPlaying.show(Component.literal(desc));
+        }
+    }
+
+    //? if >=1.21.2 {
+    private void armFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
+        CompletableFuture.delayedExecutor(PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, TimeUnit.MILLISECONDS)
+                .execute(() -> Minecraft.getInstance()
+                        .execute(() -> onFirstAudioDeadline(key, token, track, instance)));
+    }
+
+    private void onFirstAudioDeadline(BlockPos key, int token, CustomTrackData track,
+            DiscSoundInstance instance) {
         if (!sessions.firstAudioOverdue(key, token)) {
             return; // 鳴り始めた / 停止済み / 差し替え済み
         }
         MusicDiscMaker.LOGGER.warn("No audio reached the sound engine within {}ms [{}] url={}",
                 PlaybackSessions.FIRST_AUDIO_DEADLINE_MS, key.toShortString(), track.sourceKey());
         if (track.radio()) {
+            // 保留中の拒否は radioStreamEnded が再接続のために捨てる。先に解決して、
+            // 諦めた時の理由として持ち越す (本当の拒否を SOUND_ENGINE として残す)。
+            final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+            sessions.holdRadioEngineRejection(key, token, engineActive);
             onRadioStreamEnded(key, token);
+            return;
+        }
+        // 拒否された直後に遅れて開栓した音源は、ここでは engine が保持している (KEEP_UNTIL_DEADLINE)。
+        // 鳴っている以上、保留していた拒否は誤りなので報告しない (#7-1)。
+        final boolean engineActive = Minecraft.getInstance().getSoundManager().isActive(instance);
+        final PlaybackFailure rejected = sessions.resolveHeldEngineRejection(key, token, engineActive);
+        if (engineActive) {
+            sessions.engineAccepted(key); // 遅れて受理された。拒否の頻度抑止も解く
+            return;
+        }
+        if (rejected != null) {
+            // 期限まで engine が開栓しなかった = 拒否は本当だった。理由は engine のものを使う。
+            failures.record(key, rejected);
+            PlaybackFailureReport.report(track, rejected);
+            sessions.stop(key);
+            return;
+        }
+        if (sessions.mutedAlreadyReported(key, token)) {
+            // MUTED は報告済み。期限で「ストリームが届かない」に化けると、ミュートされただけの
+            // 再生へ誤った理由が付く。
+            sessions.stop(key);
             return;
         }
         final PlaybackFailure show = PlaybackFailure.streamUnavailable();
@@ -1380,7 +1585,7 @@ public final class ClientPlaybackManager {
     //?}
 
     /** アクションバーに一行表示する (main thread から呼ぶこと)。 */
-    private static void notifyActionBar(Component message) {
+    static void notifyActionBar(Component message) {
         //? if >=26.2 {
         Minecraft.getInstance().gui.hud.setOverlayMessage(message, false);
         //?} elif >=1.21.2 {

@@ -39,7 +39,7 @@ public class MusicDiscMakerForge {
         }
 
         // creative タブ内容: 1.20.1 は common の displayItems generator が流し込む。
-        // ここで BuildCreativeModeTabContentsEvent でも TAB_ITEMS を足すと generator 分と重複する。
+        // ここで BuildCreativeModeTabContentsEvent でも中身を足すと generator 分と重複する。
 
         // Sophisticated Core 互換: ロードされていれば custom disc を SB の Jukebox Upgrade で使える IDiscHandler を登録。
         modEventBus.addListener(this::onCommonSetup);

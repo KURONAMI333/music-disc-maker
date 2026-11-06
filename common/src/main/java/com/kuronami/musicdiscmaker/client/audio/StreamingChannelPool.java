@@ -22,7 +22,8 @@ public final class StreamingChannelPool {
     public static final int TARGET_STREAMING_SOURCES = MAX_MDM_SOURCES + STREAMING_RESERVE;
 
     private static final int MIN_STREAMING_SOURCES = 2;
-    private static final Pattern DEBUG_COUNTS = Pattern.compile("^Sounds: \\d+/\\d+ \\+ \\d+/(\\d+)$");
+    private static final Pattern DEBUG_COUNTS =
+            Pattern.compile("^Sounds: (\\d+)/(\\d+) \\+ (\\d+)/(\\d+)$");
 
     private StreamingChannelPool() {
     }
@@ -84,6 +85,20 @@ public final class StreamingChannelPool {
      * @return 実 streaming pool 上限。取得不能または未初期化なら 0
      */
     public static int actualStreamingLimit(String debugString) {
+        return debugCount(debugString, 4);
+    }
+
+    /**
+     * 同じ debug 文字列から、いま streaming pool が使用中の枠数を読む。
+     *
+     * @param debugString Minecraft の sound pool debug 文字列
+     * @return 実使用数。取得不能または未初期化なら 0
+     */
+    public static int actualStreamingUsed(String debugString) {
+        return debugCount(debugString, 3);
+    }
+
+    private static int debugCount(String debugString, int group) {
         if (debugString == null) {
             return 0;
         }
@@ -92,10 +107,43 @@ public final class StreamingChannelPool {
             return 0;
         }
         try {
-            return Integer.parseInt(matcher.group(1));
+            return Integer.parseInt(matcher.group(group));
         } catch (NumberFormatException ignored) {
             return 0;
         }
+    }
+
+    /**
+     * streaming pool が上限に達しているか。上限が未取得 (0) なら枯渇とは扱わない。
+     *
+     * @param used  使用中の枠数
+     * @param limit 実際の上限
+     * @return 使用数が上限以上なら {@code true}
+     */
+    public static boolean exhausted(int used, int limit) {
+        return limit > 0 && used >= limit;
+    }
+
+    /**
+     * engine が play を拒否した後、1 tick 後の再試行へ進むか、保留へ回すか。
+     *
+     * <p>枯渇していても再試行は 1 回だけ。2 回目以降は、他の音が抜けて枠が空くのを
+     * 待つより先に、既存の期限付き保留 (#7-1) へ渡す。
+     *
+     * @param exhausted   拒否時点で pool が枯渇していたか
+     * @param retriesSoFar この再生で既に試した再試行の回数
+     * @return 再試行するなら {@link PlayRetry#RETRY}、保留へ回すなら {@link PlayRetry#DEFER}
+     */
+    public static PlayRetry afterPlayRejection(boolean exhausted, int retriesSoFar) {
+        return exhausted && retriesSoFar == 0 ? PlayRetry.RETRY : PlayRetry.DEFER;
+    }
+
+    /** play 拒否後の次の一手。 */
+    public enum PlayRetry {
+        /** 1 tick 後に play をもう一度だけ試す。 */
+        RETRY,
+        /** 再試行せず、期限付きの保留へ渡す。 */
+        DEFER
     }
 
     /** static / streaming pool の要求上限。 */

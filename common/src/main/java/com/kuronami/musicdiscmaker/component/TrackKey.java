@@ -1,6 +1,8 @@
 package com.kuronami.musicdiscmaker.component;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 曲名+アーティストを正規化して disc の texture variant を決める。
@@ -18,17 +20,50 @@ public final class TrackKey {
     /** バニラ染料16色と1対1で対応する自動アクセント数。 */
     public static final int AUTO_DYE_VARIANTS = 16;
 
+    /**
+     * 曲データごとの結果キャッシュ上限。表示中は tint / item model property が
+     * 毎フレーム・毎quad呼ばれるため、正規化 (replaceAll) をそこで回さない。
+     */
+    private static final int INDEX_CACHE_LIMIT = 2048;
+    private static final Map<CustomTrackData, Integer> VARIANT_INDEX_CACHE = new ConcurrentHashMap<>();
+    private static final Map<CustomTrackData, Integer> DYE_INDEX_CACHE = new ConcurrentHashMap<>();
+
     private TrackKey() {
     }
 
     /** track から決定的に variant index (0..VARIANTS-1) を返す。 */
     public static int variantIndex(CustomTrackData track) {
-        return track == null || track.isEmpty() ? 0 : variantIndex(track.title(), track.author());
+        if (track == null || track.isEmpty()) {
+            return 0;
+        }
+        final Integer cached = VARIANT_INDEX_CACHE.get(track);
+        if (cached != null) {
+            return cached;
+        }
+        final int index = variantIndex(track.title(), track.author());
+        remember(VARIANT_INDEX_CACHE, track, index);
+        return index;
     }
 
     /** track から決定的に自動アクセント染料の index (0..15) を返す。 */
     public static int automaticDyeIndex(CustomTrackData track) {
-        return track == null || track.isEmpty() ? 0 : automaticDyeIndex(track.title(), track.author());
+        if (track == null || track.isEmpty()) {
+            return 0;
+        }
+        final Integer cached = DYE_INDEX_CACHE.get(track);
+        if (cached != null) {
+            return cached;
+        }
+        final int index = automaticDyeIndex(track.title(), track.author());
+        remember(DYE_INDEX_CACHE, track, index);
+        return index;
+    }
+
+    private static void remember(Map<CustomTrackData, Integer> cache, CustomTrackData track, int index) {
+        if (cache.size() >= INDEX_CACHE_LIMIT) {
+            cache.clear();
+        }
+        cache.put(track, index);
     }
 
     static int variantIndex(String title, String author) {

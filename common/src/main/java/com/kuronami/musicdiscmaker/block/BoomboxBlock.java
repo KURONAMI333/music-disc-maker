@@ -13,7 +13,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.Containers;
 //? if >=1.21.2 {
 //?} else {
@@ -170,33 +169,28 @@ public class BoomboxBlock extends Block implements EntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
             BlockHitResult hit) {
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
-                && level.getBlockEntity(pos) instanceof BoomboxBlockEntity) {
+                && level.getBlockEntity(pos) instanceof BoomboxBlockEntity boombox) {
             final BoomboxSource source = BoomboxSource.placed(pos);
             final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
-            if (syncBudget.fits()) {
-                Services.MENU.openBoomboxMenu(serverPlayer, source);
-            } else if (player.isSecondaryUseActive()) {
-                OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverPlacedBoombox(serverPlayer,
-                        (ServerLevel) level, pos, (BoomboxBlockEntity) level.getBlockEntity(pos)));
-            } else {
-                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
+            // 容量超過は収まる分だけ残して開く。縮められない時だけ開かない (どちらも文は出さない)。
+            if (!syncBudget.fits() && !OversizeMediaRecovery.openAfterReductionPlacedBoombox(
+                    serverPlayer, syncBudget, (ServerLevel) level, pos, boombox)) {
+                return InteractionResult.SUCCESS;
             }
+            Services.MENU.openBoomboxMenu(serverPlayer, source);
         }
         return InteractionResult.SUCCESS;
     //?} elif >=1.21 {
     /*protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
             BlockHitResult hit) {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
-                && level.getBlockEntity(pos) instanceof BoomboxBlockEntity) {
+                && level.getBlockEntity(pos) instanceof BoomboxBlockEntity boombox) {
             final BoomboxSource source = BoomboxSource.placed(pos);
             final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
-            if (syncBudget.fits()) {
+            // 容量超過は収まる分だけ残して開く。縮められない時だけ開かない (どちらも文は出さない)。
+            if (syncBudget.fits() || OversizeMediaRecovery.openAfterReductionPlacedBoombox(
+                    serverPlayer, syncBudget, (ServerLevel) level, pos, boombox)) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
-            } else if (player.isSecondaryUseActive()) {
-                OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverPlacedBoombox(serverPlayer,
-                        (ServerLevel) level, pos, (BoomboxBlockEntity) level.getBlockEntity(pos)));
-            } else {
-                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
@@ -207,16 +201,13 @@ public class BoomboxBlock extends Block implements EntityBlock {
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
             InteractionHand hand, BlockHitResult hit) {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
-                && level.getBlockEntity(pos) instanceof BoomboxBlockEntity) {
+                && level.getBlockEntity(pos) instanceof BoomboxBlockEntity boombox) {
             final BoomboxSource source = BoomboxSource.placed(pos);
             final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
-            if (syncBudget.fits()) {
+            // 容量超過は収まる分だけ残して開く。縮められない時だけ開かない (どちらも文は出さない)。
+            if (syncBudget.fits() || OversizeMediaRecovery.openAfterReductionPlacedBoombox(
+                    serverPlayer, syncBudget, (ServerLevel) level, pos, boombox)) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
-            } else if (player.isSecondaryUseActive()) {
-                OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverPlacedBoombox(serverPlayer,
-                        (ServerLevel) level, pos, (BoomboxBlockEntity) level.getBlockEntity(pos)));
-            } else {
-                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);

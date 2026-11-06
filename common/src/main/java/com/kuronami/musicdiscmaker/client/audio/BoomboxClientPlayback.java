@@ -16,9 +16,11 @@ import com.kuronami.musicdiscmaker.event.BoomboxCarry;
 import com.kuronami.musicdiscmaker.event.BoomboxPlayback;
 import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
 import com.kuronami.musicdiscmaker.lavaplayer.api.OpenStreamResult;
+import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
 import com.kuronami.musicdiscmaker.network.UrlBlockedException;
 import com.kuronami.musicdiscmaker.network.UrlGuard;
+import com.kuronami.musicdiscmaker.platform.Services;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -189,7 +191,7 @@ public final class BoomboxClientPlayback {
         // 1 秒ごとに URL を開いては閉じることになる (チャットは静かでも回線は叩き続ける)。
         // 予算 (BACKOFF) は使わない — 枠が空いた瞬間に次の心拍で通ってほしいので、
         // 恒久的な打ち切りにはしない。
-        if (refusedByConcurrencyLimit(id, track)) {
+        if (refusedByConcurrencyLimit(payload, track)) {
             return;
         }
         PENDING.put(id, track.sourceKey());
@@ -219,7 +221,7 @@ public final class BoomboxClientPlayback {
                     resolved == null && failure == null ? PlaybackFailure.streamUnavailable() : failure;
             if (resolved != null) {
                 resolved.onPlaybackFault(broken -> Minecraft.getInstance().execute(
-                        () -> lateFailure(id, token, track,
+                        () -> lateFailure(payload, token, track,
                                 PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
             }
             Minecraft.getInstance().execute(() -> onLoaded(payload, track, TrackAudioResolver.actualOffset(resolved, startOffsetMs), resolved,
@@ -248,8 +250,9 @@ public final class BoomboxClientPlayback {
             // 報告は予算を使い切った 1 回だけ (毎回出すと 1 Hz でチャットが埋まる)。
             SESSIONS.abandon(id, token);
             if (BACKOFF.recordFailure(id, track.sourceKey())) {
-                PlaybackFailureReport.report(track,
-                        failure == null ? PlaybackFailure.streamUnavailable() : failure);
+                final PlaybackFailure shown = failure == null ? PlaybackFailure.streamUnavailable() : failure;
+                PlaybackFailureReport.report(track, shown);
+                BoomboxFailures.get().record(payload, shown);
             }
             return;
         }
@@ -265,7 +268,7 @@ public final class BoomboxClientPlayback {
             return;
         }
         // 2 つ目の関門。ロードを起こしてから完了するまでの間に他の音源が枠を埋めうる。
-        if (refusedByConcurrencyLimit(id, track)) {
+        if (refusedByConcurrencyLimit(payload, track)) {
             resolved.close();
             SESSIONS.abandon(id, token);
             return;
@@ -284,7 +287,7 @@ public final class BoomboxClientPlayback {
         // 携帯は指向性を持たない (設計上の決定「範囲を伸ばせず、指向性も持たない」)。
         instance.setDirectional(false);
         instance.setFailureSink(
-                late -> Minecraft.getInstance().execute(() -> lateFailure(id, token, track, late)));
+                late -> Minecraft.getInstance().execute(() -> lateFailure(payload, token, track, late)));
         if (automaticDuration > 0L) {
             // 実音が鳴り始めた時の server の位置からの遅れを知らせる。server はいちばん遅い client が鳴り終わるまで
             // 次の曲・頭出し・停止を待つ (金のジュークボックスと同じ)。
@@ -311,6 +314,7 @@ public final class BoomboxClientPlayback {
         }
         final Minecraft mc = Minecraft.getInstance();
         mc.getSoundManager().play(instance);
+        BoomboxFailures.get().clear(payload);
         com.kuronami.musicdiscmaker.network.BoomboxTrace.audio("client-sound-submitted", liveRequest);
         LIMIT_NOTICES.forget(id); // 鳴り始めた = 次に上限へ当たったらまた出してよい
         final String desc = (track.author() != null && !track.author().isBlank())
@@ -357,7 +361,7 @@ public final class BoomboxClientPlayback {
         if (live == null) {
             return; // 持ち主が client にまだ居ない。次の送り直しで鳴らす
         }
-        if (refusedByConcurrencyLimit(id, null)) {
+        if (refusedByConcurrencyLimit(payload, null)) {
             return;
         }
         if (vanilla.durationMs() > 0L) {
@@ -373,12 +377,14 @@ public final class BoomboxClientPlayback {
                 failure -> {
                     if (LIMIT_NOTICES.shouldReport(id, failure)) {
                         PlaybackFailureReport.report((CustomTrackData) null, failure);
+                        BoomboxFailures.get().record(payload, failure);
                     }
                 },
                 () -> ACTIVE.put(id, new Playing(key, live, instance, vanillaAnchor)))) {
             return;
         }
         LIMIT_NOTICES.forget(id);
+        BoomboxFailures.get().clear(payload);
         final Minecraft mc = Minecraft.getInstance();
         final Component desc = mc.level == null ? null
                 : com.kuronami.musicdiscmaker.component.PlayableDiscs.descriptionOfSound(vanilla.soundEventId(), mc.level);
@@ -403,7 +409,9 @@ public final class BoomboxClientPlayback {
      *
      * @return 枠が無い = 鳴らしてはいけない
      */
-    private static boolean refusedByConcurrencyLimit(long id, @org.jetbrains.annotations.Nullable CustomTrackData track) {
+    private static boolean refusedByConcurrencyLimit(BoomboxPlayPayload payload,
+            @org.jetbrains.annotations.Nullable CustomTrackData track) {
+        final long id = payload.boomboxId();
         final int playing = PlaybackConcurrency.client().sweepAll();
         final int limit = Config.maxConcurrent();
         if (playing < limit) {
@@ -413,6 +421,7 @@ public final class BoomboxClientPlayback {
         final PlaybackFailure overLimit = PlaybackFailure.concurrentLimit(limit);
         if (LIMIT_NOTICES.shouldReport(id, overLimit)) {
             PlaybackFailureReport.report(track, overLimit);
+            BoomboxFailures.get().record(payload, overLimit);
         }
         return true;
     }
@@ -453,12 +462,14 @@ public final class BoomboxClientPlayback {
     }
 
     /** 再生スレッドの中で落ちた失敗を受ける (main thread)。出すかどうかの判断はセッション側。 */
-    private static void lateFailure(long id, int token, CustomTrackData track, PlaybackFailure late) {
+    private static void lateFailure(BoomboxPlayPayload payload, int token, CustomTrackData track, PlaybackFailure late) {
+        final long id = payload.boomboxId();
         final PlaybackFailure show = SESSIONS.lateFailure(id, token, track, late);
         if (show != null) {
             // 金ジュークの失敗ラベル (GoldenJukeboxFailures) には載せない。あれは座標鍵で
             // 金ジュークの画面が読む入れ物なので、携帯の失敗を混ぜると別の音源の理由に見える。
             PlaybackFailureReport.report(track, show);
+            BoomboxFailures.get().record(payload, show);
         }
     }
 
@@ -690,6 +701,7 @@ public final class BoomboxClientPlayback {
         LATEST_RECEIVED_MS.clear();
         BACKOFF.clear();
         LIMIT_NOTICES.forgetAll();
+        BoomboxFailures.get().clearAll();
         ACTIVE.values().forEach(playing -> playing.instance().stopAndRelease());
         ACTIVE.clear();
     }

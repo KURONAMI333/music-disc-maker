@@ -32,6 +32,15 @@ public final class Config {
         return ((SoundEngineChannelAccess) engine).mdm$streamingPoolLimit();
     }
 
+    /**
+     * engine の streaming channel pool で現在使用中の枠数。
+     * 取得は loader mixin の duck ({@code MixinSoundEngineChannels}) 経由。呼び出しは client main thread。
+     */
+    public static int engineStreamingUsed() {
+        final var engine = ((SoundEngineHolder) Minecraft.getInstance().getSoundManager()).mdm$soundEngine();
+        return ((SoundEngineChannelAccess) engine).mdm$streamingPoolUsed();
+    }
+
     /** 実 streaming pool から BGM 等の余白を引いた、MDM の auto 同時再生数。 */
     public static int automaticMaxConcurrent() {
         return effectiveMaxConcurrent(0);

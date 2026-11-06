@@ -28,6 +28,21 @@ public final class BoomboxTrace {
         }
     }
 
+    /** client が generation 未受信のため操作を送れなかった。 */
+    public static void controlNotReady(int menuId, long generation) {
+        if (ENABLED) {
+            MusicDiscMaker.LOGGER.info("[Boombox trace] client-control-not-ready menu={} generation={}",
+                    menuId, generation);
+        }
+    }
+
+    /** server が再生を起こせなかった理由。個人情報を含まない固定の理由だけを出す。 */
+    public static void beginNull(String reason) {
+        if (ENABLED) {
+            MusicDiscMaker.LOGGER.info("[Boombox trace] server-begin-null reason={}", reason);
+        }
+    }
+
     public static void state(String stage, BoomboxStatePayload payload) {
         if (ENABLED) {
             MusicDiscMaker.LOGGER.info("[Boombox trace] {} menu={} generation={} state={}", stage,

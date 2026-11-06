@@ -29,6 +29,7 @@ import com.kuronami.musicdiscmaker.component.VanillaTrackData;
 *///?}
 import com.kuronami.musicdiscmaker.network.BoomboxPlayPayload;
 import com.kuronami.musicdiscmaker.network.BoomboxStopPayload;
+import com.kuronami.musicdiscmaker.network.BoomboxTrace;
 import com.kuronami.musicdiscmaker.network.ModPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 //? if >=1.21 {
@@ -412,6 +413,7 @@ public final class BoomboxPlayback {
             @Nullable BlockPos placedPos) {
         BoomboxContents contents = contentsOf(stack);
         if (!contents.hasDisc()) {
+            BoomboxTrace.beginNull("no-disc");
             return null;
         }
         final MediaSequenceResolver.ResolvedSequence resolved = MediaSequenceResolver.resolve(contents.disc());
@@ -421,10 +423,12 @@ public final class BoomboxPlayback {
         final MediaSequence.Position selected = sequence.positions().contains(current)
                 ? current : sequence.first().orElse(null);
         if (selected == null) {
+            BoomboxTrace.beginNull("no-position");
             return null;
         }
         final Sound sound = resolved.at(selected).map(track -> soundOf(track, level)).orElse(null);
         if (sound == null) {
+            BoomboxTrace.beginNull("no-sound");
             return null;
         }
         final long id = identify(stack);
@@ -596,6 +600,73 @@ public final class BoomboxPlayback {
             startPlaced(level, pos, be);
         }
         return replaced;
+    }
+
+    /**
+     * 保存値を縮めた時の媒体差し替え (持ち歩き)。<b>開いただけで再生状態を変えない</b>:
+     * 残った盤を指していた位置・一時停止位置・順序設定はそのまま保ち、鳴っていれば同じ曲の同じ
+     * 位置から鳴らし直す。鳴っていた曲が外へ出た時だけ、残った先頭から鳴らす。
+     *
+     * @param removedLeading 保存順の先頭から外した盤の枚数
+     */
+    public static boolean replaceMediaCarriedKeepingPlayback(ServerPlayer player, ItemStack stack, ItemStack disc,
+            int removedLeading, long expectedGeneration) {
+        return replaceMediaKeepingPlayback(carriedContext(player, stack), disc, removedLeading, expectedGeneration);
+    }
+
+    /** 設置機体の同じ口。 */
+    public static boolean replaceMediaPlacedKeepingPlayback(ServerLevel level, BlockPos pos, BoomboxBlockEntity be,
+            ItemStack disc, int removedLeading, long expectedGeneration) {
+        return replaceMediaKeepingPlayback(placedContext(level, pos, be), disc, removedLeading, expectedGeneration);
+    }
+
+    private static boolean replaceMediaKeepingPlayback(ControlContext context, ItemStack disc, int removedLeading,
+            long expectedGeneration) {
+        // context を作った後 (重複の分離が済んだ後) の識別子で鳴っていたかを見る。
+        final BoomboxContents contents = contentsOf(context.stack());
+        if (!matchesGeneration(contents, expectedGeneration)) {
+            return false;
+        }
+        final long id = contents.id();
+        final Session session = isPlaying(id) ? SESSIONS.get(id) : null;
+        final long offset = session == null ? 0L
+                : Math.max(0L, playbackTimeMs(context.level()) - session.startMillis);
+        stop(context.level(), context.chunk(), id);
+        final BoomboxContents shrunk = contents.withLeadingDiscsRemoved(disc, removedLeading);
+        // session の無い PLAYING (再読込後の古い保存値) は、実態に合わせて止めた状態で保存する。
+        final BoomboxContents reduced = session == null && shrunk.cursor().state() == PlaybackCursor.State.PLAYING
+                ? shrunk.withPlayback(shrunk.cursor().stop(), 0L) : shrunk;
+        storeContents(context.stack(), reduced);
+        context.changed().run();
+        if (session == null || !reduced.hasDisc()) {
+            return true;
+        }
+        try {
+            final PlaybackCursor cursor = reduced.cursor();
+            final boolean resumed = cursor.hasPosition() && startAt(context, reduced,
+                    new MediaSequence.Position(cursor.discIndex(), cursor.trackIndex()), offset);
+            if (!resumed && !startFromBeginning(context)) {
+                storeContents(context.stack(), contentsOf(context.stack()).withPlayback(cursor.stop(), 0L));
+                context.changed().run();
+            }
+        } catch (RuntimeException failure) {
+            // 呼び出し側は保存値を元へ戻す。鳴らし直しかけた session を残さない。
+            stop(context.level(), context.chunk(), contentsOf(context.stack()).id());
+            throw failure;
+        }
+        return true;
+    }
+
+    /** 位置を持たない機体を、並びの先頭から鳴らす。 */
+    private static boolean startFromBeginning(ControlContext context) {
+        final Started started = begin(context.stack(), context.level(), context.chunk(), context.placedPos());
+        if (started == null) {
+            return false;
+        }
+        context.changed().run();
+        send(context.level(), context.chunk(), context.payload().create(started.sound(), started.offset(),
+                started.session().audioGeneration, started.contents().volumePercent()));
+        return true;
     }
 
     private static boolean matchesGeneration(BoomboxContents contents, long expectedGeneration) {

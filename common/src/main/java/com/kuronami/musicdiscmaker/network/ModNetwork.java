@@ -1,6 +1,8 @@
 package com.kuronami.musicdiscmaker.network;
 
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
+import com.kuronami.musicdiscmaker.block.ClientResolvedTrack;
+import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.menu.GoldenJukeboxMenu;
 import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
 import com.kuronami.musicdiscmaker.block.BoomboxBlockEntity;
@@ -61,7 +63,10 @@ public final class ModNetwork {
     // 21: cancel_disc (製作機で作った盤の取りやめ) を追加。
     // 22: audio_lag (曲が実際に鳴り始めた時の遅れ。金のジュークボックスが次の曲を待つ) を追加。
     // 23: boombox_audio_lag (ブームボックスも同じ遅れを報告し、固定 8 秒の待ちをやめる) を追加。
-    public static final String PROTOCOL_VERSION = "23";
+    // 24: client_resolved_track (server が YouTube に弾かれた時、client が取った曲名・尺で元 URL を焼く) を追加。
+    // 25: 原本の上げ直し (RESTORE/RESTORE_READY opcode) を追加。旧 server は opcode を復号できず
+    //     IllegalArgumentException で接続が切れるので、版を分けて送らせない。
+    public static final String PROTOCOL_VERSION = "25";
 
     private static final double MAX_REACH_SQR = 64.0;
 
@@ -85,6 +90,59 @@ public final class ModNetwork {
         if (player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker) {
             maker.setCurrentUrl(payload.url()); // setCurrentUrl が DiscFabrication.process を呼ぶ
         }
+    }
+
+    /**
+     * client が自分の回線で取った曲情報で、server が解決に失敗した盤を作る。
+     *
+     * <p>server の回線が YouTube に bot 判定された時と、代替ソースの検索が空振りした時にだけ
+     * 受け取る。値はそのまま焼かず、{@link ClientResolvedTrack#accept} が「元の URL と同じ動画か・
+     * YouTube か・尺が実在するか」を検める。焼く URL は client の値ではなく server が持つ元の URL。
+     * 通らなければ何もしない (画面は今までどおり失敗理由を出す)。
+     */
+    public static void handleClientResolvedTrack(ClientResolvedTrackPayload payload, ServerPlayer player) {
+        final BlockPos pos = payload.pos();
+        if (!player.level().isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_REACH_SQR) {
+            return;
+        }
+        if (player.isSpectator()
+                || !(player.containerMenu instanceof com.kuronami.musicdiscmaker.menu.MusicDiscMakerMenu menu)
+                || !menu.stillValid(player)
+                || !menu.getBlockEntity().getBlockPos().equals(pos)
+                || !(player.level().getBlockEntity(pos) instanceof MusicDiscMakerBlockEntity maker)
+                || maker != menu.getBlockEntity()) {
+            return;
+        }
+        // 失敗の表示が出ている間だけ受け取る。解決中や、別の理由で失敗した後の古い報告は捨てる。
+        if (!maker.isResolveFailed() || maker.isResolving()
+                || !ClientResolvedTrack.shouldAskClient(maker.getFailureReason(), maker.getCurrentUrl())) {
+            return;
+        }
+        final String requestedUrl = maker.getCurrentUrl();
+        // 焼く前提 (入力の空ディスク・空の出力) が揃っていない時に解決済みの曲だけ残すと、
+        // 後から別の経路 (入力の入れ替え・再入) で焼かれてしまう。焼けない時は何もしない。
+        if (!maker.hasRoomForDisc()) {
+            return;
+        }
+        final CustomTrackData track = ClientResolvedTrack.accept(requestedUrl, payload.url(),
+                payload.title(), payload.author(), payload.durationMs());
+        if (track == null) {
+            return;
+        }
+        try {
+            // 焼くのは元の URL。解決経路と同じ検査を通す (この URL は直前に server が
+            // 解決を試みたもので、ホストの名前引きも済んでいる)。
+            UrlGuard.enforce(track.url());
+        } catch (final UrlBlockedException blocked) {
+            return;
+        }
+        maker.setResolvedTrack(track, requestedUrl);
+        if (!maker.createDisc()) {
+            // 直前に置けることを確かめているので通常は起きないが、焼けなかった曲は残さない。
+            maker.clearResolvedTrack();
+            return;
+        }
+        maker.resetToNeutral(); // 1枚作ったら URL を消してニュートラルへ
     }
 
     /** 製作機の出力枠にある盤の曲名を付け直す。その製作機の画面を開いている player だけ。 */
@@ -245,9 +303,9 @@ public final class ModNetwork {
                 player, payload.slotId(), payload.slotIndex());
         if (current == null || current.stack() != stack || BoomboxCarry.idOf(current.stack()) != id) return;
         final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
-        if (!syncBudget.fits()) {
-            player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
-                    syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
+        if (!syncBudget.fits() && !com.kuronami.musicdiscmaker.item.OversizeMediaRecovery
+                .openAfterReductionEquippedBoombox(player, syncBudget, payload.slotId(), payload.slotIndex(), stack)) {
+            // 同期形式の失敗だけ文言を出して開かない。容量超過は縮めて開く。
             return;
         }
         Services.MENU.openBoomboxMenu(player, source);

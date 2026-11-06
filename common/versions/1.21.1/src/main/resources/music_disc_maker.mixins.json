@@ -9,6 +9,7 @@
     "RailwaysJukeboxCartMixin"
   ],
   "client": [
+    "SoundPhysicsCategoryMixin",
     "MixinItemStack",
     "PocketJukeboxPlayerMixin",
     "MixinVanillaJukeboxAudio",

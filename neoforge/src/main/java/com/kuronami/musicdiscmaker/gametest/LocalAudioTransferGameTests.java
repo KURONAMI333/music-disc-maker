@@ -156,9 +156,9 @@ public final class LocalAudioTransferGameTests {
         final CapturingNetwork network = new CapturingNetwork();
         final INetworkHelper previous = Services.swapNetwork(network);
         try {
-            // (a) メニューを開いていない状態の BEGIN → disc
+            // (a) メニューを開いていない状態の BEGIN → expired (盤を待たせない)
             LocalAudioServer.receive(begin(999, 1L, hashOf("no-menu")), playerA);
-            // (b) メニューは有効だが hash が形式違反の BEGIN → disc
+            // (b) メニューは有効だが hash が形式違反の BEGIN → import_failed
             playerB.containerMenu = new MusicDiscMakerMenu(55, playerB.getInventory(), maker);
             LocalAudioServer.receive(LocalAudioPayload.control(LocalAudioPayload.BEGIN,
                     LocalAudioPayload.NONE, 55, 2L, "not-a-hex-hash", 0, 1024, "fixture"), playerB);
@@ -166,11 +166,11 @@ public final class LocalAudioTransferGameTests {
                     .map(CapturingNetwork.Sent::payload).map(LocalAudioPayload.class::cast)
                     .filter(p -> p.operation() == LocalAudioPayload.ERROR).toList();
             helper.assertTrue(errors.stream()
-                            .anyMatch(p -> p.generation() == 1L && "disc".equals(p.name())),
-                    "メニューの無い BEGIN が disc で応答されなかった");
+                            .anyMatch(p -> p.generation() == 1L && "expired".equals(p.name())),
+                    "メニューの無い BEGIN が expired で応答されなかった");
             helper.assertTrue(errors.stream()
-                            .anyMatch(p -> p.generation() == 2L && "disc".equals(p.name())),
-                    "hash 不正の BEGIN が disc で応答されなかった");
+                            .anyMatch(p -> p.generation() == 2L && "import_failed".equals(p.name())),
+                    "hash 不正の BEGIN が import_failed で応答されなかった");
             helper.assertTrue(errors.size() == 2, "BEGIN 拒否の応答がちょうど2件でない: " + errors.size());
         } finally {
             Services.swapNetwork(previous);

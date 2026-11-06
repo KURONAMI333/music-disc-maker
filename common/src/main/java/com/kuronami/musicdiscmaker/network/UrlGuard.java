@@ -122,6 +122,20 @@ public final class UrlGuard {
         }
     }
 
+    /**
+     * URL を検査し、開いてよければ {@code true}。{@link #enforce} と同じ判定を例外でなく真偽で返す。
+     *
+     * <p>隔離 classloader 側 (loader) は mod 側の例外型を跨げないので、代わりの配信元を開く
+     * 直前の検査はこの形で差し込む ({@code IMusicLoader#setUrlGate})。{@code UNRESOLVABLE} も
+     * 通さないのは、解決できないホストへは接続しないため (検査できないものは開かない)。
+     *
+     * @param url 開こうとしている URL
+     * @return 開いてよければ {@code true}
+     */
+    public static boolean allowsOpen(String url) {
+        return inspect(url) == Reason.OK;
+    }
+
     /** scheme が {@code *search} (ytsearch, ytmsearch, scsearch, spsearch...) か。 */
     private static boolean isSearchQuery(String s) {
         final int colon = s.indexOf(':');

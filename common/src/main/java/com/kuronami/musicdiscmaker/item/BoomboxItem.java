@@ -10,7 +10,6 @@ import com.kuronami.musicdiscmaker.register.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 //? if >=1.21.2 {
@@ -58,13 +57,12 @@ public class BoomboxItem extends Item {
             final ItemStack stack = player.getItemInHand(hand);
             final BoomboxSource source = BoomboxSource.held(hand);
             final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
-            if (syncBudget.fits()) {
-                Services.MENU.openBoomboxMenu(serverPlayer, source);
-            } else if (player.isSecondaryUseActive()) {
-                OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverHeldBoombox(serverPlayer, stack));
-            } else {
-                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
+            // 容量超過は収まる分だけ残して開く。縮められない時だけ開かない (どちらも文は出さない)。
+            if (!syncBudget.fits()
+                    && !OversizeMediaRecovery.openAfterReductionHeldBoombox(serverPlayer, syncBudget, stack)) {
+                return InteractionResult.SUCCESS;
             }
+            Services.MENU.openBoomboxMenu(serverPlayer, source);
         }
         return InteractionResult.SUCCESS;
     }
@@ -74,12 +72,10 @@ public class BoomboxItem extends Item {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
             final BoomboxSource source = BoomboxSource.held(hand);
             final var syncBudget = BoomboxMenu.inspectInitialMenuSync(player.getInventory(), source);
-            if (syncBudget.fits()) {
+            // 容量超過は収まる分だけ残して開く。縮められない時だけ開かない (どちらも文は出さない)。
+            if (syncBudget.fits()
+                    || OversizeMediaRecovery.openAfterReductionHeldBoombox(serverPlayer, syncBudget, stack)) {
                 Services.MENU.openBoomboxMenu(serverPlayer, source);
-            } else if (player.isSecondaryUseActive()) {
-                OversizeMediaRecovery.notify(serverPlayer, OversizeMediaRecovery.recoverHeldBoombox(serverPlayer, stack));
-            } else {
-                serverPlayer.sendSystemMessage(Component.translatable(syncBudget.rejectionKey("message.music_disc_maker.boombox.open_too_large")), true);
             }
         }
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);

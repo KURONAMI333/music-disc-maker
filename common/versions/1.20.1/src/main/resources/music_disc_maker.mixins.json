@@ -11,6 +11,7 @@
     "RailwaysJukeboxCartMixin"
   ],
   "client": [
+    "SoundPhysicsCategoryMixin",
     "MixinItemStack",
     "MixinVanillaJukeboxAudio",
     "MixinNowPlayingPlaceholder",

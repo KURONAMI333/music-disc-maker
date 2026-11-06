@@ -257,5 +257,18 @@ public final class ForgeNetwork {
                 .decoder(GoldenCartSyncPayload::read)
                 .consumerMainThread((msg, ctx) -> ModNetwork.handleGoldenCartSync(msg))
                 .add();
+
+        // client → server: サーバー側の代役検索が失敗した時、クライアントが引いた曲情報。
+        // 末尾に足すのは既存 id を動かさないため。信頼確認は ModNetwork 側で行う。
+        CHANNEL.messageBuilder(com.kuronami.musicdiscmaker.network.ClientResolvedTrackPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(com.kuronami.musicdiscmaker.network.ClientResolvedTrackPayload::write)
+                .decoder(com.kuronami.musicdiscmaker.network.ClientResolvedTrackPayload::read)
+                .consumerMainThread((msg, ctx) -> {
+                    final ServerPlayer sender = ctx.get().getSender();
+                    if (sender != null) {
+                        ModNetwork.handleClientResolvedTrack(msg, sender);
+                    }
+                })
+                .add();
     }
 }

@@ -25,6 +25,8 @@ public final class ClientGameEvents {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.resetProtocolMismatchOnDisconnect();
+        // 接続が変われば製作機の位置は別物を指す。client 解決の記録を捨てる。
+        ClientTrackFallback.clearAll();
         ClientPlaybackManager.get().stopAll();
     }
 

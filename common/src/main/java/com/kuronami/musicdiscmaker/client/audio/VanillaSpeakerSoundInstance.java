@@ -255,9 +255,11 @@ public net.minecraft.client.sounds.WeighedSoundEvents resolve(SoundManager manag
     @Override
     public boolean mutedOut() {
         final var options = Minecraft.getInstance().options;
-        return getVolume() <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.MASTER) <= 0.0F
-                || options.getSoundSourceVolume(SoundSource.RECORDS) <= 0.0F;
+        final DiscAnchor current = this.anchor;
+        final LiveAudioConfig config = current instanceof LiveAudioConfig live ? live : null;
+        return SoundEngineAcceptance.isUserMuted(SoundEngineAcceptance.configuredVolumePercent(config),
+                options.getSoundSourceVolume(SoundSource.MASTER),
+                options.getSoundSourceVolume(SoundSource.RECORDS));
     }
 
     @Override public void setDirectional(boolean value) { applyAnchor(anchor); }

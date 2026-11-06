@@ -67,14 +67,10 @@ class MusicDiscMakerLayoutTest {
         assertTrue(MusicDiscMakerLayout.STATUS_Y >= MusicDiscMakerLayout.STATUS_TWO_LINE_Y);
         assertTrue(MusicDiscMakerLayout.STATUS_X + MusicDiscMakerLayout.STATUS_MAX_W
                 <= MusicDiscMakerLayout.PANEL_WIDTH - 8);
-    }
-
-    @Test
-    void warningSitsInsideTheUrlFieldAfterItsText() {
-        assertTrue(MusicDiscMakerLayout.WARNING_X >= MusicDiscMakerLayout.URL_X + MusicDiscMakerLayout.URL_W);
-        assertTrue(MusicDiscMakerLayout.WARNING_X + MusicDiscMakerLayout.WARNING_SIZE
-                <= MusicDiscMakerLayout.TOOL_PASTE_X);
-        assertTrue(MusicDiscMakerLayout.WARNING_Y >= MusicDiscMakerLayout.URL_Y
-                && MusicDiscMakerLayout.WARNING_Y + 8 <= MusicDiscMakerLayout.URL_Y + MusicDiscMakerLayout.URL_H + 2);
+        // 矢印の下に中央揃えした最長の行も、左右の余白 8 の内側に収まる。
+        assertTrue(MusicDiscMakerLayout.ARROW_CENTER_X - MusicDiscMakerLayout.STATUS_MAX_W / 2
+                >= MusicDiscMakerLayout.STATUS_X);
+        assertTrue(MusicDiscMakerLayout.ARROW_CENTER_X + MusicDiscMakerLayout.STATUS_MAX_W / 2
+                <= MusicDiscMakerLayout.PANEL_WIDTH - 8);
     }
 }

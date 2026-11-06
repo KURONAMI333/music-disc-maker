@@ -109,17 +109,20 @@ public final class OversizeMediaRecoveryLegacyGameTests {
     }
 
     @GameTest(template = "empty8x3x8", timeoutTicks = 200)
-    public static void oversizedDiscAndPlacedBoomboxAreUntouched(GameTestHelper helper) {
+    public static void oversizedDiscIsReturnedAndPlacedBoomboxIsGuarded(GameTestHelper helper) {
         final FakePlayer player = player(helper);
         final ItemStack oversizedAlbum = new ItemStack(ModItems.ALBUM.get());
         // 初回menu上限も、単体drop上限も超える1枚。前者未満では回収自体が不要になる。
         final ItemStack oversizedDisc = discWithPadding(80, 1600 * 1024);
         AlbumItem.setContents(oversizedAlbum, new AlbumContents(List.of(oversizedDisc)));
-        final AlbumContents albumBefore = AlbumItem.contents(oversizedAlbum);
         player.setItemInHand(InteractionHand.MAIN_HAND, oversizedAlbum);
-        helper.assertTrue(OversizeMediaRecovery.recoverAlbum(player, oversizedAlbum)
-                        == OversizeMediaRecovery.Result.ITEM_TOO_LARGE && AlbumItem.contents(oversizedAlbum).equals(albumBefore),
-                "legacy 1枚で上限超過した盤を回収して元媒体を変えた");
+        // 単独で挿入上限を超える1枚は外へ出せる分割が無いので、その1枚を返して空にする。
+        final List<ItemStack> returned = new ArrayList<>();
+        helper.assertTrue(OversizeMediaRecovery.recoverAlbum(player, oversizedAlbum,
+                        (level, entity) -> { returned.add(entity.getItem().copy()); return level.addFreshEntity(entity); })
+                        == OversizeMediaRecovery.Result.RECOVERED
+                        && AlbumItem.contents(oversizedAlbum).isEmpty() && orderedStacks(returned, 80),
+                "legacy 1枚で上限超過した盤を1枚ずつ返して空にできなかった");
 
         final BlockPos relative = new BlockPos(4, 1, 4);
         final BlockPos pos = helper.absolutePos(relative);
