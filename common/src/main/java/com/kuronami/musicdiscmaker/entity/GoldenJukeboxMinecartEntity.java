@@ -72,6 +72,53 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
     private int sentVolume;
     private boolean sentDirectional;
 
+    // Amendments 互換で上に乗せる盤と回り方。盤のスロットは GUI を開いた player にしか届かないので、
+    // 周りの全員に見せる分だけ entity data で運ぶ。値を詰めるのは Amendments が出ている版だけ
+    // (AmendmentsCompat#versionSupported)。それ以外の版では空のまま一度も送らない。
+    private static final net.minecraft.network.syncher.EntityDataAccessor<ItemStack> DATA_SHOWN_DISC =
+            net.minecraft.network.syncher.SynchedEntityData.defineId(GoldenJukeboxMinecartEntity.class,
+                    net.minecraft.network.syncher.EntityDataSerializers.ITEM_STACK);
+    private static final net.minecraft.network.syncher.EntityDataAccessor<Boolean> DATA_DISC_SPINNING =
+            net.minecraft.network.syncher.SynchedEntityData.defineId(GoldenJukeboxMinecartEntity.class,
+                    net.minecraft.network.syncher.EntityDataSerializers.BOOLEAN);
+
+    @Override
+    //? if >=1.21 {
+    protected void defineSynchedData(net.minecraft.network.syncher.SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(DATA_SHOWN_DISC, ItemStack.EMPTY);
+        builder.define(DATA_DISC_SPINNING, false);
+    }
+    //?} else {
+    /*protected void defineSynchedData() {
+        super.defineSynchedData();
+        this.entityData.define(DATA_SHOWN_DISC, ItemStack.EMPTY);
+        this.entityData.define(DATA_DISC_SPINNING, false);
+    }
+    *///?}
+
+    /** client: 上に見せる盤 (server の {@link GoldenJukeboxBlockEntity#shownDisc()})。 */
+    public ItemStack shownDisc() {
+        return this.entityData.get(DATA_SHOWN_DISC);
+    }
+
+    /** client: 再生中か (server の {@link GoldenJukeboxBlockEntity#isPlayingState()})。 */
+    public boolean isDiscSpinning() {
+        return this.entityData.get(DATA_DISC_SPINNING);
+    }
+
+    /** server: 変わった時だけ送る (ItemStack は equals を持たないので matches で比べる)。 */
+    private void updateShownDisc() {
+        final ItemStack shown = this.jukebox.shownDisc();
+        if (!ItemStack.matches(this.entityData.get(DATA_SHOWN_DISC), shown)) {
+            this.entityData.set(DATA_SHOWN_DISC, shown.copy());
+        }
+        final boolean spinning = this.jukebox.isPlayingState();
+        if (this.entityData.get(DATA_DISC_SPINNING) != spinning) {
+            this.entityData.set(DATA_DISC_SPINNING, spinning);
+        }
+    }
+
     public GoldenJukeboxMinecartEntity(EntityType<? extends GoldenJukeboxMinecartEntity> type, Level level) {
         super(type, level);
         this.mountJukebox(level);
@@ -251,6 +298,9 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
             if (this.jukebox.getLevel() != this.level()) this.jukebox.setLevel(this.level());
             GoldenJukeboxBlockEntity.serverTick(this.level(), this.jukebox.getBlockPos(),
                     this.jukebox.getBlockState(), this.jukebox);
+            if (com.kuronami.musicdiscmaker.compat.amendments.AmendmentsCompat.versionSupported()) {
+                this.updateShownDisc();
+            }
             final boolean periodic = this.tickCount % KEEPALIVE_INTERVAL_TICKS == 0;
             if (this.syncPending) {
                 // 1 tick の間の変更 (画面の 1 操作で設定 4 つ) をまとめて 1 回届ける。盤のスロット同期と

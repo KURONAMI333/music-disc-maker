@@ -14,7 +14,8 @@
     "MixinSoundManager",
     "MixinLibraryChannels",
     "MixinSoundEngineChannels",
-    "TravelersBackpackJukeboxMixin"
+    "TravelersBackpackJukeboxMixin",
+    "AmendmentsJukeboxRendererMixin"
   ],
   "server": [],
   "injectors": {
