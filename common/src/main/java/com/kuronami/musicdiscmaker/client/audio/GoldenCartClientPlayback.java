@@ -441,13 +441,16 @@ public final class GoldenCartClientPlayback {
     }
 
     /** 曲の終わりの停止を待つ上限。設置した金のジュークボックスと同じ。 */
-    private static final long NATURAL_END_MAX_WAIT_MS = 10_000L;
+    private static final long NATURAL_END_MAX_WAIT_MS = NaturalEndHandoff.MAX_WAIT_MS;
 
     /**
      * server が曲の終わりで送った停止を、この client の音が鳴り終わるまで遅らせる
      * ({@code ClientPlaybackManager#deferNaturalEndStop} と同じ理由: URL 音源は読み込みの後に
      * 要求された位置から鳴り始めるので、server の時計より遅れている)。待っている間に次の曲が
      * 始まっていたら、遅らせた停止は撃たない。
+     *
+     * <p>曲の途中で読み込みが詰まった分 (無音で埋めた長さ) は server に届かないので、
+     * その分だけ後ろまで待つ ({@link #tailMs})。設置した金のジュークボックスと同じ扱い。
      *
      * @return 遅らせたら {@code true}
      */
@@ -468,7 +471,8 @@ public final class GoldenCartClientPlayback {
             return false;
         }
         final long played = Math.max(0L, TrackAudioResolver.playbackClockMs() - current.startedAtMs());
-        final long tail = Math.min(track.durationMs() - (current.startOffsetMs() + played), NATURAL_END_MAX_WAIT_MS);
+        final long tail = tailMs(track.durationMs(), current.startOffsetMs(), played,
+                current.instance().paddedSilenceMs());
         if (tail <= 0L) {
             return false;
         }
@@ -480,6 +484,29 @@ public final class GoldenCartClientPlayback {
             }
         }));
         return true;
+    }
+
+    /**
+     * 曲末までの残り (ms)。{@link NaturalEndHandoff#tailCapMs} と同じ形で、読み込みが詰まって無音で
+     * 埋めた分は「鳴っていない」ので曲末までの残りへ足す (設置した金のジュークボックスと同じ)。
+     *
+     * <p>詰まっていなければ、実音が曲の長さの位置へ来たところで切る (盤に書かれた長さが実際の音声より
+     * 短い場合に余分に鳴らさないため)。詰まった分だけ後ろまで待つ。
+     *
+     * <p>位置の起点はこの経路だけ「鳴らし始めた時点からの経過」で、設置型・ブームボックスは
+     * 「最初の実 PCM からの経過」で数える。起点は既存の挙動のまま変えず、詰まり分の差し引きだけを
+     * 揃える (起点を変えると、読み込み待ちの分だけ待ちが伸びて別の挙動になる)。
+     *
+     * @param durationMs       盤に書かれた曲の長さ
+     * @param startOffsetMs    鳴らし始めた位置 (曲頭からの ms)
+     * @param playedMs         鳴らし始めてからの経過
+     * @param paddedSilenceMs  読み込みが間に合わずに無音で埋めた長さ (負なら 0 として扱う)
+     * @return 残り。0 以下ならもう待たずに止めてよい
+     */
+    static long tailMs(long durationMs, long startOffsetMs, long playedMs, long paddedSilenceMs) {
+        // 上限は設置型と同じ 10 秒。tailCapMs も同じ値で切るが、トロッコ側の待ちの上限をここでも保つ。
+        return Math.min(NATURAL_END_MAX_WAIT_MS,
+                NaturalEndHandoff.tailCapMs(durationMs, startOffsetMs + playedMs, paddedSilenceMs));
     }
 
     /** 停止形の play payload 経由の明示停止。 */
