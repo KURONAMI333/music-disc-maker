@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.4
+
+- Fixed the game crashing when opening the controls of the Minecart with Golden Jukebox on Forge 1.20.1.
+- Fixed a disc displayed on a Disc Pedestal disappearing when the pedestal was broken without taking the disc off first, on Minecraft 1.21.11 and later.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 ## 3.1.3
 
 - Choosing a local audio file now starts the import right after the file check, without pressing the same button a second time.
