@@ -313,6 +313,18 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
         return !this.isRemoved() && player.distanceToSqr(this) <= 64.0;
     }
 
+    /**
+     * {@link GoldenJukeboxMount#stillValidFor}。{@link #stillValid} と同じ判定。
+     *
+     * <p>名前を分けているのは、1.20.1 の再難読化で {@code stillValid} が SRG 名
+     * ({@code m_6542_}) に置き換わり、インターフェース側の実装が消えるため
+     * (詳細は {@link GoldenJukeboxMount#stillValidFor} の javadoc)。
+     */
+    @Override
+    public boolean stillValidFor(Player player) {
+        return stillValid(player);
+    }
+
     // ── 配送 ──
 
     /** 載せた金のジュークボックスの GUI を開いている player へ、今の状態を届ける。 */

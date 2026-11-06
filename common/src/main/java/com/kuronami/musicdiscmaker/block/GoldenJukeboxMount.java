@@ -35,6 +35,15 @@ public interface GoldenJukeboxMount {
     /** 保存が必要になった。 */
     void markDirty();
 
-    /** この player が GUI を開いたまま操作できる距離にいるか。 */
-    boolean stillValid(Player player);
+    /**
+     * この player が GUI を開いたまま操作できる距離にいるか。
+     *
+     * <p><b>{@code stillValid} という名前にしない。</b> 実装側の {@code GoldenJukeboxMinecartEntity} は
+     * {@code Container#stillValid(Player)} も override していて、Forge 1.20.1 の再難読化では
+     * その override が SRG 名 {@code m_6542_} に置き換わる。インターフェース側の名前が
+     * {@code stillValid} のままだと、実装クラスから {@code stillValid} が消えて
+     * 「GoldenJukeboxMinecartEntity does not define the method stillValid(Player)」の
+     * AbstractMethodError になる（3.1.3 の 1.20.1 で実報告あり。2026-11-06）。
+     */
+    boolean stillValidFor(Player player);
 }

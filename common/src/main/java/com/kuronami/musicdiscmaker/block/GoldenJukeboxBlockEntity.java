@@ -2036,7 +2036,7 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
 
     @Override
     public boolean stillValid(Player player) {
-        if (mount != null) return mount.stillValid(player);
+        if (mount != null) return mount.stillValidFor(player);
         return Container.stillValidBlockEntity(this, player);
     }
 
