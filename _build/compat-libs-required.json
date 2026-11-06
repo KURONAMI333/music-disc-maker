@@ -10,9 +10,9 @@
     "curseforge_verified_file": "https://www.curseforge.com/minecraft/mc-mods/sophisticated-core/files/8145747",
     "nested_jar_evidence": "Sable Companion SHA-1/SHA-256 exactly matched the nested JAR in the Modrinth-resolved Sable 2.0.3 file"
   },
-  "destination_count": 54,
-  "unique_blob_count": 52,
-  "resolved_blob_count": 52,
+  "destination_count": 56,
+  "unique_blob_count": 54,
+  "resolved_blob_count": 54,
   "unresolved_blob_count": 0,
   "blobs": [
     {
@@ -267,6 +267,23 @@
       "date_published": "2026-07-28T14:46:53.714753Z",
       "download_filename": "travelersbackpack-neoforge-26.1.2-11.2.6.jar",
       "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/T1BCIEn8/travelersbackpack-neoforge-26.1.2-11.2.6.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "dc18673b7697e0e55695cb7af38ec907b516857a",
+      "sha256": "579ee48ab0ac6dddb0c07b801b6082c039d58ed1ea3d706306d922472e8b348e",
+      "size": 4484923,
+      "destinations": [
+        "fabric/compat-libs-26.1.2/additionaladditions-fabric-10.0.11.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": false,
+      "project_id": "R4TvILfj",
+      "version_id": "Ys0Pjlxp",
+      "version_number": "10.0.11+26.1.x-fabric",
+      "date_published": "2026-08-30T18:23:47.033012Z",
+      "download_filename": "additionaladditions-fabric-10.0.11.jar",
+      "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/Ys0Pjlxp/additionaladditions-fabric-10.0.11.jar",
       "fresh_environment_retrieval_status": "verified"
     },
     {
@@ -562,6 +579,23 @@
       "date_published": "2026-06-14T21:58:07.915563Z",
       "download_filename": "additionaladditions-neoforge-10.0.5.jar",
       "download_url": "https://cdn.modrinth.com/data/R4TvILfj/versions/7J1iQo6E/additionaladditions-neoforge-10.0.5.jar",
+      "fresh_environment_retrieval_status": "verified"
+    },
+    {
+      "sha1": "b732015177d616aa747c50bf3bc3ca9135d3a5a8",
+      "sha256": "129ba08f703259396cc042779b3404c99dcb3447e957e16a7d9b3d42d1ae4210",
+      "size": 1488620,
+      "destinations": [
+        "fabric/compat-libs-26.1.2/travelersbackpack-fabric-26.1.2-11.2.10.jar"
+      ],
+      "status": "modrinth_resolved",
+      "local_reference_present_during_release_packaging": false,
+      "project_id": "rlloIFEV",
+      "version_id": "Ah1lkxJY",
+      "version_number": "26.1.2-11.2.10",
+      "date_published": "2026-09-01T23:42:41.050854Z",
+      "download_filename": "travelersbackpack-fabric-26.1.2-11.2.10.jar",
+      "download_url": "https://cdn.modrinth.com/data/rlloIFEV/versions/Ah1lkxJY/travelersbackpack-fabric-26.1.2-11.2.10.jar",
       "fresh_environment_retrieval_status": "verified"
     },
     {
