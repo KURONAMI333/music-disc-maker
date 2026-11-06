@@ -45,6 +45,15 @@ class LocalAudioClientImportTest {
         assertEquals("file.name", LocalImportDecisions.displayName("file.name.unknown9"));
     }
 
+    /** 選択パスから左上の欄へ出す名前。パスとして読めない時は欄を書き換えない。 */
+    @Test
+    void displayNameForSelectedPathStripsDirectoryAndExtension() {
+        assertEquals("song", LocalImportDecisions.displayNameFor("/tmp/music/song.mp3"));
+        assertEquals("live show", LocalImportDecisions.displayNameFor("live show.flac"));
+        assertEquals("", LocalImportDecisions.displayNameFor(""));
+        assertEquals("badname", LocalImportDecisions.displayNameFor("bad\u0001name.ogg"));
+    }
+
     /** 失敗の detail (normalizer の固定文言) が利用者向け status に分かれる。 */
     @Test
     void failureStatusMapsNormalizerDetails() {
@@ -59,6 +68,10 @@ class LocalAudioClientImportTest {
         assertEquals("select", statusOf("interrupted"));
         assertEquals("import_failed", statusOf("output file already exists"));
         assertEquals("import_failed", statusOf("normalization failed"));
+        // 権限・消えたファイル等で読めない入力は「非対応形式」ではない。
+        assertEquals("import_failed", statusOf("input file is not readable"));
+        // "unreadable" だけを含む別の文言 (形式情報) を「読めない入力」と誤認しない。
+        assertEquals("unsupported", statusOf("unreadable container header"));
         // publish の I/O 失敗 (disk full・hard link 不可の FS 等) は非対応ではなく取込失敗。
         assertEquals("import_failed", statusOf("could not publish the normalized file"));
     }

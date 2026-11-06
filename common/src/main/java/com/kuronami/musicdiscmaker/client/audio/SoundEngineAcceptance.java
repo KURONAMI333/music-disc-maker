@@ -47,6 +47,10 @@ public final class SoundEngineAcceptance {
          * この client の音量設定では最初から鳴りえないか。engine が捨てた理由のうち、
          * <b>利用者が自分で直せる唯一のもの</b>を切り分けるために使う。
          *
+         * <p>可聴範囲の外・フラット聴取のフェード・アンカー切替中の補正は含めない。
+         * それらは意図的に黙っているだけで、音量スライダーでは直せない
+         * ({@link #isUserMuted(double, double, double)})。
+         *
          * @return master / Records / この音源自身のいずれかの音量が 0 なら {@code true}
          */
         boolean mutedOut();
@@ -71,6 +75,38 @@ public final class SoundEngineAcceptance {
      */
     public static final Runnable KEEP_UNTIL_DEADLINE = () -> {
     };
+
+    /**
+     * 音源自体の設定音量・master・Records のどれかが 0 か。
+     *
+     * <p>空間的なゲート (可聴範囲の外・フラット聴取のフェード・アンカー切替中の補正) は
+     * <b>渡さない</b>。これらは利用者が直せる音量ではなく、範囲外で意図的に黙っているだけの
+     * 状態を {@code [MUTED]} と表示してしまう (2026-10-26 BlackWolfLeon 報告)。
+     * ここへ渡すのは「音量スライダーを動かせば戻る値」だけ。
+     *
+     * @param sourceVolume  この音源自身の設定音量
+     * @param masterVolume  master の音量
+     * @param recordsVolume Records の音量
+     * @return いずれかが 0 以下なら {@code true}
+     */
+    public static boolean isUserMuted(double sourceVolume, double masterVolume, double recordsVolume) {
+        return sourceVolume <= 0.0D || masterVolume <= 0.0D || recordsVolume <= 0.0D;
+    }
+
+    /**
+     * アンカーが持つ利用者設定音量。{@link LiveAudioConfig} でなければ 100。
+     *
+     * <p>speaker/トロッコ経路の {@link LiveAudioConfig#volumePercent()} は範囲外・アンカー遷移中に
+     * 0 になる。それを {@link #isUserMuted(double, double, double)} へ渡すと、意図的に黙っているだけの
+     * 音を {@code [MUTED]} と誤表示するので、ここで設定値 ({@link LiveAudioConfig#configuredVolumePercent()})
+     * を取り出す。
+     *
+     * @param config アンカーが持つ設定、無ければ {@code null}
+     * @return 利用者設定の音量 (%)
+     */
+    public static int configuredVolumePercent(LiveAudioConfig config) {
+        return config == null ? 100 : config.configuredVolumePercent();
+    }
 
     /**
      * 音を鳴らし、engine が受理しなかったら後始末をして理由を報告する。

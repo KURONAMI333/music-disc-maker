@@ -62,6 +62,9 @@ public final class ModPayloadTypes {
         if (payload instanceof CancelDiscPayload p) {
             return new CancelDisc(p);
         }
+        if (payload instanceof ClientResolvedTrackPayload p) {
+            return new ClientResolvedTrack(p);
+        }
         if (payload instanceof AudioLagPayload p) {
             return new AudioLag(p);
         }
@@ -187,6 +190,19 @@ public final class ModPayloadTypes {
         public static final Type<CancelDisc> TYPE = new Type<>(id(CancelDiscPayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, CancelDisc> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new CancelDisc(CancelDiscPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** client → server: server が解決できなかった曲の、client が取った曲名・尺。 */
+    public record ClientResolvedTrack(ClientResolvedTrackPayload inner) implements CustomPacketPayload {
+        public static final Type<ClientResolvedTrack> TYPE = new Type<>(id(ClientResolvedTrackPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, ClientResolvedTrack> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf),
+                buf -> new ClientResolvedTrack(ClientResolvedTrackPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -413,6 +429,9 @@ public final class ModPayloadTypes {
         if (payload instanceof CancelDiscPayload p) {
             return new CancelDisc(p);
         }
+        if (payload instanceof ClientResolvedTrackPayload p) {
+            return new ClientResolvedTrack(p);
+        }
         if (payload instanceof AudioLagPayload p) {
             return new AudioLag(p);
         }
@@ -538,6 +557,19 @@ public final class ModPayloadTypes {
         public static final Type<CancelDisc> TYPE = new Type<>(id(CancelDiscPayload.PATH));
         public static final StreamCodec<FriendlyByteBuf, CancelDisc> STREAM_CODEC = StreamCodec.of(
                 (buf, msg) -> msg.inner().write(buf), buf -> new CancelDisc(CancelDiscPayload.read(buf)));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /^* client → server: server が解決できなかった曲の、client が取った曲名・尺。 ^/
+    public record ClientResolvedTrack(ClientResolvedTrackPayload inner) implements CustomPacketPayload {
+        public static final Type<ClientResolvedTrack> TYPE = new Type<>(id(ClientResolvedTrackPayload.PATH));
+        public static final StreamCodec<FriendlyByteBuf, ClientResolvedTrack> STREAM_CODEC = StreamCodec.of(
+                (buf, msg) -> msg.inner().write(buf),
+                buf -> new ClientResolvedTrack(ClientResolvedTrackPayload.read(buf)));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

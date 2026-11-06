@@ -173,6 +173,8 @@ public final class MusicDiscMakerForgeClient {
 
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         com.kuronami.musicdiscmaker.compat.sophisticatedcore.SophisticatedCoreCompatClient.stopAll();
+        // 接続が変われば製作機の位置は別物を指す。client 解決の記録を捨てる。
+        com.kuronami.musicdiscmaker.client.ClientTrackFallback.clearAll();
         ClientPlaybackManager.get().stopAll();
         if (com.kuronami.musicdiscmaker.platform.Services.PLATFORM.isModLoaded("create")) {
             com.kuronami.musicdiscmaker.compat.create.CreateAudioClient.stopAll();

@@ -8,6 +8,7 @@
         "LegacySophisticatedJukeboxMixin"
     ],
     "client": [
+        "MixinDiscSoundInstance",
         "MixinSoundEngine",
         "MixinSoundManager",
         "MixinLibraryChannels",

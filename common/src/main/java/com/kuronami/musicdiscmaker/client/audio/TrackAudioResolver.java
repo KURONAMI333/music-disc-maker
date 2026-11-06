@@ -43,7 +43,11 @@ public final class TrackAudioResolver {
             java.util.function.BooleanSupplier stillCurrent) throws Exception {
         if (!track.isLocal()) {
             UrlGuard.enforce(track.url());
-            return LoaderHolder.get().openStreamDetailed(track.url(), startMs);
+            // ラジオ (無限長ストリーム) は渡さない。代替ソース探しは「同じ録音」を探すので、
+            // ライブ配信が弾かれた時に録音を代わりに鳴らすのは、無音より悪い (中身が違う)。
+            var hint = track.radio() ? null
+                    : new IMusicLoader.TrackHint(track.title(), track.author(), track.durationMs());
+            return LoaderHolder.get().openStreamDetailed(track.url(), startMs, hint);
         }
         try {
             var path = LocalAudioClient.obtain(track.localHash(), stillCurrent);

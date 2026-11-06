@@ -70,6 +70,23 @@ public final class TrackMatch {
     private static final double MAX_DURATION_RATIO = 3.0d;
 
     /**
+     * アーティストが分からない時に、曲名だけで判定してよい語数。
+     *
+     * <p>1〜2 語の曲名は他の曲にも付く一般名で、検索語として弱い。3 語以上あれば、曲名の
+     * 語集合の完全一致がある程度の絞り込みになる (同名のカバーは依然として残るので、尺と
+     * 投稿者の判定を重ねる)。
+     */
+    private static final int MIN_TITLE_WORDS = 3;
+
+    /**
+     * 「尺がほぼ同じ」とみなす幅 (元に対する比)。
+     *
+     * <p>同じ録音の再アップロードどうしの尺の差は実測で 9 秒未満 ({@link #DURATION_TIE_MS} の
+     * 根拠) なので、200 秒の曲なら ±20 秒に収まる。
+     */
+    private static final double DURATION_NEAR_RATIO = 0.1d;
+
+    /**
      * 尺の近さが<b>並んだ</b>とみなす幅 (ms)。一番近い候補との差がこの中に収まる候補は
      * 尺では区別しない扱いにして、{@link #bestByDuration(long[], boolean[], long)} が
      * 別の信号で順位を付ける。
@@ -143,6 +160,60 @@ public final class TrackMatch {
     }
 
     /**
+     * 元のアーティストが分からない時の照合。曲名の語集合が完全一致し、候補がアーティスト名を
+     * 名乗っていれば通す。
+     *
+     * <h2>なぜアーティスト無しでも探すか</h2>
+     * SoundCloud の set や、投稿者名を欠いた track JSON では元のアーティストが分からない。
+     * そこで諦めると、曲名は分かっているのに盤が作れないまま黙って候補から消える
+     * (2026-11-01 実測)。探す側は<b>曲名だけ</b>で引き、採る側で別の材料を必ず重ねる。
+     *
+     * <h2>曲名だけでは足りない</h2>
+     * 同じ曲名のカバーは珍しくないので、<b>候補がアーティスト名を名乗っていること</b>を要求する
+     * (名乗っていない候補は誰の録音か判定できない)。版の目印 (括弧の中の live / cover 等) は
+     * {@link #sameRecordingFromCleanSource} と同じ規則で両側一致を要求する。
+     *
+     * <p><b>この判定単体では足りない</b>。呼び出し側は元の尺が分かっている時にだけ使い、
+     * {@link #durationFits} で抜粋・寄せ集めを落とすこと。尺が無いと同名異曲を弾く材料が
+     * 残らないため、尺が不明な時はそもそも検索しない。
+     *
+     * @param markerTitle     版の目印を探す元のタイトル
+     * @param sourceTitle     整形済みの曲名
+     * @param candidateTitle  候補の生タイトル
+     * @param candidateAuthor 候補の生アーティスト
+     * @return 同じ録音とみなせるなら {@code true}
+     */
+    public static boolean sameRecordingWithoutKnownArtist(String markerTitle, String sourceTitle,
+            String candidateTitle, String candidateAuthor) {
+        if (blank(sourceTitle) || blank(candidateTitle)) {
+            return false;
+        }
+        if (!variantMarkers(markerTitle).equals(variantMarkers(candidateTitle))) {
+            return false;
+        }
+        final String[] candidate = MetadataCleaner.clean(candidateTitle, candidateAuthor);
+        if (blank(candidate[1])) {
+            return false;
+        }
+        final Set<String> sourceWords = words(sourceTitle);
+        return !sourceWords.isEmpty() && sourceWords.equals(words(candidate[0]));
+    }
+
+    /**
+     * アーティストが分からない時に、<b>曲名だけで同じ録音を絞れるか</b>。
+     *
+     * <p>1〜2 語の曲名は他の曲にも付く一般名で、検索語として弱い ({@code "Song Title"} の
+     * ような語の組み合わせは無数にある)。アーティストが分からず尺以外の材料も無い時に
+     * この弱い語で引くと、同名の別の曲を拾って<b>違う曲が鳴る</b>側へ倒れる。
+     *
+     * @param title 整形済みの曲名
+     * @return 曲名だけで絞れるなら {@code true}
+     */
+    static boolean titleAloneCanIdentify(String title) {
+        return words(title).size() >= MIN_TITLE_WORDS;
+    }
+
+    /**
      * アーティスト名が噛み合っているか。<b>片方がもう片方の先頭から始まっている</b>ことを見る。
      *
      * <h2>「含む」で判定してはいけない (2026-08-18 実測)</h2>
@@ -205,6 +276,24 @@ public final class TrackMatch {
         }
         return candidateMs >= sourceMs * MIN_DURATION_RATIO
                 && candidateMs <= sourceMs * MAX_DURATION_RATIO;
+    }
+
+    /**
+     * 尺が<b>ほぼ同じ</b>か (元の ±10%)。
+     *
+     * <p>{@link #durationFits} の 0.5〜3.0 倍は「明らかな抜粋・寄せ集め」を切る粗い足切りで、
+     * アーティスト名が分かっている時はそれで足りる (曲名とアーティストで同じ録音を絞れている)。
+     * <b>曲名だけで引く時は同名異曲を弾く材料が他に無い</b>ので、尺をここまで詰める。
+     *
+     * @param sourceMs    元の尺 (ms)
+     * @param candidateMs 候補の尺 (ms)
+     * @return 近ければ {@code true}。どちらかが不明なら {@code false}
+     */
+    static boolean durationNear(long sourceMs, long candidateMs) {
+        if (sourceMs <= 0L || candidateMs <= 0L) {
+            return false;
+        }
+        return Math.abs(candidateMs - sourceMs) <= sourceMs * DURATION_NEAR_RATIO;
     }
 
     /**

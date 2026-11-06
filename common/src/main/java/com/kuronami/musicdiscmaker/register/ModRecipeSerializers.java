@@ -8,11 +8,6 @@ import com.kuronami.musicdiscmaker.recipe.GoldenAlbumRecipe;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.crafting.RecipeSerializer;
-//? if >=26.1 {
-//?} elif >=1.21.4 {
-//?} else {
-/*import net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer;
-*///?}
 
 /** MDM 固有のクラフト serializer。 */
 public final class ModRecipeSerializers {
@@ -20,21 +15,13 @@ public final class ModRecipeSerializers {
     public static final RegistrationProvider<RecipeSerializer<?>> SERIALIZERS =
             RegistrationProvider.get(Registries.RECIPE_SERIALIZER, MusicDiscMaker.MODID);
 
+    /** 色ごとに1本ずつある Album 染色レシピ。中身を残すため結果は入力 Album から組み立てる。 */
     public static final RegistryHolder<RecipeSerializer<AlbumDyeRecipe>> ALBUM_DYEING =
             //? if >=26.1 {
-            SERIALIZERS.register("album_dyeing", () -> {
-                // unit の送信時は等値性が必要。読込側と同じ状態なしレシピを共有する。
-                final AlbumDyeRecipe recipe = new AlbumDyeRecipe();
-                return new RecipeSerializer<>(
-                        com.mojang.serialization.MapCodec.unit(recipe),
-                        net.minecraft.network.codec.StreamCodec.unit(recipe));
-            });
-            //?} elif >=1.21.4 {
-            /*SERIALIZERS.register("album_dyeing", () -> new net.minecraft.world.item.crafting.CustomRecipe.Serializer<>(AlbumDyeRecipe::new));
-            *///?} elif >=1.21 {
-            /*SERIALIZERS.register("album_dyeing", () -> new SimpleCraftingRecipeSerializer<>(AlbumDyeRecipe::new));
-            *///?} else {
-            /*SERIALIZERS.register("album_dyeing", () -> new net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer<>(AlbumDyeRecipe::new));
+            SERIALIZERS.register("album_dyeing",
+                    () -> new RecipeSerializer<>(AlbumDyeRecipe.MAP_CODEC, AlbumDyeRecipe.STREAM_CODEC));
+            //?} else {
+            /*SERIALIZERS.register("album_dyeing", AlbumDyeRecipe.Serializer::new);
             *///?}
 
     /** Album を Golden Album にする、中身を引き継ぐ shaped レシピ。 */

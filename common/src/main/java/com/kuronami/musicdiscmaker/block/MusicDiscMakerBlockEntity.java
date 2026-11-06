@@ -268,16 +268,20 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
         return resolvedTrack.durationMs();
     }
 
+    /** 焼いた盤を置ける状態か (入力の空ディスクがあり、出力が空)。 */
+    public boolean hasRoomForDisc() {
+        final ItemStack input = items.get(SLOT_INPUT);
+        return !input.isEmpty() && isBlankDisc(input) && items.get(SLOT_OUTPUT).isEmpty();
+    }
+
+    /** 盤を焼く前提が揃っているか (解決済みの曲 + 焼いた盤を置ける状態)。 */
+    public boolean canCreateDisc() {
+        return hasResolvedTrack() && hasRoomForDisc();
+    }
+
     /** 解決済みの曲を書き込み、出力確保後に未記録ディスクを1枚だけ消費する。 */
     public boolean createDisc() {
-        if (!hasResolvedTrack()) {
-            return false;
-        }
-        final ItemStack input = items.get(SLOT_INPUT);
-        if (input.isEmpty() || !isBlankDisc(input)) {
-            return false;
-        }
-        if (!items.get(SLOT_OUTPUT).isEmpty()) {
+        if (!canCreateDisc()) {
             return false;
         }
 
@@ -438,20 +442,11 @@ public class MusicDiscMakerBlockEntity extends BlockEntity implements WorldlyCon
 
     /** スロット変更時: 同期 + (server 側で条件が揃えば) 自動生成。出力を先に埋める順序で再入を抑制。 */
     private void onContentsChanged() {
-        //? if >=1.21.2 {
         if (resolveFailed && items.get(SLOT_INPUT).isEmpty()) {
             // 失敗の原因だった入力の空ディスクが取り出された = そのペンディングは無かったことになる。
             // 消さずに置くと、次に来た人が何もしていないのに古い失敗表示だけが残って紛らわしい。
             resolveFailed = false;
         }
-        //?} elif >=1.21 {
-        /*if (resolveFailed && items.get(SLOT_INPUT).isEmpty()) {
-            // 失敗の原因だった入力の空ディスクが取り出された = そのペンディングは無かったことになる。
-            // 消さずに置くと、次に来た人が何もしていないのに古い失敗表示だけが残って紛らわしい。
-            resolveFailed = false;
-        }
-        *///?} else {
-        //?}
         sync();
         DiscFabrication.process(this);
     }

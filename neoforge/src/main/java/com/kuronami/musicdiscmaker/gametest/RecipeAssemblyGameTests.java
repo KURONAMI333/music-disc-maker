@@ -86,7 +86,11 @@ public final class RecipeAssemblyGameTests {
     @GameTest(template = TEMPLATE)
     *///?}
     public static void everyCraftingRecipeLoads(GameTestHelper helper) {
-        for (final String path : List.of("album", "album_dyeing", "blank_disc", "blank_disc_from_disc", "boombox",
+        for (final String path : List.of("album", "album_dyeing_white", "album_dyeing_orange", "album_dyeing_magenta",
+                "album_dyeing_light_blue", "album_dyeing_yellow", "album_dyeing_lime", "album_dyeing_pink",
+                "album_dyeing_gray", "album_dyeing_light_gray", "album_dyeing_cyan", "album_dyeing_purple",
+                "album_dyeing_blue", "album_dyeing_brown", "album_dyeing_green", "album_dyeing_red",
+                "album_dyeing_black", "blank_disc", "blank_disc_from_disc", "boombox",
                 "disc_dyeing_table", "disc_pedestal", "golden_album", "golden_jukebox", "golden_jukebox_minecart",
                 "music_disc_maker", "speaker")) {
             recipe(helper, path);

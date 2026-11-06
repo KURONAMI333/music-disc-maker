@@ -91,7 +91,13 @@ public record CustomTrackData(
     /** 再生世代・重複抑止の比較鍵。URL入力として解釈しない。 */
     public String sourceKey() { return isLocal() ? "local:" + localHash : url; }
 
-    private static String clamp(String s, int max) {
+    /**
+     * 文字列を保存・同期できる長さへ切り詰める ({@code max} は UTF-16 単位)。補助文字のペアは分断しない。
+     *
+     * <p>{@link #write} の {@code writeUtf} は上限超えで例外を投げ、その例外は接続を切る。通信経路で
+     * 外から来た値を送る前に、この規則で切っておく。
+     */
+    public static String clamp(String s, int max) {
         if (s == null) {
             return "";
         }

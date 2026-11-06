@@ -118,6 +118,10 @@ public final class PlaybackSessions<K> {
     public record Request(CustomTrackData track, int rangeBlocks, int volumePercent) {
     }
 
+    /** engine の拒否を、期限まで報告せずに持っておくための組 (世代が変わったら別物)。 */
+    private record HeldEngineRejection(int token, PlaybackFailure failure) {
+    }
+
     /**
      * 再生要求への答え。
      *
@@ -255,6 +259,18 @@ public final class PlaybackSessions<K> {
      */
     private final Map<K, PlaybackFailure> pendingFailure = new ConcurrentHashMap<>();
     /**
+     * engine の拒否のうち、報告を {@link #FIRST_AUDIO_DEADLINE_MS} まで待つもの。
+     *
+     * <p>{@code SoundManager#play} の直後に {@code isActive} が偽でも、数 ms 遅れて開栓する
+     * 経路が実在する ({@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE})。拒否をその場で
+     * チャットへ出すと、実際に鳴っている音源へ「再生拒否」を付けてしまう (#7-1 の誤報告)。
+     * だから理由をここへ保留し、期限に「本当に鳴っていないか」を見てから出す。
+     *
+     * <p>{@link #MUTED} は対象外 (音量 0 は遅れて開栓しない・利用者が直せる唯一の理由なので
+     * すぐ伝える)。世代を持たせないと、差し替え後の再生へ古い保留が漏れる。
+     */
+    private final Map<K, HeldEngineRejection> heldEngineRejections = new ConcurrentHashMap<>();
+    /**
      * 再生スレッドの中で落ちた失敗の重複抑止。ラジオは同じ理由で最大 {@link #MAX_RECONNECT} 回まで
      * 落ち直すので、覚えておかないと同じ行がチャットに積まれる。忘れるのは停止した時だけ。
      */
@@ -285,6 +301,15 @@ public final class PlaybackSessions<K> {
      * {@link #stop} でも忘れない — 停止と次の再生を挟んで繰り返される失敗こそ抑えたい相手。
      */
     private final PlaybackFailureNotices deadlineNotices = new PlaybackFailureNotices();
+    /**
+     * MUTED を報告済みの世代。MUTED はその場で返るので {@link #heldEngineRejections} に残らず、
+     * 音源は {@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE} のまま残る。期限で
+     * {@link #firstAudioDeadlineFailure} が別の理由 (STREAM_UNAVAILABLE) を積むと、同じ再生に
+     * 理由が 2 つ付く。同じ世代では期限の報告を抑える。
+     *
+     * <p>新しい世代 ({@link #stop} / {@link #abandon} / {@link #stopAll}) では捨てる。
+     */
+    private final Map<K, Integer> mutedReported = new ConcurrentHashMap<>();
 
     private final LongSupplier clockMs;
     private final LongSupplier monotonicMs;
@@ -483,6 +508,8 @@ public final class PlaybackSessions<K> {
         if (isLive(key, token)) {
             generations.invalidate(key);
             requests.remove(key);
+            heldEngineRejections.remove(key);
+            mutedReported.remove(key);
         }
     }
 
@@ -515,30 +542,102 @@ public final class PlaybackSessions<K> {
      * sound engine が再生を受理しなかった ({@link SoundEngineAcceptance})。利用者に出すべきか
      * どうかを答える。
      *
-     * <p>ロードは成功しているので原因は MC 側にあり、直るまで<b>何度やっても同じ理由で弾かれる</b>。
-     * 出すこと自体は正しい (誤って音量を 0 にしている人には必要な情報) が、毎回出すとノイズになる。
-     * だから頻度の問題として扱う — 同じ理由は実際に鳴り始めるまで 1 回だけ。
+     * <p><b>音量 0 ({@link PlaybackFailure.Kind#MUTED}) だけはその場で答える。</b> 音量 0 は
+     * 遅れて開栓しないうえ、利用者が自分で直せる唯一の理由なので、すぐ伝えないと気づけない。
+     * 直るまで何度でも同じところで弾かれるため、頻度の抑止は {@link #startNotices} が持つ。
      *
-     * <p><b>ここで世代を落としてはいけない。</b> 拒否は「もう鳴らない」の証明ではなく、遅れて
-     * 開栓して鳴り出す経路が実在する ({@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE})。
-     * だから音源は畳まずに置く。
-     * <b>畳まない以上、回収するのは {@link #FIRST_AUDIO_DEADLINE_MS} の期限だけ</b>で、
-     * その入口 ({@link #firstAudioOverdue}) は {@link #isLive} が真であることを要求する。
-     * ここで {@link #abandon} を呼ぶと期限が二度と発火せず、<b>誰も閉じない音源が残る</b>
-     * (拒否されたのに鳴り続ける = 今回の修正が最も避けたい形)。遅れて鳴り始めた時に
-     * "Now Playing" と失敗ラベルの取り消しが要るのも、この世代が生きている間だけ。
+     * <p><b>それ以外は保留して {@code null} を返す</b> ({@link #heldEngineRejection})。拒否は
+     * 「もう鳴らない」の証明ではなく、数 ms 遅れて開栓する経路が実在する
+     * ({@link SoundEngineAcceptance#KEEP_UNTIL_DEADLINE})。呼び出し側がその場で報告すると、
+     * 実際に鳴っている音源へ「再生拒否」を付ける (#7-1)。判定は
+     * {@link #FIRST_AUDIO_DEADLINE_MS} の期限で {@link #resolveHeldEngineRejection} が行う。
+     *
+     * <p><b>ここで世代を落としてはいけない。</b> 音源は畳まずに置き、回収は期限だけに任せる。
+     * その入口 ({@link #firstAudioOverdue}) は {@link #isLive} が真であることを要求するので、
+     * ここで {@link #abandon} を呼ぶと期限が二度と発火せず、<b>誰も閉じない音源が残る</b>。
      *
      * @param key     再生の鍵 (金ジューク = jukebox の位置)
      * @param token   この再生の世代
      * @param failure 受理されなかった理由
-     * @return 出すべき失敗。黙るなら {@code null}
+     * @return すぐ出すべき失敗。保留した・黙るなら {@code null}
      */
     @Nullable
     public PlaybackFailure engineRejected(K key, int token, PlaybackFailure failure) {
         if (!isLive(key, token)) {
             return null; // 停止済み / 差し替え済みの再生の拒否は出さない
         }
-        return startNotices.shouldReport(key, failure) ? failure : null;
+        if (failure.kind() != PlaybackFailure.Kind.MUTED) {
+            heldEngineRejections.put(key, new HeldEngineRejection(token, failure));
+            return null;
+        }
+        heldEngineRejections.remove(key);
+        // この世代の期限で別の理由を重ねない (音源は期限まで残っている)。頻度抑止で今回は
+        // 黙る場合も、音量 0 は直前に伝えてあるので同じく重ねない。
+        mutedReported.put(key, token);
+        if (!startNotices.shouldReport(key, failure)) {
+            return null;
+        }
+        return failure;
+    }
+
+    /**
+     * 期限まで保留している engine の拒否 (まだ報告しない)。ログ用に理由だけ覗く。
+     *
+     * @param key   再生の鍵
+     * @param token この再生の世代
+     * @return この世代で保留中の拒否。無ければ {@code null}
+     */
+    @Nullable
+    public PlaybackFailure heldEngineRejection(K key, int token) {
+        final HeldEngineRejection held = heldEngineRejections.get(key);
+        return held != null && held.token() == token ? held.failure() : null;
+    }
+
+    /**
+     * {@link #FIRST_AUDIO_DEADLINE_MS} の期限で、保留していた拒否を報告するか決める。
+     *
+     * <p>engine がまだ生きている ({@code engineActive}) なら、遅れて開栓した音源が鳴っている。
+     * 拒否は取り消して {@code null} を返す — ここで報告すると #7-1 の誤報告そのものになる。
+     * 生きていなければ、拒否は本当だったので {@link #startNotices} の頻度抑止を通して返す。
+     *
+     * @param key          再生の鍵
+     * @param token        この再生の世代
+     * @param engineActive 期限時点で sound engine がこの音源を保持しているか
+     * @return 報告すべき失敗。鳴っている・保留が無い・黙るなら {@code null}
+     */
+    @Nullable
+    public PlaybackFailure resolveHeldEngineRejection(K key, int token, boolean engineActive) {
+        final HeldEngineRejection held = heldEngineRejections.get(key);
+        if (held == null || held.token() != token) {
+            return null;
+        }
+        heldEngineRejections.remove(key);
+        if (!isLive(key, token) || engineActive) {
+            return null;
+        }
+        return startNotices.shouldReport(key, held.failure()) ? held.failure() : null;
+    }
+
+    /**
+     * 期限でラジオの保留拒否を解決し、諦めた時の理由として持ち越す。
+     *
+     * <p>ラジオの期限は {@link #radioStreamEnded} を呼ぶが、そちらは再接続のために保留中の拒否を
+     * 捨てる。先にここで解決しないと、本当に拒否されたラジオは SOUND_ENGINE を一度も出さず、
+     * 再接続を使い切った {@code GIVE_UP} が理由なしになる。鳴っている ({@code engineActive})
+     * なら {@link #resolveHeldEngineRejection} が {@code null} を返すので、持ち越さない。
+     *
+     * @param key          再生の鍵
+     * @param token        この再生の世代
+     * @param engineActive 期限時点で sound engine がこの音源を保持しているか
+     * @return 持ち越した失敗。鳴っている・保留が無い・黙るなら {@code null}
+     */
+    @Nullable
+    public PlaybackFailure holdRadioEngineRejection(K key, int token, boolean engineActive) {
+        final PlaybackFailure rejected = resolveHeldEngineRejection(key, token, engineActive);
+        if (rejected != null) {
+            pendingFailure.put(key, rejected);
+        }
+        return rejected;
     }
 
     /**
@@ -553,6 +652,9 @@ public final class PlaybackSessions<K> {
      * <p>ログ ({@code ClientPlaybackManager} の "No audio reached..." 行) はここでは抑止しない。
      * 切り分けには毎回の記録が要るので、黙らせるのはチャット向けの報告だけ。
      *
+     * <p>同じ世代で MUTED を報告済み ({@link #mutedAlreadyReported}) なら {@code null} を返す。
+     * 音源は期限まで残っているので、ここで別の理由を重ねると同じ再生に 2 つ付く。
+     *
      * @param key     再生の鍵 (金ジューク = jukebox の位置)
      * @param token   この再生の世代
      * @param failure 分類済みの失敗
@@ -563,7 +665,23 @@ public final class PlaybackSessions<K> {
         if (!isLive(key, token)) {
             return null; // 停止済み / 差し替え済みの再生の期限切れは出さない
         }
+        if (mutedAlreadyReported(key, token)) {
+            return null; // MUTED を出した世代。同じ再生に 2 つ目の理由を付けない
+        }
         return deadlineNotices.shouldReport(key, failure) ? failure : null;
+    }
+
+    /**
+     * この世代で MUTED を既に報告したか。期限の STREAM_UNAVAILABLE で同じ再生に 2 つ目の理由を
+     * 付けないための判定。
+     *
+     * @param key   再生の鍵
+     * @param token この再生の世代
+     * @return 同じ世代で MUTED を報告済みなら {@code true}
+     */
+    public boolean mutedAlreadyReported(K key, int token) {
+        final Integer reported = mutedReported.get(key);
+        return reported != null && reported == token;
     }
 
     /**
@@ -580,6 +698,8 @@ public final class PlaybackSessions<K> {
      */
     public void engineAccepted(K key) {
         startNotices.forget(key);
+        // 受理 = 遅れて開栓した可能性がある。保留していた拒否はもう正しくない。
+        heldEngineRejections.remove(key);
     }
 
     /**
@@ -606,6 +726,8 @@ public final class PlaybackSessions<K> {
             firstAudioPositionMs.put(key, positionClockMs.getAsLong());
             // 実音が届いた = この座標の「鳴らない」記憶はもう正しくない。次の音源でまた報告する。
             deadlineNotices.forget(key);
+            // 実音が鳴っている以上、保留していた engine の拒否は誤り。もう出さない。
+            heldEngineRejections.remove(key);
         }
         return first;
     }
@@ -667,6 +789,9 @@ public final class PlaybackSessions<K> {
         if (request == null || !request.track().radio()) {
             return new Reconnect(ReconnectKind.NONE, 0, null, null);
         }
+        // ラジオは再接続が同じ世代を引き継ぐ。最初の試行の拒否を次の期限まで持ち越すと、
+        // 鳴り直した音源へ古い理由が付く。再接続の判断材料は reconnectAttempts 側が持つ。
+        heldEngineRejections.remove(key);
         final Long started = firstAudioMonotonicMs.get(key);
         if (started != null && monotonicMs.getAsLong() - started >= STABLE_MS) {
             reconnectAttempts.remove(key);
@@ -811,6 +936,8 @@ public final class PlaybackSessions<K> {
         firstAudioPositionMs.remove(key);
         loadOffsetMs.remove(key);
         pendingFailure.remove(key);
+        heldEngineRejections.remove(key);
+        mutedReported.remove(key);
         notices.forget(key);
         final PlaybackVoice voice = active.remove(key);
         if (voice != null) {
@@ -838,6 +965,8 @@ public final class PlaybackSessions<K> {
         firstAudioPositionMs.clear();
         loadOffsetMs.clear();
         pendingFailure.clear();
+        heldEngineRejections.clear();
+        mutedReported.clear();
         notices.forgetAll();
         startNotices.forgetAll();
         deadlineNotices.forgetAll();

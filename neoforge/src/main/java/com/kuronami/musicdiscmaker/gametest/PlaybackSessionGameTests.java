@@ -394,6 +394,10 @@ public class PlaybackSessionGameTests {
      * <p>既存の {@code notices} に乗せてもこれは実現しない — あちらは {@code stop} で忘れ、
      * 再生要求は必ず {@code stop} を通ってから新しい世代を起こすので、chunk 再入のたびに
      * 「初めての失敗」に戻る。ここではその再入をそのまま再現している。
+     *
+     * <p>音量 0 以外の拒否は<b>その場では出さない</b>。play の直後に開栓する経路があるので、
+     * 期限 ({@link PlaybackSessions#FIRST_AUDIO_DEADLINE_MS}) まで保留し、その時点で engine が
+     * 音源を保持していなければ報告する ({@code DeferredEngineRejectionTest})。
      */
     //? if <1.21.11 {
     /*@PrefixGameTestTemplate(false)
@@ -412,11 +416,15 @@ public class PlaybackSessionGameTests {
         helper.assertTrue(sessions.engineRejected(JUKEBOX, second.token(), muted) == null,
                 "同じ理由が再生要求のたびにチャットへ積まれている");
 
-        // 理由が変われば別の情報なので通す。
+        // 理由が変われば別の情報なので通す。ただし engine の拒否は期限まで保留する (#7-1)。
         final PlaybackSessions.StartDecision third = sessions.start(JUKEBOX, TRACK_A, 0L, 0, 100, true);
         final PlaybackFailure engine = PlaybackFailure.soundEngineRejected();
-        helper.assertTrue(sessions.engineRejected(JUKEBOX, third.token(), engine) == engine,
-                "理由が変わったのに黙っている");
+        helper.assertTrue(sessions.engineRejected(JUKEBOX, third.token(), engine) == null,
+                "engine の拒否は遅れて開栓しうるので、その場では出さない");
+        helper.assertTrue(sessions.heldEngineRejection(JUKEBOX, third.token()) == engine,
+                "期限まで保留していない");
+        helper.assertTrue(sessions.resolveHeldEngineRejection(JUKEBOX, third.token(), false) == engine,
+                "期限まで engine が開栓しなかったのに、理由が報告されていない");
         helper.succeed();
     }
 

@@ -1,0 +1,20 @@
+{
+  "type": "music_disc_maker:album_dyeing",
+  "category": "misc",
+  "group": "album_dyeing",
+  "ingredients": [
+    {
+      "item": "music_disc_maker:album"
+    },
+    {
+      "item": "minecraft:blue_dye"
+    }
+  ],
+  "result": {
+    "item": "music_disc_maker:album",
+    "count": 1,
+    "nbt": {
+      "album_color": "blue"
+    }
+  }
+}

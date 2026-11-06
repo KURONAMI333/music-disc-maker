@@ -67,4 +67,9 @@ public abstract class MixinSoundEngineChannels implements SoundEngineChannelAcce
     public int mdm$streamingPoolLimit() {
         return StreamingChannelPool.actualStreamingLimit(this.library.getDebugString());
     }
+
+    @Override
+    public int mdm$streamingPoolUsed() {
+        return StreamingChannelPool.actualStreamingUsed(this.library.getDebugString());
+    }
 }

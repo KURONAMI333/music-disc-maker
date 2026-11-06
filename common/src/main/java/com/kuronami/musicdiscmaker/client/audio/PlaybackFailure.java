@@ -74,6 +74,11 @@ public record PlaybackFailure(Kind kind, String detail) {
          */
         PREVIEW_ONLY("preview"),
         /**
+         * 音源が DRM で保護されていて復号できない ({@link FailureReason#DRM_PROTECTED} の再生側)。
+         * 制作機と同じ文面を出したいので GUI キーを共有する。
+         */
+        DRM_PROTECTED("drm"),
+        /**
          * 代替ソースを探したが同じ録音とみなせる候補が無かった
          * ({@link FailureReason#NO_ALTERNATIVE_FOUND} の再生側。再接続の再解決でここへ来る)。
          * 制作機側と同じ概念・同じ文面なので GUI キーを共有する。
@@ -98,8 +103,8 @@ public record PlaybackFailure(Kind kind, String detail) {
         /**
          * GUI に出す<b>短い文</b>の翻訳キー ({@link FailureReason#guiKey()} と同じ役割・同じ名前空間)。
          *
-         * <p>{@link #translationKey()} と分けてあるのは宛先が違うから。あちらはログとチャットに
-         * 出る技術寄りの 1 文で、こちらは画面の帯に折り返して収まる利用者向けの文。
+         * <p>{@link #translationKey()} と分けてあるのは宛先が違うから。あちらはログに出る
+         * 技術寄りの 1 文で、こちらは画面の帯に折り返して収まる利用者向けの文。
          * 金ジュークの画面に出るのは<b>こちら</b> ({@code GoldenJukeboxScreen})。
          *
          * <p>制作機側と<b>同じキーを共有する</b> — 制作機が「取得できない」と言う理由と、
@@ -132,6 +137,7 @@ public record PlaybackFailure(Kind kind, String detail) {
                 case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
                 case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
                 case PREVIEW_ONLY -> "gui.music_disc_maker.failed.preview";
+                case DRM_PROTECTED -> "gui.music_disc_maker.failed.drm";
                 case NO_ALTERNATIVE_FOUND -> "gui.music_disc_maker.failed.noalt";
                 // 再生時にしか起きないもの (制作機は URL を解決するだけなので相当する語が無い)。
                 case LOCAL_AUDIO -> "gui.music_disc_maker.failed.local_audio";
@@ -142,6 +148,39 @@ public record PlaybackFailure(Kind kind, String detail) {
                 // こちらは解決できたのに鳴らせなかった状態なので、言うことが違う。
                 case STREAM_UNAVAILABLE, OPEN_ERROR, SOUND_ENGINE ->
                         "gui.music_disc_maker.failed.generic";
+            };
+        }
+
+        /**
+         * ブームボックスの<b>1 行</b>に出す短い文の翻訳キー ({@code gui.music_disc_maker.status.*})。
+         *
+         * <p>{@link #guiKey()} とは別に持つ。あちらは制作機・金ジュークと同じキーで、
+         * 文が長く「別のリンクをお試しください」まで含む。ブームボックスの帯は 128px で
+         * 折り返さないので、理由だけを短く言い切る語をここに置く。
+         *
+         * <p>{@link #guiKey()} と同じく {@code default} を書かない網羅 switch。分類を増やした時に
+         * <b>コンパイラに検出させる</b>ため。利用者に打つ手が無い 3 つは
+         * {@code guiKey()} と同じ理由で 1 つのキーに集約する。
+         *
+         * @return 1 行表示の翻訳キー
+         */
+        public String statusKey() {
+            return switch (this) {
+                case CONCURRENT_LIMIT -> "gui.music_disc_maker.status.limit";
+                case UNSUPPORTED_URL, BLOCKED_URL -> "gui.music_disc_maker.status.unsupported";
+                case PRIVATE_OR_REMOVED -> "gui.music_disc_maker.status.removed";
+                case REGION_LOCKED -> "gui.music_disc_maker.status.region";
+                case AGE_RESTRICTED -> "gui.music_disc_maker.status.age";
+                case NETWORK -> "gui.music_disc_maker.status.network";
+                case REFUSED -> "gui.music_disc_maker.status.refused";
+                case BOT_CHECK -> "gui.music_disc_maker.status.bot_check";
+                case PREVIEW_ONLY -> "gui.music_disc_maker.status.preview";
+                case DRM_PROTECTED -> "gui.music_disc_maker.status.drm";
+                case NO_ALTERNATIVE_FOUND -> "gui.music_disc_maker.status.no_alternative";
+                case LOCAL_AUDIO -> "gui.music_disc_maker.status.local_audio";
+                case MUTED -> "gui.music_disc_maker.status.muted";
+                case STREAM_UNAVAILABLE, OPEN_ERROR, SOUND_ENGINE ->
+                        "gui.music_disc_maker.status.generic";
             };
         }
     }
@@ -173,6 +212,23 @@ public record PlaybackFailure(Kind kind, String detail) {
      */
     public static PlaybackFailure soundEngineRejected() {
         return new PlaybackFailure(Kind.SOUND_ENGINE, "play rejected");
+    }
+
+    /**
+     * 拒否時の streaming pool の使用数と上限を detail へ足す。上限が取れていない (0 以下) 時は
+     * 何も足さない — 推測値をログへ書かない。
+     *
+     * @param used  使用中の枠数
+     * @param limit 実際の上限
+     * @return detail に pool 使用状況を添えた失敗 (取れない時は同じ内容)
+     */
+    public PlaybackFailure withPoolUsage(int used, int limit) {
+        if (limit <= 0) {
+            return this;
+        }
+        final String usage = "pool used/limit=" + used + "/" + limit;
+        final String text = detail == null || detail.isBlank() ? usage : detail + " " + usage;
+        return new PlaybackFailure(kind, text);
     }
 
     /** 音量が 0 なので engine が捨てた ({@link SoundEngineAcceptance})。 */
@@ -214,6 +270,7 @@ public record PlaybackFailure(Kind kind, String detail) {
             // 制作機で弾いた曲でも、既に作られたディスクは再生時にここへ来る (再生も同じ
             // 解決経路を通るため。MusicLoaderImpl#openStreamDetailed)。
             case PREVIEW_ONLY -> Kind.PREVIEW_ONLY;
+            case DRM_PROTECTED -> Kind.DRM_PROTECTED;
             case NO_ALTERNATIVE_FOUND -> Kind.NO_ALTERNATIVE_FOUND;
             // 行動が既存の分類と同じものは寄せる (ガード拒否・回線)。
             case BLOCKED_URL -> Kind.BLOCKED_URL;

@@ -119,7 +119,7 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
         }
     }
 
-    public GoldenJukeboxMinecartEntity(EntityType<?> type, Level level) {
+    public GoldenJukeboxMinecartEntity(EntityType<? extends GoldenJukeboxMinecartEntity> type, Level level) {
         super(type, level);
         this.mountJukebox(level);
     }
@@ -284,7 +284,7 @@ public class GoldenJukeboxMinecartEntity extends GoldenJukeboxCartBase implement
 
     @Nullable
     @Override
-    protected AbstractContainerMenu createMenu(int containerId, Inventory playerInventory) {
+    public AbstractContainerMenu createMenu(int containerId, Inventory playerInventory) {
         // client へ entity id を運ぶ extended menu を各 loader の helper から開く。
         return null;
     }

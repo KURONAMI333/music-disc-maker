@@ -23,6 +23,9 @@ public final class AlbumStorageBudget {
     /** 初回menu同期は既存データを開く経路なので、2 MiB packet枠のうち512 KiBをheader等に残す。 */
     public static final int INITIAL_MENU_WIRE_BYTE_BUDGET = 1536 * 1024;
 
+    /** encode/decode の失敗だけが持つ文言。容量超過は文を出さない。 */
+    public static final String SYNC_FAILED_KEY = "message.music_disc_maker.storage_sync_failed";
+
     private AlbumStorageBudget() {
     }
 
@@ -34,11 +37,22 @@ public final class AlbumStorageBudget {
         public boolean fits() { return reason == Reason.ACCEPTED; }
         public boolean capacityExceeded() { return reason == Reason.BYTE_BUDGET || reason == Reason.ENTRY_LIMIT; }
         public Result at(Stage value) { return new Result(reason, value, bytes, budget); }
-        /** 表示する拒否だけを記録する。曲・URL・component値・例外本文は記録しない。 */
-        public String rejectionKey(String capacityKey) {
-            com.kuronami.musicdiscmaker.MusicDiscMaker.LOGGER.warn(
-                    "Disc storage rejected: reason={} stage={} bytes={} budget={}", reason, stage, bytes, budget);
-            return capacityExceeded() ? capacityKey : "message.music_disc_maker.storage_sync_failed";
+
+        /**
+         * 拒否をプレイヤーへ伝える文言。容量超過は {@code null} で、文を出さない
+         * (2026-11-02 本人指示「文を出さないとわからないのがおかしい」)。
+         * 診断logは容量超過でも残し、曲・URL・component値・例外本文は記録しない。
+         * 容量超過は縮めて開ける通常の道なので debug、同期形式の失敗だけ warn。
+         */
+        public @org.jetbrains.annotations.Nullable String failureKey() {
+            if (capacityExceeded()) {
+                com.kuronami.musicdiscmaker.MusicDiscMaker.LOGGER.debug(
+                        "Disc storage over budget: reason={} stage={} bytes={} budget={}", reason, stage, bytes, budget);
+            } else {
+                com.kuronami.musicdiscmaker.MusicDiscMaker.LOGGER.warn(
+                        "Disc storage rejected: reason={} stage={} bytes={} budget={}", reason, stage, bytes, budget);
+            }
+            return StorageOverflow.failureKey(capacityExceeded());
         }
     }
 

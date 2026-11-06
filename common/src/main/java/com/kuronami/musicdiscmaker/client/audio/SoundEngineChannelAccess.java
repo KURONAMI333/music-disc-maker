@@ -40,4 +40,10 @@ public interface SoundEngineChannelAccess {
      * 拡張した場合もその実値を返す。未初期化または取得不能なら 0。
      */
     int mdm$streamingPoolLimit();
+
+    /**
+     * engine の streaming channel pool で<b>いま使用中</b>の枠数。拒否が枯渇によるものかを
+     * 切り分けるために読む。未初期化または取得不能なら 0。
+     */
+    int mdm$streamingPoolUsed();
 }

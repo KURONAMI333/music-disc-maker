@@ -15,6 +15,14 @@ class TrackKeyTest {
     }
 
     @Test
+    void recordOverloadKeepsNormalizedResult() {
+        final CustomTrackData track = new CustomTrackData("https://example.com/a",
+                "Alpha (Official Video)", "Artist", 1L, "", false);
+        assertEquals(TrackKey.variantIndex("Alpha", "Artist"), TrackKey.variantIndex(track));
+        assertEquals(TrackKey.automaticDyeIndex("Alpha", "Artist"), TrackKey.automaticDyeIndex(track));
+    }
+
+    @Test
     void automaticDyeUsesSixteenStableChoices() {
         final int alpha = TrackKey.automaticDyeIndex("Alpha", "Artist");
         assertEquals(alpha, TrackKey.automaticDyeIndex("Alpha", "Artist"));

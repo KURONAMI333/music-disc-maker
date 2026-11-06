@@ -53,6 +53,17 @@ public final class FailureClassifier {
     public static final String PREVIEW_MARKER =
             "SoundCloud only streams a preview of this track";
 
+    /**
+     * DRM で保護された曲を弾いた時に MDM 自身が立てる目印。<b>lavaplayer の文面ではない</b> —
+     * 素の format handler は「対応形式が無い」としか言わないので、URL を替えても直らないこと
+     * (DRM) と、ライブラリが古いことを利用者・ログの読み手が区別できない。
+     *
+     * <p>{@link #PREVIEW_MARKER} と同じく、投げる側 ({@code SoundCloudAacFormatHandler}) と
+     * 読む側を 1 つの定数に縛る。この文字列も利用者には出ない。
+     */
+    public static final String DRM_MARKER =
+            "SoundCloud serves this track only with DRM protection";
+
     private FailureClassifier() {
     }
 
@@ -251,6 +262,11 @@ public final class FailureClassifier {
         //    (preview / track) が別の分類に引っかかる余地を残さないため。
         if (m.contains(PREVIEW_MARKER.toLowerCase(Locale.ROOT))) {
             return FailureReason.PREVIEW_ONLY;
+        }
+        // 0b. MDM 自身が立てた DRM の目印。素の format handler は「対応形式が無い」としか
+        //     言わないので、URL を替えても直らないこと (DRM) をここで区別する。
+        if (m.contains(DRM_MARKER.toLowerCase(Locale.ROOT))) {
+            return FailureReason.DRM_PROTECTED;
         }
 
         // 1. HTTP ステータス。数字だけの失敗は語句を持たないので、ここで見ないと
