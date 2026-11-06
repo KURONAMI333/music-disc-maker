@@ -35,6 +35,8 @@ Best-effort summary — verify against each project before redistribution:
       Public Domain
   annotations (org.jetbrains)
       Apache License 2.0
+  javasound-alac (com.tianscar.javasound), service-loader classes removed
+      BSD 3-Clause License (full text: META-INF/licenses/javasound-alac-LICENSE.txt)
   concentus (io.github.jaredmdobson; pure-Java Opus, used when LavaPlayer natives cannot load)
       BSD 3-Clause License
   jlayer (javazoom; pure-Java MP3, same fallback)

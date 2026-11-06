@@ -1,7 +1,9 @@
 package com.kuronami.musicdiscmaker.client.audio;
 
+import com.kuronami.musicdiscmaker.MusicDiscMaker;
 import com.kuronami.musicdiscmaker.audio.LoaderHolder;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioStore;
+import com.kuronami.musicdiscmaker.block.MusicDiscMakerBlockEntity;
 import com.kuronami.musicdiscmaker.audio.local.LocalAudioServer;
 import com.kuronami.musicdiscmaker.lavaplayer.api.FailureReason;
 import com.kuronami.musicdiscmaker.lavaplayer.api.ResolveException;
@@ -48,6 +50,27 @@ public final class LocalAudioClient {
     private static LocalAudioStore cache;
     private static volatile String status = "select";
     private static volatile int percent;
+    /** Linux の TinyFileDialogs backend 判定。null = 未判定。 */
+    private static volatile Boolean pickerUsable;
+    /** picker の警告は 1 セッション 1 回 (押すたびに同じ行を出さない)。 */
+    private static final java.util.concurrent.atomic.AtomicBoolean pickerUnavailableWarned =
+            new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.atomic.AtomicBoolean pickerNullWarned =
+            new java.util.concurrent.atomic.AtomicBoolean();
+    /** 同じ hash を続けて上げ直さない間隔。missing のたびに同じ 32MiB を送らない。 */
+    private static final long RESTORE_RETRY_MS = 60_000L;
+    /**
+     * 応答が来ない上げ直しを諦めるまでの時間。開始からではなく最後の応答 (READY / ACK) から数える。
+     * 32MiB は 16KiB ずつ ACK 往復で進むので、遅い回線では全体が 2 分を超えうるが、進んでいる間は諦めない。
+     * 古いサーバー (RESTORE を知らない) に繋いだ時も、この時間で枠が空く。
+     */
+    private static final long RESTORE_INFLIGHT_MS = 120_000L;
+    /** 上げ直し中の hash (1 本だけ)。 */
+    private static final java.util.concurrent.ConcurrentMap<String, Restore> RESTORES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** hash → 最後に上げ直しを始めた時刻。失敗後の間隔に使う。 */
+    private static final java.util.concurrent.ConcurrentMap<String, Long> RESTORE_ATTEMPTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private LocalAudioClient() {}
     public static Component status() {
         Upload u = SESSION.upload;
@@ -55,8 +78,20 @@ public final class LocalAudioClient {
                 "confirm".equals(status) && u != null ? u.name : percent);
     }
     public static boolean uploading() { return SESSION.upload != null; }
-    /** 待機中以外の案内文がある時だけ画面へ出す (idle の "select" は行を空ける)。 */
-    public static boolean hasStatus() { return SESSION.upload != null || !"select".equals(status); }
+    /** 取込中の表示名 (画面の左上に出す。曲名が読めたらファイル名から置き換わる)。取込中でなければ空。 */
+    public static String currentName() {
+        Upload u = SESSION.upload;
+        return u == null ? "" : u.name;
+    }
+    /**
+     * 待機中以外の案内文がある時だけ画面へ出す。idle の "select" に加え、盤待ち ("disc") と
+     * 完了 ("done") も文字を出さない — 盤待ちは入力スロットの盤の影、完了は出力スロットに出た
+     * 盤そのもので分かる (2026-11-02)。
+     */
+    public static boolean hasStatus() {
+        if ("disc".equals(status) || "done".equals(status)) return false;
+        return SESSION.upload != null || !"select".equals(status);
+    }
     /** OS選択は画面スレッド、ファイル検査・変換は専用ワーカー。選択後の共有曲名を確認してから開始する。 */
     //? if >=26.3 {
     /*private static final ConcurrentMap<Long, SdlPicker> PICKERS = new ConcurrentHashMap<>();
@@ -82,7 +117,10 @@ public final class LocalAudioClient {
             PICKERS.remove(picker.id);
             activePicker = null;
             picker.freeFilters();
-            status = LocalImportDecisions.failureStatus(failure);
+            // ダイアログ自体が開けなかった。ファイルの取込失敗ではないので、
+            // ダイアログ無し環境と同じ status へ寄せる。
+            MusicDiscMaker.LOGGER.warn("File picker failed ({})", failure.getClass().getSimpleName());
+            status = "picker_unavailable";
         }
     }
 
@@ -154,7 +192,7 @@ public final class LocalAudioClient {
                     || Minecraft.getInstance().player == null
                     || Minecraft.getInstance().player.containerMenu != menu) return;
             if (error) {
-                status = "import_failed";
+                status = "picker_unavailable";
             } else if (selected != null && SESSION.upload == null) {
                 startSelected(menu, selected);
             }
@@ -163,6 +201,11 @@ public final class LocalAudioClient {
     *///?} else {
     public static void select(MusicDiscMakerMenu menu) {
         if (SESSION.upload != null) return;
+        if (pickerUnusable()) {
+            status = "picker_unavailable";
+            warnPickerUnavailableOnce();
+            return;
+        }
         String selected;
         try (MemoryStack stack = MemoryStack.stackPush()) {
             var filters = stack.mallocPointer(LocalImportDecisions.PICKER_PATTERNS.length);
@@ -171,19 +214,117 @@ public final class LocalAudioClient {
             selected = TinyFileDialogs.tinyfd_openFileDialog(
                     Component.translatable("gui.music_disc_maker.local.picker_title").getString(), "", filters,
                     Component.translatable("gui.music_disc_maker.local.filter_desc").getString(), false);
+        } catch (Throwable failure) {
+            // 例外の message は jar のパス等を含み得るので、型名だけを残す。
+            MusicDiscMaker.LOGGER.warn("File picker failed ({})", failure.getClass().getSimpleName());
+            status = "picker_unavailable";
+            return;
         }
-        if (selected != null) startSelected(menu, selected);
+        if (selected == null) {
+            // tinyfd は「取消」と「backend 失敗」のどちらでも null を返す。既存の取消動作は
+            // 変えず (status も触らず idle のまま)、診断用に一度だけ警告を残す。
+            warnPickerNullOnce();
+            return;
+        }
+        startSelected(menu, selected);
+    }
+
+    /**
+     * Linux で GUI のファイル選択を開けない環境か。GUI セッションの有無で先に弾く。
+     *
+     * <p>LWJGL の TinyFileDialogs は C API の {@code tinyfd_query} を公開していないため、
+     * 実際に選ばれる backend は分からない。PATH 上に既知のダイアログ実装があるかだけを見て、
+     * GUI セッションが無い (または実装が無い) 環境は不可に倒す。そこで TinyFileDialogs は
+     * 端末向け backend に落ちて null を返し、取消と区別できない。判定は machine ごとに 1 回でよい。
+     * Wayland 表示だけの環境も TinyFileDialogs の GUI は開けないので不可に倒す。
+     */
+    private static boolean pickerUnusable() {
+        Boolean usable = pickerUsable;
+        if (usable == null) {
+            final String os = System.getProperty("os.name", "");
+            usable = !LocalImportDecisions.pickerSessionUnavailable(os,
+                    System.getenv("DISPLAY"), System.getenv("WAYLAND_DISPLAY"),
+                    LocalAudioClient::isOnPath);
+            pickerUsable = usable;
+        }
+        return !usable;
+    }
+
+    /**
+     * PATH 上の実行ファイルか。名前だけを調べ、パスはログにも状態にも残さない。
+     * ディレクトリを実行ファイルと誤認しないよう、判定は {@link LocalImportDecisions} に置く。
+     */
+    private static boolean isOnPath(String executable) {
+        return LocalImportDecisions.isExecutableOnPath(executable, System.getenv("PATH"));
+    }
+
+    /** 1 セッション 1 回だけ。DISPLAY/WAYLAND は有無だけを出し、PATH や個人パスは出さない。 */
+    private static void warnPickerUnavailableOnce() {
+        if (!pickerUnavailableWarned.compareAndSet(false, true)) return;
+        final String backend = LocalImportDecisions.firstDialogBackendOnPath(LocalAudioClient::isOnPath);
+        MusicDiscMaker.LOGGER.warn(
+                "File picker unavailable (os={}, display={}, wayland={}, backend={}); "
+                        + "the local file import picker cannot open in this session",
+                System.getProperty("os.name", ""), presence(System.getenv("DISPLAY")),
+                presence(System.getenv("WAYLAND_DISPLAY")), backend == null ? "none" : backend);
+    }
+
+    private static void warnPickerNullOnce() {
+        if (!pickerNullWarned.compareAndSet(false, true)) return;
+        MusicDiscMaker.LOGGER.warn(
+                "File picker returned no path (cancel or native failure); treating it as a cancel");
+    }
+
+    private static String presence(String value) {
+        return value == null || value.isBlank() ? "unset" : "set";
     }
     //?}
 
     private static void startSelected(MusicDiscMakerMenu menu, String selected) {
         long generation = ++operation;
         Upload u = new Upload(menu, generation, SESSION.connectionGeneration);
+        // 検査が終わる前から画面の左上に選択したファイル名を出す。prepare が曲名を読めたら上書きする。
+        u.name = LocalImportDecisions.displayNameFor(selected);
         SESSION.upload = u; status = "checking";
         Thread worker = new Thread(() -> prepare(u, selected), "mdm-local-audio-import");
         worker.setDaemon(true);
         u.worker = worker;
         worker.start();
+    }
+
+    /**
+     * 画面へドラッグ＆ドロップされたファイルから取込を始める。
+     *
+     * <p>OS のファイル選択画面を開かない経路なので、TinyFileDialogs や SDL のダイアログを
+     * 使えない Linux (Wayland だけの環境・zenity/kdialog 等が無い環境) でも取り込める。
+     * 前提は {@link #select} と同じで、取込中は何もしない (ダイアログを開けるかの判定
+     * {@code pickerUnusable} は通らない — ドロップはその判定に依存しない)。フォルダや
+     * 複数ドロップの扱いは {@link LocalImportDecisions#firstDroppedFile} が決める。
+     *
+     * @param menu     取込先の画面のメニュー
+     * @param selected {@link #droppedFile} が選んだパス
+     */
+    public static void selectDropped(MusicDiscMakerMenu menu, String selected) {
+        if (SESSION.upload != null || selected == null) return;
+        //? if >=26.3 {
+        /*// 開いたままの選択画面が後で結果を返しても、二本目の取込を始めさせない。
+        if (activePicker != null) {
+            activePicker.cancelled = true;
+            pickerEpoch++;
+        }
+        *///?}
+        startSelected(menu, selected);
+    }
+
+    /**
+     * ドロップされた一覧から取込に使う 1 本を選ぶ ({@link LocalImportDecisions#firstDroppedFile})。
+     * 画面はこれが {@code null} の時に URL 欄を触らない。
+     *
+     * @param dropped ドロップされたパス
+     * @return 取込に使うパス。通常ファイルが無ければ {@code null}
+     */
+    public static String droppedFile(List<Path> dropped) {
+        return LocalImportDecisions.firstDroppedFile(dropped);
     }
     /**
      * 選択ファイルを転送できる形へ整える (専用ワーカー上)。内容 probe が分岐を決める
@@ -256,7 +397,11 @@ public final class LocalAudioClient {
             u.name = u.name.substring(0, Math.min(256, u.name.length())).replaceAll("[\\p{Cntrl}]", "");
             Minecraft.getInstance().execute(() -> {
                 if (!SESSION.live(u)) { cleanup(u); return; }
+                // 選択後の確認クリックを省く。名前は画面の左上に出るので、やり直す時は × で取り消せる。
+                // 白紙の盤がまだ無い時は取込を保持して待ち、盤が入った時点で送る。
                 status = "confirm";
+                if (discSlotsReady(u.menu)) confirm();
+                else { status = "disc"; u.enterDiscWait(false); }
             });
         } catch (Throwable e) {
             // impl jar 破損等の Error でもスロット・一時ファイル・状態を残さない。
@@ -287,6 +432,34 @@ public final class LocalAudioClient {
             throw new IOException(e);
         }
     }
+    /**
+     * 画面が取り除かれた時 (MusicDiscMakerScreen#removed) に呼ぶ。menu を開いたまま画面だけが替わった
+     * (レシピ画面など) 場合は何もしない。
+     */
+    public static void screenRemoved(MusicDiscMakerMenu menu) {
+        if (LocalImportDecisions.cancelsOnScreenRemoved(menu, playerMenu())) cancel(menu);
+    }
+    /** 入力枠に白紙の盤があり出力枠が空か。サーバーが BEGIN で確かめる条件と同じ。 */
+    private static boolean discSlotsReady(MusicDiscMakerMenu menu) {
+        return MusicDiscMakerBlockEntity.isBlankDisc(menu.getSlot(MusicDiscMakerBlockEntity.SLOT_INPUT).getItem())
+                && menu.getSlot(MusicDiscMakerBlockEntity.SLOT_OUTPUT).getItem().isEmpty();
+    }
+    /**
+     * 画面の tick から呼ぶ。盤の待ちで保持している取込を、盤の条件が整った時に一度だけ送り出す。
+     * 待っていない・別の画面・取消済みの取込には何もしない。
+     */
+    public static void tick(MusicDiscMakerMenu menu) {
+        if (SESSION.upload == null) return;
+        final Session.Step step = SESSION.tick(playerMenu(), menu, discSlotsReady(menu), now());
+        final String abortStatus = Session.abortStatus(step);
+        if (abortStatus != null) abort(SESSION.upload, abortStatus);
+        else if (Session.sends(step)) { status = "confirm"; confirm(); }
+    }
+    /** プレイヤーが今開いている menu。画面が無い・未接続なら null。 */
+    private static Object playerMenu() {
+        final var player = Minecraft.getInstance().player;
+        return player == null ? null : player.containerMenu;
+    }
     public static void confirm() {
         Upload u = SESSION.upload;
         if (u == null || !"confirm".equals(status) || !SESSION.live(u)) return;
@@ -305,7 +478,8 @@ public final class LocalAudioClient {
         *///?}
         Upload u = SESSION.upload;
         if (u == null) { status = "select"; return; }
-        if (u.menu != menu) return;
+        // 別の menu の取込でも、その画面が既に閉じていれば (onClose を通らない閉じ方) 片付ける。
+        if (!LocalImportDecisions.cancelAborts(u.menu, menu, playerMenu())) return;
         abort(u, "select");
     }
     /**
@@ -315,12 +489,20 @@ public final class LocalAudioClient {
     private static void abort(Upload u, String newStatus) {
         if (!SESSION.clearIfCurrent(u)) return;
         status = newStatus;
-        Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.CANCEL, u.id,
-                u.menu.containerId, u.generation, u.hash, 0, 0, ""));
-        cleanup(u);
+        // 切断中の setScreen から来ることがある。未接続では送れない (送信が例外になる) ので省き、
+        // スロット解放と一時ファイルの片付けだけ進める。サーバー側の転送は切断で消える。
+        // 切断の途中で接続がまだ見えていて送信だけが失敗する時も、片付けは必ず行う。
+        try {
+            if (Minecraft.getInstance().getConnection() != null)
+                Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.CANCEL, u.id,
+                        u.menu.containerId, u.generation, u.hash, 0, 0, ""));
+        } finally {
+            cleanup(u);
+        }
     }
     public static void receive(LocalAudioPayload p) {
         if (p.operation() == LocalAudioPayload.DATA) { data(p); return; }
+        if (restore(p)) return;
         if (p.operation() == LocalAudioPayload.ERROR) {
             Receive r = SESSION.failReceive(p.hash(), p.id(), p.generation(), SESSION.connectionGeneration);
             if (r != null) {
@@ -330,6 +512,12 @@ public final class LocalAudioClient {
             }
         }
         Receive r = SESSION.receive(p.hash());
+        if (p.operation() == LocalAudioPayload.AVAILABLE) {
+            // 他の player が原本を上げ直した知らせ。missing で待っている再生を全部起こす。
+            // 同じ hash の受信が進行中でも待ちは別の再生なので、ここで起こしてから受信側の判定へ進む。
+            wakeRestoreWaiters(p.hash());
+            if (r == null) return;
+        }
         if (p.operation() == LocalAudioPayload.AVAILABLE && r != null && r.cachedPath != null
                 && r.request.equals(p.id()) && p.generation() == r.request.getLeastSignificantBits()) {
             if (SESSION.removeReceive(p.hash(), r)) r.future.complete(r.cachedPath);
@@ -339,6 +527,7 @@ public final class LocalAudioClient {
         if (u == null || p.containerId() != u.menu.containerId || p.generation() != u.generation) return;
         if (p.operation() == LocalAudioPayload.READY || p.operation() == LocalAudioPayload.ACK) {
             if (u.sending || p.offset() != u.sent) return;
+            u.busyRetry.clear();
             u.id = p.id(); u.sending = true;
             IO.execute(() -> {
                 try {
@@ -356,6 +545,16 @@ public final class LocalAudioClient {
                     });
                 } catch (IOException e) { Minecraft.getInstance().execute(() -> abort(u, "import_failed")); }
             });
+        } else if (p.operation() == LocalAudioPayload.ERROR && SESSION.live(u)
+                && LocalImportDecisions.waitsForDisc(p.name(), u.sent)) {
+            // 盤の判定が client とサーバーでずれた。選び直させず、盤の条件が変わるまで待つ。
+            status = "disc"; percent = 0;
+            u.enterDiscWait(discSlotsReady(u.menu));
+        } else if (p.operation() == LocalAudioPayload.ERROR && SESSION.live(u)
+                && LocalImportDecisions.retriesBusy(p.name(), u.sent)) {
+            // 待てば通る断り。変換済みの取込を捨てず、間を空けて tick から撃ち直す (表示は送信中のまま)。
+            status = "transferring"; percent = 0;
+            u.busyRetry.onBusy(now());
         } else if (p.operation() == LocalAudioPayload.DONE || p.operation() == LocalAudioPayload.ERROR) {
             SESSION.upload = null; status = p.operation() == LocalAudioPayload.DONE ? "done" : p.name(); cleanup(u);
         }
@@ -371,28 +570,252 @@ public final class LocalAudioClient {
      * 失敗にせず間を空けて取り直す。再生位置は呼び出し側が待ち時間ぶん進めて開く。
      * 待機は再生ワーカーだけ。main/render thread から呼ばない。
      *
+     * <p>サーバーが {@code missing} を返した時 (別ワールドで作った盤を持ち込んだ等) は、手元の
+     * キャッシュが盤のハッシュと一致していればそれを返す ({@link #verifiedCachedCopy})。
+     *
      * @param stillCurrent この再生がまだ有効か (null = 判定なし)。無効になったら取り直しをやめる
      */
     public static Path obtain(String hash, java.util.function.BooleanSupplier stillCurrent) throws Exception {
         final long connection = SESSION.connectionGeneration;
         final long deadline = System.currentTimeMillis() + BUSY_RETRY_DEADLINE_MS;
         long delay = 500L;
+        long missingWaitStart = 0L; // 0 = まだ missing の待ちに入っていない
         while (true) {
+            // missing の答えと上げ直しの知らせが行き違わないよう、問い合わせの前に待ち札を置く。
+            // 札は再生ごと。同じ hash の別の再生が終わっても、この再生の札は外れない。
+            final CompletableFuture<Void> restored = new CompletableFuture<>();
+            RESTORE_WAITERS.compute(hash, (k, set) -> {
+                if (set == null) set = ConcurrentHashMap.newKeySet();
+                set.add(restored);
+                return set;
+            });
             try {
                 return obtainOnce(hash);
             } catch (ExecutionException e) {
+                if (isMissing(e.getCause())) {
+                    Path cached = verifiedCachedCopy(hash);
+                    if (cached != null) {
+                        // 手元に原本があるなら、再生を続けながらサーバーへ戻す。戻れば他の全員も鳴らせる。
+                        offerRestore(hash, cached);
+                        MusicDiscMaker.LOGGER.info(
+                                "Server has no original for {}; playing the verified copy in the local cache", hash);
+                        return cached;
+                    }
+                    // 原本がどこにも無い。別の player が上げ直せば AVAILABLE が来るので、
+                    // 再生が現役の間だけ待って取り直す (待てなければ従来どおり missing で終える)。
+                    // 待つのは通知の記録がある name で、再生の現役判定がある経路だけ。待ちは開始から 60 秒まで。
+                    if (LocalRestoreDecisions.awaitsRestore(stillCurrent != null, missingName(e.getCause()))) {
+                        if (missingWaitStart == 0L) missingWaitStart = System.currentTimeMillis();
+                        final long until = LocalRestoreDecisions.restoreWaitDeadline(
+                                deadline, missingWaitStart, MISSING_WAIT_MS);
+                        if (awaitRestored(restored, until, stillCurrent, connection)) continue;
+                    }
+                }
                 if (!isBusy(e.getCause()) || connection != SESSION.connectionGeneration
                         || System.currentTimeMillis() + delay > deadline
                         || stillCurrent != null && !stillCurrent.getAsBoolean()) throw e;
+            } finally {
+                RESTORE_WAITERS.computeIfPresent(hash, (k, set) -> {
+                    set.remove(restored);
+                    return set.isEmpty() ? null : set;
+                });
             }
             Thread.sleep(delay + ThreadLocalRandom.current().nextLong(delay / 2 + 1));
             delay = Math.min(delay * 2, 4_000L);
         }
     }
 
+    /** missing で他の player の上げ直しを待つ上限 (busy の待ちとは別)。 */
+    private static final long MISSING_WAIT_MS = 60_000L;
+
+    /** missing で待たせている再生を、上げ直しの知らせで起こすための札 (hash ごとに再生の数だけ)。 */
+    private static final ConcurrentHashMap<String, java.util.Set<CompletableFuture<Void>>> RESTORE_WAITERS =
+            new ConcurrentHashMap<>();
+
+    /** hash を待っている再生をすべて起こす。 */
+    private static void wakeRestoreWaiters(String hash) {
+        final java.util.Set<CompletableFuture<Void>> waiters = RESTORE_WAITERS.remove(hash);
+        if (waiters != null) for (CompletableFuture<Void> w : waiters) w.complete(null);
+    }
+
+    /** 上げ直しの知らせを、この再生が現役で接続が同じ間だけ待つ。知らせが来たら true。 */
+    private static boolean awaitRestored(CompletableFuture<Void> restored, long deadline,
+            java.util.function.BooleanSupplier stillCurrent, long connection) throws InterruptedException {
+        while (System.currentTimeMillis() < deadline && connection == SESSION.connectionGeneration
+                && (stillCurrent == null || stillCurrent.getAsBoolean())) {
+            try {
+                restored.get(500, TimeUnit.MILLISECONDS);
+                return true;
+            } catch (java.util.concurrent.TimeoutException ignored) {
+                // 待ち続ける
+            } catch (ExecutionException e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     private static boolean isBusy(Throwable cause) {
         return cause instanceof IOException io
                 && ("busy".equals(io.getMessage()) || "Audio downloads busy".equals(io.getMessage()));
+    }
+
+    /** サーバーが「このワールドに原本が無い」と答えた時の名前。 */
+    private static boolean isMissing(Throwable cause) {
+        return cause instanceof IOException io && LocalRestoreDecisions.isMissingName(io.getMessage());
+    }
+
+    /** サーバーの error name ("missing" / 通知を記録した "missing_restorable")。 */
+    private static String missingName(Throwable cause) {
+        return cause instanceof IOException io ? io.getMessage() : null;
+    }
+
+    /**
+     * ローカルキャッシュの、盤のハッシュと一致する原本 (再生スレッドから呼ぶ)。
+     *
+     * <p>別ワールドで作った盤をサーバーへ持ち込むと、サーバー側のワールドには原本が無いので
+     * {@code missing} が返る。それでも手元のキャッシュが盤のハッシュと一致していれば、
+     * その盤の音は確かにその盤のものなので鳴らす。一致しなければ null。
+     */
+    private static Path verifiedCachedCopy(String hash) {
+        final CompletableFuture<Path> found = new CompletableFuture<>();
+        IO.execute(() -> {
+            try {
+                ensureCache();
+                found.complete(cache.verified(hash));
+            } catch (Exception e) {
+                found.completeExceptionally(e);
+            }
+        });
+        try {
+            return found.get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 原本を持っている側からサーバーへ戻す (再生スレッドから呼ぶ)。戻せなくても再生は続ける。
+     *
+     * <p>上げ直すのは、サーバーがこの再生で「原本が無い」と答えた hash で、手元のキャッシュが
+     * hash と一致した時だけ ({@link LocalRestoreDecisions#shouldRestore})。同じ hash は 1 本だけ
+     * 走らせ、失敗後は {@link #RESTORE_RETRY_MS} 空ける。サーバーは受け取りを拒否できるので、
+     * ここでは何も表示しない。
+     */
+    private static void offerRestore(String hash, Path cached) {
+        final Long last = RESTORE_ATTEMPTS.get(hash);
+        final long since = last == null ? Long.MAX_VALUE : now() - last;
+        final Restore active = RESTORES.get(hash);
+        final boolean inFlight = active != null && now() - active.lastProgress < RESTORE_INFLIGHT_MS;
+        if (active != null && !inFlight) {
+            RESTORES.remove(hash, active);
+            IO.execute(() -> closeRestore(active));
+        }
+        // 旧サーバー (RESTORE を知らない) は opcode を復号できず、例外で接続が切れる。
+        // Fabric には login 段の版ゲートが無く play 段のハンドシェイクで版が分かるので、
+        // 同じ版が届いたと確かめられた時だけ上げ直す (届かない旧サーバーには送らない)。
+        if (!LocalRestoreDecisions.shouldRestore(true, true, ClientPlaybackHandler.serverDecodesCurrentProtocol(),
+                inFlight, since, RESTORE_RETRY_MS)) return;
+        RESTORE_ATTEMPTS.put(hash, now());
+        final long connection = SESSION.connectionGeneration;
+        IO.execute(() -> beginRestore(hash, cached, connection));
+    }
+
+    /** 上げ直しの要求を 1 回送る (IO ワーカー)。サイズは送る直前に測る。 */
+    private static void beginRestore(String hash, Path cached, long connection) {
+        try {
+            if (connection != SESSION.connectionGeneration) return;
+            final long size = Files.size(cached);
+            if (size <= 0 || size > LocalAudioServer.FILE_LIMIT) return;
+            final Restore r = new Restore(hash, cached, size, connection);
+            if (RESTORES.putIfAbsent(hash, r) != null) return;
+            Minecraft.getInstance().execute(() -> {
+                // 版の食い違いが送信直前に分かった時も送らない (旧サーバーは復号できず接続が切れる)。
+                if (connection != SESSION.connectionGeneration || RESTORES.get(hash) != r
+                        || !ClientPlaybackHandler.serverDecodesCurrentProtocol()) {
+                    RESTORES.remove(hash, r);
+                    return;
+                }
+                Services.NETWORK.sendToServer(LocalAudioPayload.control(LocalAudioPayload.RESTORE,
+                        r.request, 0, 0, hash, 0, size, ""));
+            });
+        } catch (Exception e) {
+            RESTORES.remove(hash);
+        }
+    }
+
+    /**
+     * 上げ直しの応答を処理する。関係ない包なら {@code false} を返し、既存の再生待ち・取込へ流す。
+     *
+     * <p>応答の id は、転送が始まる前はこちらが振った request、始まった後はサーバーの transfer id。
+     * ただし RESTORE_READY だけはサーバーが store に開いた id を載せるので、最初の 1 回は id を
+     * 見ずに受ける ({@link LocalRestoreDecisions#acceptsRestoreReply})。hash も照合するので、
+     * 同じ hash の再生待ちの ERROR を巻き取らない。
+     */
+    private static boolean restore(LocalAudioPayload p) {
+        final Restore r = RESTORES.get(p.hash());
+        if (r == null || r.connection != SESSION.connectionGeneration) return false;
+        final UUID transfer = r.transferId;
+        final boolean ready = p.operation() == LocalAudioPayload.RESTORE_READY;
+        if (!LocalRestoreDecisions.acceptsRestoreReply(ready, transfer, r.request, p.id())) return false;
+        if (ready) {
+            if (transfer != null) return true;
+            r.transferId = p.id();
+            r.lastProgress = now();
+            if (p.offset() == r.sent) readRestoreChunk(r);
+            return true;
+        }
+        if (p.operation() == LocalAudioPayload.ACK) {
+            r.lastProgress = now();
+            if (p.offset() == r.sent) readRestoreChunk(r);
+            return true;
+        }
+        if (p.operation() == LocalAudioPayload.DONE) {
+            RESTORES.remove(p.hash(), r);
+            IO.execute(() -> closeRestore(r));
+            MusicDiscMaker.LOGGER.info("Restored the local audio original for {} on the server", p.hash());
+            return true;
+        }
+        if (p.operation() == LocalAudioPayload.ERROR) {
+            RESTORES.remove(p.hash(), r);
+            RESTORE_ATTEMPTS.put(p.hash(), now());
+            IO.execute(() -> closeRestore(r));
+            MusicDiscMaker.LOGGER.warn("Server declined the local audio restore for {} ({})", p.hash(), p.name());
+            return true;
+        }
+        return false;
+    }
+
+    /** 上げ直しの次の chunk を 1 つ送る。ACK で 1 つずつ進む (既存の取込と同じ間合い)。 */
+    private static void readRestoreChunk(Restore r) {
+        if (r.sending || r.closed) return;
+        r.sending = true;
+        IO.execute(() -> {
+            try {
+                if (r.closed || r.connection != SESSION.connectionGeneration) return;
+                if (r.input == null) r.input = Files.newInputStream(r.path);
+                final byte[] bytes = r.input.readNBytes((int) Math.min(16384, r.size - r.sent));
+                if (bytes.length == 0) throw new IOException("Incomplete audio");
+                final long offset = r.sent;
+                r.sent += bytes.length;
+                Minecraft.getInstance().execute(() -> {
+                    if (r.closed || r.connection != SESSION.connectionGeneration
+                            || RESTORES.get(r.hash) != r || r.transferId == null) return;
+                    r.sending = false;
+                    Services.NETWORK.sendToServer(new LocalAudioPayload(LocalAudioPayload.CHUNK, r.transferId,
+                            0, 0, "", offset, 0, "", bytes));
+                });
+            } catch (Exception e) {
+                RESTORES.remove(r.hash, r);
+                IO.execute(() -> closeRestore(r));
+            }
+        });
+    }
+
+    /** 上げ直しの入力を閉じる。キャッシュのファイル自体は消さない (他の再生が使う)。 */
+    private static void closeRestore(Restore r) {
+        r.closed = true;
+        if (r.input != null) try { r.input.close(); } catch (IOException ignored) {}
     }
 
     private static Path obtainOnce(String hash) throws Exception {
@@ -495,6 +918,9 @@ public final class LocalAudioClient {
         List<Receive> stale = SESSION.disconnectReceives();
         Upload u = SESSION.upload; SESSION.upload = null; if (u != null) cleanup(u);
         for (Receive r : stale) { r.future.completeExceptionally(new IOException("Disconnected")); IO.execute(() -> abort(r)); }
+        for (Restore r : List.copyOf(RESTORES.values())) { r.closed = true; IO.execute(() -> closeRestore(r)); }
+        RESTORES.clear(); RESTORE_ATTEMPTS.clear();
+        RESTORE_WAITERS.clear();
         status = "select";
     }
     private static long now() { return System.nanoTime() / 1_000_000; }
@@ -518,6 +944,39 @@ public final class LocalAudioClient {
          */
         void ifLive(Upload u, Runnable action) {
             if (live(u)) action.run();
+        }
+        enum Step { NONE, ABORT, SEND, RETRY, GIVE_UP }
+        /**
+         * 画面の tick が取るべき行動。保持中の upload の menu をプレイヤーがもう開いていなければ
+         * (サーバーからの close・ブロック破壊・距離・死亡で onClose を通らず閉じた) 中止する。
+         * 送信してよいのは、その upload の画面が tick を呼んでいて、盤の待ちが解けた時だけ。
+         *
+         * @param playerMenu プレイヤーが今開いている menu
+         * @param screenMenu tick を呼んだ画面の menu
+         */
+        Step tick(Object playerMenu, Object screenMenu, boolean discReady, long nowMs) {
+            Upload u = upload;
+            if (u == null || u.connection != connectionGeneration) return Step.NONE;
+            if (u.menu != playerMenu) return Step.ABORT;
+            if (u.menu != screenMenu) return Step.NONE;
+            if (u.discWait.poll(discReady)) return Step.SEND;
+            return switch (u.busyRetry.poll(nowMs)) {
+                case RETRY -> Step.RETRY;
+                case GIVE_UP -> Step.GIVE_UP;
+                default -> Step.NONE;
+            };
+        }
+        /** Step で upload を中止する時の status。中止しない Step は null。 */
+        static String abortStatus(Step step) {
+            return switch (step) {
+                case ABORT -> "select";
+                case GIVE_UP -> "busy"; // 約 60 秒待っても通らない時だけ従来の終わり方
+                default -> null;
+            };
+        }
+        /** Step で BEGIN を (撃ち直して) 送るか。 */
+        static boolean sends(Step step) {
+            return step == Step.SEND || step == Step.RETRY;
         }
         /** スロットにあるその upload だけを外す。別操作・済み操作への遅延到着は no-op。 */
         boolean clearIfCurrent(Upload u) {
@@ -571,8 +1030,30 @@ public final class LocalAudioClient {
         final MusicDiscMakerMenu menu; final long generation, connection;
         volatile String hash = "", name = ""; volatile Path path; volatile Thread worker;
         // NONE (転送前の仮 id) と同値。直定数にするのは headless 試験で payload クラスを引かないため。
+        final DiscWait discWait = new DiscWait();
+        final BusyRetry busyRetry = new BusyRetry();
         long size, sent; UUID id = new UUID(0, 0); InputStream input; boolean sending;
+        /** 盤の待ちに入る。以前の busy の撃ち直しは、待ちを挟んだ後の busy で即 GIVE_UP にならないよう捨てる。 */
+        void enterDiscWait(boolean ready) {
+            busyRetry.clear();
+            discWait.begin(ready);
+        }
         Upload(MusicDiscMakerMenu menu, long generation, long connection) { this.menu = menu; this.generation = generation; this.connection = connection; }
+    }
+    /** サーバーへ戻している最中の原本。menu も盤も作らないので、取込の Upload とは別に持つ。 */
+    static final class Restore {
+        final String hash; final Path path; final long size, connection;
+        final long started = now();
+        /** 最後にサーバーが応答した時刻。期限切れの判定はこれで行う。 */
+        volatile long lastProgress = started;
+        final UUID request = UUID.randomUUID();
+        volatile UUID transferId;
+        volatile long sent;
+        volatile boolean sending, closed;
+        InputStream input;
+        Restore(String hash, Path path, long size, long connection) {
+            this.hash = hash; this.path = path; this.size = size; this.connection = connection;
+        }
     }
     static final class Receive {
         final String hash; final long connection; final UUID request = UUID.randomUUID();

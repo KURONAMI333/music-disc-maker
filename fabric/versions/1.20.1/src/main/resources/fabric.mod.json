@@ -22,6 +22,9 @@
         ],
         "client": [
             "com.kuronami.musicdiscmaker.client.MusicDiscMakerFabricClient"
+        ],
+        "jei_mod_plugin": [
+            "com.kuronami.musicdiscmaker.compat.jei.MusicDiscMakerJeiPlugin"
         ]
     },
     "mixins": [

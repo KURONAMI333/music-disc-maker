@@ -27,6 +27,9 @@ java {
 
 repositories {
     mavenCentral()
+    maven("https://maven.blamejared.com") {
+        content { includeGroup("mezz.jei") }
+    }
 }
 
 dependencies {
@@ -34,6 +37,9 @@ dependencies {
     // MC 26.x は難読化解除済み。mappings 宣言は不要 (mod-050 と同じ)。
     implementation("net.fabricmc:fabric-loader:$fabricLoaderVersion")
     implementation("net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
+
+    // JEI の API だけをコンパイル時に参照する (実行時は JEI 導入者だけが持つ)。
+    compileOnly("mezz.jei:jei-26.2-common-api:30.48.0.244") { isTransitive = false }
 
     // 互換 mod (ソフト依存・compileOnly = 公開 jar には含めない)
     compileOnly(files(fileTree(compatLibsDir) { include("*.jar") }))

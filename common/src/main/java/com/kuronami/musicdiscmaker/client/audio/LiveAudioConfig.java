@@ -14,6 +14,16 @@ public interface LiveAudioConfig {
     /** 現在の選択点を含めた実効音量（%）。 */
     int volumePercent();
 
+    /**
+     * 利用者が設定した音量（%）。選択点・空間ゲート・遷移補正を含めない。
+     *
+     * <p>{@link #volumePercent()} は範囲外やアンカー未選択の間 0 を返しうる。それを
+     * 「利用者が無音にした」と誤認しないため、{@code mutedOut()} はこちらを見る。
+     */
+    default int configuredVolumePercent() {
+        return volumePercent();
+    }
+
     /** true = positional、false = 既存のフラット聴取。 */
     boolean directional();
 

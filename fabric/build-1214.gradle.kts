@@ -30,6 +30,9 @@ java {
 
 repositories {
     mavenCentral()
+    maven("https://maven.blamejared.com") {
+        content { includeGroup("mezz.jei") }
+    }
 }
 
 dependencies {
@@ -38,6 +41,8 @@ dependencies {
     mappings(loom.officialMojangMappings())
     modImplementation("net.fabricmc:fabric-loader:$fabricLoaderVersion")
     modImplementation("net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
+    // 1.21.4 Fabric 版の JEI は未配布。共通ソースのプラグインをコンパイルするためだけに API を参照する。
+    compileOnly("mezz.jei:jei-1.21.4-common-api:20.0.0.4") { isTransitive = false }
 
     // 互換 mod (ソフト依存・compileOnly = 公開 jar には含めない)
     modCompileOnly(files(fileTree(compatLibsDir) { include("*.jar") }))

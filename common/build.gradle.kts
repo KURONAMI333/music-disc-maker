@@ -32,14 +32,28 @@ neoForge {
     if (at.exists()) accessTransformers.from(at.absolutePath)
 }
 
+val jeiVersion = when (stonecutter.current.version) {
+    "1.21.1" -> "19.70.0.469"
+    "1.21.4" -> "20.0.0.4"
+    "1.21.11" -> "27.54.0.116"
+    "26.1.2" -> "29.53.0.115"
+    "26.2" -> "30.48.0.244"
+    "26.3" -> "31.17.0.108"
+    else -> error("Unsupported JEI version: ${stonecutter.current.version}")
+}
+
 repositories {
     mavenCentral()
+    maven("https://maven.blamejared.com") {
+        content { includeGroup("mezz.jei") }
+    }
 }
 
 dependencies {
     compileOnly("org.spongepowered:mixin:0.8.5")
     compileOnly("io.github.llamalad7:mixinextras-common:0.3.5")
     annotationProcessor("io.github.llamalad7:mixinextras-common:0.3.5")
+    compileOnly("mezz.jei:jei-${stonecutter.current.version}-common-api:$jeiVersion") { isTransitive = false }
 }
 
 tasks.register("printJavaVersion") {

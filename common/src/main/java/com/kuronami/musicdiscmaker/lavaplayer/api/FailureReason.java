@@ -68,6 +68,17 @@ public enum FailureReason {
      */
     PREVIEW_ONLY,
     /**
+     * SoundCloud が DRM で保護した音声しか配信していないため、音声を取り出せない。
+     *
+     * <p>{@link #UNSUPPORTED_URL} と分けるのは、URL も曲も正しく、この版のプレイヤーが復号できない
+     * だけだから。{@link #PREVIEW_ONLY} とも違う — 試聴版は短くても鳴るが、こちらは一切鳴らせない。
+     * URL を替えても直らないので、開き直しはしない ({@code MusicLoaderImpl#isRetryable})。
+     *
+     * <p>この理由は MDM 自身の目印 ({@link FailureClassifier#DRM_MARKER}) でしか立たない。
+     * ライブラリの文面から推測していないので、ログにこの分類が出たら DRM と言い切ってよい。
+     */
+    DRM_PROTECTED,
+    /**
      * YouTube 側の事情で解決できなかったため代替ソースを探したところ、<b>同じ録音とみなせる
      * 候補が1つも無かった</b>。検索が実際に走って空振りした時だけこれを出す
      * (曲名が取れず探せなかった時は元の理由のまま。{@code MusicLoaderImpl#substitute} の
@@ -106,6 +117,7 @@ public enum FailureReason {
             case BLOCKED_URL -> "gui.music_disc_maker.failed.blocked";
             case BOT_CHECK -> "gui.music_disc_maker.failed.botcheck";
             case PREVIEW_ONLY -> "gui.music_disc_maker.failed.preview";
+            case DRM_PROTECTED -> "gui.music_disc_maker.failed.drm";
             case NO_ALTERNATIVE_FOUND -> "gui.music_disc_maker.failed.noalt";
         };
     }

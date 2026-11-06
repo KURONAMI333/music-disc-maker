@@ -570,6 +570,8 @@ public class MusicDiscMakerFabricClient implements ClientModInitializer {
         // サーバ離脱時に接続単位の状態と全再生を止める。
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler.resetProtocolMismatchOnDisconnect();
+            // 接続が変われば製作機の位置は別物を指す。client 解決の記録を捨てる。
+            com.kuronami.musicdiscmaker.client.ClientTrackFallback.clearAll();
             ClientPlaybackManager.get().stopAll();
         });
 

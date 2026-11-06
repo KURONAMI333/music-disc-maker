@@ -32,6 +32,9 @@ java {
 repositories {
     mavenCentral()
     maven("https://maven.parchmentmc.org")
+    maven("https://maven.blamejared.com") {
+        content { includeGroup("mezz.jei") }
+    }
 }
 
 val commonPath = ":common:${stonecutter.current.project}"
@@ -51,6 +54,9 @@ dependencies {
     compileOnly("com.google.code.findbugs:jsr305:3.0.1")
 
     modCompileOnly(files(fileTree(compatLibsDir) { include("*.jar") }))
+
+    // JEI の API だけをコンパイル時に参照する (実行時は JEI 導入者だけが持つ)。
+    compileOnly("mezz.jei:jei-1.20.1-common-api:15.74.0.234") { isTransitive = false }
 }
 
 loom {

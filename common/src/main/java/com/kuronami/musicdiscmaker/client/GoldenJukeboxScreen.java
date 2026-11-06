@@ -567,11 +567,13 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
      * この jukebox が<b>鳴らなかった理由</b>を短い文で出す ({@link GoldenJukeboxFailures} が座標ごとに
      * 覚えているもの)。
      *
-     * <h2>ここが唯一の出口である理由</h2>
+     * <h2>設置した jukebox の理由はここに絞る</h2>
      * 失敗はストリームを開く client の中でしか分からない ({@link PlaybackFailure} 参照)。チャットへ
      * 流すと<b>その jukebox を見ていない全員</b>に届き、ラジオの再接続や複数台の同時再生では
      * 読む気を無くす量になる。理由が要るのは「鳴らないな」と思って画面を開いた人だけなので、
-     * 出口をこの 1 行に絞る。技術詳細 (分類ラベル・URL・例外) は {@code latest.log} 側が持つ。
+     * 設置物の出口はこの 1 行に絞る。トロッコは動く機体の座標を持たないため、代わりに
+     * {@code GoldenCartClientPlayback} がアクションバーへ同じ文を 1 回だけ出す。
+     * 技術詳細 (分類ラベル・URL・例外) は {@code latest.log} 側が持つ。
      *
      * <p>失敗を覚えていない時は<b>何も描かない</b> — 空の帯を常時見せない。
      *
@@ -585,11 +587,13 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
      * この jukebox が<b>鳴らなかった理由</b>を短い文で出す ({@link GoldenJukeboxFailures} が座標ごとに
      * 覚えているもの)。
      *
-     * <h2>ここが唯一の出口である理由</h2>
+     * <h2>設置した jukebox の理由はここに絞る</h2>
      * 失敗はストリームを開く client の中でしか分からない ({@link PlaybackFailure} 参照)。チャットへ
      * 流すと<b>その jukebox を見ていない全員</b>に届き、ラジオの再接続や複数台の同時再生では
      * 読む気を無くす量になる。理由が要るのは「鳴らないな」と思って画面を開いた人だけなので、
-     * 出口をこの 1 行に絞る。技術詳細 (分類ラベル・URL・例外) は {@code latest.log} 側が持つ。
+     * 設置物の出口はこの 1 行に絞る。トロッコは動く機体の座標を持たないため、代わりに
+     * {@code GoldenCartClientPlayback} がアクションバーへ同じ文を 1 回だけ出す。
+     * 技術詳細 (分類ラベル・URL・例外) は {@code latest.log} 側が持つ。
      *
      * <p>失敗を覚えていない時は<b>何も描かない</b> — 空の帯を常時見せない。
      *
@@ -599,7 +603,8 @@ public class GoldenJukeboxScreen extends AbstractContainerScreen<GoldenJukeboxMe
      ^/
     private void renderFailureLabel(GuiGraphics g, GoldenJukeboxBlockEntity be) {
     *///?}
-        // トロッコに載った BE の座標は世界のブロックではない (失敗はチャットへ出る)。
+        // トロッコに載った BE の座標は世界のブロックを指さない。その理由は
+        // GoldenCartClientPlayback がアクションバーへ 1 回だけ出す (ここでは描かない)。
         final PlaybackFailure failure = be.isMounted() ? null : GoldenJukeboxFailures.get().latest(be.getBlockPos());
         if (failure == null) {
             return;

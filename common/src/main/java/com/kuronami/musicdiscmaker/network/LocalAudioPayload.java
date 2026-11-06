@@ -15,8 +15,14 @@ public record LocalAudioPayload(int operation, UUID id, int containerId, long ge
     public static final int READY = 5, ACK = 6, DONE = 7, ERROR = 8, DATA = 9;
     /** Validate that a cached copy still has its world-owned original, without retransferring bytes. */
     public static final int CHECK = 10, AVAILABLE = 11;
+    /**
+     * 別ワールドから持ち込んだ盤の原本を、検証済みキャッシュからサーバーへ戻す。menu を持たないので
+     * 製作機の取込 (BEGIN) とは別の経路。RESTORE はサーバーがその hash を missing と答えた相手にだけ通り、
+     * 受理されたら既存の CHUNK/ACK/DONE/ERROR で運ぶ。
+     */
+    public static final int RESTORE = 12, RESTORE_READY = 13;
     public LocalAudioPayload {
-        if (operation < BEGIN || operation > AVAILABLE || hash.length() > 64 || name.length() > 256
+        if (operation < BEGIN || operation > RESTORE_READY || hash.length() > 64 || name.length() > 256
                 || bytes.length > 16384) throw new IllegalArgumentException("Invalid audio packet");
         bytes = bytes.clone();
     }

@@ -396,9 +396,11 @@ public class BoomboxMenu extends AbstractContainerMenu {
         *///?}
     }
 
+    /** 容量超過は文を出さず、入らなかったことだけを結果にする。診断logはfailureKeyが残す。 */
     private void notifyStorageRejected() {
         if (storageFailure != null && authoritative && owner instanceof ServerPlayer player) {
-            player.sendSystemMessage(Component.translatable(storageFailure.rejectionKey("message.music_disc_maker.boombox.storage_too_large")), true);
+            final String key = storageFailure.failureKey();
+            if (key != null) player.sendSystemMessage(Component.translatable(key), true);
         }
         storageFailure = null;
     }

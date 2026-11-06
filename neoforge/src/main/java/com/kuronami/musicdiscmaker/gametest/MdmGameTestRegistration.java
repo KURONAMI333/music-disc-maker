@@ -72,6 +72,10 @@ public final class MdmGameTestRegistration {
         register(event, "maker_single_disc_save_reload", MusicDiscMakerSingleDiscGameTests::singleDiscAndResolvedCacheSurviveSaveReload, empty, 100);
         register(event, "maker_fabricated_disc_fits_storage", MusicDiscMakerSingleDiscGameTests::fabricatedDiscFitsBoomboxAndAlbumAfterSaveReload, empty, 100);
         register(event, "maker_destroy_drops", MusicDiscMakerSingleDiscGameTests::destroyingMakerDropsEveryStoredStackExactlyOnce, empty, 100);
+        register(event, "client_resolved_stale_url", ClientResolvedTrackGameTests::staleUrlIsIgnored, empty, 100);
+        register(event, "client_resolved_while_resolving", ClientResolvedTrackGameTests::reportWhileResolvingIsIgnored, empty, 100);
+        register(event, "client_resolved_second_report_after_burn", ClientResolvedTrackGameTests::secondReportAfterBurnDoesNothing, empty, 100);
+        register(event, "client_resolved_without_blank_disc", ClientResolvedTrackGameTests::noBlankDiscLeavesNoCachedTrack, empty, 100);
         register(event, "album_recipe_assembles_and_rejects_wrong_grid",
                 RecipeAssemblyGameTests::albumRecipeAssemblesAndRejectsWrongGrid, empty, 100);
         register(event, "speaker_recipe_assembles_and_rejects_wrong_grid",
@@ -118,9 +122,12 @@ public final class MdmGameTestRegistration {
         register(event, "oversize_placed_commit_exception", OversizeMediaRecoveryGameTests::placedCommitExceptionRestoresMedia, empty, 400);
         register(event, "oversize_album_content_change_rollback", OversizeMediaRecoveryGameTests::albumContentChangeDiscardsSpawnedEntities, empty, 400);
         register(event, "oversize_recovery_stale_commit_rollback", OversizeMediaRecoveryGameTests::recoveryStaleCommitDiscardsSpawnedEntities, empty, 400);
-        register(event, "oversize_single_disc_and_placed_guards", OversizeMediaRecoveryGameTests::oversizedDiscAndPlacedBoomboxAreUntouched, empty, 400);
+        register(event, "oversize_single_disc_and_placed_guards", OversizeMediaRecoveryGameTests::oversizedDiscIsReturnedAndPlacedBoomboxIsGuarded, empty, 400);
+        register(event, "oversize_single_medium_opens_empty_machine", OversizeMediaRecoveryGameTests::singleOversizedMediumIsReturnedAndTheMachineOpens, empty, 400);
+        register(event, "oversize_boombox_playback_state_kept", OversizeMediaRecoveryGameTests::boomboxRecoveryKeepsPlaybackState, empty, 400);
         register(event, "oversize_album_recovery_order_and_rollback", OversizeMediaRecoveryGameTests::albumRecoveryPreservesOrderAndSpawnFailurePreservesSource, empty, 400);
         register(event, "oversize_boombox_album_recovery_and_empty_media_noop", OversizeMediaRecoveryGameTests::boomboxAlbumRecoveryAndEmptyMediaNoop, empty, 400);
+        register(event, "oversize_open_returns_overflow_to_player", OversizeMediaRecoveryGameTests::openAfterReductionKeepsEveryDisc, empty, 400);
         register(event, "boombox_contents_legacy_defaults_roundtrip", BoomboxControlGameTests::legacyContentsDefaultAndExtendedStateRoundTrip, empty, 100);
         register(event, "boombox_menu_stores_and_takes_single_medium", BoomboxMenuGameTests::storesAndTakesSingleMedium, empty, 200);
         register(event, "boombox_menu_inserting_medium_starts_carried_and_placed",
@@ -133,6 +140,7 @@ public final class MdmGameTestRegistration {
         register(event, "curios_equipped_duplicate_separation", CuriosBoomboxGameTests::duplicateIdInInventoryIsSeparatedFromEquipped, empty, 200);
         register(event, "curios_equipped_carry_continuity", CuriosBoomboxGameTests::equippedStackStaysCarriedAcrossMove, empty, 100);
         register(event, "curios_absent_provider_noop", CuriosBoomboxGameTests::absentProviderKeepsVanillaBehavior, empty, 100);
+        register(event, "curios_equipped_oversize_open", CuriosBoomboxGameTests::equippedOversizedBoomboxIsReducedAndOpened, empty, 200);
         // provider と NETWORK の global を交換する lifecycle test は固有 environment で直列隔離する。
         register(event, "curios_equipped_move_disconnect_lifecycle",
                 CuriosBoomboxGameTests::equippedMoveAndDisconnectPreserveOnlyTheOwnedLifecycle,
@@ -204,6 +212,10 @@ public final class MdmGameTestRegistration {
                 AlbumDyeingGameTests::dyeingKeepsAlbumMetadataAndContents, empty, 100);
         register(event, "album_dyeing_rejects_extra_wrong_and_same_color",
                 AlbumDyeingGameTests::dyeingRejectsExtraWrongAndSameColorInputs, empty, 100);
+        register(event, "album_dyeing_every_color_loads_and_unlocks",
+                AlbumDyeingGameTests::everyAlbumDyeingColorLoadsAndUnlocks, empty, 100);
+        register(event, "creative_tab_colored_albums",
+                CreativeTabOrderGameTests::coloredAlbumsFollowUncoloredInDyeOrder, empty, 100);
         register(event, "stack_copies_do_not_share_mutable_ownership", AlbumContentsGameTests::stackCopiesDoNotShareMutableOwnership, empty, 100);
         register(event, "nested_album_is_rejected_before_recursive_codec_expansion", AlbumContentsGameTests::nestedAlbumIsRejectedBeforeRecursiveCodecExpansion, empty, 100);
         register(event, "album_storage_defense_limit_remains_256",
@@ -249,6 +261,8 @@ public final class MdmGameTestRegistration {
                 NetworkProtocolGameTests::localAudioRegistersHandlersOnBothFlows, empty, 100);
         register(event, "local_audio_check_and_available_survive_registered_round_trip",
                 NetworkProtocolGameTests::localAudioCheckAndAvailableSurviveRegisteredRoundTrip, empty, 100);
+        register(event, "local_audio_restore_survives_registered_round_trip",
+                NetworkProtocolGameTests::localAudioRestoreSurvivesRegisteredRoundTrip, empty, 100);
         register(event, "stop_during_load_discards_the_pending_source",
                 PlaybackGenerationGameTests::stopDuringLoadDiscardsThePendingSource, empty, 100);
         register(event, "second_play_cancels_the_first_load",

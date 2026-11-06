@@ -21,8 +21,12 @@ import net.minecraft.world.level.Level;
  */
 public final class DiscFabrication {
 
-    /** これを超える長さ (ms) は無限長ストリーム扱い (12h)。lavaplayer の長さ不明は Long.MAX_VALUE。 */
-    private static final long RADIO_DURATION_THRESHOLD_MS = 43_200_000L;
+    /**
+     * これを超える長さ (ms) は無限長ストリーム扱い (12h)。lavaplayer の長さ不明は Long.MAX_VALUE。
+     * client が取った尺を受け取る時 ({@link ClientResolvedTrack#accept}) も同じ境目で弾き、
+     * 「ラジオになる値」を焼かない。
+     */
+    static final long RADIO_DURATION_THRESHOLD_MS = 43_200_000L;
 
     /** URL 解決は最大 30s ブロックするので main thread から外す。 */
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, runnable -> {

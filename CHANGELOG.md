@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.1.3
+
+- Choosing a local audio file now starts the import right after the file check, without pressing the same button a second time.
+- A disc made in a different world, such as one carried over from a single-player world to a server, now plays from the client's verified audio cache instead of staying silent.
+- Fixed a disc that was out of range, or playing with directional audio off, showing [MUTED] when no volume setting was actually muted.
+- Playback failures no longer appear in chat. The Golden Jukebox and Boombox screens show the reason where available, and the details stay in the log.
+- The Music Disc Maker recipe now appears in the recipe book once you have iron ingots or lapis lazuli, not only a Note Block.
+- On Linux without a graphical file dialog, you can now import a local audio file by dropping it onto the Music Disc Maker screen, which works without any dialog program.
+- With Sound Physics Remastered installed, custom discs playing at a position now go through its reverb and occlusion. The Records volume slider is unchanged.
+- Custom discs displayed on shelves no longer recalculate their color every frame, fixing FPS drops when many discs are in view.
+- SoundCloud links, and the search for another copy when YouTube blocks the server, play again. When SoundCloud only offers a preview of a track, or only a DRM-protected copy, the disc is made from the same song on YouTube or another SoundCloud upload instead.
+- A disc whose link stops working later (made private, region-locked, age-restricted, or blocked for one player) now plays the same song from another source instead of failing.
+- When YouTube briefly refuses a player, the disc keeps trying for up to 30 seconds and then plays, instead of failing on the first refusal.
+- When YouTube blocks the server and no other copy of the song is found, the disc is now made from the link as entered, using the details the player's own game reads from YouTube.
+- Local audio files can now be up to 2 hours long. Files over about 77 minutes are stored at a lower sample rate so they still fit in 32 MiB.
+- A search whose first result is a SoundCloud preview, and a SoundCloud track with no artist or title, now look for the same song elsewhere. A Spotify page that fails to load is tried again.
+- Apple Music and Deezer song links now make a disc from the same song on YouTube, SoundCloud or Bandcamp, keeping the original title and artist. A copy whose length does not match the song is not used.
+- Local M4A files encoded with Apple Lossless (ALAC), and MKV files with FLAC audio, can now be imported. Previously they were rejected as unreadable files.
+- Choosing a local audio file before inserting a Blank Disc no longer makes you choose it again: the import starts as soon as the disc is in. When the server is busy with other transfers, the import waits and tries again instead of stopping, and a transfer the server drops no longer leaves the screen stuck at "Sending audio".
+- A disc made from a local file in another world now plays for everyone: a player who still has the original audio sends it to the server, and players who could not play it yet start hearing it once it arrives.
+- Custom discs now play with Sound Physics Perfected installed on Forge 1.20.1 and NeoForge 1.21.1. Previously every song stayed silent.
+- Dyeing an Album or a Golden Album now shows up in the recipe book and JEI, and the creative tab and JEI list both Albums in every color.
+- The Music Disc Maker shows why a link failed right under the arrow, and an empty input slot shows the outline of a disc.
+- An Album or Boombox that holds more than it can send now opens with the discs that fit and gives the rest back to you, instead of refusing to open.
+
+Use the same Music Disc Maker version on the server and all clients.
+
 ## 3.1.2
 
 - Speakers no longer darken the blocks around them.

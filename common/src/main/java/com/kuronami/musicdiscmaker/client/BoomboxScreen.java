@@ -1,10 +1,14 @@
 package com.kuronami.musicdiscmaker.client;
 
 import com.kuronami.musicdiscmaker.MusicDiscMaker;
+import com.kuronami.musicdiscmaker.client.audio.BoomboxFailures;
 import com.kuronami.musicdiscmaker.client.audio.ClientPlaybackHandler;
+import com.kuronami.musicdiscmaker.client.audio.PlaybackFailure;
 import com.kuronami.musicdiscmaker.component.CustomTrackData;
 import com.kuronami.musicdiscmaker.component.PlaybackCursor;
+import com.kuronami.musicdiscmaker.event.BoomboxCarry;
 import com.kuronami.musicdiscmaker.menu.BoomboxMenu;
+import com.kuronami.musicdiscmaker.network.BoomboxTrace;
 import com.kuronami.musicdiscmaker.network.ControlBoomboxPayload;
 import com.kuronami.musicdiscmaker.platform.Services;
 
@@ -76,6 +80,15 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
     private static final int INVENTORY_TEXT = 0xFF404040;
     private static final int TIME_TEXT = 0xFFE5C99C;
     private static final int LIVE_TEXT = 0xFFD03030;
+    private static final int ERROR = 0xFFFF4040;
+    /**
+     * 失敗の 1 行。シークバー (y=52〜63) とボタン台座 (y=77〜99) の間、y=68〜75 の明るい筐体に置く
+     * (8px の字形がちょうど収まる)。176x128 の盤面で x=24〜152 は単色なので、
+     * スピーカーのグリル (x&lt;24・x&gt;152) に掛からない。
+     */
+    private static final int FAIL_X = 24;
+    private static final int FAIL_Y = 68;
+    private static final int FAIL_W = 128;
     /**
      * ボタンの台座・音量スライダー・再生バーの画像 (256x128)。リソースパックで差し替えられる
      * (2026-10-10 HappyMeek の「Boombox GUI is unable to be changed」)。並びは
@@ -224,6 +237,8 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         final long generation = generation();
         if (generation >= 0L) {
             Services.NETWORK.sendToServer(new ControlBoomboxPayload(menu.containerId, generation, action, value));
+        } else {
+            BoomboxTrace.controlNotReady(menu.containerId, generation);
         }
     }
 
@@ -333,6 +348,7 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
         /*graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, INVENTORY_TEXT, false);
         *///?}
         renderTrackLabels(graphics);
+        renderFailureLabel(graphics);
     }
 
     //? if >=26.1 {
@@ -430,6 +446,50 @@ public class BoomboxScreen extends AbstractContainerScreen<BoomboxMenu> {
             *///?}
                     BoomboxScreenLayout.TIME_Y, TIME_TEXT, false);
         }
+    }
+
+    /**
+     * この画面のブームボックスが<b>鳴らなかった理由</b>を 1 行で出す
+     * ({@link BoomboxFailures} が機体ごとに覚えているもの)。
+     *
+     * <p>鍵は置かれ方で分かれる。設置中は {@code BlockPos}、持ち歩き・装備中は機体の識別子
+     * ({@link BoomboxCarry#idOf}) — 持ち歩きの再生要求は {@code BlockPos.ZERO} を運ぶので、
+     * 座標では複数台を区別できない。
+     *
+     * <p>失敗を覚えていない時は何も描かない。文は {@link #FAIL_W} で 1 行に切り、はみ出す分は
+     * 描かない (折り返して在庫ラベルへ重ねない)。技術詳細は {@code latest.log} 側が持つ。
+     */
+    //? if >=26.1 {
+    private void renderFailureLabel(GuiGraphicsExtractor graphics) {
+    //?} else {
+    /*private void renderFailureLabel(GuiGraphics graphics) {
+    *///?}
+        final PlaybackFailure failure = currentFailure();
+        if (failure == null) {
+            return;
+        }
+        final String sentence = font.plainSubstrByWidth(
+                Component.translatable(failure.kind().statusKey()).getString(), FAIL_W);
+        final int x = FAIL_X + (FAIL_W - font.width(sentence)) / 2;
+        //? if >=26.1 {
+        graphics.text(font, sentence, x, FAIL_Y, ERROR, false);
+        //?} else {
+        /*graphics.drawString(font, sentence, x, FAIL_Y, ERROR, false);
+        *///?}
+    }
+
+    /** この画面が指す機体の直近の失敗。無ければ {@code null}。 */
+    @org.jetbrains.annotations.Nullable
+    private PlaybackFailure currentFailure() {
+        if (menu.source() == null) {
+            return null;
+        }
+        if (menu.source().isPlaced()) {
+            return BoomboxFailures.get().latestPlaced(menu.source().pos());
+        }
+        final long id = menu.source().isEquipped() ? menu.source().expectedId()
+                : BoomboxCarry.idOf(menu.currentStack());
+        return BoomboxFailures.get().latestCarried(id);
     }
 
     private static String formatMs(long milliseconds) {

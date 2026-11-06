@@ -8,6 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import com.kuronami.musicdiscmaker.component.AlbumContents;
 import com.kuronami.musicdiscmaker.component.AlbumStorageBudget;
 import com.kuronami.musicdiscmaker.component.BoomboxContents;
+import com.kuronami.musicdiscmaker.component.StorageOverflow;
 import com.kuronami.musicdiscmaker.item.AlbumItem;
 import com.kuronami.musicdiscmaker.register.ModItems;
 import com.kuronami.musicdiscmaker.register.ModMenus;
@@ -253,7 +254,7 @@ public class AlbumMenu extends AbstractContainerMenu {
             if (!saved.isEmpty()) prospective.add(saved.copy());
         }
         for (final ItemStack saved : overflow) prospective.add(saved.copy());
-        if (prospective.size() >= AlbumContents.STORAGE_DECODE_LIMIT) {
+        if (!StorageOverflow.acceptsInsert(prospective.size(), AlbumContents.STORAGE_DECODE_LIMIT)) {
             storageFailure = AlbumStorageBudget.entryLimit(AlbumStorageBudget.Stage.ALBUM);
             return false;
         }
@@ -365,9 +366,11 @@ public class AlbumMenu extends AbstractContainerMenu {
         @Override public int getMaxStackSize() { return 1; }
     }
 
+    /** 容量超過は文を出さず、入らなかったことだけを結果にする。診断logはfailureKeyが残す。 */
     private void notifyStorageRejected() {
         if (storageFailure != null && authoritative && owner instanceof ServerPlayer serverPlayer) {
-            serverPlayer.sendSystemMessage(Component.translatable(storageFailure.rejectionKey("message.music_disc_maker.album.storage_too_large")), true);
+            final String key = storageFailure.failureKey();
+            if (key != null) serverPlayer.sendSystemMessage(Component.translatable(key), true);
         }
         storageFailure = null;
     }

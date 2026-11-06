@@ -12,6 +12,16 @@ of the distributed jar) to stream and decode audio from URLs:
   - youtube-source (dev.lavalink.youtube)
     https://github.com/lavalink-devs/youtube-source
 
+  - javasound-alac (com.tianscar.javasound:javasound-alac), used to import
+    Apple Lossless (ALAC) files. Licensed under the BSD 3-Clause License.
+    Copyright (c) 2011-2014 Peter McQuillan; based on code
+    Copyright (c) 2005 David Hammerton. The full license text is in
+    META-INF/licenses/javasound-alac-LICENSE.txt.
+
+Parts of Music Disc Maker's SoundCloud AAC playback code are modified from
+lavaplayer pull request #202 (Apache License 2.0):
+https://github.com/lavalink-devs/lavaplayer/pull/202
+
 Plus their transitive dependencies (Jackson, Apache HttpClient/Codec,
 jsoup, Mozilla Rhino, SLF4J, nanojson, and others). See LICENSE-DEPENDENCIES
 for the per-library license summary.

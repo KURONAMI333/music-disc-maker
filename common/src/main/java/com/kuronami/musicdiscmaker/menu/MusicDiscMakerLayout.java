@@ -42,17 +42,13 @@ public final class MusicDiscMakerLayout {
     /**
      * ローカル取込の状態と URL の取得中表示。入出力スロットと在庫ラベルの間の帯に、
      * 1 行なら {@link #STATUS_Y}、折り返したら {@link #STATUS_TWO_LINE_Y} から最大 2 行で出す。
+     * 各行は矢印の中心 {@link #ARROW_CENTER_X} に中央揃えし、最も長い行でも左端が {@link #STATUS_X} に収まる幅で折り返す。
      */
     public static final int STATUS_X = 8;
     public static final int STATUS_Y = 72;
     public static final int STATUS_TWO_LINE_Y = 68;
-    public static final int STATUS_MAX_W = 160;
+    public static final int STATUS_MAX_W = 2 * (ARROW_CENTER_X - STATUS_X);
     public static final int STATUS_MAX_LINES = 2;
-
-    /** URL解決失敗の小さな警告印。URL 欄の右端、入力文字の後ろに置く。 */
-    public static final int WARNING_X = 104;
-    public static final int WARNING_Y = 27;
-    public static final int WARNING_SIZE = 8;
 
     private MusicDiscMakerLayout() {
     }

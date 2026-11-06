@@ -29,6 +29,9 @@ java {
 
 repositories {
     mavenCentral()
+    maven("https://maven.blamejared.com") {
+        content { includeGroup("mezz.jei") }
+    }
     // mixin 0.8.5-SNAPSHOT:processor は Sponge の snapshot リポにしか無い (mod-048 の settings.gradle と同じ)。
     maven("https://repo.spongepowered.org/repository/maven-public/") {
         content { includeGroupAndSubgroups("org.spongepowered") }
@@ -66,6 +69,9 @@ mixin {
 dependencies {
     compileOnly("org.jetbrains:annotations:24.1.0")
     annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT:processor")
+    // JEI の API だけをコンパイル時に参照する (実行時は JEI 導入者だけが持つ)。
+    compileOnly("mezz.jei:jei-1.20.1-common-api:15.74.0.234") { isTransitive = false }
+
     // 互換 mod (ソフト依存・compileOnly = 公開 jar には含めない)
     compileOnly(files(fileTree(compatLibsDir) { include("*.jar") }))
 }
@@ -148,7 +154,7 @@ tasks.named<Jar>("jar") {
 }
 
 // ─── LavaPlayer 一式を mod jar に同梱 (隔離 classloader が runtime ロード) ───
-// 帯によらず同じ 21 本 (impl 1 + 依存 20) が入る。出荷中の 9 本の jar と本数・名前が一致する。
+// 帯によらず同じ 22 本 (impl 1 + 依存 21) が入る。出荷中の 9 本の jar と本数・名前が一致する。
 // legacyforge の最終成果物は jar (reobf は class のみ remap し非 class リソースは保持する)。
 evaluationDependsOn(":lavaplayer")
 val lavaImpl = project(":lavaplayer")

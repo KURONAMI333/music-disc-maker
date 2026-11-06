@@ -188,7 +188,7 @@ public final class GoldenAlbumGameTests {
                         && !recipe.matches(surround(album, new ItemStack(Items.GOLD_NUGGET)), helper.getLevel()),
                 "Golden Album の再クラフトか金塊での作成が通る");
 
-        final AlbumDyeRecipe dye = (AlbumDyeRecipe) recipe(helper, "album_dyeing");
+        final AlbumDyeRecipe dye = (AlbumDyeRecipe) recipe(helper, "golden_album_dyeing_red");
         final CraftingInput dyeInput = CraftingInput.of(2, 1, List.of(result, redDye()));
         helper.assertTrue(dye.matches(dyeInput, helper.getLevel()), "Golden Album を染められない");
         final ItemStack dyed = assembleDye(dye, dyeInput, helper);

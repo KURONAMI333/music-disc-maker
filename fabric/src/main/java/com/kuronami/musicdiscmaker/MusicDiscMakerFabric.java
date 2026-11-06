@@ -62,7 +62,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.ItemStack;
 //?} else {
 //?}
 
@@ -85,6 +84,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.RenameDisc.TYPE, ModPayloadTypes.RenameDisc.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.CancelDisc.TYPE, ModPayloadTypes.CancelDisc.STREAM_CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ClientResolvedTrack.TYPE, ModPayloadTypes.ClientResolvedTrack.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.AudioLag.TYPE, ModPayloadTypes.AudioLag.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.BoomboxAudioLag.TYPE, ModPayloadTypes.BoomboxAudioLag.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
@@ -115,6 +115,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.RenameDisc.TYPE, ModPayloadTypes.RenameDisc.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.CancelDisc.TYPE, ModPayloadTypes.CancelDisc.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ClientResolvedTrack.TYPE, ModPayloadTypes.ClientResolvedTrack.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.AudioLag.TYPE, ModPayloadTypes.AudioLag.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.BoomboxAudioLag.TYPE, ModPayloadTypes.BoomboxAudioLag.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
@@ -147,6 +148,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ResolveUrl.TYPE, ModPayloadTypes.ResolveUrl.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.RenameDisc.TYPE, ModPayloadTypes.RenameDisc.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.CancelDisc.TYPE, ModPayloadTypes.CancelDisc.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ClientResolvedTrack.TYPE, ModPayloadTypes.ClientResolvedTrack.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.AudioLag.TYPE, ModPayloadTypes.AudioLag.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.BoomboxAudioLag.TYPE, ModPayloadTypes.BoomboxAudioLag.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ModPayloadTypes.ConfigureJukebox.TYPE, ModPayloadTypes.ConfigureJukebox.STREAM_CODEC);
@@ -190,6 +192,13 @@ public class MusicDiscMakerFabric implements ModInitializer {
                     server.execute(() -> ModNetwork.handleCancelDisc(payload, player));
                 });
         ServerPlayNetworking.registerGlobalReceiver(com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                        com.kuronami.musicdiscmaker.network.ClientResolvedTrackPayload.PATH),
+                (server, player, handler, buf, responseSender) -> {
+                    final com.kuronami.musicdiscmaker.network.ClientResolvedTrackPayload payload =
+                            com.kuronami.musicdiscmaker.network.ClientResolvedTrackPayload.read(buf);
+                    server.execute(() -> ModNetwork.handleClientResolvedTrack(payload, player));
+                });
+        ServerPlayNetworking.registerGlobalReceiver(com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
                         com.kuronami.musicdiscmaker.network.AudioLagPayload.PATH),
                 (server, player, handler, buf, responseSender) -> {
                     final com.kuronami.musicdiscmaker.network.AudioLagPayload payload =
@@ -214,6 +223,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleRenameDisc(msg.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.CancelDisc.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleCancelDisc(msg.inner(), ctx.player())));
+        // server 受信: クライアントが代わりに引いた曲情報。信頼確認は ModNetwork 側で行う。
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ClientResolvedTrack.TYPE,
+                (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleClientResolvedTrack(msg.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.AudioLag.TYPE,
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleAudioLag(msg.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.BoomboxAudioLag.TYPE,
@@ -228,6 +240,9 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleRenameDisc(payload.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.CancelDisc.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleCancelDisc(payload.inner(), ctx.player())));
+        // server 受信: クライアントが代わりに引いた曲情報。信頼確認は ModNetwork 側で行う。
+        ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.ClientResolvedTrack.TYPE,
+                (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleClientResolvedTrack(payload.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.AudioLag.TYPE,
                 (payload, ctx) -> ctx.server().execute(() -> ModNetwork.handleAudioLag(payload.inner(), ctx.player())));
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.BoomboxAudioLag.TYPE,
@@ -270,10 +285,10 @@ public class MusicDiscMakerFabric implements ModInitializer {
                 (msg, ctx) -> ctx.server().execute(() -> ModNetwork.handleOpenEquippedBoombox(msg.inner(), ctx.player())));
 
         // creative タブ内容: common は tab の identity のみ作る (26.2 の Output が protected)。
-        // 26.2 fabric-api は旧 ItemGroupEvents を廃し CreativeModeTabEvents に統合。表示順で TAB_ITEMS を流す。
+        // 26.2 fabric-api は旧 ItemGroupEvents を廃し CreativeModeTabEvents に統合。表示順で displayStacks() を流す。
         CreativeModeTabEvents.modifyOutputEvent(
                         ResourceKey.create(Registries.CREATIVE_MODE_TAB, ModCreativeTab.MAIN.getId()))
-                .register(output -> ModCreativeTab.TAB_ITEMS.forEach(holder -> output.accept(new ItemStack(holder.get()))));
+                .register(output -> ModCreativeTab.displayStacks().forEach(stack -> output.accept(stack)));
 
         // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
         // AA の型に触れるのはガード通過後の呼び出しだけ (AlbumProvider がこの時点で初めて class-load される)。
@@ -282,7 +297,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
         }
         //?} elif >=1.21.2 {
         /*        // creative タブ内容: common は tab の identity のみ作る。fabric-item-group の
-        // ItemGroupEvents.modifyEntriesEvent で表示順に TAB_ITEMS を流す。
+        // ItemGroupEvents.modifyEntriesEvent で表示順に displayStacks() を流す。
         // Additional Additions 互換: ロードされていればアルバムを強化版ジュークボックスで再生できるようにする。
         // AA の型に触れるのはガード通過後の呼び出しだけ (AlbumProvider がこの時点で初めて class-load される)。
         ServerPlayNetworking.registerGlobalReceiver(ModPayloadTypes.SeekJukebox.TYPE,
@@ -298,7 +313,7 @@ public class MusicDiscMakerFabric implements ModInitializer {
 
         ItemGroupEvents.modifyEntriesEvent(
                         ResourceKey.create(Registries.CREATIVE_MODE_TAB, ModCreativeTab.MAIN.getId()))
-                .register(output -> ModCreativeTab.TAB_ITEMS.forEach(holder -> output.accept(new ItemStack(holder.get()))));
+                .register(output -> ModCreativeTab.displayStacks().forEach(stack -> output.accept(stack)));
 
         if (Services.PLATFORM.isModLoaded("additionaladditions")) {
             com.kuronami.musicdiscmaker.compat.additionaladditions.AlbumProvider.install();
@@ -357,8 +372,20 @@ public class MusicDiscMakerFabric implements ModInitializer {
         FabricJukeboxEvents.register();
 
         // B5/C12: fabric 版ゲート (参加直後に wire 版を送る・canSend で盲送り回避)。詳細は FabricProtocolHandshake。
+        //? if >=1.21 {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 com.kuronami.musicdiscmaker.network.FabricProtocolHandshake.sendTo(handler.getPlayer()));
+        //?} else {
+        /*// 1.20.1 の Fabric API は JOIN を相手の channel 宣言より先に撃つので、JOIN では canSend が偽で
+        // 版が一度も届かなかった。相手が版の channel を宣言した時に送る。
+        net.fabricmc.fabric.api.networking.v1.S2CPlayChannelEvents.REGISTER.register((handler, sender, server, channels) -> {
+            if (channels.contains(com.kuronami.musicdiscmaker.network.LegacyPayloadIds.of(
+                    com.kuronami.musicdiscmaker.network.VersionPayload.PATH))) {
+                com.kuronami.musicdiscmaker.network.FabricProtocolHandshake.sendTo(handler.getPlayer());
+            }
+        });
+        */
+        //?}
 
         // server 停止で再生中状態を破棄 (シングルプレイのワールド退出含む)。
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {

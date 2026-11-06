@@ -39,6 +39,20 @@ dependencies {
     library("dev.lavalink.youtube:v2:1.18.2")
     library("org.slf4j:jcl-over-slf4j:2.0.17")  // httpclient の commons-logging を slf4j へ橋渡し
 
+    // ALAC (Apple Lossless) の decoder。M4A/ALAC の入力はこのコアで直接 decode する。
+    //  座標      : com.tianscar.javasound:javasound-alac:0.2.3
+    //  ライセンス: BSD-3-Clause (Copyright (c) 2011-2014 Peter McQuillan /
+    //              Based on the ALAC decoder - Copyright (c) 2005 David Hammerton)
+    //              全文は src/main/resources/META-INF/licenses/javasound-alac-LICENSE.txt
+    //  原典      : soiaf/Java-Apple-Lossless-decoder の Java ポートを Tianscar が Maven Central で配布。
+    //              配布元 GitHub (Tianscar/javasound-alac) は 2026-11 時点で 404 なので、
+    //              Maven Central の jar を版・SHA-256 で固定して使う。
+    //  SHA-256   : d5cb14c1c36fdad2b64a7892ada4f14d7cb5a675960ce5ac73b96a93e46a7d7f
+    // 推移依存 javasound-resloader は javax.sound 向け SPI だけが参照するので入れない。
+    add(library.name, "com.tianscar.javasound:javasound-alac:0.2.3") {
+        isTransitive = false
+    }
+
     // native libconnector を load できない環境 (Android = Bionic libc) 用の pure-Java codec。
     // com.sedmelluq...natives の差し替えクラスが NativeCodecs の判定でこちらへ切り替える。
     library("io.github.jaredmdobson:concentus:1.0.2") // Opus decode / encode (BSD-3-Clause)
@@ -80,6 +94,21 @@ tasks.named<Jar>("jar") {
     archiveVersion = ""
 }
 
+// javasound-alac は SPI (javax.sound 向け) と推移依存 javasound-resloader を含む。
+// 隔離 DependencyClassLoader は parent が null で javax.sound も resloader も見えないため、
+// 使わない SPI を残すと NoClassDefFound の温床になる。コアだけ (約 33KB) を 1 jar に詰め直す。
+val alacJar = library.elements.map { files ->
+    files.map { it.asFile }.first { it.name.startsWith("javasound-alac-") }
+}
+val repackAlac = tasks.register<Jar>("repackAlac") {
+    from(alacJar.map { zipTree(it) }) {
+        exclude("META-INF/services/**")
+        exclude("com/beatofthedrum/alacdecoder/spi/**")
+    }
+    archiveFileName.set("javasound-alac-0.2.3.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("repacked"))
+}
+
 // src/main/java/com/sedmelluq/.../natives に同名の差し替えを置いた LavaPlayer の native wrapper。
 // 隔離 classloader は jar を名前順に並べるだけなので、同名クラスが 2 つあると勝ち負けが
 // 名前次第になる。元の lavaplayer jar から抜いた版を同梱して、差し替え側だけが存在するようにする。
@@ -89,6 +118,7 @@ val nativeWrapperOverrides = listOf(
 val lavaplayerJarName = Regex("""lavaplayer-\d.*\.jar""")
 val packedLibraries = library.copyRecursive().apply {
     exclude(mapOf("group" to "org.slf4j", "module" to "slf4j-api"))
+    exclude(mapOf("group" to "com.tianscar.javasound", "module" to "javasound-alac"))
 }
 
 val repackLavaplayer = tasks.register<Jar>("repackLavaplayer") {
@@ -108,11 +138,13 @@ val repackLavaplayer = tasks.register<Jar>("repackLavaplayer") {
 
 // LavaPlayer 依存を build/dependencies/*.jar.packed に書き出す。
 // slf4j-api だけは mod 側提供なので除外。
+// javasound-alac は生の jar を入れず、上の repackAlac (SPI 除去後) だけを入れる。
 // Sync = 宛先の余分なファイルを削除する。依存の版を上げた時に旧版の .jar.packed が
 // 残ると隔離 classloader が両版を二重ロードするため、Copy ではなく Sync を使う。
 tasks.register<Sync>("copyDependencies") {
-    from(packedLibraries.filter { !lavaplayerJarName.matches(it.name) })
+    from(repackAlac)
     from(repackLavaplayer)
+    from(packedLibraries.filter { !lavaplayerJarName.matches(it.name) })
     into(layout.buildDirectory.dir("dependencies"))
     rename { it + ".packed" }
 }
