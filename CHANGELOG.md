@@ -5,7 +5,7 @@
 - Fixed the game crashing when opening the controls of the Minecart with Golden Jukebox on Forge 1.20.1.
 - Fixed a disc displayed on a Disc Pedestal disappearing when the pedestal was broken without taking the disc off first, on Minecraft 1.21.11 and later.
 - Fixed the end of a track being cut off on a Minecart with Golden Jukebox when the game had stalled while loading the audio.
-- The next track in an album is preloaded ahead of time on Minecraft 1.21 and later, so switching tracks no longer waits for loading.
+- The next track in an album starts loading ahead of time on Minecraft 1.21 and later, so less of the switch waits for it to open.
 
 Use the same Music Disc Maker version on the server and all clients.
 

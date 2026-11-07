@@ -3,6 +3,8 @@ package com.kuronami.musicdiscmaker.client.audio;
 import java.util.Objects;
 import java.util.function.Function;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.kuronami.musicdiscmaker.Config;
 import com.kuronami.musicdiscmaker.block.GoldenJukeboxBlockEntity;
 import com.kuronami.musicdiscmaker.network.SpeakerEntry;
@@ -79,6 +81,24 @@ final class GoldenEmitterAnchor implements DiscAnchor, LiveAudioConfig {
     @Override public int volumePercent() { return currentConfig().volumePercent(); }
     @Override public double gainMultiplier() { return 1.0D; }
     @Override public boolean directional() { return currentConfig().directional(); }
+
+    //? if >=1.21 {
+    /**
+     * 先読みの鍵になる、client world 上の金ジューク位置。
+     *
+     * <p>{@link GoldenEmitterAnchor} 自身は {@link LiveConfigAnchor} を実装しない (speaker 集合の
+     * 更新を持つラッパーで、原ブロックの位置は原アンカーが知っている)。そのため能力インターフェースの
+     * instanceof だけで先読みの位置を判定すると、金ジュークの再生は丸ごと外れる。位置は原アンカーへ委ねる。
+     *
+     * @return 原アンカーの位置。原アンカーが client world 上のブロックでない (entity 追従・移動構造物)
+     *         なら {@code null} = 先読みしない
+     */
+    @Nullable
+    BlockPos sourceConfigPos() {
+        return source instanceof LiveConfigAnchor live ? live.configPos() : null;
+    }
+    //?} else {
+    //?}
 
     /**
      * Speakerが無い通常再生ではserverからSet更新が来ないため、固定Goldenの同期済みBEを再読する。

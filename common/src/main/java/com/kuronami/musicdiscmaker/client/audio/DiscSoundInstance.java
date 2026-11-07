@@ -554,20 +554,42 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
     }
     //?} else {
     //?}
+
+    //? if >=1.21 {
+    /**
+     * 先読みの鍵になる、client world 上の金ジューク位置。
+     *
+     * <p><b>{@link GoldenEmitterAnchor} は {@link LiveConfigAnchor} を実装しない</b> (speaker 集合の
+     * 更新を持つラッパーで、位置は原アンカーが持つ)。{@link #tick} が能力インターフェースの instanceof
+     * だけで位置を取ると、金ジュークの再生経路が丸ごと外れて先読みが一度も発火しない。
+     * 位置の取り出しはこの 1 箇所に集約する。
+     *
+     * @param anchor 音源のアンカー
+     * @return 先読みの鍵。金ジューク以外 (entity 追従・移動構造物) は {@code null}
+     */
+    @Nullable
+    static BlockPos prefetchPos(DiscAnchor anchor) {
+        if (anchor instanceof LiveConfigAnchor live) {
+            return live.configPos();
+        }
+        if (anchor instanceof GoldenEmitterAnchor golden) {
+            return golden.sourceConfigPos();
+        }
+        return null;
+    }
+    //?} else {
+    //?}
+
     @Override
     public void tick() {
         // 音源が消えたら (jukebox 撤去・entity 除去・移動構造物の解体等いずれの経路でも) 鳴りっぱなしを止める。
         // 判定は anchor に委譲する (StaticAnchor は chunk 未ロード時は停止しない = 遠距離の誤消音を防ぐ)。
         if (!anchor.isValid()) {
-            //? if >=1.21.2 {
-            if (anchor instanceof LiveConfigAnchor lc) {
-                ClientPlaybackManager.get().cancelPrefetch(lc.configPos(), "tick: anchor-invalid");
+            //? if >=1.21 {
+            final BlockPos prefetchKey = prefetchPos(anchor);
+            if (prefetchKey != null) {
+                ClientPlaybackManager.get().cancelPrefetch(prefetchKey, "tick: anchor-invalid");
             }
-            //?} elif >=1.21 {
-/*            if (anchor instanceof StaticAnchor sa) {
-                ClientPlaybackManager.get().cancelPrefetch(sa.pos(), "tick: anchor-invalid");
-            }
-            */
             //?} else {
             //?}
             markExpectedEnd(); // 撤去による停止。この後の終端を「途中で切れた」と報告しない
@@ -626,13 +648,8 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
             */
             //?}
                 setDirectional(be.isDirectional());
-                //? if >=1.21.2 {
+                //? if >=1.21 {
                 setRangeBlocks(be.getRangeBlocks());
-                ClientPlaybackManager.drivePrefetch(configPos, be);
-                //?} elif >=1.21 {
-/*                setRangeBlocks(be.getRangeBlocks());
-                ClientPlaybackManager.drivePrefetch(sa.pos(), be);
-                */
                 //?} else {
 /*                final int beRange = be.getRangeBlocks();
                 if (beRange != this.rangeBlocks) {
@@ -643,6 +660,20 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
                 //?}
             }
         }
+        //? if >=1.21 {
+        // 先読みは anchor の実装型に依存させない。金ジュークのアンカーは LiveAudioConfig を実装する
+        // ラッパー (GoldenEmitterAnchor) で、LiveConfigAnchor ではない。上の音量再読の枝の中に置くと
+        // 金ジュークの再生では一度も到達しない。
+        final BlockPos prefetchKey = prefetchPos(anchor);
+        if (prefetchKey != null) {
+            final Minecraft client = Minecraft.getInstance();
+            if (client.level != null && client.level.isLoaded(prefetchKey)
+                    && client.level.getBlockEntity(prefetchKey) instanceof GoldenJukeboxBlockEntity be) {
+                ClientPlaybackManager.drivePrefetch(prefetchKey, be);
+            }
+        }
+        //?} else {
+        //?}
         applyListeningPosition(p);
         advanceFlatGate();
         this.volume = computeVolume();
