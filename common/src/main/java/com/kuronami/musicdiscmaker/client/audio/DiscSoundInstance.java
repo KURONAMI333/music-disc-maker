@@ -560,6 +560,9 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
         // 判定は anchor に委譲する (StaticAnchor は chunk 未ロード時は停止しない = 遠距離の誤消音を防ぐ)。
         if (!anchor.isValid()) {
             //? if >=1.21.2 {
+            if (anchor instanceof LiveConfigAnchor lc) {
+                ClientPlaybackManager.get().cancelPrefetch(lc.configPos(), "tick: anchor-invalid");
+            }
             //?} elif >=1.21 {
 /*            if (anchor instanceof StaticAnchor sa) {
                 ClientPlaybackManager.get().cancelPrefetch(sa.pos(), "tick: anchor-invalid");
@@ -625,6 +628,7 @@ public class DiscSoundInstance extends AbstractTickableSoundInstance
                 setDirectional(be.isDirectional());
                 //? if >=1.21.2 {
                 setRangeBlocks(be.getRangeBlocks());
+                ClientPlaybackManager.drivePrefetch(configPos, be);
                 //?} elif >=1.21 {
 /*                setRangeBlocks(be.getRangeBlocks());
                 ClientPlaybackManager.drivePrefetch(sa.pos(), be);

@@ -139,12 +139,9 @@ public final class ClientPlaybackManager {
     private final Map<BlockPos, AnnouncedTrack> announced = new HashMap<>();
     private record AnnouncedTrack(String sourceKey, int token) {}
 
-    //? if >=1.21.2 {
-    //?} elif >=1.21 {
-/*    private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis,
+    //? if >=1.21 {
+    private final PlaybackPrefetch<BlockPos> prefetch = new PlaybackPrefetch<>(System::currentTimeMillis,
             this::logPrefetchEvent);
-    */
-    //?} else {
     //?}
 
     /**
@@ -245,12 +242,8 @@ public final class ClientPlaybackManager {
                 directional, playbackClockMs(), identity, id, sourceContext, selection, regularOnly);
         reloadRequests.put(key, request);
         if (mayAnnounce(key, decision.token())) announceRequestedTrack(track);
-        //? if >=1.21.2 {
-        final PlaybackTiming timing = new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), false);
-        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(), timing,
-                id, sourceContext, selection, regularOnly);
-        //?} elif >=1.21 {
-/*        final IAudioSource warm = selection.selected() || regularOnly ? null
+        //? if >=1.21 {
+        final IAudioSource warm = selection.selected() || regularOnly ? null
                 : prefetch.claim(key, track.sourceKey(), startOffsetMs);
         final PlaybackTiming timing =
                 new PlaybackTiming(key.toShortString(), track.sourceKey(), decision.token(), warm != null);
@@ -331,7 +324,6 @@ public final class ClientPlaybackManager {
         source.onPlaybackFault(broken -> Minecraft.getInstance().execute(
                 () -> lateFailure(key, token, track,
                         PlaybackFailure.ofReason(broken.reason(), broken.detail()))));
-        */
 //?} else {
 /*        submitLoad(key, track, startOffsetMs, rangeBlocks, volumePercent, 0L, decision.token(),
                 id, sourceContext, selection, regularOnly);
@@ -1657,12 +1649,9 @@ public final class ClientPlaybackManager {
         faultGate.clear();
         LocalAudioClient.disconnect();
         ClientPlaybackHandler.clearSourceOwnership();
-        //? if >=1.21.2 {
-        //?} elif >=1.21 {
-/*        prefetch.dropAll("stopAll: world-exit");
+        //? if >=1.21 {
+        prefetch.dropAll("stopAll: world-exit");
         recentAlbumPos = null;
-        */
-        //?} else {
         //?}
         sessions.stopAll();
         reloadRequests.clear();
@@ -1733,8 +1722,8 @@ public final class ClientPlaybackManager {
             }
         }
         VanillaSpeakerPlayback.retryDeferredSpeakers();
-        //? if >=1.21 <1.21.2 {
-        /*final BlockPos pos = recentAlbumPos;
+        //? if >=1.21 {
+        final BlockPos pos = recentAlbumPos;
         if (pos == null) {
             return;
         }
@@ -1749,24 +1738,23 @@ public final class ClientPlaybackManager {
             recentAlbumPos = null;
             get().cancelPrefetch(pos, "mixed-album-tick: block-entity-gone");
         }
-        */
         //?}
     }
 
-    //? if >=1.21 <1.21.2 {
-    /*/^* 直前に先読み判定が回った jukebox 座標。MDM 再生が止まった後も混在アルバムの追跡のために保持する。 ^/
+    //? if >=1.21 {
+    /** 直前に先読み判定が回った jukebox 座標。MDM 再生が止まった後も混在アルバムの追跡のために保持する。 */
     private static BlockPos recentAlbumPos;
 
-    /^* 先読みの発火を残り時間ベースで判断するリード時間。 ^/
+    /** 先読みの発火を残り時間ベースで判断するリード時間。 */
     public static final long PREFETCH_LEAD_MS = 15_000L;
 
     private static String lastPrefetchSkipReason;
 
-    /^*
+    /**
      * 次に鳴る custom トラックを残り時間ベースで先読みする。{@code DiscSoundInstance.tick()}
      * (MDM 再生中) と {@link #mixedAlbumTick} (vanilla / 他 MOD 曲の再生中) の共通経路。
      * 判定内容は 1.21.1 の原本 ({@code DiscSoundInstance#drivePrefetch}) から動かしていない。
-     ^/
+     */
     public static void drivePrefetch(BlockPos pos, GoldenJukeboxBlockEntity be) {
         recentAlbumPos = pos.immutable();
         final ClientPlaybackManager manager = get();
@@ -1824,5 +1812,5 @@ public final class ClientPlaybackManager {
         lastPrefetchSkipReason = reason;
         MusicDiscMaker.LOGGER.debug("Prefetch not-fired [{}] reason={} {}", pos.toShortString(), reason, detail);
     }
-    *///?}
+    //?}
 }
