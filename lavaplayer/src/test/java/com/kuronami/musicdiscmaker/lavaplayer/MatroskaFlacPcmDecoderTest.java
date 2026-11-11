@@ -139,7 +139,7 @@ class MatroskaFlacPcmDecoderTest {
         } finally {
             whole.close();
         }
-        assertTrue(Math.abs(out.size() - 191_898) <= 64, "長さ " + out.size());
+        assertTrue(DirectPcmInputTest.isResampledLength(out.size()), "長さ " + out.size());
 
         final IAudioSource early = input.open();
         final byte[] buffer = new byte[512];

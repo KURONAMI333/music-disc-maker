@@ -37,6 +37,14 @@ Best-effort summary — verify against each project before redistribution:
       Apache License 2.0
   javasound-alac (com.tianscar.javasound), service-loader classes removed
       BSD 3-Clause License (full text: META-INF/licenses/javasound-alac-LICENSE.txt)
+  concentus (io.github.jaredmdobson; pure-Java Opus, used when LavaPlayer natives cannot load)
+      BSD 3-Clause License
+  jlayer (javazoom; pure-Java MP3, same fallback)
+      GNU Lesser General Public License 2.1
+  jaad (de.sfuhrm; pure-Java AAC, same fallback)
+      Public Domain
+  jorbis (org.jcraft; pure-Java Vorbis, same fallback)
+      GNU Lesser General Public License 2.0
 
 Full license texts are available from each library's project page. This file
 is a redistribution attribution summary, not the authoritative license source.

@@ -18,8 +18,9 @@ import com.kuronami.musicdiscmaker.lavaplayer.api.IAudioSource;
  * 直 decode の {@link IAudioSource} (48kHz / mono / S16LE) の試験。
  *
  * <p>長さは resampler の実測に合わせる。48kHz 入力はそのまま 1 sample = 2 byte、
- * 44.1kHz 入力は 48kHz へ直す時に末尾 51 sample (1.06ms) が返らない (libsamplerate の
- * 遅延分)。差は 1 秒単位の「曲が途中で終わった」判定には影響しない。
+ * 44.1kHz 入力は 48kHz へ直す時に末尾が少し返らない (resampler の遅延分。libsamplerate で
+ * 51 sample = 1.06ms、native を load できない環境の Java resampler で 17 sample)。
+ * 差は 1 秒単位の「曲が途中で終わった」判定には影響しない。
  */
 class DirectPcmInputTest {
 
@@ -34,8 +35,15 @@ class DirectPcmInputTest {
     void resamplesA44kInputWithinOneMillisecondOfTheInputLength() throws Exception {
         final byte[] pcm = drain(alac("a16.m4a", "direct-44k"));
 
-        assertTrue(Math.abs(pcm.length - 191_898) <= 64,
-                "44.1kHz → 48kHz の長さ: " + pcm.length + " byte");
+        assertTrue(isResampledLength(pcm.length), "44.1kHz → 48kHz の長さ: " + pcm.length + " byte");
+    }
+
+    /**
+     * 2 秒の 44.1kHz 入力を 48kHz へ直した長さ。入力 (192000 byte) を超えず、resampler の
+     * 遅延分 (libsamplerate の 191898 byte から 32 sample の余裕まで) より短くならない。
+     */
+    static boolean isResampledLength(int bytes) {
+        return bytes <= 192_000 && bytes >= 191_898 - 64;
     }
 
     /** 全 byte が読め、終端の -1 の後に失敗理由が無い (最後まで鳴った)。 */
