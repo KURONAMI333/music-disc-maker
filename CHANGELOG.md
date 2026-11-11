@@ -33,6 +33,7 @@ Use the same Music Disc Maker version on the server and all clients.
 - Dyeing an Album or a Golden Album now shows up in the recipe book and JEI, and the creative tab and JEI list both Albums in every color.
 - The Music Disc Maker shows why a link failed right under the arrow, and an empty input slot shows the outline of a disc.
 - An Album or Boombox that holds more than it can send now opens with the discs that fit and gives the rest back to you, instead of refusing to open.
+- Amendments compatibility (Minecraft 1.20.1, 1.21.1 and 26.1.2): Custom Music Discs on top of a jukebox now show their colors in the same disc shape as other discs instead of appearing black, and the Golden Jukebox and the Minecart with Golden Jukebox show the spinning disc on top too. Amendments is still optional.
 
 Use the same Music Disc Maker version on the server and all clients.
 

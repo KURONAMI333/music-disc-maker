@@ -579,6 +579,28 @@ public class GoldenJukeboxBlockEntity extends BlockEntity implements WorldlyCont
         *///?}
     }
 
+    /**
+     * 外から見せる 1 枚 (Amendments 互換で上に乗せる盤)。アルバムは中の今の盤、
+     * 読めなければ入っているもの (アルバム) そのもの。盤が無ければ空。
+     */
+    public ItemStack shownDisc() {
+        if (!hasDisc()) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack shown;
+        try {
+            shown = effectiveDisc();
+        } catch (RuntimeException e) {
+            shown = ItemStack.EMPTY;
+        }
+        return shown.isEmpty() ? getDisc() : shown;
+    }
+
+    /** 再生中 (一時停止・停止でない)。PlaybackCursor.State は STOPPED / PAUSED / PLAYING の 3 つだけ。 */
+    public boolean isPlayingState() {
+        return hasDisc() && !isStopped() && !isPaused();
+    }
+
     /** MDM Albumは、少なくとも1曲を解決できる時だけ音源スロットへ入る。 */
     private static boolean isPlayableMdmAlbum(ItemStack stack) {
         return AlbumItem.isAlbum(stack) && !MediaSequenceResolver.resolve(stack).tracks().isEmpty();
